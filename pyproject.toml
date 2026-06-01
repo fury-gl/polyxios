@@ -13,11 +13,12 @@ dependencies = ["numpy>=1.24"]
 [project.optional-dependencies]
 dev = [
     "pytest>=7",
-    "hypothesis",
     "mypy",
     "cython>=3.0",
     "pre-commit",
     "spin",
+    "ruff",
+    "codespell",
 ]
 doc = [
     "sphinx",

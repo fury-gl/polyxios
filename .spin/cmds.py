@@ -21,6 +21,15 @@ def _run(cmd, *, check=True, capture=True):
     return result.stdout.strip() if capture else result.returncode
 
 
+def _ensure_installed(packages):
+    """Ensure specific pip packages are installed before running a command."""
+    if isinstance(packages, str):
+        packages = [packages]
+
+    click.echo(f"Ensuring dependencies are met: {', '.join(packages)}...")
+    _run([sys.executable, "-m", "pip", "install", *packages], capture=False)
+
+
 def _get_remotes():
     output = _run(["git", "remote", "-v"])
     if not output:
@@ -56,20 +65,17 @@ def setup():
     else:
         click.echo(f"Upstream remote already present: {upstream_remote}")
 
-    click.echo("\nInstalling build dependencies...")
-    _run(
+    click.echo("\nInstalling dev dependencies...")
+    _ensure_installed(
         [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
             "meson-python>=0.15",
             "Cython>=3.0",
             "numpy>=1.24",
             "meson",
             "ninja",
-        ],
-        capture=False,
+            "mypy",
+            "pre-commit",
+        ]
     )
 
     if platform.system() == "Darwin":
@@ -136,6 +142,8 @@ def test(pattern, verbose, pytest_args):
     pytest_args : tuple
         Extra arguments forwarded directly to pytest.
     """
+    _ensure_installed(["pytest>=7"])
+
     cmd = ["pytest", "tests/"]
 
     if pattern:
@@ -161,6 +169,7 @@ def lint(fix):
     fix : bool
         If True, apply automatic fixes with ruff.
     """
+    _ensure_installed(["ruff", "codespell"])
     failed = False
 
     click.echo("Running ruff linter...")
@@ -181,7 +190,7 @@ def lint(fix):
     spell_cmd = [
         "codespell",
         "--skip",
-        "*.pyc,.git,./docs/_build,*.egg-info,./build",
+        "*.pyc,.git,_build,*.egg-info,./build",
         "polyxios",
         "tests",
         "docs",
@@ -220,6 +229,14 @@ def docs(clean, open_browser):
     open_browser : bool
         Open the built docs in the default browser.
     """
+    _ensure_installed(
+        [
+            "sphinx",
+            "numpydoc",
+            "sphinx-gallery",
+            "pydata-sphinx-theme",
+        ]
+    )
     docs_dir = "docs"
     build_dir = os.path.join(docs_dir, "_build")
 

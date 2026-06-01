@@ -136,14 +136,14 @@ manage the development workflow:
 
 ```bash
 pip install spin
-spin setup       # add upstream remote + install build deps (libomp on macOS)
+spin setup       # add upstream remote + install dev deps (libomp on macOS)
 spin install     # build Cython extensions and install
 spin install -e  # editable install (source changes reflected immediately)
 ```
 
 | Command | Description |
 |---------|-------------|
-| `spin setup` | First-time setup: upstream remote, build deps, OpenMP on macOS |
+| `spin setup` | First-time setup: upstream remote, dev deps, OpenMP on macOS |
 | `spin build` | Build with Meson/ninja |
 | `spin install` | Regular install (compiled) |
 | `spin install -e` | Editable install for development |

@@ -17,8 +17,8 @@ Getting started
 
 - Adds the ``upstream`` remote (``https://github.com/fury-gl/polyxios.git``)
   if it is not already present.
-- Installs the build dependencies (``meson-python``, ``Cython``, ``numpy``,
-  ``meson``, ``ninja``).
+- Installs the dev dependencies (``meson-python``, ``Cython``, ``numpy``,
+  ``meson``, ``ninja``, ``mypy``, ``pre-commit``).
 - On macOS, installs ``libomp`` via Homebrew so the OpenMP hot-paths in
   ``_core.pyx`` compile correctly.
 
