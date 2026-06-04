@@ -1,0 +1,44 @@
+name: Code Format
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: pre-commit/action@v3.0.1
+
+  commit-messages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check commit messages
+        run: |
+          for sha in $(git log origin/${{ github.base_ref }}..HEAD --format=%H); do
+            git log -1 --format=%B "$sha" > /tmp/commit_msg
+            echo "Checking: $(git log -1 --format=%s $sha)"
+            python tools/commit-msg.py /tmp/commit_msg || exit 1
+          done

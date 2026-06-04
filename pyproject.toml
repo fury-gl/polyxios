@@ -1,10 +1,68 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["meson-python>=0.15", "Cython>=3.0", "numpy>=1.24"]
+build-backend = "mesonpy"
 
 [project]
-name =  "polyxios"
-version = "0.1.0.dev1"
+name = "polyxios"
+version = "0.1.0"
 readme = "README.md"
-requires-python = ">=3.10"
-license.file="LICENSE"
+requires-python = ">=3.11"
+license.file = "LICENSE"
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mypy",
+    "cython>=3.0",
+    "pre-commit",
+    "spin",
+    "ruff",
+    "codespell",
+]
+doc = [
+    "sphinx",
+    "numpydoc",
+    "sphinx-gallery",
+    "pydata-sphinx-theme",
+]
+
+[project.entry-points."polyxios.codecs"]
+# third-party packages register their own entry points here
+
+[tool.spin]
+package = "polyxios"
+
+[tool.spin.commands]
+"Setup" = [".spin/cmds.py:setup"]
+"Build" = ["spin.cmds.meson.build", ".spin/cmds.py:install"]
+"Test" = [".spin/cmds.py:test", ".spin/cmds.py:lint"]
+"Docs" = [".spin/cmds.py:docs"]
+"Clean" = [".spin/cmds.py:clean"]
+
+[tool.pytest.ini_options]
+addopts = "--durations=10 -v"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+force-exclude = true
+extend-exclude = ["__pycache__", "build", "docs/"]
+
+[tool.ruff.lint]
+extend-select = ["B", "C4", "I", "UP", "W", "PERF"]
+ignore = ["B905", "C901"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["polyxios"]
+combine-as-imports = true
+force-sort-within-sections = true
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+ignore_missing_imports = true
