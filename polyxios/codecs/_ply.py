@@ -13,7 +13,7 @@ EXTENSION: str = ".ply"
 
 MAX_CONNECTIVITY_INDEX: int = 2**31 - 1
 
-# PLY property type → numpy dtype string (without endian prefix)
+# PLY property type - numpy dtype string (without endian prefix)
 _PLY_DTYPE: dict[str, str] = {
     "char": "i1",
     "uchar": "u1",

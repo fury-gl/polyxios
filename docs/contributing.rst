@@ -32,7 +32,7 @@ a space:
    * - ``TEST:``
      - Adding or changing tests
    * - ``STYLE:``
-     - Whitespace / formatting — no logic change
+     - Whitespace / formatting - no logic change
    * - ``WIP:``
      - Work in progress, not ready to merge
 

@@ -1,12 +1,12 @@
 """
-_core_fallback.py — pure Python fallbacks for _core.pyx
+_core_fallback.py - pure Python fallbacks for _core.pyx
 =========================================================
 
 Identical interface to _core.pyx. Used automatically when the compiled
 extension is not available (no C compiler, CI environment, editable install
 without a build step). Slower but produces bit-identical results.
 
-Imported by _backend.py — do not import this module directly.
+Imported by _backend.py - do not import this module directly.
 """
 
 import numpy as np

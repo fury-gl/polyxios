@@ -79,7 +79,7 @@ def setup():
     )
 
     if platform.system() == "Darwin":
-        click.echo("\nDetected macOS — installing libomp for OpenMP support...")
+        click.echo("\nDetected macOS - installing libomp for OpenMP support...")
         _run(["brew", "install", "libomp"], capture=False)
 
     click.echo("\nSetup complete! Next steps:")

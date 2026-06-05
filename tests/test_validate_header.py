@@ -27,7 +27,7 @@ def test_n_verts_exceeds_file_size() -> None:
 
 
 def test_reasonable_header_passes() -> None:
-    # 100 verts, 50 tris, 150 conn indices — well within any file
+    # 100 verts, 50 tris, 150 conn indices - well within any file
     validate_header(100, 50, 150, 10_000)
 
 
@@ -54,7 +54,7 @@ def test_int64_overflow_at_write() -> None:
 
 
 def test_unknown_vtk_type_raises() -> None:
-    """VTK cell type 99 → UnknownElementTypeError, not IndexError."""
+    """VTK cell type 99 - UnknownElementTypeError, not IndexError."""
     import tempfile
 
     vtk_content = (
@@ -127,7 +127,7 @@ def test_vtk_tensor_written_correctly() -> None:
 
 
 def test_multi_group_element_tags() -> None:
-    """Element 0 belongs to 'inlet' and 'wall' — both tags must survive roundtrip."""
+    """Element 0 belongs to 'inlet' and 'wall' - both tags must survive roundtrip."""
     import tempfile
 
     from polyxios import make_polydata

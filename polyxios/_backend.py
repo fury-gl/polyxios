@@ -1,5 +1,5 @@
 """
-_backend.py — dispatch between compiled _core and pure-Python _core_fallback
+_backend.py - dispatch between compiled _core and pure-Python _core_fallback
 =============================================================================
 
 All other modules import from here, never from _core or _core_fallback directly.

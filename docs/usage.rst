@@ -31,7 +31,7 @@ Lazy loading
 ------------
 
 For large meshes (gigabytes of binary data), pass ``lazy=True``. polyxios
-memory-maps the file and only loads the pages you actually touch — the rest
+memory-maps the file and only loads the pages you actually touch - the rest
 stays on disk until needed.
 
 .. code-block:: python
@@ -68,17 +68,17 @@ Supported formats
      - ``.vtr``
      - ✓
      - ✓
-     - —
+     - -
    * - VTK PolyData
      - ``.vtp``
      - ✓
      - ✓
-     - —
+     - -
    * - Wavefront OBJ
      - ``.obj``
      - ✓
      - ✓
-     - —
+     - -
    * - Stanford PLY
      - ``.ply``
      - ✓
@@ -110,9 +110,9 @@ Transforms
 Plugin system
 -------------
 
-Any third-party package can register a new format — no fork required.
+Any third-party package can register a new format - no fork required.
 
-**Step 1 — write a codec:**
+**Step 1 - write a codec:**
 
 .. code-block:: python
 
@@ -129,7 +129,7 @@ Any third-party package can register a new format — no fork required.
     def register():
         return ".stl", Codec(read, write)
 
-**Step 2 — declare an entry point** in ``pyproject.toml``:
+**Step 2 - declare an entry point** in ``pyproject.toml``:
 
 .. code-block:: toml
 

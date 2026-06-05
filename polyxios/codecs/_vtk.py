@@ -278,7 +278,7 @@ def _write_vtk_array(
             for row in mat:
                 fh.write(f"{row[0]:.10g} {row[1]:.10g} {row[2]:.10g}\n".encode())  # type: ignore[union-attr]
     elif arr.ndim == 2 and arr.shape[1] == 6:
-        # Voigt 6-component → expand to 3×3 and emit TENSORS
+        # Voigt 6-component - expand to 3×3 and emit TENSORS
         fh.write(f"TENSORS {name} double\n".encode())  # type: ignore[union-attr]
         for row in arr.astype(np.float64):
             mat = np.array(
@@ -767,7 +767,7 @@ def _parse_binary_attrs(
             attrs[name] = raw.reshape(n_items, 3, 3)
 
         else:
-            pos = line_start  # unknown keyword — back up and let outer loop handle
+            pos = line_start  # unknown keyword - back up and let outer loop handle
             break
 
     return pos, attrs

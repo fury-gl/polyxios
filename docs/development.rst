@@ -2,8 +2,8 @@ Development Guide
 =================
 
 polyxios uses `spin <https://github.com/scientific-python/spin>`_ to manage
-the development workflow. All common tasks — building, testing, linting, and
-documentation — are available as ``spin`` sub-commands.
+the development workflow. All common tasks - building, testing, linting, and
+documentation - are available as ``spin`` sub-commands.
 
 Getting started
 ---------------
@@ -25,7 +25,7 @@ Getting started
 **2. Install polyxios** with Cython extensions compiled::
 
     spin install       # regular install
-    spin install -e    # editable install — source changes are reflected immediately
+    spin install -e    # editable install - source changes are reflected immediately
 
 Building
 --------
