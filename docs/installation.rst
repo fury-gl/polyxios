@@ -19,7 +19,7 @@ to manage the build:
     pip install spin
     spin setup       # first-time: upstream remote + build deps (libomp on macOS)
     spin install     # compiled install
-    spin install -e  # editable install — source changes reflected immediately
+    spin install -e  # editable install - source changes reflected immediately
 
 Dependencies
 ------------

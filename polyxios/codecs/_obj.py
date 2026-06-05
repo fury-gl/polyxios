@@ -17,7 +17,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     path
         Path to the .obj file.
     lazy
-        Not supported for OBJ — raises LazyReadError.
+        Not supported for OBJ - raises LazyReadError.
 
     Returns
     -------
@@ -80,7 +80,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
                     element_tag_accumulator.setdefault(g, []).append(face_idx)
 
             elif directive == "g":
-                # "g name1 name2 ..." — all names become active groups
+                # "g name1 name2 ..." - all names become active groups
                 if len(parts) > 1:
                     active_groups = parts[1:]
                 else:
@@ -196,7 +196,7 @@ def write(poly: PolyData, path: Path | str, **opts: object) -> None:
             for vn in poly.vertex_attrs["normals"]
         )
 
-    # Build reverse tag map: element_idx → set of group names
+    # Build reverse tag map: element_idx - set of group names
     idx_to_groups: dict[int, list[str]] = {}
     for g, idxs in poly.element_tags.items():
         for i in idxs:

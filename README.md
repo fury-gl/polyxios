@@ -1,6 +1,6 @@
 # polyxios
 
-**Fast, clean mesh I/O for Python.** Read and write 3D mesh files in one line — no hidden surprises, no silent data corruption.
+**Fast, clean mesh I/O for Python.** Read and write 3D mesh files in one line - no hidden surprises, no silent data corruption.
 
 ---
 
@@ -38,10 +38,10 @@ px.write(mesh, "brain.ply", binary=True, endian="little")
 
 ---
 
-## Lazy loading — work with large files without filling RAM
+## Lazy loading - work with large files without filling RAM
 
 For large meshes (gigabytes of binary data), pass `lazy=True`. polyxios
-memory-maps the file and only loads the pages you actually touch — the rest
+memory-maps the file and only loads the pages you actually touch - the rest
 stays on disk until needed.
 
 ```python
@@ -64,12 +64,12 @@ load eagerly (the whole file must be parsed to extract values).
 | Format | Extension | Read | Write | Lazy load |
 |--------|-----------|------|-------|-----------|
 | VTK Legacy | `.vtk` | ✓ | ✓ | binary only |
-| VTK RectilinearGrid | `.vtr` | ✓ | ✓ | — |
-| VTK PolyData | `.vtp` | ✓ | ✓ | — |
-| Wavefront OBJ | `.obj` | ✓ | ✓ | — |
+| VTK RectilinearGrid | `.vtr` | ✓ | ✓ | - |
+| VTK PolyData | `.vtp` | ✓ | ✓ | - |
+| Wavefront OBJ | `.obj` | ✓ | ✓ | - |
 | Stanford PLY | `.ply` | ✓ | ✓ | binary only |
 
-**5 formats supported** — more coming via the plugin system.
+**5 formats supported** - more coming via the plugin system.
 
 ---
 
@@ -93,10 +93,10 @@ combined = merge(mesh_a, mesh_b)
 
 ## Add your own format
 
-Any third-party package can teach polyxios to read and write a new format —
+Any third-party package can teach polyxios to read and write a new format -
 no fork required, no pull request needed.
 
-**Step 1 — write a codec** (two functions, nothing more):
+**Step 1 - write a codec** (two functions, nothing more):
 
 ```python
 # mypackage/stl_codec.py
@@ -113,14 +113,14 @@ def register():
     return ".stl", Codec(read, write)
 ```
 
-**Step 2 — declare an entry point** in your `pyproject.toml`:
+**Step 2 - declare an entry point** in your `pyproject.toml`:
 
 ```toml
 [project.entry-points."polyxios.codecs"]
 stl = "mypackage.stl_codec:register"
 ```
 
-After `pip install mypackage`, polyxios picks up `.stl` automatically —
+After `pip install mypackage`, polyxios picks up `.stl` automatically -
 no configuration, no restart needed:
 
 ```python
@@ -163,11 +163,11 @@ conventions and the full contributor guide.
 
 ## Why polyxios?
 
-- **No silent data corruption** — large mesh indices raise an error instead of truncating
-- **All element groups preserved** — a face belonging to multiple tags stays in all of them
-- **Safe on untrusted files** — header counts validated before any memory allocation
-- **Memory-efficient** — lazy mmap loading for large binary files
-- **Works without a compiler** — pure Python fallbacks included; Cython hot-paths optional
+- **No silent data corruption** - large mesh indices raise an error instead of truncating
+- **All element groups preserved** - a face belonging to multiple tags stays in all of them
+- **Safe on untrusted files** - header counts validated before any memory allocation
+- **Memory-efficient** - lazy mmap loading for large binary files
+- **Works without a compiler** - pure Python fallbacks included; Cython hot-paths optional
 
 ---
 

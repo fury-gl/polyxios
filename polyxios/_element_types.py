@@ -1,12 +1,12 @@
 from typing import Final
 
-# Hard caps — prevent unbounded allocation from corrupt headers (meshio #1562)
+# Hard caps - prevent unbounded allocation from corrupt headers (meshio #1562)
 MAX_SAFE_VERTICES: Final[int] = 500_000_000
 MAX_SAFE_ELEMENTS: Final[int] = 2_000_000_000
 MAX_SAFE_CONN: Final[int] = 8_000_000_000
 
-# Canonical polyxios element type codes: str name → uint8 code.
-# These are polyxios's own codes — do NOT use VTK integers directly.
+# Canonical polyxios element type codes: str name - uint8 code.
+# These are polyxios's own codes - do NOT use VTK integers directly.
 ELEMENT_TYPES: Final[dict[str, int]] = {
     "empty_cell": 0,
     "vertex": 1,
@@ -68,7 +68,7 @@ ELEMENT_TYPES: Final[dict[str, int]] = {
     "bezier_triangle": 57,
 }
 
-# Reverse lookup: uint8 code → str name
+# Reverse lookup: uint8 code - str name
 ELEMENT_TYPES_INV: Final[dict[int, str]] = {v: k for k, v in ELEMENT_TYPES.items()}
 
 # Node count per element type; -1 means variable-length (uses offsets array).
@@ -133,8 +133,8 @@ NODES_PER_ELEMENT: Final[dict[str, int]] = {
     "bezier_triangle": -1,
 }
 
-# VTK type integer → polyxios type name. Covers all VTK types 0–76.
-# Any VTK code not in this dict → UnknownElementTypeError, never IndexError/KeyError.
+# VTK type integer - polyxios type name. Covers all VTK types 0–76.
+# Any VTK code not in this dict - UnknownElementTypeError, never IndexError/KeyError.
 VTK_TO_POLYXIOS: Final[dict[int, str]] = {
     0: "empty_cell",
     1: "vertex",
@@ -200,5 +200,5 @@ VTK_TO_POLYXIOS: Final[dict[int, str]] = {
     76: "bezier_triangle",
 }
 
-# Reverse: polyxios name → VTK integer (only for types that have a VTK mapping)
+# Reverse: polyxios name - VTK integer (only for types that have a VTK mapping)
 POLYXIOS_TO_VTK: Final[dict[str, int]] = {v: k for k, v in VTK_TO_POLYXIOS.items()}

@@ -94,7 +94,7 @@ def resolve(
     UnsupportedFormatError
         If no codec is registered for the resolved extension.
     """
-    ext = fmt if fmt is not None else Path(path).suffix.lower()
+    ext = fmt.lower() if fmt is not None else Path(path).suffix.lower()
     if ext not in registry:
         raise UnsupportedFormatError(f"No codec for '{ext}'")
     return registry[ext]

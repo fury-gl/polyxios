@@ -84,7 +84,7 @@ def make_polydata(
     if vertices.ndim == 1:
         vertices = vertices.reshape(-1, 3)
 
-    # First pass: validate types, compute sizes, convert str → (code, int32_arr)
+    # First pass: validate types, compute sizes, convert str - (code, int32_arr)
     groups: list[tuple[int, np.ndarray]] = []
     total_conn = 0
     total_elems = 0

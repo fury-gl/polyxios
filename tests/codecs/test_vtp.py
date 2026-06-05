@@ -86,6 +86,6 @@ def test_unsupported_lazy() -> None:
     with tempfile.NamedTemporaryFile(suffix=".vtp", delete=False) as f:
         tmp = f.name
     write(poly, tmp)
-    # VTP lazy not supported with frozen PolyData → raises LazyReadError
+    # VTP lazy not supported with frozen PolyData - raises LazyReadError
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)

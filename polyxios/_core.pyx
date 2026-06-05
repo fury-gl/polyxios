@@ -1,7 +1,7 @@
 # cython: boundscheck=False, wraparound=False, cdivision=True, nonecheck=False
 # cython: language_level=3
 """
-_core.pyx — compiled hot-paths for mesh topology operations
+_core.pyx - compiled hot-paths for mesh topology operations
 ============================================================
 
 Contains every performance-critical mesh operation that benefits from Cython:
@@ -14,12 +14,12 @@ Contains every performance-critical mesh operation that benefits from Cython:
                           referenced in the connectivity array. Used as a fast
                           early-exit check in remove_orphan_vertices().
 
-  compact_vertex_indices  Produce a remapping array (old_index → new_index,
+  compact_vertex_indices  Produce a remapping array (old_index - new_index,
                           -1 for unreferenced vertices). Called after
                           has_orphan_vertices confirms orphans exist.
 
 If Cython is not available the identical interface is provided in pure Python
-by _core_fallback.py — same signatures, same results, just slower.
+by _core_fallback.py - same signatures, same results, just slower.
 Binary I/O hot-paths live in the codec-specific Cython files (e.g. _vtk_parse.pyx).
 """
 

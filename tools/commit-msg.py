@@ -14,7 +14,7 @@ Every commit subject line must start with one of these prefixes:
   MNT:    maintenance (release prep, dep bumps, etc.)
   DOC:    documentation
   TEST:   adding or changing tests
-  STYLE:  whitespace, formatting — no logic change
+  STYLE:  whitespace, formatting - no logic change
   WIP:    work in progress, not ready to merge
 
 Subject line rules:
