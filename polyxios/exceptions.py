@@ -18,6 +18,10 @@ class LazyReadError(PolyxiosError):
     """Raised when lazy=True is requested for a format that does not support it."""
 
 
+class FetcherError(PolyxiosError):
+    """Raised when asset resolution or retrieval fails."""
+
+
 class IndexOverflowError(CodecError):
     """
     Raised when connectivity.max() exceeds a codec's MAX_CONNECTIVITY_INDEX at write time.
