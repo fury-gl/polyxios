@@ -1,5 +1,6 @@
 from polyxios._registry import Codec, build_default_registry, resolve
 from polyxios._types import PolyData, make_polydata
+from polyxios.fetcher import fetch
 import polyxios.transforms as transforms
 from polyxios.validate import validate
 
@@ -71,4 +72,5 @@ __all__ = [
     "transforms",
     "validate",
     "write",
+    "fetch",
 ]
