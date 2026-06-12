@@ -50,7 +50,7 @@ _VTK_DTYPE_MAP: dict[str, str] = {
 
 
 def read(path: Path | str, *, lazy: bool = False) -> PolyData:
-    """Parse a VTK legacy unstructured grid file and return a PolyData.
+    """Parse a VTK legacy file (UNSTRUCTURED_GRID or POLYDATA) and return a PolyData.
 
     Parameters
     ----------
@@ -81,22 +81,35 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         header_line = fh.readline().decode("ascii", errors="replace").strip()
         fh.readline()  # title line (unused)
         data_type = fh.readline().decode("ascii", errors="replace").strip().upper()
-        dataset_line = fh.readline().decode("ascii", errors="replace").strip().upper()
-
-    if "UNSTRUCTURED_GRID" not in dataset_line:
-        raise CodecError(
-            f"VTK codec supports only DATASET UNSTRUCTURED_GRID, got: {dataset_line!r}"
-        )
+        # Some VTK v1.0 files have a blank line before the DATASET line; skip them.
+        dataset_line = ""
+        for _ in range(8):  # guard against infinite loop on malformed files
+            dataset_line = (
+                fh.readline().decode("ascii", errors="replace").strip().upper()
+            )
+            if dataset_line:
+                break
 
     is_binary = data_type == "BINARY"
     version = _parse_vtk_version(header_line)
 
-    if is_binary:
-        return _read_binary(path, file_size, version, lazy=lazy)
-    else:
+    if "UNSTRUCTURED_GRID" in dataset_line:
+        if is_binary:
+            return _read_binary(path, file_size, version, lazy=lazy)
+        else:
+            if lazy:
+                raise LazyReadError("VTK ASCII format does not support lazy reads.")
+            return _read_ascii(path, file_size, version)
+    elif "POLYDATA" in dataset_line:
         if lazy:
-            raise LazyReadError("VTK ASCII format does not support lazy reads.")
-        return _read_ascii(path, file_size, version)
+            raise LazyReadError(
+                "VTK ASCII POLYDATA format does not support lazy reads."
+            )
+        return _read_polydata_ascii(path, file_size)
+    else:
+        raise CodecError(
+            f"VTK codec supports DATASET UNSTRUCTURED_GRID or POLYDATA, got: {dataset_line!r}"
+        )
 
 
 def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
@@ -308,6 +321,140 @@ def _write_bin_f64(arr: np.ndarray, fh: object) -> None:
 
 def _write_bin_i32(arr: np.ndarray, fh: object) -> None:
     fh.write(arr.astype(np.dtype(">i4")).tobytes())  # type: ignore[union-attr]
+
+
+def _read_polydata_ascii(path: Path, file_size: int) -> PolyData:
+    """Read a VTK legacy ASCII POLYDATA file and convert to PolyData.
+
+    POLYDATA uses named topology sections (POLYGONS, LINES, VERTICES,
+    TRIANGLE_STRIPS) instead of CELLS + CELL_TYPES.  Each section maps
+    to a polyxios element type determined by the vertex count per cell:
+
+    POLYGONS:
+        3 vertices  -> triangle (code 5)
+        4 vertices  -> quad     (code 9)
+        N vertices  -> polygon  (code 7)
+    LINES:
+        2 vertices  -> line      (code 3)
+        N vertices  -> poly_line (code 4)
+    VERTICES:
+        1 vertex    -> vertex      (code 1)
+        N vertices  -> poly_vertex (code 2)
+    TRIANGLE_STRIPS:
+        always      -> triangle_strip (code 6)
+    """
+    with open(path, "rb") as fh:
+        content = fh.read().decode("ascii", errors="replace")
+
+    lines = content.splitlines()
+    # Skip lines until we find POINTS (header may have blank lines / extra lines)
+    i = 0
+    n_lines = len(lines)
+
+    vertices = np.zeros((0, 3), dtype=np.float64)
+    conn_list: list[int] = []
+    off_list: list[int] = [0]
+    type_list: list[int] = []
+    vertex_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = {}
+    n_verts = 0
+    n_elems = 0
+
+    while i < n_lines:
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+
+        upper = line.upper()
+
+        if upper.startswith("POINTS"):
+            parts = line.split()
+            n_verts = int(parts[1])
+            i += 1
+            validate_header(n_verts, 0, 0, file_size)
+            if _HAS_CYTHON:
+                vertices = parse_ascii_coords(lines, i, n_verts)
+                i += n_verts
+            else:
+                verts_raw: list[float] = []
+                while len(verts_raw) < n_verts * 3:
+                    verts_raw.extend(float(x) for x in lines[i].split())
+                    i += 1
+                vertices = np.array(verts_raw, dtype=np.float64).reshape(n_verts, 3)
+
+        elif (
+            upper.startswith("POLYGONS")
+            or upper.startswith("LINES")
+            or upper.startswith("VERTICES")
+            or upper.startswith("TRIANGLE_STRIPS")
+        ):
+            parts = line.split()
+            n_cells = int(parts[1])
+            total_vals = int(parts[2])
+
+            tokens = parts[3:]
+            i += 1
+            while len(tokens) < total_vals and i < n_lines:
+                tokens.extend(lines[i].split())
+                if len(tokens) >= total_vals:
+                    break
+                i += 1
+
+            idx = 0
+            for _ in range(n_cells):
+                cnt = int(tokens[idx])
+                idx += 1
+
+                conn_list.extend(int(t) for t in tokens[idx : idx + cnt])
+
+                idx += cnt
+                off_list.append(off_list[-1] + cnt)
+
+                if upper.startswith("POLYGONS"):
+                    if cnt == 3:
+                        type_list.append(ELEMENT_TYPES["triangle"])
+                    elif cnt == 4:
+                        type_list.append(ELEMENT_TYPES["quad"])
+                    else:
+                        type_list.append(ELEMENT_TYPES["polygon"])
+                elif upper.startswith("LINES"):
+                    if cnt == 2:
+                        type_list.append(ELEMENT_TYPES["line"])
+                    else:
+                        type_list.append(ELEMENT_TYPES["poly_line"])
+                elif upper.startswith("VERTICES"):
+                    if cnt == 1:
+                        type_list.append(ELEMENT_TYPES["vertex"])
+                    else:
+                        type_list.append(ELEMENT_TYPES["poly_vertex"])
+                elif upper.startswith("TRIANGLE_STRIPS"):
+                    type_list.append(ELEMENT_TYPES["triangle_strip"])
+            n_elems += n_cells
+            if len(tokens) >= total_vals:
+                i += 1
+
+        elif upper.startswith("POINT_DATA"):
+            n_pd = int(line.split()[1])
+            i += 1
+            i, vertex_attrs = _parse_vtk_data_attrs(lines, i, n_pd, n_verts)
+
+        elif upper.startswith("CELL_DATA"):
+            n_cd = int(line.split()[1])
+            i += 1
+            i, element_attrs = _parse_vtk_data_attrs(lines, i, n_cd, n_elems)
+
+        else:
+            i += 1
+
+    return PolyData(
+        vertices=vertices,
+        connectivity=np.array(conn_list, dtype=np.int32),
+        offsets=np.array(off_list, dtype=np.int32),
+        element_types=np.array(type_list, dtype=np.uint8),
+        vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
+    )
 
 
 def _read_ascii(path: Path, file_size: int, version: str) -> PolyData:
