@@ -21,6 +21,7 @@ defaults:
 
 jobs:
   test:
+    if: github.event_name != 'schedule' || github.repository_owner == 'fury-gl'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
