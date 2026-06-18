@@ -8,7 +8,7 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios.codecs._vtk import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
 
 
 def _synthetic_mesh() -> object:
@@ -96,3 +96,123 @@ def test_ascii_lazy_raises() -> None:
     write(poly, tmp)
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def _write_tmp(content: bytes) -> str:
+    with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
+        f.write(content)
+        return f.name
+
+
+def test_v1_blank_line_before_binary_marker() -> None:
+    """VTK v1.0 files can have a blank line between the title and BINARY/ASCII."""
+    # Minimal ASCII UNSTRUCTURED_GRID with v1.0 blank-line quirk.
+    content = (
+        b"# vtk DataFile Version 1.0\n"
+        b"Test mesh\n"
+        b"\n"  # blank line before ASCII/BINARY marker
+        b"ASCII\n"
+        b"\n"  # blank line before DATASET
+        b"DATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n"
+        b"3 0 1 2\n"
+        b"CELL_TYPES 1\n"
+        b"5\n"
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 3
+    assert len(poly.element_types) == 1
+
+
+def test_v1_blank_line_unsupported_dataset_gives_clear_error() -> None:
+    """VTK v1.0 STRUCTURED_POINTS should raise CodecError with dataset name, not 'BINARY'."""
+    content = (
+        b"# vtk DataFile Version 1.0\n"
+        b"Iron protein\n"
+        b"\n"
+        b"BINARY\n"
+        b"\n"
+        b"DATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 2 2 2\n"
+    )
+    tmp = _write_tmp(content)
+    with pytest.raises(CodecError, match="STRUCTURED_POINTS"):
+        read(tmp)
+
+
+def _make_binary_polydata_lines() -> bytes:
+    """Build a minimal binary VTK POLYDATA file with a LINES section."""
+
+    header = (
+        b"# vtk DataFile Version 3.0\ntest polydata binary\nBINARY\nDATASET POLYDATA\n"
+    )
+    # 4 points
+    pts = np.array([[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]], dtype=">f4").tobytes()
+    points_hdr = b"POINTS 4 float\n"
+
+    # 1 LINES cell with 4 points: [count=4, 0, 1, 2, 3] → total_vals = 5
+    cell_data = np.array([4, 0, 1, 2, 3], dtype=">i4").tobytes()
+    lines_hdr = b"LINES 1 5\n"
+
+    return header + points_hdr + pts + lines_hdr + cell_data
+
+
+def test_binary_polydata_lines() -> None:
+    """Binary POLYDATA with LINES section reads correctly."""
+    tmp = _write_tmp(_make_binary_polydata_lines())
+    poly = read(tmp)
+    assert len(poly.vertices) == 4
+    assert len(poly.element_types) == 1
+    # poly_line (cnt=4 > 2)
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert int(poly.element_types[0]) == ELEMENT_TYPES["poly_line"]
+    np.testing.assert_allclose(poly.vertices[0], [0, 0, 0])
+    np.testing.assert_allclose(poly.vertices[3], [3, 0, 0])
+
+
+def test_binary_polydata_polygons() -> None:
+    """Binary POLYDATA with POLYGONS: triangles and quads map to correct element types."""
+
+    header = b"# vtk DataFile Version 3.0\ntest polygons\nBINARY\nDATASET POLYDATA\n"
+    pts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [2, 0, 0]], dtype=">f4"
+    ).tobytes()
+    points_hdr = b"POINTS 5 float\n"
+
+    # 2 cells: triangle [3,0,1,2] + quad [4,0,1,3,2] → total_vals = 4+5 = 9
+    cell_data = np.array([3, 0, 1, 2, 4, 0, 1, 3, 2], dtype=">i4").tobytes()
+    polys_hdr = b"POLYGONS 2 9\n"
+
+    content = header + points_hdr + pts + polys_hdr + cell_data
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert len(poly.element_types) == 2
+    assert int(poly.element_types[0]) == ELEMENT_TYPES["triangle"]
+    assert int(poly.element_types[1]) == ELEMENT_TYPES["quad"]
+
+
+def test_binary_polydata_lazy_raises() -> None:
+    """Binary POLYDATA does not support lazy reads."""
+    tmp = _write_tmp(_make_binary_polydata_lines())
+    with pytest.raises(LazyReadError):
+        read(tmp, lazy=True)
+
+
+@pytest.mark.parametrize("fname", ["faults.vtk", "track1.binary.vtk"])
+def test_binary_polydata_real_files(fname: str) -> None:
+    """Real binary POLYDATA files from the test corpus read without error."""
+    import os
+
+    path = os.path.expanduser(f"~/.polyxios/vtk/{fname}")
+    if not os.path.exists(path):
+        pytest.skip(f"{fname} not in local cache")
+    poly = read(path)
+    assert len(poly.vertices) > 0
+    assert len(poly.element_types) > 0

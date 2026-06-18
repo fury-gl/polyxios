@@ -202,3 +202,14 @@ VTK_TO_POLYXIOS: Final[dict[int, str]] = {
 
 # Reverse: polyxios name - VTK integer (only for types that have a VTK mapping)
 POLYXIOS_TO_VTK: Final[dict[str, int]] = {v: k for k, v in VTK_TO_POLYXIOS.items()}
+
+# Element type codes that represent 2-D surface geometry renderable as triangles.
+SURFACE_ELEMENT_TYPES: Final[frozenset[int]] = frozenset(
+    {
+        ELEMENT_TYPES["triangle"],
+        ELEMENT_TYPES["triangle_strip"],
+        ELEMENT_TYPES["polygon"],
+        ELEMENT_TYPES["pixel"],
+        ELEMENT_TYPES["quad"],
+    }
+)

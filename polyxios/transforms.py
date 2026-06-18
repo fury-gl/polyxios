@@ -4,7 +4,12 @@ from functools import reduce
 
 import numpy as np
 
+from polyxios._element_types import ELEMENT_TYPES, SURFACE_ELEMENT_TYPES
 from polyxios._types import PolyData
+
+_SURFACE_CODES = SURFACE_ELEMENT_TYPES
+_TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
+_QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
 
 
 def pipeline(*fns: Callable[[PolyData], PolyData]) -> Callable[[PolyData], PolyData]:
@@ -215,8 +220,6 @@ def filter_element_type(poly: PolyData, *, keep: str | list[str]) -> PolyData:
     PolyData
         New PolyData with only the requested element types.
     """
-    from polyxios._element_types import ELEMENT_TYPES
-
     if isinstance(keep, str):
         keep = [keep]
     keep_codes = {ELEMENT_TYPES[t] for t in keep}
@@ -285,3 +288,104 @@ def reindex(poly: PolyData) -> PolyData:
         New PolyData with orphan vertices removed.
     """
     return remove_orphan_vertices(poly)
+
+
+def triangulate(poly: PolyData) -> PolyData:
+    """Return a new PolyData with all surface elements converted to triangles.
+
+    Quads and pixels are split into 2 triangles. Polygons and triangle_strips
+    are fan-triangulated. Non-surface elements (lines, volumes) are dropped.
+
+    Parameters
+    ----------
+    poly
+        Input PolyData (may contain mixed element types).
+
+    Returns
+    -------
+    PolyData
+        New PolyData with only triangle elements. Vertex attrs preserved.
+        Element attrs expanded: each source element's values repeated once
+        per generated triangle. Non-surface elements are dropped.
+    """
+    conn_parts: list[np.ndarray] = []
+    src_indices: list[int] = []
+
+    for i in range(len(poly.element_types)):
+        etype = int(poly.element_types[i])
+        if etype not in _SURFACE_CODES:
+            continue
+        cell = poly.connectivity[poly.offsets[i] : poly.offsets[i + 1]]
+        if etype == _TRIANGLE_CODE:
+            conn_parts.append(cell)
+            src_indices.append(i)
+        elif etype in _QUAD_PIXEL_CODES:
+            conn_parts.append(cell[[0, 1, 2]])
+            conn_parts.append(cell[[0, 2, 3]])
+            src_indices.extend([i, i])
+        else:
+            for j in range(1, len(cell) - 1):
+                conn_parts.append(cell[[0, j, j + 1]])
+                src_indices.append(i)
+
+    if not conn_parts:
+        return dataclasses.replace(
+            poly,
+            connectivity=np.array([], dtype=poly.connectivity.dtype),
+            offsets=np.array([0], dtype=poly.offsets.dtype),
+            element_types=np.array([], dtype=np.uint8),
+            element_attrs={k: v[[]].copy() for k, v in poly.element_attrs.items()},
+            element_tags={
+                k: np.array([], dtype=v.dtype) for k, v in poly.element_tags.items()
+            },
+        )
+
+    idx = np.array(src_indices, dtype=np.int64)
+    n_tris = len(src_indices)
+    new_connectivity = np.concatenate(conn_parts).astype(poly.connectivity.dtype)
+    new_offsets = np.arange(0, (n_tris + 1) * 3, 3, dtype=poly.offsets.dtype)
+    new_element_types = np.full(n_tris, _TRIANGLE_CODE, dtype=np.uint8)
+    new_element_attrs = {k: v[idx] for k, v in poly.element_attrs.items()}
+
+    old_to_new: dict[int, list[int]] = {}
+    for new_i, old_i in enumerate(src_indices):
+        old_to_new.setdefault(old_i, []).append(new_i)
+
+    new_element_tags: dict[str, np.ndarray] = {}
+    for k, v in poly.element_tags.items():
+        new_inds: list[int] = []
+        for old_i in v:
+            new_inds.extend(old_to_new.get(int(old_i), []))
+        new_element_tags[k] = np.array(new_inds, dtype=v.dtype)
+
+    return dataclasses.replace(
+        poly,
+        connectivity=new_connectivity,
+        offsets=new_offsets,
+        element_types=new_element_types,
+        element_attrs=new_element_attrs,
+        element_tags=new_element_tags,
+    )
+
+
+def vertex_colors(poly: PolyData) -> np.ndarray | None:
+    """Extract per-vertex RGB colors from the first eligible vertex attribute.
+
+    Parameters
+    ----------
+    poly
+        Input PolyData.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Float32 array of shape (n_verts, 3) in [0, 1], or None if no
+        vertex attribute with 3 or more channels exists.
+    """
+    for arr in poly.vertex_attrs.values():
+        if arr.ndim == 2 and arr.shape[1] >= 3:
+            rgb = arr[:, :3].astype(np.float32)
+            if rgb.max() > 1.0:
+                rgb = rgb / 255.0
+            return rgb
+    return None

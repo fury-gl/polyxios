@@ -80,10 +80,15 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     with open(path, "rb") as fh:
         header_line = fh.readline().decode("ascii", errors="replace").strip()
         fh.readline()  # title line (unused)
-        data_type = fh.readline().decode("ascii", errors="replace").strip().upper()
-        # Some VTK v1.0 files have a blank line before the DATASET line; skip them.
+        # VTK v1.0 files can have blank lines between the title and BINARY/ASCII marker.
+        data_type = ""
+        for _ in range(8):
+            data_type = fh.readline().decode("ascii", errors="replace").strip().upper()
+            if data_type:
+                break
+        # Some files also have blank lines before the DATASET line.
         dataset_line = ""
-        for _ in range(8):  # guard against infinite loop on malformed files
+        for _ in range(8):
             dataset_line = (
                 fh.readline().decode("ascii", errors="replace").strip().upper()
             )
@@ -102,9 +107,9 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             return _read_ascii(path, file_size, version)
     elif "POLYDATA" in dataset_line:
         if lazy:
-            raise LazyReadError(
-                "VTK ASCII POLYDATA format does not support lazy reads."
-            )
+            raise LazyReadError("VTK POLYDATA format does not support lazy reads.")
+        if is_binary:
+            return _read_polydata_binary(path, file_size)
         return _read_polydata_ascii(path, file_size)
     else:
         raise CodecError(
@@ -452,6 +457,128 @@ def _read_polydata_ascii(path: Path, file_size: int) -> PolyData:
         connectivity=np.array(conn_list, dtype=np.int32),
         offsets=np.array(off_list, dtype=np.int32),
         element_types=np.array(type_list, dtype=np.uint8),
+        vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
+    )
+
+
+def _read_polydata_binary(path: Path, file_size: int) -> PolyData:
+    """Read a VTK legacy binary POLYDATA file."""
+    with open(path, "rb") as fh:
+        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+        mv = memoryview(mm)
+        pos = 0
+        for _ in range(4):
+            pos = mm.find(b"\n", pos) + 1
+        poly = _parse_binary_polydata_body(mm, mv, pos, file_size)
+        del mv
+        mm.close()
+    return poly
+
+
+def _parse_binary_polydata_body(
+    mm: mmap.mmap,
+    mv: memoryview,
+    start_pos: int,
+    file_size: int,
+) -> PolyData:
+    """Parse binary data sections of a VTK POLYDATA file."""
+    pos = start_pos
+    vertices = np.zeros((0, 3), dtype=np.float64)
+    all_conn: list[np.ndarray] = []
+    all_offs: list[int] = [0]
+    all_types: list[int] = []
+    vertex_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = {}
+    n_verts = 0
+    n_elems = 0
+
+    while pos < file_size:
+        line_end = mm.find(b"\n", pos)
+        if line_end == -1:
+            break
+        line = bytes(mv[pos:line_end]).decode("ascii", errors="replace").strip()
+        pos = line_end + 1
+
+        if not line:
+            continue
+
+        upper = line.upper()
+        parts = line.split()
+
+        if upper.startswith("POINTS"):
+            n_verts = int(parts[1])
+            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            np_dt = ">f8" if vtk_dt == "double" else ">f4"
+            n_bytes = n_verts * 3 * np.dtype(np_dt).itemsize
+            validate_header(n_verts, 0, 0, file_size)
+            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt)
+            vertices = raw.astype(np.float64).reshape(n_verts, 3)
+            pos += n_bytes
+            pos = _skip_newline(mv, pos, file_size)
+
+        elif (
+            upper.startswith("POLYGONS")
+            or upper.startswith("LINES")
+            or upper.startswith("VERTICES")
+            or upper.startswith("TRIANGLE_STRIPS")
+        ):
+            n_cells = int(parts[1])
+            total_vals = int(parts[2])
+            n_bytes_cells = total_vals * 4
+            raw_cells = np.frombuffer(
+                bytes(mv[pos : pos + n_bytes_cells]), dtype=">i4"
+            ).astype(np.int32)
+            pos += n_bytes_cells
+            pos = _skip_newline(mv, pos, file_size)
+
+            idx = 0
+            for _ in range(n_cells):
+                cnt = int(raw_cells[idx])
+                idx += 1
+                cell = raw_cells[idx : idx + cnt]
+                idx += cnt
+                all_conn.append(cell)
+                all_offs.append(all_offs[-1] + cnt)
+                if upper.startswith("POLYGONS"):
+                    if cnt == 3:
+                        all_types.append(ELEMENT_TYPES["triangle"])
+                    elif cnt == 4:
+                        all_types.append(ELEMENT_TYPES["quad"])
+                    else:
+                        all_types.append(ELEMENT_TYPES["polygon"])
+                elif upper.startswith("LINES"):
+                    if cnt == 2:
+                        all_types.append(ELEMENT_TYPES["line"])
+                    else:
+                        all_types.append(ELEMENT_TYPES["poly_line"])
+                elif upper.startswith("VERTICES"):
+                    if cnt == 1:
+                        all_types.append(ELEMENT_TYPES["vertex"])
+                    else:
+                        all_types.append(ELEMENT_TYPES["poly_vertex"])
+                elif upper.startswith("TRIANGLE_STRIPS"):
+                    all_types.append(ELEMENT_TYPES["triangle_strip"])
+            n_elems += n_cells
+
+        elif upper.startswith("POINT_DATA"):
+            n_pd = int(parts[1])
+            pos, vertex_attrs = _parse_binary_attrs(mm, mv, pos, n_pd, file_size)
+
+        elif upper.startswith("CELL_DATA"):
+            n_cd = int(parts[1])
+            pos, element_attrs = _parse_binary_attrs(mm, mv, pos, n_cd, file_size)
+
+    connectivity = (
+        np.concatenate(all_conn).astype(np.int32)
+        if all_conn
+        else np.array([], dtype=np.int32)
+    )
+    return PolyData(
+        vertices=vertices,
+        connectivity=connectivity,
+        offsets=np.array(all_offs, dtype=np.int32),
+        element_types=np.array(all_types, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
     )
