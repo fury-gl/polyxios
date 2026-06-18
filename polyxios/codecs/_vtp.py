@@ -1,36 +1,16 @@
 import base64
 from pathlib import Path
 from typing import Any
-import xml.etree.ElementTree as ET
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
-from polyxios.exceptions import LazyReadError
+from polyxios.codecs._vtk_xml import decode_da, parse_xml
+from polyxios.exceptions import LazyReadError, UnsupportedFormatError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtp"
-
-try:
-    from polyxios._vtp_base64 import decode_base64_array  # type: ignore[import]
-
-    _HAS_CYTHON = True
-except ImportError:
-    _HAS_CYTHON = False
-
-    def decode_base64_array(
-        b64_data: bytes, dtype_str: str, big_endian: bool
-    ) -> np.ndarray:  # type: ignore[misc]
-        """Pure Python fallback for VTP base64 decoding."""
-        raw = base64.b64decode(b64_data)
-        if len(raw) <= 4:
-            return np.array([], dtype=dtype_str)
-        data_bytes = raw[4:]
-        endian = ">" if big_endian else "<"
-        arr = np.frombuffer(data_bytes, dtype=endian + dtype_str)
-        return arr.astype(dtype_str)
-
 
 _SECTION_TYPES = ("Verts", "Lines", "Strips", "Polys")
 
@@ -59,11 +39,25 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     path = Path(path)
     file_size = path.stat().st_size
 
-    tree = ET.parse(str(path))
-    root = tree.getroot()
+    root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
 
-    byte_order = root.get("byte_order", "LittleEndian")
-    big_endian = byte_order == "BigEndian"
+    def _decode(elem):
+        return decode_da(
+            elem,
+            big_endian=big_endian,
+            appended=appended,
+            header_type=header_type,
+            compressed=compressed,
+            is_base64=is_base64,
+        )
+
+    vtk_type = root.get("type", "PolyData")
+    if vtk_type != "PolyData":
+        raise UnsupportedFormatError(
+            f"VTP file declares type='{vtk_type}'; only 'PolyData' is supported "
+            "by the built-in VTP reader. For multi-block datasets see "
+            "examples/read_multiblock_vtp.py for a step-by-step loading tutorial."
+        )
 
     pd_elem = root.find("PolyData")
     if pd_elem is None:
@@ -83,9 +77,10 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         if points_elem is not None and n_points > 0:
             da = points_elem.find("DataArray")
             if da is not None:
-                flat = _decode_da(da, big_endian)
-                verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
-                all_vertices.append(verts)
+                flat = _decode(da)
+                if flat.size >= n_points * 3:
+                    verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
+                    all_vertices.append(verts)
 
         vert_offset = (
             sum(v.shape[0] for v in all_vertices[:-1]) if len(all_vertices) > 1 else 0
@@ -100,8 +95,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             if conn_da is None or off_da is None:
                 continue
 
-            conn = _decode_da(conn_da, big_endian).astype(np.int32) + vert_offset
-            piece_offsets = _decode_da(off_da, big_endian).astype(np.int32)
+            conn = _decode(conn_da).astype(np.int32) + vert_offset
+            piece_offsets = _decode(off_da).astype(np.int32)
 
             if section == "Verts":
                 code = ELEMENT_TYPES["vertex"]
@@ -133,23 +128,21 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
                     else:
                         all_types.append(ELEMENT_TYPES["polygon"])
 
-        # PointData
         pd_data = piece.find("PointData")
         if pd_data is not None:
             for da in pd_data:
                 name = da.get("Name", "unknown")
-                arr = _decode_da(da, big_endian)
+                arr = _decode(da)
                 n_comp = int(da.get("NumberOfComponents", "1"))
                 if n_comp > 1:
                     arr = arr.reshape(-1, n_comp)
                 all_vertex_attrs.setdefault(name, []).append(arr)
 
-        # CellData
         cd_data = piece.find("CellData")
         if cd_data is not None:
             for da in cd_data:
                 name = da.get("Name", "unknown")
-                arr = _decode_da(da, big_endian)
+                arr = _decode(da)
                 n_comp = int(da.get("NumberOfComponents", "1"))
                 if n_comp > 1:
                     arr = arr.reshape(-1, n_comp)
@@ -168,7 +161,13 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     offsets = np.array(all_offsets, dtype=np.int32)
     element_types = np.array(all_types, dtype=np.uint8)
 
-    validate_header(vertices.shape[0], len(element_types), len(connectivity), file_size)
+    validate_header(
+        vertices.shape[0],
+        len(element_types),
+        len(connectivity),
+        file_size,
+        compressed=compressed,
+    )
 
     vertex_attrs = {k: np.concatenate(v) for k, v in all_vertex_attrs.items()}
     element_attrs = {k: np.concatenate(v) for k, v in all_element_attrs.items()}
@@ -208,7 +207,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     lines.append('<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">')
     lines.append("  <PolyData>")
 
-    # Compute per-section element counts
     n_polys = n_elems  # write all as Polys for generality
 
     lines.append(
@@ -222,9 +220,8 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     )
     lines.append("      </Points>")
 
-    # Build Polys connectivity and offsets
     conn = poly.connectivity.astype(np.int32)
-    off = poly.offsets[1:].astype(np.int32)  # VTP offsets are cumulative (no leading 0)
+    off = poly.offsets[1:].astype(np.int32)
 
     lines.append("      <Polys>")
     lines.append(_da("connectivity", conn, "Int32", binary, 1, 10))
@@ -282,33 +279,3 @@ def _da(
             f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
             f'format="ascii">{vals}</DataArray>'
         )
-
-
-def _decode_da(elem: ET.Element, big_endian: bool) -> np.ndarray:
-    """Decode a VTK <DataArray> element."""
-    fmt = elem.get("format", "ascii")
-    dtype_str = _vtk_to_np(elem.get("type", "Float64"))
-    text = (elem.text or "").strip()
-
-    if fmt == "ascii":
-        vals = [float(x) for x in text.split() if x]
-        return np.array(vals, dtype=dtype_str)
-    elif fmt in ("binary", "base64"):
-        return decode_base64_array(text.encode(), dtype_str, big_endian)
-    return np.array([], dtype=dtype_str)
-
-
-def _vtk_to_np(vtk_type: str) -> str:
-    mapping = {
-        "Float32": "f4",
-        "Float64": "f8",
-        "Int8": "i1",
-        "Int16": "i2",
-        "Int32": "i4",
-        "Int64": "i8",
-        "UInt8": "u1",
-        "UInt16": "u2",
-        "UInt32": "u4",
-        "UInt64": "u8",
-    }
-    return mapping.get(vtk_type, "f8")

@@ -4,6 +4,7 @@ py.install_sources(
     '_obj.py',
     '_ply.py',
     '_vtk.py',
+    '_vtk_xml.py',
     '_vtp.py',
     '_vtr.py',
   ],

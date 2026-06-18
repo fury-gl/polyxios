@@ -90,6 +90,8 @@ def validate_header(
     declared_n_elems: int,
     declared_conn_size: int,
     file_size_bytes: int,
+    *,
+    compressed: bool = False,
 ) -> None:
     """Validate header counts against file size before any array allocation.
 
@@ -103,6 +105,9 @@ def validate_header(
         Total connectivity size declared in the file header.
     file_size_bytes
         Actual file size in bytes.
+    compressed
+        If True, skip file-size plausibility checks (compressed data is
+        smaller than the raw vertex/connectivity byte estimates).
 
     Raises
     ------
@@ -124,6 +129,9 @@ def validate_header(
             f"declared_conn_size={declared_conn_size} exceeds MAX_SAFE_CONN="
             f"{MAX_SAFE_CONN}. Possible corrupt or malicious file."
         )
+
+    if compressed:
+        return
 
     # coords require 3 * 8 bytes per vertex; allow 4× slack for headers/ASCII overhead
     if declared_n_verts * 3 * 8 > file_size_bytes * 4:

@@ -1,12 +1,12 @@
 import base64
 from pathlib import Path
 from typing import Any
-import xml.etree.ElementTree as ET
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
+from polyxios.codecs._vtk_xml import decode_da, parse_xml
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
@@ -44,8 +44,17 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     path = Path(path)
     file_size = path.stat().st_size
 
-    tree = ET.parse(str(path))
-    root = tree.getroot()
+    root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
+
+    def _decode(elem):
+        return decode_da(
+            elem,
+            big_endian=big_endian,
+            appended=appended,
+            header_type=header_type,
+            compressed=compressed,
+            is_base64=is_base64,
+        )
 
     rg = root.find("RectilinearGrid")
     if rg is None:
@@ -62,35 +71,20 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     n_verts = (nx + 1) * (ny + 1) * (nz + 1)
     n_cells = nx * ny * nz
 
-    validate_header(n_verts, n_cells, n_cells * 8, file_size)
+    validate_header(n_verts, n_cells, n_cells * 8, file_size, compressed=compressed)
 
     coords_elem = piece.find("Coordinates")
     if coords_elem is None:
         raise ValueError("No <Coordinates> element found.")
 
     coord_arrays = list(coords_elem)
-    x_arr = (
-        _decode_data_array(coord_arrays[0])
-        if len(coord_arrays) > 0
-        else np.array([0.0])
-    )
-    y_arr = (
-        _decode_data_array(coord_arrays[1])
-        if len(coord_arrays) > 1
-        else np.array([0.0])
-    )
-    z_arr = (
-        _decode_data_array(coord_arrays[2])
-        if len(coord_arrays) > 2
-        else np.array([0.0])
-    )
+    x_arr = _decode(coord_arrays[0]) if len(coord_arrays) > 0 else np.array([0.0])
+    y_arr = _decode(coord_arrays[1]) if len(coord_arrays) > 1 else np.array([0.0])
+    z_arr = _decode(coord_arrays[2]) if len(coord_arrays) > 2 else np.array([0.0])
 
-    # Build vertex grid
     zz, yy, xx = np.meshgrid(z_arr, y_arr, x_arr, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
 
-    # Build hex connectivity (VTK hexahedron ordering)
-    # vertex index: (ix, iy, iz) -> ix + iy*(nx+1) + iz*(nx+1)*(ny+1)
     nxp1 = nx + 1
     nyp1 = ny + 1
     connectivity = np.empty(n_cells * 8, dtype=np.int32)
@@ -113,27 +107,24 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
                 connectivity[ci : ci + 8] = [v0, v1, v2, v3, v4, v5, v6, v7]
                 cell_idx += 1
 
-    # Parse PointData and CellData
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
 
     pd = piece.find("PointData")
     if pd is not None:
         for da in pd:
-            arr = _decode_data_array(da)
+            arr = _decode(da)
             name = da.get("Name", "unknown")
             vertex_attrs[name] = arr
 
     cd = piece.find("CellData")
     if cd is not None:
         for da in cd:
-            arr = _decode_data_array(da)
+            arr = _decode(da)
             name = da.get("Name", "unknown")
             element_attrs[name] = arr
 
-    global_attrs: dict[str, Any] = {
-        "vtr_extents": extent,
-    }
+    global_attrs: dict[str, Any] = {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
     if whole:
         global_attrs["vtr_whole_extent"] = [int(x) for x in whole.split()]
@@ -165,7 +156,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     path = Path(path)
     binary: bool = bool(opts.get("binary", False))
 
-    # Extract coordinate ranges from vertices (assume structured grid)
     x_coords = np.unique(poly.vertices[:, 0])
     y_coords = np.unique(poly.vertices[:, 1])
     z_coords = np.unique(poly.vertices[:, 2])
@@ -207,47 +197,9 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _decode_data_array(elem: ET.Element) -> np.ndarray:
-    """Decode a VTK <DataArray> element to a numpy array."""
-    fmt = elem.get("format", "ascii")
-    dtype_str = _vtk_type_to_np(elem.get("type", "Float64"))
-    text = (elem.text or "").strip()
-
-    if fmt == "ascii":
-        vals = [float(x) for x in text.split() if x]
-        return np.array(vals, dtype=dtype_str)
-
-    elif fmt in ("binary", "base64"):
-        raw = base64.b64decode(text)
-        # VTK base64 binary: first 4 bytes are uncompressed data length (uint32 LE)
-        if len(raw) > 4:
-            data_bytes = raw[4:]
-            return np.frombuffer(data_bytes, dtype=dtype_str)
-        return np.array([], dtype=dtype_str)
-
-    return np.array([], dtype=dtype_str)
-
-
-def _vtk_type_to_np(vtk_type: str) -> str:
-    mapping = {
-        "Float32": "f4",
-        "Float64": "f8",
-        "Int8": "i1",
-        "Int16": "i2",
-        "Int32": "i4",
-        "Int64": "i8",
-        "UInt8": "u1",
-        "UInt16": "u2",
-        "UInt32": "u4",
-        "UInt64": "u8",
-    }
-    return mapping.get(vtk_type, "f8")
-
-
 def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) -> str:
     pad = " " * indent
-    np_dt = arr.dtype
-    vtk_type = _np_to_vtk_type(np_dt)
+    vtk_type = _np_to_vtk_type(arr.dtype)
 
     if binary:
         raw = arr.astype("<f8").tobytes()
