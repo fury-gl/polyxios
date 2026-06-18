@@ -17,7 +17,7 @@ def main():
     poly = polyxios.read(model_path)
 
     vertices = poly.vertices
-    faces = poly.connectivity.reshape(-1, 3)
+    faces = poly.faces
 
     print("Creating surface actor...")
     mesh_actor = actor.surface(vertices, faces, colors=(0.8, 0.8, 0.8))

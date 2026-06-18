@@ -3,6 +3,18 @@ from typing import Any
 
 import numpy as np
 
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    LINE_ELEMENT_TYPES,
+    QUADRATIC_SURFACE_CORNERS,
+    SURFACE_ELEMENT_TYPES,
+)
+
+_SURFACE_CODES = SURFACE_ELEMENT_TYPES
+_LINE_CODES = LINE_ELEMENT_TYPES
+_TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
+_QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
+
 
 @dataclass(frozen=True, slots=True)
 class PolyData:
@@ -39,6 +51,69 @@ class PolyData:
     vertex_tags: dict[str, np.ndarray] = field(default_factory=dict)
     element_tags: dict[str, np.ndarray] = field(default_factory=dict)
     global_attrs: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def faces(self) -> np.ndarray | None:
+        """Triangle face indices, shape (n_tris, 3), dtype int32.
+
+        Surface elements are triangulated: quads and pixels split into 2
+        triangles, polygons and triangle_strips fan-triangulated.
+        Non-surface elements (lines, volumes) are excluded.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Array of shape (n_tris, 3) with vertex indices, or None when
+            the mesh has no surface elements.
+
+        Notes
+        -----
+        Recomputes on each access. Store the result if calling repeatedly.
+        For a full PolyData with preserved attributes use
+        ``polyxios.transforms.triangulate``.
+        """
+        tris = []
+        for i in range(len(self.element_types)):
+            etype = int(self.element_types[i])
+            if etype not in _SURFACE_CODES:
+                continue
+            cell = self.connectivity[self.offsets[i] : self.offsets[i + 1]]
+            # Quadratic elements: use corner nodes only for linearized rendering.
+            n_corners = QUADRATIC_SURFACE_CORNERS.get(etype)
+            if n_corners is not None:
+                cell = cell[:n_corners]
+                etype = _TRIANGLE_CODE if n_corners == 3 else int(ELEMENT_TYPES["quad"])
+            if etype == _TRIANGLE_CODE:
+                tris.append(cell)
+            elif etype in _QUAD_PIXEL_CODES:
+                tris.append(cell[[0, 1, 2]])
+                tris.append(cell[[0, 2, 3]])
+            else:
+                tris.extend(cell[[0, j, j + 1]] for j in range(1, len(cell) - 1))
+        return np.array(tris, dtype=np.int32) if tris else None
+
+    @property
+    def lines(self) -> list[np.ndarray] | None:
+        """Line connectivity as a list of vertex-index arrays.
+
+        Returns
+        -------
+        list of numpy.ndarray or None
+            Each array has shape (n_pts,) int32 — vertex indices for one
+            connected line or poly_line element. Returns None when no
+            line/poly_line elements exist.
+
+        Notes
+        -----
+        Use ``poly.vertices[idx]`` to get coordinates for each segment.
+        Recomputes on each access; store the result if calling repeatedly.
+        """
+        result = []
+        for i in range(len(self.element_types)):
+            if int(self.element_types[i]) not in _LINE_CODES:
+                continue
+            result.append(self.connectivity[self.offsets[i] : self.offsets[i + 1]])
+        return result if result else None
 
 
 def make_polydata(
