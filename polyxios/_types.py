@@ -3,7 +3,11 @@ from typing import Any
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES, SURFACE_ELEMENT_TYPES
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    QUADRATIC_SURFACE_CORNERS,
+    SURFACE_ELEMENT_TYPES,
+)
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
@@ -72,6 +76,11 @@ class PolyData:
             if etype not in _SURFACE_CODES:
                 continue
             cell = self.connectivity[self.offsets[i] : self.offsets[i + 1]]
+            # Quadratic elements: use corner nodes only for linearized rendering.
+            n_corners = QUADRATIC_SURFACE_CORNERS.get(etype)
+            if n_corners is not None:
+                cell = cell[:n_corners]
+                etype = _TRIANGLE_CODE if n_corners == 3 else int(ELEMENT_TYPES["quad"])
             if etype == _TRIANGLE_CODE:
                 tris.append(cell)
             elif etype in _QUAD_PIXEL_CODES:

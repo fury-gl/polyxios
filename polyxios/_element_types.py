@@ -211,5 +211,19 @@ SURFACE_ELEMENT_TYPES: Final[frozenset[int]] = frozenset(
         ELEMENT_TYPES["polygon"],
         ELEMENT_TYPES["pixel"],
         ELEMENT_TYPES["quad"],
+        # Quadratic surface elements — linearized to corner nodes for rendering.
+        ELEMENT_TYPES["quadratic_triangle"],
+        ELEMENT_TYPES["biquadratic_triangle"],
+        ELEMENT_TYPES["quadratic_quad"],
+        ELEMENT_TYPES["biquadratic_quad"],
     }
 )
+
+# Corner node count for quadratic surface elements.
+# When rendering, only the first N nodes (corner nodes) are used.
+QUADRATIC_SURFACE_CORNERS: Final[dict[int, int]] = {
+    ELEMENT_TYPES["quadratic_triangle"]: 3,
+    ELEMENT_TYPES["biquadratic_triangle"]: 3,
+    ELEMENT_TYPES["quadratic_quad"]: 4,
+    ELEMENT_TYPES["biquadratic_quad"]: 4,
+}
