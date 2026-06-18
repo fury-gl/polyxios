@@ -4,6 +4,7 @@ import numpy as np
 
 from polyxios import make_polydata
 from polyxios.transforms import (
+    extract_surface,
     filter_element_type,
     merge,
     pipeline,
@@ -87,3 +88,99 @@ def test_filter_element_type() -> None:
     from polyxios._element_types import ELEMENT_TYPES
 
     assert tris_only.element_types[0] == ELEMENT_TYPES["triangle"]
+
+
+def test_extract_surface_two_tets_shared_face() -> None:
+    # 2 tets sharing face (0,1,2): 4 unique faces each, minus 1 shared = 6 boundary
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, -1]], dtype=np.float64
+    )
+    poly = make_polydata(verts, [("tetra", np.array([[0, 1, 2, 3], [0, 1, 2, 4]]))])
+    surf = extract_surface(poly)
+    assert len(surf.element_types) == 6
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert all(int(t) == ELEMENT_TYPES["triangle"] for t in surf.element_types)
+    assert surf.faces is not None
+    assert surf.faces.shape == (6, 3)
+
+
+def test_extract_surface_single_hex() -> None:
+    verts = np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 0, 1],
+            [1, 1, 1],
+            [0, 1, 1],
+        ],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("hexahedron", np.array([[0, 1, 2, 3, 4, 5, 6, 7]]))])
+    surf = extract_surface(poly)
+    assert len(surf.element_types) == 6
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert all(int(t) == ELEMENT_TYPES["quad"] for t in surf.element_types)
+
+
+def test_extract_surface_wedge() -> None:
+    # 1 wedge: 2 tri faces + 3 quad faces = 5 boundary faces
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("wedge", np.array([[0, 1, 2, 3, 4, 5]]))])
+    surf = extract_surface(poly)
+    assert len(surf.element_types) == 5
+    from polyxios._element_types import ELEMENT_TYPES
+
+    n_tri = sum(1 for t in surf.element_types if int(t) == ELEMENT_TYPES["triangle"])
+    n_quad = sum(1 for t in surf.element_types if int(t) == ELEMENT_TYPES["quad"])
+    assert n_tri == 2
+    assert n_quad == 3
+
+
+def test_extract_surface_skips_surface_elements() -> None:
+    # Mixed mesh: 1 surface tri + 1 tet. extract_surface ignores the tri.
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [2, 0, 0]], dtype=np.float64
+    )
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2]])), ("tetra", np.array([[0, 1, 2, 3]]))],
+    )
+    surf = extract_surface(poly)
+    # tet has 4 faces; one of them (0,1,2) matches the surface tri vertex set
+    # but the surface tri is NOT a volumetric element — boundary detection only
+    # counts volumetric-element faces, so face (0,1,2) appears once → boundary
+    assert len(surf.element_types) == 4
+
+
+def test_extract_surface_pipeline_composable() -> None:
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(verts, [("tetra", np.array([[0, 1, 2, 3]]))])
+    fn = pipeline(extract_surface, remove_orphan_vertices)
+    result = fn(poly)
+    assert len(result.element_types) == 4
+    assert result.vertices.shape[0] == 4  # all 4 verts are on boundary
+
+
+def test_extract_surface_corpus_ball() -> None:
+    import os
+
+    path = os.path.expanduser("~/.polyxios/vtk/ball.vtk")
+    if not os.path.exists(path):
+        import pytest
+
+        pytest.skip("ball.vtk not in local cache")
+    import polyxios
+
+    poly = polyxios.read(path)
+    assert poly.faces is None  # pure tet mesh
+    surf = extract_surface(poly)
+    assert len(surf.element_types) > 0
+    assert surf.faces is not None

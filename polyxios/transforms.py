@@ -1,10 +1,15 @@
+from collections import defaultdict
 from collections.abc import Callable
 import dataclasses
 from functools import reduce
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES, SURFACE_ELEMENT_TYPES
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    ELEMENT_TYPES_INV,
+    SURFACE_ELEMENT_TYPES,
+)
 from polyxios._types import PolyData
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
@@ -389,3 +394,134 @@ def vertex_colors(poly: PolyData) -> np.ndarray | None:
                 rgb = rgb / 255.0
             return rgb
     return None
+
+
+# Local corner-node face definitions for 3D volumetric element types.
+# Each entry is a list of tuples of local vertex indices that form one face.
+# Quadratic elements reuse corner nodes only (indices match linear sub-element).
+_VOL_ELEMENT_FACES: dict[str, list[tuple[int, ...]]] = {
+    "tetra": [
+        (0, 1, 3),
+        (1, 2, 3),
+        (2, 0, 3),
+        (0, 2, 1),
+    ],
+    "hexahedron": [
+        (0, 1, 2, 3),
+        (4, 5, 6, 7),
+        (0, 1, 5, 4),
+        (1, 2, 6, 5),
+        (2, 3, 7, 6),
+        (3, 0, 4, 7),
+    ],
+    # VTK voxel: bit-encoded ordering differs from hex
+    "voxel": [
+        (0, 1, 3, 2),
+        (4, 5, 7, 6),
+        (0, 1, 5, 4),
+        (2, 3, 7, 6),
+        (0, 2, 6, 4),
+        (1, 3, 7, 5),
+    ],
+    "wedge": [
+        (0, 1, 2),
+        (3, 4, 5),
+        (0, 1, 4, 3),
+        (1, 2, 5, 4),
+        (2, 0, 3, 5),
+    ],
+    "pyramid": [
+        (0, 1, 2, 3),
+        (0, 1, 4),
+        (1, 2, 4),
+        (2, 3, 4),
+        (3, 0, 4),
+    ],
+    "pentagonal_prism": [
+        (0, 1, 2, 3, 4),
+        (5, 6, 7, 8, 9),
+        (0, 1, 6, 5),
+        (1, 2, 7, 6),
+        (2, 3, 8, 7),
+        (3, 4, 9, 8),
+        (4, 0, 5, 9),
+    ],
+    "hexagonal_prism": [
+        (0, 1, 2, 3, 4, 5),
+        (6, 7, 8, 9, 10, 11),
+        (0, 1, 7, 6),
+        (1, 2, 8, 7),
+        (2, 3, 9, 8),
+        (3, 4, 10, 9),
+        (4, 5, 11, 10),
+        (5, 0, 6, 11),
+    ],
+}
+# Quadratic elements: reuse corner-node faces of their linear counterparts.
+_VOL_ELEMENT_FACES["quadratic_tetra"] = _VOL_ELEMENT_FACES["tetra"]
+_VOL_ELEMENT_FACES["triquadratic_hexahedron"] = _VOL_ELEMENT_FACES["hexahedron"]
+_VOL_ELEMENT_FACES["biquadratic_quadratic_wedge"] = _VOL_ELEMENT_FACES["wedge"]
+_VOL_ELEMENT_FACES["quadratic_hexahedron"] = _VOL_ELEMENT_FACES["hexahedron"]
+_VOL_ELEMENT_FACES["quadratic_wedge"] = _VOL_ELEMENT_FACES["wedge"]
+_VOL_ELEMENT_FACES["quadratic_pyramid"] = _VOL_ELEMENT_FACES["pyramid"]
+
+
+def extract_surface(poly: PolyData) -> PolyData:
+    """Return the boundary surface of a volumetric PolyData.
+
+    A boundary face is one shared by exactly one element. Surface elements
+    already present in the mesh (triangle, quad, polygon, etc.) are ignored
+    during extraction — only 3D volumetric elements contribute.
+
+    Parameters
+    ----------
+    poly
+        Input PolyData (may contain volumetric elements).
+
+    Returns
+    -------
+    PolyData
+        New PolyData containing only boundary faces (triangles, quads,
+        polygons). Vertices and vertex_attrs are preserved unchanged.
+        Call ``remove_orphan_vertices`` afterwards to compact the vertex array.
+    """
+    # sorted-vertex-key → (count, actual_face_vertices)
+    face_count: dict[tuple[int, ...], list[tuple[int, ...]]] = defaultdict(list)
+
+    for i in range(len(poly.element_types)):
+        etype_name = ELEMENT_TYPES_INV.get(int(poly.element_types[i]))
+        local_faces = _VOL_ELEMENT_FACES.get(etype_name or "")
+        if local_faces is None:
+            continue
+        cell = poly.connectivity[poly.offsets[i] : poly.offsets[i + 1]]
+        for local_idx in local_faces:
+            face_verts = tuple(int(cell[j]) for j in local_idx)
+            key = tuple(sorted(face_verts))
+            face_count[key].append(face_verts)
+
+    conn_list: list[int] = []
+    off_list: list[int] = [0]
+    type_list: list[int] = []
+
+    for appearances in face_count.values():
+        if len(appearances) != 1:
+            continue
+        face = appearances[0]
+        n = len(face)
+        conn_list.extend(face)
+        off_list.append(off_list[-1] + n)
+        if n == 3:
+            type_list.append(ELEMENT_TYPES["triangle"])
+        elif n == 4:
+            type_list.append(ELEMENT_TYPES["quad"])
+        else:
+            type_list.append(ELEMENT_TYPES["polygon"])
+
+    return dataclasses.replace(
+        poly,
+        connectivity=np.array(conn_list, dtype=poly.connectivity.dtype),
+        offsets=np.array(off_list, dtype=poly.offsets.dtype),
+        element_types=np.array(type_list, dtype=np.uint8),
+        element_attrs={},
+        element_tags={},
+    )
