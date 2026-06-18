@@ -128,18 +128,18 @@ def test_v1_blank_line_before_binary_marker() -> None:
 
 
 def test_v1_blank_line_unsupported_dataset_gives_clear_error() -> None:
-    """VTK v1.0 STRUCTURED_POINTS should raise CodecError with dataset name, not 'BINARY'."""
+    """v1.0 blank-line quirk: unsupported dataset shows real type, not 'BINARY'."""
     content = (
         b"# vtk DataFile Version 1.0\n"
-        b"Iron protein\n"
+        b"Some grid\n"
         b"\n"
         b"BINARY\n"
         b"\n"
-        b"DATASET STRUCTURED_POINTS\n"
+        b"DATASET STRUCTURED_GRID\n"
         b"DIMENSIONS 2 2 2\n"
     )
     tmp = _write_tmp(content)
-    with pytest.raises(CodecError, match="STRUCTURED_POINTS"):
+    with pytest.raises(CodecError, match="STRUCTURED_GRID"):
         read(tmp)
 
 
@@ -203,6 +203,90 @@ def test_binary_polydata_lazy_raises() -> None:
     tmp = _write_tmp(_make_binary_polydata_lines())
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def test_structured_points_ascii_2d() -> None:
+    """STRUCTURED_POINTS ASCII 2D generates quad connectivity."""
+    content = (
+        b"# vtk DataFile Version 2.0\n"
+        b"test\n"
+        b"ASCII\n"
+        b"DATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 3 3 1\n"
+        b"ORIGIN 0 0 0\n"
+        b"SPACING 1 1 1\n"
+        b"POINT_DATA 9\n"
+        b"SCALARS values float\n"
+        b"LOOKUP_TABLE default\n"
+        b"0 1 2 3 4 5 6 7 8\n"
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 9
+    assert len(poly.element_types) == 4  # (3-1)*(3-1) = 4 quads
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert all(t == ELEMENT_TYPES["quad"] for t in poly.element_types)
+    assert "values" in poly.vertex_attrs
+    np.testing.assert_allclose(poly.vertex_attrs["values"], np.arange(9, dtype=float))
+
+
+def test_structured_points_ascii_3d() -> None:
+    """STRUCTURED_POINTS ASCII 3D generates hexahedron connectivity."""
+    content = (
+        b"# vtk DataFile Version 2.0\n"
+        b"test 3d\n"
+        b"ASCII\n"
+        b"DATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 2 2 2\n"
+        b"ORIGIN 0 0 0\n"
+        b"SPACING 1 1 1\n"
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 8
+    assert len(poly.element_types) == 1  # 1 hex
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert int(poly.element_types[0]) == ELEMENT_TYPES["hexahedron"]
+
+
+def test_structured_points_aspect_ratio_keyword() -> None:
+    """VTK v1.0 ASPECT_RATIO keyword is treated the same as SPACING."""
+    content = (
+        b"# vtk DataFile Version 1.0\n"
+        b"v1 grid\n"
+        b"ASCII\n"
+        b"DATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 2 2 1\n"
+        b"ORIGIN 0 0 0\n"
+        b"ASPECT_RATIO 2 3 1\n"
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 4
+    # ij indexing: (i=0,j=1) → vertex[1]; (i=1,j=0) → vertex[2]
+    np.testing.assert_allclose(poly.vertices[1], [0.0, 3.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[2], [2.0, 0.0, 0.0])
+
+
+@pytest.mark.parametrize(
+    "fname,min_verts",
+    [
+        ("heart.vtk", 12000),
+        ("matrix.vtk", 50),
+        ("texThres2.vtk", 100),
+    ],
+)
+def test_structured_points_real_files(fname: str, min_verts: int) -> None:
+    """Real STRUCTURED_POINTS files from the test corpus read without error."""
+    import os
+
+    path = os.path.expanduser(f"~/.polyxios/vtk/{fname}")
+    if not os.path.exists(path):
+        pytest.skip(f"{fname} not in local cache")
+    poly = read(path)
+    assert len(poly.vertices) >= min_verts
 
 
 @pytest.mark.parametrize("fname", ["faults.vtk", "track1.binary.vtk"])

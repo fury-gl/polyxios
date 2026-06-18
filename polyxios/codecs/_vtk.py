@@ -111,6 +111,12 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         if is_binary:
             return _read_polydata_binary(path, file_size)
         return _read_polydata_ascii(path, file_size)
+    elif "STRUCTURED_POINTS" in dataset_line:
+        if lazy:
+            raise LazyReadError(
+                "VTK STRUCTURED_POINTS format does not support lazy reads."
+            )
+        return _read_structured_points(path, is_binary=is_binary)
     else:
         raise CodecError(
             f"VTK codec supports DATASET UNSTRUCTURED_GRID or POLYDATA, got: {dataset_line!r}"
@@ -1045,3 +1051,220 @@ def _parse_binary_attrs(
             break
 
     return pos, attrs
+
+
+def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:
+    """Generate hex/quad/line cell connectivity for a structured grid."""
+    if nx > 1 and ny > 1 and nz > 1:
+        i = np.arange(nx - 1)
+        j = np.arange(ny - 1)
+        k = np.arange(nz - 1)
+        ii, jj, kk = np.meshgrid(i, j, k, indexing="ij")
+        ii, jj, kk = ii.ravel(), jj.ravel(), kk.ravel()
+        sj, sk = nx, nx * ny
+        v0 = ii + jj * sj + kk * sk
+        cells = np.column_stack(
+            [
+                v0,
+                v0 + 1,
+                v0 + 1 + sj,
+                v0 + sj,
+                v0 + sk,
+                v0 + 1 + sk,
+                v0 + 1 + sj + sk,
+                v0 + sj + sk,
+            ]
+        )
+        return cells, "hexahedron"
+    elif nx > 1 and ny > 1:
+        i = np.arange(nx - 1)
+        j = np.arange(ny - 1)
+        ii, jj = np.meshgrid(i, j, indexing="ij")
+        ii, jj = ii.ravel(), jj.ravel()
+        v0 = ii + jj * nx
+        return np.column_stack([v0, v0 + 1, v0 + 1 + nx, v0 + nx]), "quad"
+    elif nx > 1:
+        i = np.arange(nx - 1)
+        return np.column_stack([i, i + 1]), "line"
+    elif ny > 1:
+        i = np.arange(ny - 1)
+        return np.column_stack([i, i + 1]), "line"
+    elif nz > 1:
+        i = np.arange(nz - 1)
+        return np.column_stack([i, i + 1]), "line"
+    return np.zeros((0, 1), dtype=np.int32), "vertex"
+
+
+def _read_structured_points(path: Path, *, is_binary: bool) -> PolyData:
+    """Read a VTK legacy STRUCTURED_POINTS dataset (ASCII or binary).
+
+    Parameters
+    ----------
+    path
+        Path to the .vtk file.
+    is_binary
+        True when the file header says BINARY.
+
+    Returns
+    -------
+    PolyData
+        Mesh with generated hex/quad/line connectivity and preserved
+        vertex attributes.
+    """
+    raw = path.read_bytes()
+
+    # Build (byte_offset, stripped_text) for every line
+    offsets: list[int] = []
+    texts: list[str] = []
+    pos = 0
+    while pos < len(raw):
+        nl = raw.find(b"\n", pos)
+        end = nl if nl != -1 else len(raw)
+        offsets.append(pos)
+        texts.append(raw[pos:end].decode("ascii", errors="replace").strip())
+        pos = end + 1
+
+    nx, ny, nz = 1, 1, 1
+    ox, oy, oz = 0.0, 0.0, 0.0
+    sx, sy, sz = 1.0, 1.0, 1.0
+    n_points = 0
+    in_point_data = False
+    vertex_attrs: dict[str, np.ndarray] = {}
+
+    i = 0
+    n_lines = len(texts)
+
+    while i < n_lines:
+        line = texts[i]
+        if not line:
+            i += 1
+            continue
+        upper = line.upper()
+        parts = line.split()
+
+        if upper.startswith("DIMENSIONS"):
+            nx, ny, nz = int(parts[1]), int(parts[2]), int(parts[3])
+        elif upper.startswith("ORIGIN"):
+            ox, oy, oz = float(parts[1]), float(parts[2]), float(parts[3])
+        elif upper.startswith(("SPACING", "ASPECT_RATIO")):
+            sx, sy, sz = float(parts[1]), float(parts[2]), float(parts[3])
+        elif upper.startswith("POINT_DATA"):
+            n_points = int(parts[1])
+            in_point_data = True
+        elif upper.startswith("CELL_DATA"):
+            in_point_data = False
+        elif in_point_data and upper.startswith("SCALARS"):
+            name = parts[1]
+            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            n_comp = int(parts[3]) if len(parts) > 3 else 1
+            i += 1
+            if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
+                i += 1
+            np_dt_base = _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            if is_binary:
+                np_dt = ">" + np_dt_base
+                data_pos = offsets[i] if i < len(offsets) else len(raw)
+                n_bytes = n_points * n_comp * np.dtype(np_dt).itemsize
+                arr = np.frombuffer(
+                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
+                ).astype(np.float64)
+                vertex_attrs[name] = (
+                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
+                )
+                data_end = data_pos + n_bytes
+                while i < n_lines and offsets[i] < data_end:
+                    i += 1
+                continue
+            else:
+                vals: list[float] = []
+                while len(vals) < n_points * n_comp and i < n_lines:
+                    vals.extend(float(x) for x in texts[i].split())
+                    i += 1
+                arr = np.array(vals, dtype=np.float64)
+                vertex_attrs[name] = (
+                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
+                )
+                continue
+        elif in_point_data and upper.startswith("COLOR_SCALARS"):
+            name = parts[1]
+            n_comp = int(parts[2])
+            i += 1
+            if is_binary:
+                data_pos = offsets[i] if i < len(offsets) else len(raw)
+                n_bytes = n_points * n_comp  # unsigned_char = 1 byte each
+                arr = np.frombuffer(
+                    raw[data_pos : data_pos + n_bytes], dtype=np.uint8
+                ).astype(np.float64)
+                vertex_attrs[name] = (
+                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
+                )
+                data_end = data_pos + n_bytes
+                while i < n_lines and offsets[i] < data_end:
+                    i += 1
+                continue
+            else:
+                vals = []
+                while len(vals) < n_points * n_comp and i < n_lines:
+                    vals.extend(float(x) for x in texts[i].split())
+                    i += 1
+                arr = np.array(vals, dtype=np.float64)
+                vertex_attrs[name] = (
+                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
+                )
+                continue
+        elif in_point_data and upper.startswith("VECTORS"):
+            name = parts[1]
+            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            i += 1
+            if is_binary:
+                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+                data_pos = offsets[i] if i < len(offsets) else len(raw)
+                n_bytes = n_points * 3 * np.dtype(np_dt).itemsize
+                arr = np.frombuffer(
+                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
+                ).astype(np.float64)
+                vertex_attrs[name] = arr.reshape(n_points, 3)
+                data_end = data_pos + n_bytes
+                while i < n_lines and offsets[i] < data_end:
+                    i += 1
+                continue
+            else:
+                vals = []
+                while len(vals) < n_points * 3 and i < n_lines:
+                    vals.extend(float(x) for x in texts[i].split())
+                    i += 1
+                vertex_attrs[name] = np.array(vals, dtype=np.float64).reshape(
+                    n_points, 3
+                )
+                continue
+        i += 1
+
+    xs = ox + np.arange(nx, dtype=np.float64) * sx
+    ys = oy + np.arange(ny, dtype=np.float64) * sy
+    zs = oz + np.arange(nz, dtype=np.float64) * sz
+    xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
+    vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+
+    cells, etype_name = _structured_grid_cells(nx, ny, nz)
+    if len(cells) == 0:
+        return PolyData(
+            vertices=vertices,
+            connectivity=np.array([], dtype=np.int32),
+            offsets=np.array([0], dtype=np.int32),
+            element_types=np.array([], dtype=np.uint8),
+            vertex_attrs=vertex_attrs,
+        )
+
+    n_cells = len(cells)
+    npc = cells.shape[1]
+    connectivity = cells.ravel().astype(np.int32)
+    offsets_arr = np.arange(0, (n_cells + 1) * npc, npc, dtype=np.int32)
+    element_types_arr = np.full(n_cells, ELEMENT_TYPES[etype_name], dtype=np.uint8)
+
+    return PolyData(
+        vertices=vertices,
+        connectivity=connectivity,
+        offsets=offsets_arr,
+        element_types=element_types_arr,
+        vertex_attrs=vertex_attrs,
+    )
