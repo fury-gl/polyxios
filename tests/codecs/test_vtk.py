@@ -128,18 +128,18 @@ def test_v1_blank_line_before_binary_marker() -> None:
 
 
 def test_v1_blank_line_unsupported_dataset_gives_clear_error() -> None:
-    """v1.0 blank-line quirk: unsupported dataset shows real type, not 'BINARY'."""
+    """v1.0 blank-line quirk: CodecError names the dataset type, not 'BINARY'."""
     content = (
         b"# vtk DataFile Version 1.0\n"
         b"Some grid\n"
         b"\n"
         b"BINARY\n"
         b"\n"
-        b"DATASET RECTILINEAR_GRID\n"
+        b"DATASET CUSTOM_GRID\n"
         b"DIMENSIONS 2 2 2\n"
     )
     tmp = _write_tmp(content)
-    with pytest.raises(CodecError, match="RECTILINEAR_GRID"):
+    with pytest.raises(CodecError, match="CUSTOM_GRID"):
         read(tmp)
 
 
@@ -203,6 +203,47 @@ def test_binary_polydata_lazy_raises() -> None:
     tmp = _write_tmp(_make_binary_polydata_lines())
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def test_rectilinear_grid_ascii() -> None:
+    """RECTILINEAR_GRID ASCII builds correct meshgrid vertices."""
+    content = (
+        b"# vtk DataFile Version 2.0\n"
+        b"test\n"
+        b"ASCII\n"
+        b"DATASET RECTILINEAR_GRID\n"
+        b"DIMENSIONS 3 2 1\n"
+        b"X_COORDINATES 3 float\n"
+        b"0.0 1.0 3.0\n"
+        b"Y_COORDINATES 2 float\n"
+        b"0.0 2.0\n"
+        b"Z_COORDINATES 1 float\n"
+        b"0.0\n"
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 6  # 3*2*1
+    assert len(poly.element_types) == 2  # (3-1)*(2-1) = 2 quads
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert all(t == ELEMENT_TYPES["quad"] for t in poly.element_types)
+    # vertex ordering: ij meshgrid → x varies first
+    np.testing.assert_allclose(poly.vertices[0], [0.0, 0.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[1], [0.0, 2.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[2], [1.0, 0.0, 0.0])
+
+
+@pytest.mark.parametrize("fname,expected", [("RectGrid2.vtk", (17061, 14720))])
+def test_rectilinear_grid_real_files(fname: str, expected: tuple) -> None:
+    """Real RECTILINEAR_GRID corpus file reads with correct counts."""
+    import os
+
+    path = os.path.expanduser(f"~/.polyxios/vtk/{fname}")
+    if not os.path.exists(path):
+        pytest.skip(f"{fname} not in local cache")
+    poly = read(path)
+    assert len(poly.vertices) == expected[0]
+    assert len(poly.element_types) == expected[1]
 
 
 def test_structured_grid_ascii() -> None:
