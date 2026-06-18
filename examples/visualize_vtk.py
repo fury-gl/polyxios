@@ -12,7 +12,10 @@ import polyxios.transforms as transforms
 
 def _build_actors(*, poly):
     faces = poly.faces
-    if faces is not None:
+    if faces is None:
+        surface = transforms.extract_surface(poly)
+        faces = surface.faces
+    if faces is not None and len(faces) > 0:
         colors = transforms.vertex_colors(poly)
         return [
             actor.surface(
@@ -21,7 +24,7 @@ def _build_actors(*, poly):
                 colors=colors if colors is not None else (0.8, 0.7, 0.6),
             )
         ]
-    print("  No surface elements found — rendering as point cloud.")
+    print("  No renderable geometry — rendering as point cloud.")
     return [actor.point(poly.vertices, colors=(0.9, 0.9, 0.9))]
 
 
