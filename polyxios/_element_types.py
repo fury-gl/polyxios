@@ -227,3 +227,11 @@ QUADRATIC_SURFACE_CORNERS: Final[dict[int, int]] = {
     ELEMENT_TYPES["quadratic_quad"]: 4,
     ELEMENT_TYPES["biquadratic_quad"]: 4,
 }
+
+# Element type codes that represent 1-D line geometry.
+LINE_ELEMENT_TYPES: Final[frozenset[int]] = frozenset(
+    {
+        ELEMENT_TYPES["line"],
+        ELEMENT_TYPES["poly_line"],
+    }
+)

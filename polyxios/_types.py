@@ -5,11 +5,13 @@ import numpy as np
 
 from polyxios._element_types import (
     ELEMENT_TYPES,
+    LINE_ELEMENT_TYPES,
     QUADRATIC_SURFACE_CORNERS,
     SURFACE_ELEMENT_TYPES,
 )
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
+_LINE_CODES = LINE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
 _QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
 
@@ -89,6 +91,29 @@ class PolyData:
             else:
                 tris.extend(cell[[0, j, j + 1]] for j in range(1, len(cell) - 1))
         return np.array(tris, dtype=np.int32) if tris else None
+
+    @property
+    def lines(self) -> list[np.ndarray] | None:
+        """Line connectivity as a list of vertex-index arrays.
+
+        Returns
+        -------
+        list of numpy.ndarray or None
+            Each array has shape (n_pts,) int32 — vertex indices for one
+            connected line or poly_line element. Returns None when no
+            line/poly_line elements exist.
+
+        Notes
+        -----
+        Use ``poly.vertices[idx]`` to get coordinates for each segment.
+        Recomputes on each access; store the result if calling repeatedly.
+        """
+        result = []
+        for i in range(len(self.element_types)):
+            if int(self.element_types[i]) not in _LINE_CODES:
+                continue
+            result.append(self.connectivity[self.offsets[i] : self.offsets[i + 1]])
+        return result if result else None
 
 
 def make_polydata(
