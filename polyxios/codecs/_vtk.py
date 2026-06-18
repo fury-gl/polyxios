@@ -1061,6 +1061,31 @@ def _parse_binary_attrs(
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, 3, 3)
 
+        elif upper.startswith("FIELD"):
+            n_arrays = int(line.split()[2])
+            for _ in range(n_arrays):
+                hdr_end = mm.find(b"\n", pos)
+                if hdr_end == -1:
+                    break
+                hdr = bytes(mv[pos:hdr_end]).decode("ascii", errors="replace").strip()
+                pos = hdr_end + 1
+                hparts = hdr.split()
+                if len(hparts) < 4:
+                    continue
+                arr_name = hparts[0]
+                n_comp_f, n_tuples_f = int(hparts[1]), int(hparts[2])
+                vtk_dt_f = hparts[3].lower()
+                np_dt_f = ">" + _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
+                n_bytes_f = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
+                raw_f = np.frombuffer(
+                    bytes(mv[pos : pos + n_bytes_f]), dtype=np_dt_f
+                ).astype(np.float64)
+                pos += n_bytes_f
+                pos = _skip_newline(mv, pos, file_size)
+                attrs[arr_name] = (
+                    raw_f.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else raw_f
+                )
+
         else:
             pos = line_start  # unknown keyword - back up and let outer loop handle
             break
@@ -1245,6 +1270,40 @@ def _read_rectilinear_grid(path: Path, *, is_binary: bool) -> PolyData:
                     n_points, 3
                 )
                 continue
+        elif in_point_data and upper.startswith("FIELD"):
+            n_arrays = int(parts[2])
+            i += 1
+            for _ in range(n_arrays):
+                while i < n_lines and not texts[i]:
+                    i += 1
+                if i >= n_lines:
+                    break
+                fparts = texts[i].split()
+                arr_name = fparts[0]
+                n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
+                vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
+                i += 1
+                np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
+                if is_binary:
+                    np_dt_f = ">" + np_dt_base_f
+                    data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
+                    n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
+                    arr = np.frombuffer(
+                        raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
+                    ).astype(np.float64)
+                    data_end = data_pos + n_bytes
+                    while i < n_lines and line_offsets[i] < data_end:
+                        i += 1
+                else:
+                    fvals: list[float] = []
+                    while len(fvals) < n_tuples_f * n_comp_f and i < n_lines:
+                        fvals.extend(float(x) for x in texts[i].split())
+                        i += 1
+                    arr = np.array(fvals, dtype=np.float64)
+                vertex_attrs[arr_name] = (
+                    arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
+                )
+            continue
         i += 1
 
     xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
@@ -1409,6 +1468,40 @@ def _read_structured_grid(path: Path, *, is_binary: bool) -> PolyData:
                     n_points, 3
                 )
                 continue
+        elif in_point_data and upper.startswith("FIELD"):
+            n_arrays = int(parts[2])
+            i += 1
+            for _ in range(n_arrays):
+                while i < n_lines and not texts[i]:
+                    i += 1
+                if i >= n_lines:
+                    break
+                fparts = texts[i].split()
+                arr_name = fparts[0]
+                n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
+                vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
+                i += 1
+                np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
+                if is_binary:
+                    np_dt_f = ">" + np_dt_base_f
+                    data_pos = offsets[i] if i < len(offsets) else len(raw)
+                    n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
+                    arr = np.frombuffer(
+                        raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
+                    ).astype(np.float64)
+                    data_end = data_pos + n_bytes
+                    while i < n_lines and offsets[i] < data_end:
+                        i += 1
+                else:
+                    fvals: list[float] = []
+                    while len(fvals) < n_tuples_f * n_comp_f and i < n_lines:
+                        fvals.extend(float(x) for x in texts[i].split())
+                        i += 1
+                    arr = np.array(fvals, dtype=np.float64)
+                vertex_attrs[arr_name] = (
+                    arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
+                )
+            continue
         i += 1
 
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
@@ -1708,6 +1801,40 @@ def _read_structured_points(path: Path, *, is_binary: bool) -> PolyData:
                     n_points, 3
                 )
                 continue
+        elif in_point_data and upper.startswith("FIELD"):
+            n_arrays = int(parts[2])
+            i += 1
+            for _ in range(n_arrays):
+                while i < n_lines and not texts[i]:
+                    i += 1
+                if i >= n_lines:
+                    break
+                fparts = texts[i].split()
+                arr_name = fparts[0]
+                n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
+                vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
+                i += 1
+                np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
+                if is_binary:
+                    np_dt_f = ">" + np_dt_base_f
+                    data_pos = offsets[i] if i < len(offsets) else len(raw)
+                    n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
+                    arr = np.frombuffer(
+                        raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
+                    ).astype(np.float64)
+                    data_end = data_pos + n_bytes
+                    while i < n_lines and offsets[i] < data_end:
+                        i += 1
+                else:
+                    fvals: list[float] = []
+                    while len(fvals) < n_tuples_f * n_comp_f and i < n_lines:
+                        fvals.extend(float(x) for x in texts[i].split())
+                        i += 1
+                    arr = np.array(fvals, dtype=np.float64)
+                vertex_attrs[arr_name] = (
+                    arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
+                )
+            continue
         i += 1
 
     xs = ox + np.arange(nx, dtype=np.float64) * sx
