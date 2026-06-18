@@ -135,11 +135,11 @@ def test_v1_blank_line_unsupported_dataset_gives_clear_error() -> None:
         b"\n"
         b"BINARY\n"
         b"\n"
-        b"DATASET STRUCTURED_GRID\n"
+        b"DATASET RECTILINEAR_GRID\n"
         b"DIMENSIONS 2 2 2\n"
     )
     tmp = _write_tmp(content)
-    with pytest.raises(CodecError, match="STRUCTURED_GRID"):
+    with pytest.raises(CodecError, match="RECTILINEAR_GRID"):
         read(tmp)
 
 
@@ -203,6 +203,74 @@ def test_binary_polydata_lazy_raises() -> None:
     tmp = _write_tmp(_make_binary_polydata_lines())
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def test_structured_grid_ascii() -> None:
+    """STRUCTURED_GRID ASCII with explicit curvilinear points."""
+    content = (
+        b"# vtk DataFile Version 3.0\n"
+        b"test\n"
+        b"ASCII\n"
+        b"DATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 2 2 1\n"
+        b"POINTS 4 float\n"
+        b"0 0 0\n1.5 0 0\n0 2.5 0\n1.5 2.5 0\n"
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 4
+    assert len(poly.element_types) == 1  # 1 quad
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert int(poly.element_types[0]) == ELEMENT_TYPES["quad"]
+    np.testing.assert_allclose(poly.vertices[1], [1.5, 0.0, 0.0])
+
+
+def test_structured_grid_binary() -> None:
+    """STRUCTURED_GRID binary reads correct vertex coordinates."""
+    pts = np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 1, 0],
+            [0, 0, 1],
+            [1, 0, 1],
+            [0, 1, 1],
+            [1, 1, 1],
+        ],
+        dtype=">f4",
+    ).tobytes()
+    content = (
+        b"# vtk DataFile Version 3.0\n"
+        b"test\n"
+        b"BINARY\n"
+        b"DATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 2 2 2\n"
+        b"POINTS 8 float\n" + pts
+    )
+    tmp = _write_tmp(content)
+    poly = read(tmp)
+    assert len(poly.vertices) == 8
+    assert len(poly.element_types) == 1  # 1 hex
+    from polyxios._element_types import ELEMENT_TYPES
+
+    assert int(poly.element_types[0]) == ELEMENT_TYPES["hexahedron"]
+
+
+@pytest.mark.parametrize(
+    "fname,expected_verts",
+    [("SampleStructGrid.vtk", 24000), ("office.binary.vtk", 8400)],
+)
+def test_structured_grid_real_files(fname: str, expected_verts: int) -> None:
+    """Real STRUCTURED_GRID corpus files read with correct vertex count."""
+    import os
+
+    path = os.path.expanduser(f"~/.polyxios/vtk/{fname}")
+    if not os.path.exists(path):
+        pytest.skip(f"{fname} not in local cache")
+    poly = read(path)
+    assert len(poly.vertices) == expected_verts
 
 
 def test_structured_points_ascii_2d() -> None:
