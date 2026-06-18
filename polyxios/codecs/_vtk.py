@@ -1,6 +1,7 @@
 import mmap
 from pathlib import Path
 from typing import Any
+import warnings
 
 import numpy as np
 
@@ -129,6 +130,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
                 "VTK STRUCTURED_POINTS format does not support lazy reads."
             )
         return _read_structured_points(path, is_binary=is_binary)
+    elif dataset_line.startswith("FIELD"):
+        return _read_field_data(path)
     else:
         raise CodecError(
             f"VTK codec supports DATASET UNSTRUCTURED_GRID or POLYDATA, got: {dataset_line!r}"
@@ -1430,6 +1433,94 @@ def _read_structured_grid(path: Path, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+    )
+
+
+def _read_field_data(path: Path) -> PolyData:
+    """Read a VTK FIELD data file (no geometry) into an empty PolyData.
+
+    Parameters
+    ----------
+    path
+        Path to the .vtk file.
+
+    Returns
+    -------
+    PolyData
+        Empty mesh (no vertices, no elements). Field arrays stored in
+        ``global_attrs`` keyed by array name.
+    """
+    warnings.warn(
+        f"{path.name}: VTK FIELD dataset has no geometry. "
+        "Returning empty PolyData with field arrays in global_attrs.",
+        UserWarning,
+        stacklevel=3,
+    )
+
+    raw = path.read_bytes()
+    lines: list[str] = []
+    pos = 0
+    while pos < len(raw):
+        nl = raw.find(b"\n", pos)
+        end = nl if nl != -1 else len(raw)
+        lines.append(raw[pos:end].decode("ascii", errors="replace").strip())
+        pos = end + 1
+
+    global_attrs: dict[str, object] = {}
+    i = 0
+    n_lines = len(lines)
+
+    while i < n_lines:
+        line = lines[i]
+        if not line:
+            i += 1
+            continue
+        upper = line.upper()
+        parts = line.split()
+
+        if upper.startswith("FIELD"):
+            # FIELD name n_arrays
+            i += 1
+            continue
+
+        # array header: name n_comp n_tuples dtype
+        if len(parts) == 4:
+            name, n_comp_s, n_tuples_s, vtk_dt = parts
+            try:
+                n_comp = int(n_comp_s)
+                n_tuples = int(n_tuples_s)
+            except ValueError:
+                i += 1
+                continue
+            # skip string arrays — skip exactly n_tuples data lines
+            if vtk_dt.lower() == "string":
+                skipped = 0
+                while skipped < n_tuples and i < n_lines:
+                    if lines[i]:
+                        skipped += 1
+                    i += 1
+                continue
+            i += 1
+            vals: list[float] = []
+            while len(vals) < n_tuples * n_comp and i < n_lines:
+                for token in lines[i].split():
+                    try:
+                        vals.append(float(token))
+                    except ValueError:
+                        pass
+                i += 1
+            arr = np.array(vals[: n_tuples * n_comp], dtype=np.float64)
+            global_attrs[name] = arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr
+            continue
+
+        i += 1
+
+    return PolyData(
+        vertices=np.zeros((0, 3), dtype=np.float64),
+        connectivity=np.array([], dtype=np.int32),
+        offsets=np.array([0], dtype=np.int32),
+        element_types=np.array([], dtype=np.uint8),
+        global_attrs=global_attrs,
     )
 
 
