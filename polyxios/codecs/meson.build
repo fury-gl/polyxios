@@ -5,8 +5,11 @@ py.install_sources(
     '_ply.py',
     '_vtk.py',
     '_vtk_xml.py',
+    '_vti.py',
     '_vtp.py',
     '_vtr.py',
+    '_vts.py',
+    '_vtu.py',
   ],
   subdir: 'polyxios/codecs',
 )
