@@ -11,6 +11,8 @@ import polyxios.transforms as transforms
 
 
 def _build_actors(*, poly):
+    if len(poly.vertices) == 0:
+        return None
     faces = poly.faces
     if faces is None:
         surface = transforms.extract_surface(poly)
@@ -43,7 +45,11 @@ def visualize(*, path):
         f"{len(poly.element_types)} elements | "
         f"vertex attrs: {list(poly.vertex_attrs) or 'none'}"
     )
-    window.show(_build_actors(poly=poly))
+    actors = _build_actors(poly=poly)
+    if actors is None:
+        print("  No geometry (FIELD data) — skipping window.")
+        return
+    window.show(actors)
 
 
 def main():
