@@ -72,6 +72,15 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     n_verts = vert_elem["count"] if vert_elem else 0
     n_faces = face_elem["count"] if face_elem else 0
 
+    # Compressed 3D Gaussian Splat format: 'chunk' element + packed vertex properties.
+    _chunk_elem = next((e for e in elements if e["name"] == "chunk"), None)
+    if _chunk_elem is not None:
+        if fmt == "ascii":
+            raise CodecError("Compressed 3DGS PLY in ASCII format is not supported.")
+        if lazy:
+            raise LazyReadError("Compressed 3DGS PLY does not support lazy reads.")
+        return _read_compressed_3dgs(path, header, header_end_offset)
+
     # Estimate connectivity size: assume avg 4 nodes/face
     conn_estimate = n_faces * 4
     validate_header(n_verts, n_faces, conn_estimate, file_size)
@@ -344,13 +353,12 @@ def _decode_binary(
             vertices = coords
 
         elif ename == "face":
+            # Locate the vertex-index list property and its dtype info.
             face_list_prop: tuple[str, tuple] | None = None
-            extra_props: list[tuple[str, str]] = []
             for pname, ptype in props:
                 if isinstance(ptype, tuple) and ptype[0] == "list":
                     face_list_prop = (pname, ptype)
-                else:
-                    extra_props.append((pname, ptype))
+                    break
 
             count_dt_str = (
                 _PLY_DTYPE.get(face_list_prop[1][1], "u1") if face_list_prop else "u1"
@@ -358,38 +366,38 @@ def _decode_binary(
             idx_dt_str = (
                 _PLY_DTYPE.get(face_list_prop[1][2], "i4") if face_list_prop else "i4"
             )
-
             count_size = np.dtype(endian + count_dt_str).itemsize
             index_size = np.dtype(endian + idx_dt_str).itemsize
 
-            extra_data: dict[str, list] = {p[0]: [] for p in extra_props}
-            extra_sizes = [
-                (p[0], np.dtype(endian + _PLY_DTYPE[p[1]]).itemsize, p[1])
-                for p in extra_props
-            ]
+            extra_data: dict[str, list] = {}
 
+            # Read face properties in their declared order so that scalar
+            # properties appearing before the vertex-index list (e.g. Armadillo.ply
+            # which has `property uchar intensity` before `property list ...`)
+            # are consumed at the right byte offset.
             for _ in range(count):
-                if face_list_prop is not None:
-                    cnt = int(
-                        np.frombuffer(
-                            bytes(mv[pos : pos + count_size]),
-                            dtype=endian + count_dt_str,
-                        )[0]
-                    )
-                    pos += count_size
-                    nbytes = cnt * index_size
-                    indices = np.frombuffer(
-                        bytes(mv[pos : pos + nbytes]), dtype=endian + idx_dt_str
-                    ).astype(np.int32)
-                    conn_list.extend(indices.tolist())
-                    offsets_list.append(offsets_list[-1] + cnt)
-                    pos += nbytes
-                for pname, esize, etype in extra_sizes:
-                    val = np.frombuffer(
-                        bytes(mv[pos : pos + esize]), dtype=endian + _PLY_DTYPE[etype]
-                    )[0]
-                    extra_data[pname].append(float(val))
-                    pos += esize
+                for pname, ptype in props:
+                    if isinstance(ptype, tuple) and ptype[0] == "list":
+                        cnt = int(
+                            np.frombuffer(
+                                bytes(mv[pos : pos + count_size]),
+                                dtype=endian + count_dt_str,
+                            )[0]
+                        )
+                        pos += count_size
+                        nbytes = cnt * index_size
+                        indices = np.frombuffer(
+                            bytes(mv[pos : pos + nbytes]), dtype=endian + idx_dt_str
+                        ).astype(np.int32)
+                        conn_list.extend(indices.tolist())
+                        offsets_list.append(offsets_list[-1] + cnt)
+                        pos += nbytes
+                    else:
+                        edt = endian + _PLY_DTYPE[ptype]
+                        esize = np.dtype(edt).itemsize
+                        val = np.frombuffer(bytes(mv[pos : pos + esize]), dtype=edt)[0]
+                        extra_data.setdefault(pname, []).append(float(val))
+                        pos += esize
 
             for pname, vals in extra_data.items():
                 element_attrs[pname] = np.array(vals)
@@ -443,6 +451,193 @@ def _skip_binary_element(
             else:
                 pos += np.dtype(endian + _PLY_DTYPE.get(ptype, "f4")).itemsize
     return pos
+
+
+def _read_compressed_3dgs(path: Path, header: dict, header_end_offset: int) -> PolyData:
+    """Decode a compressed 3D Gaussian Splat PLY file.
+
+    The compressed format (produced by super-splat / splat-transform) stores:
+
+    - A ``chunk`` element: one record per group of 256 vertices holding the
+      bounding-box ranges needed to dequantise the packed vertex data.
+    - A ``vertex`` element: four ``uint32`` per Gaussian —
+      ``packed_position``, ``packed_rotation``, ``packed_scale``,
+      ``packed_color``.  Each is a 4-byte little-endian integer whose bits
+      are sliced into 8-bit normalised components.
+    - An optional ``sh`` element: 45 ``uint8`` per Gaussian for higher-order
+      SH coefficients.
+
+    Parameters
+    ----------
+    path
+        Path to the PLY file.
+    header
+        Parsed header dict from ``_parse_header()``.
+    header_end_offset
+        Byte offset of the first data byte after ``end_header``.
+
+    Returns
+    -------
+    PolyData
+        Point-cloud PolyData (E=0) with dequantised vertex positions and
+        per-vertex attributes for scale, rotation, and colour.
+    """
+    elements = header["elements"]
+    chunk_elem = next(e for e in elements if e["name"] == "chunk")
+    vert_elem = next(e for e in elements if e["name"] == "vertex")
+    sh_elem = next((e for e in elements if e["name"] == "sh"), None)
+
+    n_chunks = chunk_elem["count"]
+    n_verts = vert_elem["count"]
+
+    # Build chunk structured dtype from its declared properties
+    chunk_dt = np.dtype([(p[0], "<f4") for p in chunk_elem["properties"]])
+    vert_dt = np.dtype(
+        [
+            ("packed_position", "<u4"),
+            ("packed_rotation", "<u4"),
+            ("packed_scale", "<u4"),
+            ("packed_color", "<u4"),
+        ]
+    )
+
+    with open(path, "rb") as fh:
+        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+        try:
+            pos = header_end_offset
+            chunk_bytes = n_chunks * chunk_dt.itemsize
+            chunks = np.frombuffer(bytes(mm[pos : pos + chunk_bytes]), dtype=chunk_dt)
+            pos += chunk_bytes
+
+            vert_bytes = n_verts * vert_dt.itemsize
+            verts_raw = np.frombuffer(bytes(mm[pos : pos + vert_bytes]), dtype=vert_dt)
+            pos += vert_bytes
+
+            sh_data: np.ndarray | None = None
+            if sh_elem is not None:
+                n_sh_props = len(sh_elem["properties"])
+                sh_dt = np.dtype([("data", "u1", n_sh_props)])
+                sh_bytes = n_verts * sh_dt.itemsize
+                sh_data = np.frombuffer(
+                    bytes(mm[pos : pos + sh_bytes]), dtype="u1"
+                ).reshape(n_verts, n_sh_props)
+        finally:
+            mm.close()
+
+    # Each chunk covers exactly CHUNK_SIZE consecutive vertices.
+    # Chunk index for vertex i: i // CHUNK_SIZE.
+    chunk_size = (n_verts + n_chunks - 1) // n_chunks  # ≈ 256
+    chunk_idx = np.minimum(
+        np.arange(n_verts, dtype=np.int32) // chunk_size, n_chunks - 1
+    )
+
+    def _unpack8(packed: np.ndarray, shift: int) -> np.ndarray:
+        """Extract one 8-bit component and normalise to [0, 1]."""
+        return ((packed >> shift) & 0xFF).astype(np.float32) / 255.0
+
+    def _dequantise(packed, shift, lo, hi):
+        norm = _unpack8(packed, shift)
+        return lo + norm * (hi - lo)
+
+    # Dequantise positions using per-chunk bounding boxes
+    has_min_max = all(
+        k in chunk_dt.names
+        for k in ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z")
+    )
+    if has_min_max:
+        cx = chunk_idx
+        x = _dequantise(
+            verts_raw["packed_position"], 0, chunks["min_x"][cx], chunks["max_x"][cx]
+        )
+        y = _dequantise(
+            verts_raw["packed_position"], 8, chunks["min_y"][cx], chunks["max_y"][cx]
+        )
+        z = _dequantise(
+            verts_raw["packed_position"], 16, chunks["min_z"][cx], chunks["max_z"][cx]
+        )
+        vertices = np.column_stack([x, y, z]).astype(np.float64)
+    else:
+        vertices = np.zeros((n_verts, 3), dtype=np.float64)
+
+    # Dequantise scales using per-chunk scale bounds (stored as log-scale)
+    vertex_attrs: dict[str, np.ndarray] = {}
+    has_scale = all(
+        k in chunk_dt.names
+        for k in (
+            "min_scale_x",
+            "max_scale_x",
+            "min_scale_y",
+            "max_scale_y",
+            "min_scale_z",
+            "max_scale_z",
+        )
+    )
+    if has_scale:
+        cx = chunk_idx
+        vertex_attrs["scale_0"] = _dequantise(
+            verts_raw["packed_scale"],
+            0,
+            chunks["min_scale_x"][cx],
+            chunks["max_scale_x"][cx],
+        )
+        vertex_attrs["scale_1"] = _dequantise(
+            verts_raw["packed_scale"],
+            8,
+            chunks["min_scale_y"][cx],
+            chunks["max_scale_y"][cx],
+        )
+        vertex_attrs["scale_2"] = _dequantise(
+            verts_raw["packed_scale"],
+            16,
+            chunks["min_scale_z"][cx],
+            chunks["max_scale_z"][cx],
+        )
+
+    # Rotation: 8-bit per quaternion component, normalised to [-1, 1]
+    for shift, name in ((0, "rot_0"), (8, "rot_1"), (16, "rot_2"), (24, "rot_3")):
+        vertex_attrs[name] = ((verts_raw["packed_rotation"] >> shift) & 0xFF).astype(
+            np.float32
+        ) / 127.5 - 1.0
+
+    # Color (SH DC) and opacity from packed_color
+    has_rgb = all(
+        k in chunk_dt.names
+        for k in ("min_r", "max_r", "min_g", "max_g", "min_b", "max_b")
+    )
+    if has_rgb:
+        cx = chunk_idx
+        vertex_attrs["color_r"] = _dequantise(
+            verts_raw["packed_color"], 0, chunks["min_r"][cx], chunks["max_r"][cx]
+        )
+        vertex_attrs["color_g"] = _dequantise(
+            verts_raw["packed_color"], 8, chunks["min_g"][cx], chunks["max_g"][cx]
+        )
+        vertex_attrs["color_b"] = _dequantise(
+            verts_raw["packed_color"], 16, chunks["min_b"][cx], chunks["max_b"][cx]
+        )
+    else:
+        for shift, name in ((0, "color_r"), (8, "color_g"), (16, "color_b")):
+            vertex_attrs[name] = ((verts_raw["packed_color"] >> shift) & 0xFF).astype(
+                np.float32
+            )
+
+    vertex_attrs["opacity"] = ((verts_raw["packed_color"] >> 24) & 0xFF).astype(
+        np.float32
+    )
+
+    # Optional higher-order SH coefficients
+    if sh_data is not None:
+        for i in range(sh_data.shape[1]):
+            vertex_attrs[f"f_rest_{i}"] = sh_data[:, i].astype(np.float32) / 255.0
+
+    return PolyData(
+        vertices=vertices,
+        connectivity=np.array([], dtype=np.int32),
+        offsets=np.array([0], dtype=np.int32),
+        element_types=np.array([], dtype=np.uint8),
+        vertex_attrs=vertex_attrs,
+        element_attrs={},
+    )
 
 
 def _parse_header(fh: object) -> tuple[dict, int]:

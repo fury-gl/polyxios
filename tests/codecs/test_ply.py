@@ -83,3 +83,99 @@ def test_ascii_lazy_raises() -> None:
     write(poly, tmp, binary=False)
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def test_face_scalar_prop_before_list_binary() -> None:
+    """Non-list face property declared before vertex_indices must be read correctly."""
+    # Construct a binary big-endian PLY with `intensity` before `vertex_indices`
+    # (mirrors the layout of Armadillo.ply)
+    import struct
+
+    header = (
+        b"ply\n"
+        b"format binary_big_endian 1.0\n"
+        b"element vertex 3\n"
+        b"property float x\n"
+        b"property float y\n"
+        b"property float z\n"
+        b"element face 1\n"
+        b"property uchar intensity\n"
+        b"property list uchar int vertex_indices\n"
+        b"end_header\n"
+    )
+    # 3 vertices: (0,0,0), (1,0,0), (0,1,0)
+    verts_bytes = (
+        struct.pack(">fff", 0, 0, 0)
+        + struct.pack(">fff", 1, 0, 0)
+        + struct.pack(">fff", 0, 1, 0)
+    )
+    # 1 face: intensity=42, then 3 indices [0,1,2]
+    face_bytes = (
+        struct.pack(">B", 42) + struct.pack(">B", 3) + struct.pack(">iii", 0, 1, 2)
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as f:
+        f.write(header + verts_bytes + face_bytes)
+        tmp = f.name
+
+    poly = read(tmp)
+    assert len(poly.vertices) == 3
+    assert len(poly.element_types) == 1
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+    assert "intensity" in poly.element_attrs
+    assert int(poly.element_attrs["intensity"][0]) == 42
+
+
+def test_3dgs_ascii_chunk_raises() -> None:
+    """Compressed 3DGS PLY in ASCII format raises CodecError."""
+    from polyxios.exceptions import CodecError
+
+    header = (
+        b"ply\n"
+        b"format ascii 1.0\n"
+        b"element chunk 1\n"
+        b"property float min_x\n"
+        b"property float max_x\n"
+        b"element vertex 2\n"
+        b"property uint packed_position\n"
+        b"end_header\n"
+        b"0.0 1.0\n"
+        b"100\n"
+        b"200\n"
+    )
+    with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as f:
+        f.write(header)
+        tmp = f.name
+
+    with pytest.raises(CodecError):
+        read(tmp)
+
+
+def test_3dgs_compressed_ply_positions() -> None:
+    """Compressed 3DGS PLY returns real world coordinates, not zeros."""
+    from polyxios.fetcher import fetch
+
+    path = fetch("gs_Halo_Believe.cleaned.compressed.ply")
+    poly = read(path)
+    assert len(poly.vertices) == 345217
+    assert len(poly.element_types) == 0
+    # Positions must not all be zero
+    assert not np.allclose(poly.vertices, 0.0)
+    # Coords should be within the known scene bbox (roughly -5..5 range)
+    assert poly.vertices[:, 0].min() > -20.0
+    assert poly.vertices[:, 0].max() < 20.0
+    assert "scale_0" in poly.vertex_attrs
+    assert "rot_0" in poly.vertex_attrs
+    assert "opacity" in poly.vertex_attrs
+
+
+def test_real_armadillo() -> None:
+    """Armadillo.ply: binary big-endian with face scalar before vertex list."""
+    from polyxios.fetcher import fetch
+
+    path = fetch("Armadillo.ply")
+    poly = read(path)
+    assert len(poly.vertices) == 172974
+    assert len(poly.element_types) == 345944
+    assert poly.faces is not None and len(poly.faces) > 0
+    assert "intensity" in poly.element_attrs
