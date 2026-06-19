@@ -1,6 +1,7 @@
 py.install_sources(
   [
     '__init__.py',
+    '_mesh.py',
     '_obj.py',
     '_ply.py',
     '_vtk.py',
