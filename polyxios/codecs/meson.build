@@ -3,6 +3,7 @@ py.install_sources(
     '__init__.py',
     '_obj.py',
     '_ply.py',
+    '_splat.py',
     '_vtk.py',
     '_vtp.py',
     '_vtr.py',
