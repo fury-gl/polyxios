@@ -4,37 +4,42 @@ from typing import Any
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    ELEMENT_TYPES_INV,
+    POLYXIOS_TO_VTK,
+    VTK_TO_POLYXIOS,
+)
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import decode_da, parse_xml
-from polyxios.exceptions import LazyReadError, UnsupportedFormatError
+from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
-EXTENSION: str = ".vtp"
-
-_SECTION_TYPES = ("Verts", "Lines", "Strips", "Polys")
+EXTENSION: str = ".vtu"
 
 
 def read(path: Path | str, *, lazy: bool = False) -> PolyData:
-    """Parse a VTK PolyData XML file (.vtp) and return a PolyData.
+    """Parse a VTK UnstructuredGrid XML file (.vtu) and return a PolyData.
 
     Parameters
     ----------
     path
-        Path to the .vtp file.
+        Path to the .vtu file.
     lazy
-        If True, XML tree is parsed eagerly but array data decoded on access.
-        NOTE: Not fully supported with frozen PolyData; currently ignored (eager).
+        Deferred decoding is not supported; raises LazyReadError when True.
 
     Returns
     -------
     PolyData
-        Parsed mesh data combining Verts/Lines/Strips/Polys sections.
+        Parsed mesh data.
+
+    Raises
+    ------
+    LazyReadError
+        If lazy=True.
     """
     if lazy:
-        raise LazyReadError(
-            "VTP lazy reads require mutable array proxies; not supported with frozen PolyData."
-        )
+        raise LazyReadError("VTU lazy reads are not supported with frozen PolyData.")
 
     path = Path(path)
     file_size = path.stat().st_size
@@ -51,17 +56,9 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             is_base64=is_base64,
         )
 
-    vtk_type = root.get("type", "PolyData")
-    if vtk_type != "PolyData":
-        raise UnsupportedFormatError(
-            f"VTP file declares type='{vtk_type}'; only 'PolyData' is supported "
-            "by the built-in VTP reader. For multi-block datasets see "
-            "examples/read_multiblock_vtp.py for a step-by-step loading tutorial."
-        )
-
-    pd_elem = root.find("PolyData")
-    if pd_elem is None:
-        raise ValueError("No <PolyData> element found in VTP file.")
+    ug = root.find("UnstructuredGrid")
+    if ug is None:
+        raise ValueError("No <UnstructuredGrid> element found in VTU file.")
 
     all_vertices: list[np.ndarray] = []
     all_connectivity: list[np.ndarray] = []
@@ -70,7 +67,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
 
-    for piece in pd_elem.findall("Piece"):
+    for piece in ug.findall("Piece"):
         n_points = int(piece.get("NumberOfPoints", "0"))
 
         points_elem = piece.find("Points")
@@ -86,53 +83,36 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             sum(v.shape[0] for v in all_vertices[:-1]) if len(all_vertices) > 1 else 0
         )
 
-        for section in _SECTION_TYPES:
-            sect_elem = piece.find(section)
-            if sect_elem is None:
-                continue
-            conn_da = sect_elem.find("DataArray[@Name='connectivity']")
-            off_da = sect_elem.find("DataArray[@Name='offsets']")
-            if conn_da is None or off_da is None:
-                continue
+        cells_elem = piece.find("Cells")
+        if cells_elem is not None:
+            conn_da = cells_elem.find("DataArray[@Name='connectivity']")
+            off_da = cells_elem.find("DataArray[@Name='offsets']")
+            types_da = cells_elem.find("DataArray[@Name='types']")
 
-            conn = _decode(conn_da).astype(np.int32) + vert_offset
-            piece_offsets = _decode(off_da).astype(np.int32)
+            if conn_da is not None and off_da is not None and types_da is not None:
+                conn = _decode(conn_da).astype(np.int32) + vert_offset
+                vtk_offsets = _decode(off_da).astype(np.int32)
+                vtk_codes = _decode(types_da).astype(np.uint8)
 
-            if section == "Verts":
-                code = ELEMENT_TYPES["vertex"]
-            elif section == "Lines":
-                code = ELEMENT_TYPES["line"]
-            elif section == "Strips":
-                code = ELEMENT_TYPES["triangle_strip"]
-            else:  # Polys
-                code = None  # determined per-element
+                prev = all_offsets[-1]
+                for i, end in enumerate(vtk_offsets):
+                    start_local = int(vtk_offsets[i - 1]) if i > 0 else 0
+                    end_local = int(end)
+                    all_connectivity.append(conn[start_local:end_local])
+                    prev = prev + (end_local - start_local)
+                    all_offsets.append(prev)
 
-            prev_off = all_offsets[-1]
-            for i, end in enumerate(piece_offsets):
-                start_local = int(piece_offsets[i - 1]) if i > 0 else 0
-                end_local = int(end)
-                n_nodes = end_local - start_local
-                local_conn = conn[start_local:end_local]
-                all_connectivity.append(local_conn)
-                new_off = prev_off + n_nodes
-                all_offsets.append(new_off)
-                prev_off = new_off
-
-                if code is not None:
-                    all_types.append(code)
-                else:
-                    if n_nodes == 3:
-                        all_types.append(ELEMENT_TYPES["triangle"])
-                    elif n_nodes == 4:
-                        all_types.append(ELEMENT_TYPES["quad"])
-                    else:
-                        all_types.append(ELEMENT_TYPES["polygon"])
+                for code in vtk_codes:
+                    name = VTK_TO_POLYXIOS.get(int(code), "empty_cell")
+                    all_types.append(ELEMENT_TYPES.get(name, 0))
 
         pd_data = piece.find("PointData")
         if pd_data is not None:
             for da in pd_data:
                 name = da.get("Name", "unknown")
                 arr = _decode(da)
+                if arr.size == 0:
+                    continue
                 n_comp = int(da.get("NumberOfComponents", "1"))
                 if n_comp > 1:
                     arr = arr.reshape(-1, n_comp)
@@ -143,6 +123,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             for da in cd_data:
                 name = da.get("Name", "unknown")
                 arr = _decode(da)
+                if arr.size == 0:
+                    continue
                 n_comp = int(da.get("NumberOfComponents", "1"))
                 if n_comp > 1:
                     arr = arr.reshape(-1, n_comp)
@@ -183,7 +165,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
 
 def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
-    """Serialise PolyData to a VTK PolyData XML file (.vtp).
+    """Serialise PolyData to a VTK UnstructuredGrid XML file (.vtu).
 
     Parameters
     ----------
@@ -193,8 +175,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         Output file path.
     binary
         If True (default), encode arrays as base64 binary.
-    compressed
-        If True (default: False), compress binary data with zlib.
     """
     path = Path(path)
     binary: bool = bool(opts.get("binary", True))
@@ -202,17 +182,22 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
 
+    vtk_types = np.array(
+        [
+            POLYXIOS_TO_VTK.get(ELEMENT_TYPES_INV.get(int(t), "empty_cell"), 0)
+            for t in poly.element_types
+        ],
+        dtype=np.uint8,
+    )
+    vtk_offsets = poly.offsets[1:].astype(np.int32)
+
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
-    lines.append('<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">')
-    lines.append("  <PolyData>")
-
-    n_polys = n_elems  # write all as Polys for generality
-
     lines.append(
-        f'    <Piece NumberOfPoints="{n_verts}" NumberOfVerts="0" '
-        f'NumberOfLines="0" NumberOfStrips="0" NumberOfPolys="{n_polys}">'
+        '<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'
     )
+    lines.append("  <UnstructuredGrid>")
+    lines.append(f'    <Piece NumberOfPoints="{n_verts}" NumberOfCells="{n_elems}">')
 
     lines.append("      <Points>")
     lines.append(
@@ -220,13 +205,13 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     )
     lines.append("      </Points>")
 
-    conn = poly.connectivity.astype(np.int32)
-    off = poly.offsets[1:].astype(np.int32)
-
-    lines.append("      <Polys>")
-    lines.append(_da("connectivity", conn, "Int32", binary, 1, 10))
-    lines.append(_da("offsets", off, "Int32", binary, 1, 10))
-    lines.append("      </Polys>")
+    lines.append("      <Cells>")
+    lines.append(
+        _da("connectivity", poly.connectivity.astype(np.int32), "Int32", binary, 1, 10)
+    )
+    lines.append(_da("offsets", vtk_offsets, "Int32", binary, 1, 10))
+    lines.append(_da("types", vtk_types, "UInt8", binary, 1, 10))
+    lines.append("      </Cells>")
 
     if poly.vertex_attrs:
         lines.append("      <PointData>")
@@ -247,7 +232,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
-    lines.append("  </PolyData>")
+    lines.append("  </UnstructuredGrid>")
     lines.append("</VTKFile>")
 
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -273,9 +258,8 @@ def _da(
             f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
             f'format="binary">{encoded}</DataArray>'
         )
-    else:
-        vals = " ".join(f"{v:.10g}" for v in arr.ravel())
-        return (
-            f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-            f'format="ascii">{vals}</DataArray>'
-        )
+    vals = " ".join(str(v) for v in arr.ravel())
+    return (
+        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
+        f'format="ascii">{vals}</DataArray>'
+    )
