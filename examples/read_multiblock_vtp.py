@@ -23,11 +23,13 @@ forwards you here.  This script shows the four steps needed to load such a datas
 and produce a single ``PolyData`` object.
 """
 
+import argparse
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
 import polyxios
+from polyxios.fetcher import fetch, fetch_by_extension
 import polyxios.transforms as transforms
 
 
@@ -133,12 +135,60 @@ def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
     return merged
 
 
-if __name__ == "__main__":
-    vtp_path = sys.argv[1] if len(sys.argv) > 1 else "ExportBunny.vtp"
-    print(f"Reading multi-block VTP: {vtp_path}\n")
+def main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Read a vtkMultiBlockDataSet .vtp index file and merge all pieces into a "
+            "single PolyData.\n\n"
+            "Files are fetched automatically from the polyxios-data release package "
+            "(vtp.zip, hosted on GitHub) and cached under ~/.polyxios/vtp/. "
+            "Use --list to see what is already cached locally. "
+            "Pass a local path directly if the file is already on disk."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "filename",
+        nargs="?",
+        help=(
+            "VTP filename to fetch and read (e.g. 'ExportBunny.vtp'), or a local "
+            "path (relative or absolute). "
+            "Omit to use the default multiblock sample 'ExportBunny.vtp' "
+            "(auto-downloaded if not cached)."
+        ),
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List locally cached VTP files and exit.",
+    )
+    args = parser.parse_args()
 
+    if args.list:
+        paths = fetch_by_extension("vtp")
+        if not paths:
+            print(
+                "No local VTP files cached.\n"
+                "Run without --list (optionally with a filename) to download the sample pack."
+            )
+        else:
+            print("Cached VTP files:")
+            for p in paths:
+                print(f"  {p}")
+        sys.exit(0)
+
+    if args.filename:
+        p = Path(args.filename)
+        if p.exists() or p.parent != Path("."):
+            vtp_path = p
+        else:
+            vtp_path = Path(fetch(args.filename))
+    else:
+        vtp_path = Path(fetch("ExportBunny.vtp"))
+        print(f"No filename given — using default: {vtp_path}")
+
+    print(f"\nReading multi-block VTP: {vtp_path}\n")
     poly = read_multiblock_vtp(vtp_path)
-
     print(
         f"\nMerged result:\n"
         f"  vertices : {len(poly.vertices):,}\n"
@@ -146,3 +196,7 @@ if __name__ == "__main__":
         f"  vertex attrs  : {list(poly.vertex_attrs) or 'none'}\n"
         f"  element attrs : {list(poly.element_attrs) or 'none'}"
     )
+
+
+if __name__ == "__main__":
+    main()
