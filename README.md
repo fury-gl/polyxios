@@ -155,9 +155,11 @@ spin install -e  # editable install (source changes reflected immediately)
 | `spin docs --clean` | Wipe `_build/` before building |
 | `spin docs --open` | Build and open docs in the browser |
 | `spin clean` | Remove build artifacts and `__pycache__` |
+| `spin release <version>` | Cut a release: bump version, tag, push, start next dev cycle |
 
 See [`docs/contributing.rst`](docs/contributing.rst) for commit message
 conventions and the full contributor guide.
+For the full release workflow see [`docs/development.rst`](docs/development.rst).
 
 ---
 

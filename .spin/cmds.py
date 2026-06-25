@@ -1,7 +1,9 @@
 """Custom spin commands for polyxios development."""
 
+import datetime
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -281,3 +283,216 @@ def clean():
                 click.echo(f"  rm {path}")
                 os.remove(path)
     click.echo("Done.")
+
+
+def _next_dev_version(version):
+    """Increment minor component and append .dev0."""
+    parts = version.split(".")
+    parts[1] = str(int(parts[1]) + 1)
+    if len(parts) > 2:
+        parts[2] = "0"
+    return ".".join(parts) + ".dev0"
+
+
+def _bump_pyproject(pyproject_path, *, new_version):
+    with open(pyproject_path) as f:
+        content = f.read()
+    updated = re.sub(
+        r'^(version\s*=\s*")[^"]*(")',
+        rf"\g<1>{new_version}\g<2>",
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if updated == content:
+        click.echo(f"ERROR: version line not found in {pyproject_path}", err=True)
+        sys.exit(1)
+    with open(pyproject_path, "w") as f:
+        f.write(updated)
+
+
+def _bump_changelog(changes_path, *, release_version, next_version, release_date):
+    with open(changes_path) as f:
+        content = f.read()
+
+    dated_heading = f"{release_version} ({release_date})"
+    updated = re.sub(
+        rf"{re.escape(release_version)}\s*\(upcoming\)",
+        dated_heading,
+        content,
+        count=1,
+    )
+    if updated == content:
+        click.echo(
+            f"WARNING: '{release_version} (upcoming)' not found in {changes_path}.",
+            err=True,
+        )
+    with open(changes_path, "w") as f:
+        f.write(updated)
+
+
+def _prepend_upcoming_section(changes_path, *, next_version):
+    anchor = f".. _changes_{next_version.replace('.dev0', '')}:"
+    heading = f"{next_version.replace('.dev0', '')} (upcoming)"
+    underline = "-" * len(heading)
+    new_section = f"{anchor}\n\n{heading}\n{underline}\n\n(No entries yet.)\n\n"
+    with open(changes_path) as f:
+        content = f.read()
+    marker = ".. _changes_"
+    insert_at = content.find(marker, content.find(marker) + 1)
+    if insert_at == -1:
+        insert_at = content.find(marker)
+    with open(changes_path, "w") as f:
+        f.write(content[:insert_at] + new_section + content[insert_at:])
+
+
+def _append_stats_to_changelog(changes_path, *, release_version, prev_tag):
+    import importlib.util
+
+    root = _run(["git", "rev-parse", "--show-toplevel"])
+    stats_script = os.path.join(root, "tools", "github_stats.py")
+    spec = importlib.util.spec_from_file_location("github_stats", stats_script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    click.echo("  Fetching GitHub stats (set GITHUB_TOKEN to avoid rate limits)...")
+    try:
+        stats = mod.generate_stats(since_tag=prev_tag)
+    except Exception as exc:
+        click.echo(f"  WARNING: could not fetch stats: {exc}", err=True)
+        return
+
+    with open(changes_path) as f:
+        content = f.read()
+
+    anchor = f".. _changes_{release_version}:"
+    next_anchor_pat = re.compile(
+        r"\.\. _changes_(?!" + re.escape(release_version) + r")"
+    )
+    section_start = content.find(anchor)
+    if section_start == -1:
+        click.echo(f"  WARNING: anchor '{anchor}' not found in CHANGES.rst.", err=True)
+        return
+
+    match = next_anchor_pat.search(content, section_start + len(anchor))
+    insert_at = match.start() if match else len(content)
+
+    block = f"\n{stats}\n\n"
+    with open(changes_path, "w") as f:
+        f.write(content[:insert_at] + block + content[insert_at:])
+
+
+@click.command()
+@click.argument("version")
+@click.option(
+    "--next",
+    "next_version",
+    default=None,
+    help="Next dev version (default: auto-increment minor, e.g. 0.3.0.dev0)",
+)
+@click.option(
+    "--remote",
+    default="upstream",
+    show_default=True,
+    help="Git remote to push tag and commits to.",
+)
+@click.option(
+    "--no-stats",
+    is_flag=True,
+    default=False,
+    help="Skip GitHub stats generation in the changelog.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print all steps without executing them.",
+)
+def release(version, next_version, remote, no_stats, dry_run):
+    """Cut a release: bump version, tag, push, then start the next dev cycle.
+
+    Parameters
+    ----------
+    version : str
+        Release version string, e.g. ``0.2.0``.
+    next_version : str, optional
+        Next development version string (with .dev0 suffix).
+        Defaults to auto-incrementing the minor component.
+    remote : str
+        Git remote to push to.
+    no_stats : bool
+        Skip GitHub stats (PR / issue / contributor lists) in changelog.
+    dry_run : bool
+        If True, print commands without running them.
+    """
+    if next_version is None:
+        next_version = _next_dev_version(version)
+
+    tag = f"v{version}"
+    today = datetime.date.today().isoformat()
+    root = _run(["git", "rev-parse", "--show-toplevel"])
+    pyproject = os.path.join(root, "pyproject.toml")
+    changes = os.path.join(root, "CHANGES.rst")
+
+    prev_tag = _run(["git", "describe", "--abbrev=0", "--tags"])
+
+    def step(msg, cmd=None):
+        click.echo(f"  {'[DRY-RUN] ' if dry_run else ''}{msg}")
+        if cmd and not dry_run:
+            result = subprocess.run(cmd, cwd=root)
+            if result.returncode != 0:
+                click.echo(f"ERROR: command failed: {' '.join(cmd)}", err=True)
+                sys.exit(1)
+
+    dirty = _run(["git", "status", "--porcelain"])
+    if dirty:
+        click.echo("ERROR: working tree has uncommitted changes.", err=True)
+        sys.exit(1)
+
+    click.echo(f"\nReleasing polyxios {version} (next dev: {next_version})\n")
+
+    step(f"Bump pyproject.toml to {version}")
+    if not dry_run:
+        _bump_pyproject(pyproject, new_version=version)
+
+    step(f"Update CHANGES.rst: mark {version} with date {today}")
+    if not dry_run:
+        _bump_changelog(
+            changes,
+            release_version=version,
+            next_version=next_version,
+            release_date=today,
+        )
+
+    if not no_stats:
+        step(f"Append GitHub stats to CHANGES.rst (since {prev_tag})")
+        if not dry_run:
+            _append_stats_to_changelog(
+                changes, release_version=version, prev_tag=prev_tag
+            )
+
+    step(
+        f"Commit release: 'MNT: release {version}'",
+        ["git", "commit", "-am", f"MNT: release {version}"],
+    )
+
+    step(f"Tag {tag}", ["git", "tag", tag])
+
+    step(f"Push master + {tag} to {remote}", ["git", "push", remote, "master", tag])
+
+    step(f"Bump pyproject.toml to {next_version}")
+    if not dry_run:
+        _bump_pyproject(pyproject, new_version=next_version)
+
+    step(f"Prepend upcoming section for {next_version} in CHANGES.rst")
+    if not dry_run:
+        _prepend_upcoming_section(changes, next_version=next_version)
+
+    step(
+        f"Commit dev bump: 'MNT: back to dev, start {next_version}'",
+        ["git", "commit", "-am", f"MNT: back to dev, start {next_version}"],
+    )
+
+    step(f"Push master to {remote}", ["git", "push", remote, "master"])
+
+    click.echo(f"\nDone! {tag} is live on {remote}. Next cycle: {next_version}.")

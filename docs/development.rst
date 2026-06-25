@@ -122,9 +122,9 @@ To run all hooks manually against the whole codebase::
 Making a release
 ----------------
 
-Releases are published automatically when a version tag is pushed.
-The GitHub Actions ``release`` workflow builds platform wheels, creates
-a GitHub Release, and uploads everything to PyPI via Trusted Publishing.
+Releases are published automatically when a version tag is pushed to
+``upstream``.  The GitHub Actions ``release`` workflow builds platform wheels,
+creates a GitHub Release, and publishes to PyPI via Trusted Publishing.
 
 **One-time setup (do once per repository):**
 
@@ -139,46 +139,58 @@ a GitHub Release, and uploads everything to PyPI via Trusted Publishing.
 2. In the GitHub repository settings, create a deployment environment
    named ``pypi`` (optional but recommended for approval gates).
 
-**Steps to cut a release:**
+**Cutting a release:**
 
 1. Make sure all tests pass on ``master``::
 
        spin test
 
-2. Update :doc:`changelog` — rename the ``upcoming`` heading to the
-   release version and date, e.g.::
+2. Update :doc:`changelog` — fill in the ``upcoming`` section with the
+   changes for this release (the release date is stamped automatically).
 
-       0.1.0 (2026-07-01)
-       -------------------
+3. Run the release command::
 
-3. Remove the ``.dev0`` suffix from ``version`` in ``pyproject.toml``::
+       spin release 0.2.0
 
-       version = "0.1.0"
+   This single command:
 
-4. Commit the version bump and changelog::
+   - Sets ``version = "0.2.0"`` in ``pyproject.toml``
+   - Stamps today's date in ``CHANGES.rst`` (replaces ``upcoming``)
+   - Commits ``MNT: release 0.2.0``
+   - Creates and pushes tag ``v0.2.0`` to ``upstream``
+   - Bumps ``pyproject.toml`` to ``0.3.0.dev0``
+   - Prepends a new ``0.3.0 (upcoming)`` section to ``CHANGES.rst``
+   - Commits ``MNT: back to dev, start 0.3.0.dev0`` and pushes
 
-       git add pyproject.toml CHANGES.rst
-       git commit -m "DOC: release 0.1.0"
+   The tag push triggers CI, which builds wheels for Linux / macOS /
+   Windows and publishes to PyPI.
 
-5. Tag and push::
+   The GitHub stats step queries the public API, which is rate-limited to
+   60 requests/hour unauthenticated.  Set the ``GITHUB_TOKEN`` environment
+   variable to raise the limit::
 
-       git tag v0.1.0
-       git push origin master v0.1.0
+       export GITHUB_TOKEN=ghp_...
+       spin release 0.2.0
 
-   GitHub Actions picks up the tag, builds wheels for Linux / macOS /
-   Windows, creates a GitHub Release with auto-generated notes, and
-   publishes to PyPI.
+**Options:**
 
-6. After the release, restore the dev version for the next cycle::
+.. code-block:: text
 
-       # pyproject.toml
-       version = "0.2.0.dev0"
+    spin release 0.2.0                        # default: next dev = 0.3.0.dev0
+    spin release 0.2.0 --next 0.2.1.dev0      # override next dev version
+    spin release 0.2.0 --remote origin        # push to a different remote
+    spin release 0.2.0 --no-stats             # skip GitHub stats in changelog
+    spin release 0.2.0 --dry-run              # print all steps without executing
 
-       # CHANGES.rst — add a new upcoming section at the top
-       0.2.0 (upcoming)
-       -----------------
+**Test the release workflow without publishing to PyPI:**
 
-   Commit::
+Push a tag whose name contains ``test`` — the CI will build wheels and
+create a GitHub Release but skip the PyPI upload::
 
-       git commit -am "MNT: back to dev, start 0.2.0"
-       git push origin master
+    git tag v0.2.0-test
+    git push upstream v0.2.0-test
+
+Delete the test tag afterwards::
+
+    git push upstream :v0.2.0-test
+    git tag -d v0.2.0-test
