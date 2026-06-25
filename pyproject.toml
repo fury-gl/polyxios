@@ -39,6 +39,7 @@ package = "polyxios"
 "Test" = [".spin/cmds.py:test", ".spin/cmds.py:lint"]
 "Docs" = [".spin/cmds.py:docs"]
 "Clean" = [".spin/cmds.py:clean"]
+"Release" = [".spin/cmds.py:release"]
 
 [tool.pytest.ini_options]
 addopts = "--durations=10 -v"
