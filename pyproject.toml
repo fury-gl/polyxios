@@ -26,6 +26,8 @@ doc = [
     "numpydoc",
     "sphinx-gallery",
     "pydata-sphinx-theme",
+    "sphinx-design",
+    "sphinx-copybutton",
 ]
 viz = [
     "fury>=2",

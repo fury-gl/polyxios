@@ -1,0 +1,242 @@
+/* ===== Design Tokens (UserJot-inspired) ===== */
+:root {
+    --px-coral: #E8513A;
+    --px-coral-light: #fff0ed;
+    --px-coral-border: #fccbb8;
+    --px-black: #111111;
+    --px-gray-dark: #374151;
+    --px-gray: #6b7280;
+    --px-gray-light: #f9fafb;
+    --px-border: #e5e7eb;
+    --px-white: #ffffff;
+    --px-sidebar-active: #2563eb;
+}
+
+/* ===== Hero badge ("MESH I/O LIBRARY") ===== */
+.uj-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--px-coral);
+    margin-bottom: 1.25rem;
+}
+
+/* ===== Page h1 — big, bold, left-aligned, no border ===== */
+.bd-article-container article h1,
+article h1 {
+    font-size: clamp(2.2rem, 5vw, 3.5rem) !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.025em !important;
+    line-height: 1.08 !important;
+    color: var(--px-black) !important;
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0.75rem !important;
+    margin-top: 0 !important;
+}
+
+/* ===== Lead paragraph (subtitle under h1) ===== */
+.uj-lead {
+    font-size: 1.1rem;
+    color: var(--px-gray);
+    line-height: 1.7;
+    margin-bottom: 1.75rem;
+    max-width: 540px;
+}
+
+/* ===== Section h2 headings ===== */
+article h2 {
+    font-size: 1.45rem !important;
+    font-weight: 700 !important;
+    color: var(--px-black) !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid var(--px-border) !important;
+    margin-top: 3rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+article h3 {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    color: var(--px-black) !important;
+}
+
+/* ===== Horizontal rules — thin, userjot-style ===== */
+article hr,
+.bd-article hr {
+    border: none !important;
+    border-top: 1px solid var(--px-border) !important;
+    margin: 2.5rem 0 !important;
+}
+
+/* ===== Docs hub cards (flat icon+text rows, Image 13 style) ===== */
+.uj-doccard.sd-card {
+    border: none !important;
+    border-bottom: 1px solid var(--px-border) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+}
+
+.uj-doccard .sd-card-body {
+    padding: 0.9rem 0.25rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    color: var(--px-black) !important;
+    font-weight: 500 !important;
+    font-size: 0.975rem !important;
+}
+
+.uj-doccard svg {
+    color: var(--px-gray) !important;
+    flex-shrink: 0;
+}
+
+.uj-doccard:hover .sd-card-body {
+    color: var(--px-coral) !important;
+}
+
+.uj-doccard:hover svg {
+    color: var(--px-coral) !important;
+}
+
+/* Remove top border from first card in each grid so group starts clean */
+.uj-docgrid .sd-col:first-child .uj-doccard.sd-card {
+    border-top: 1px solid var(--px-border) !important;
+}
+
+.uj-docgrid .sd-col:nth-child(2) .uj-doccard.sd-card {
+    border-top: 1px solid var(--px-border) !important;
+}
+
+/* Suppress default click underline on linked cards */
+.uj-doccard .sd-stretched-link::after {
+    text-decoration: none !important;
+}
+
+/* ===== Code blocks ===== */
+div[class*="highlight"] {
+    border-radius: 0.5rem !important;
+    border: 1px solid var(--px-border) !important;
+}
+
+/* Install command block: lighter bg */
+.uj-install div[class*="highlight"] {
+    background: var(--px-gray-light) !important;
+    display: inline-block !important;
+}
+
+.uj-install pre {
+    background: transparent !important;
+}
+
+/* ===== Copy button ===== */
+.copybtn {
+    border-radius: 0.375rem !important;
+    opacity: 0.55;
+    transition: opacity 0.15s;
+}
+
+.copybtn:hover {
+    opacity: 1;
+}
+
+/* ===== Links ===== */
+a:not(.navbar-brand):not(.nav-link):not(.sd-card):not(.reference.external) {
+    color: var(--px-black);
+}
+
+a:not(.navbar-brand):not(.nav-link):not(.sd-card):not(.btn):hover {
+    color: var(--px-coral);
+    text-decoration-color: var(--px-coral-border);
+}
+
+/* ===== Sidebar — section labels (WIDGET / AUTHENTICATION style) ===== */
+.bd-sidenav .caption,
+nav.bd-links .caption {
+    font-size: 0.65rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.13em !important;
+    text-transform: uppercase !important;
+    color: var(--px-gray) !important;
+    margin-top: 1.5rem !important;
+    margin-bottom: 0.4rem !important;
+}
+
+/* ===== Sidebar — active nav item ===== */
+.bd-sidenav li.current > a,
+nav.bd-links li.current > a {
+    border-left: 2px solid var(--px-coral) !important;
+    color: var(--px-coral) !important;
+    background-color: var(--px-coral-light) !important;
+    padding-left: calc(0.5rem - 2px) !important;
+    font-weight: 600 !important;
+}
+
+/* ===== Navbar logo — bold ===== */
+.navbar-brand,
+.navbar-brand span {
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--px-black) !important;
+}
+
+/* ===== Breadcrumbs ===== */
+.bd-breadcrumbs ol {
+    font-size: 0.85rem;
+    color: var(--px-gray);
+}
+
+/* ===== API autosummary — monospace first column ===== */
+.autosummary td:first-child > p > a,
+.autosummary td:first-child > p {
+    font-family: var(--pst-font-family-monospace, monospace);
+    font-size: 0.875rem;
+}
+
+/* ===== Body text color ===== */
+.bd-article-container article p,
+article li {
+    color: var(--px-gray-dark);
+}
+
+/* ===== Force light mode — override any dark-theme variables ===== */
+html[data-theme="dark"] {
+    color-scheme: light !important;
+    --pst-color-primary-bg: #d0ecf1;
+    --pst-color-secondary-bg: #e0c7ff;
+    --pst-color-accent: #c132af;
+    --pst-color-accent-bg: #f8dff5;
+    --pst-color-info-bg: #dce7fc;
+    --pst-color-warning-bg: #f8e3d0;
+    --pst-color-success-bg: #d6ece1;
+    --pst-color-attention-bg: var(--pst-color-warning-bg);
+    --pst-color-danger-bg: #f9e1e4;
+    --pst-color-text-base: #222832;
+    --pst-color-text-muted: #48566b;
+    --pst-color-heading-color: #fff;
+    --pst-color-shadow: rgba(0, 0, 0, 0.1);
+    --pst-color-border: #d1d5da;
+    --pst-color-border-muted: rgba(23, 23, 26, 0.2);
+    --pst-color-inline-code: #912583;
+    --pst-color-inline-code-links: #085d6c;
+    --pst-color-target: #f3cf95;
+    --pst-color-background: #ffffff;
+    --pst-color-on-background: #ffffff;
+    --pst-color-surface: #f3f4f5;
+    --pst-color-on-surface: #222832;
+}
+
+/* Undo dark-mode image filter */
+html[data-theme="dark"] img {
+    filter: none !important;
+}
+
+/* Undo dark-mode .only-light hiding */
+html[data-theme="dark"] .only-light,
+html[data-theme="dark"] .only-light ~ figcaption {
+    display: revert !important;
+}
