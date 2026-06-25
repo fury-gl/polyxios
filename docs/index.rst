@@ -10,6 +10,7 @@ Fast, clean mesh I/O for Python.
    usage
    contributing
    development
+   changelog
    api/index
 
 Indices

@@ -1,0 +1,14 @@
+changelog:
+  categories:
+    - title: Breaking changes
+      labels: [breaking]
+    - title: New features
+      labels: [enhancement, feature, new]
+    - title: Bug fixes
+      labels: [bug, fix, regression]
+    - title: Documentation
+      labels: [documentation, docs]
+    - title: Maintenance
+      labels: [maintenance, dependencies, ci, refactor]
+    - title: Other changes
+      labels: ['*']

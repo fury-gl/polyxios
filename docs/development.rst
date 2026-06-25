@@ -118,3 +118,67 @@ Install the hooks once (they run automatically on every commit)::
 To run all hooks manually against the whole codebase::
 
     pre-commit run --all-files
+
+Making a release
+----------------
+
+Releases are published automatically when a version tag is pushed.
+The GitHub Actions ``release`` workflow builds platform wheels, creates
+a GitHub Release, and uploads everything to PyPI via Trusted Publishing.
+
+**One-time setup (do once per repository):**
+
+1. On `PyPI <https://pypi.org>`_, configure Trusted Publishing for
+   ``polyxios``:
+
+   - Publisher: GitHub Actions
+   - Repository: ``fury-gl/polyxios``
+   - Workflow: ``release.yml``
+   - Environment: ``pypi``
+
+2. In the GitHub repository settings, create a deployment environment
+   named ``pypi`` (optional but recommended for approval gates).
+
+**Steps to cut a release:**
+
+1. Make sure all tests pass on ``master``::
+
+       spin test
+
+2. Update :doc:`changelog` — rename the ``upcoming`` heading to the
+   release version and date, e.g.::
+
+       0.1.0 (2026-07-01)
+       -------------------
+
+3. Remove the ``.dev0`` suffix from ``version`` in ``pyproject.toml``::
+
+       version = "0.1.0"
+
+4. Commit the version bump and changelog::
+
+       git add pyproject.toml CHANGES.rst
+       git commit -m "DOC: release 0.1.0"
+
+5. Tag and push::
+
+       git tag v0.1.0
+       git push origin master v0.1.0
+
+   GitHub Actions picks up the tag, builds wheels for Linux / macOS /
+   Windows, creates a GitHub Release with auto-generated notes, and
+   publishes to PyPI.
+
+6. After the release, restore the dev version for the next cycle::
+
+       # pyproject.toml
+       version = "0.2.0.dev0"
+
+       # CHANGES.rst — add a new upcoming section at the top
+       0.2.0 (upcoming)
+       -----------------
+
+   Commit::
+
+       git commit -am "MNT: back to dev, start 0.2.0"
+       git push origin master
