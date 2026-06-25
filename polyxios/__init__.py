@@ -3,6 +3,7 @@ from polyxios._types import PolyData, make_polydata
 from polyxios.fetcher import fetch
 import polyxios.transforms as transforms
 from polyxios.validate import validate
+from polyxios.version import version as __version__
 
 _REGISTRY: dict[str, Codec] = build_default_registry()
 
@@ -65,6 +66,7 @@ def write(
 
 
 __all__ = [
+    "__version__",
     "Codec",
     "PolyData",
     "make_polydata",
