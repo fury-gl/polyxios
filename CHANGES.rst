@@ -11,7 +11,7 @@ Changelog
 
 (No entries yet.)
 
-.. _changes_0.2.0::
+.. _changes_0.2.0:
 
 0.2.0 (2026-06-25)
 ------------------

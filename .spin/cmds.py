@@ -379,7 +379,7 @@ def _bump_changelog(changes_path, *, release_version, release_date):
         new_heading = f"{release_version} ({release_date})"
         underline = "-" * len(new_heading)
         return (
-            f".. _changes_{release_version}:{m.group(2)}"
+            f".. _changes_{release_version}{m.group(2)}"
             f"{new_heading}{m.group(4)}"
             f"{underline}{m.group(6)}"
         )
@@ -443,6 +443,29 @@ def _append_stats_to_changelog(changes_path, *, release_version, prev_tag):
     block = f"\n{stats}\n\n"
     with open(changes_path, "w") as f:
         f.write(content[:insert_at] + block + content[insert_at:])
+
+
+def _check_docs_build(root):
+    """Run sphinx-build with -W (warnings as errors); abort release on failure."""
+    docs_dir = os.path.join(root, "docs")
+    build_dir = os.path.join(docs_dir, "_build", "html")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sphinx",
+            "-W",
+            "--keep-going",
+            "-b",
+            "html",
+            docs_dir,
+            build_dir,
+        ],
+        cwd=root,
+    )
+    if result.returncode != 0:
+        click.echo("ERROR: docs build failed — fix errors before releasing.", err=True)
+        sys.exit(1)
 
 
 @click.command()
@@ -536,6 +559,13 @@ def release(version, next_version, remote, no_stats, dry_run):
             sys.exit(1)
 
     click.echo(f"\nReleasing polyxios {version} (next dev: {next_version})\n")
+
+    # ── Phase 0: verify docs build cleanly ───────────────────────────────────
+
+    if not release_committed and not dev_committed:
+        step("Check docs build (sphinx -W)")
+        if not dry_run:
+            _check_docs_build(root)
 
     # ── Phase 1: prepare and commit release ──────────────────────────────────
 

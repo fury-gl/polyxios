@@ -11,7 +11,13 @@ extensions = [
     "numpydoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.extlinks",
 ]
+
+extlinks = {
+    "ghpull": ("https://github.com/fury-gl/polyxios/pull/%s", "PR #%s"),
+    "ghissue": ("https://github.com/fury-gl/polyxios/issues/%s", "GH#%s"),
+}
 
 autosummary_generate = True
 numpydoc_show_class_members = False
