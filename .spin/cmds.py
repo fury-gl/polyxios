@@ -294,6 +294,60 @@ def _next_dev_version(version):
     return ".".join(parts) + ".dev0"
 
 
+def _get_pyproject_version(pyproject_path):
+    with open(pyproject_path) as f:
+        content = f.read()
+    m = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def _last_commit_msg(root):
+    return subprocess.run(
+        ["git", "log", "--format=%s", "-1"],
+        capture_output=True,
+        text=True,
+        cwd=root,
+    ).stdout.strip()
+
+
+def _tag_exists_local(tag):
+    return bool(
+        subprocess.run(
+            ["git", "tag", "-l", tag], capture_output=True, text=True
+        ).stdout.strip()
+    )
+
+
+def _tag_exists_remote(tag, remote):
+    return bool(
+        subprocess.run(
+            ["git", "ls-remote", "--tags", remote, f"refs/tags/{tag}"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    )
+
+
+def _remote_head_sha(remote, branch="master"):
+    out = subprocess.run(
+        ["git", "ls-remote", remote, f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return out.split()[0] if out else ""
+
+
+def _commit_with_retry(msg, *, root, max_attempts=3):
+    """Commit with retry loop to handle pre-commit auto-fixes."""
+    for _attempt in range(max_attempts):
+        result = subprocess.run(["git", "commit", "-am", msg], cwd=root)
+        if result.returncode == 0:
+            return
+        subprocess.run(["git", "add", "-u"], cwd=root)
+    click.echo(f"ERROR: commit '{msg}' failed after {max_attempts} attempts.", err=True)
+    sys.exit(1)
+
+
 def _bump_pyproject(pyproject_path, *, new_version):
     with open(pyproject_path) as f:
         content = f.read()
@@ -420,6 +474,8 @@ def _append_stats_to_changelog(changes_path, *, release_version, prev_tag):
 def release(version, next_version, remote, no_stats, dry_run):
     """Cut a release: bump version, tag, push, then start the next dev cycle.
 
+    Re-running after a partial failure resumes from where it left off.
+
     Parameters
     ----------
     version : str
@@ -443,7 +499,6 @@ def release(version, next_version, remote, no_stats, dry_run):
     pyproject = os.path.join(root, "pyproject.toml")
     changes = os.path.join(root, "CHANGES.rst")
 
-    # Suppress stderr — returns None when no tags exist yet (first release).
     prev_tag = (
         subprocess.run(
             ["git", "describe", "--abbrev=0", "--tags"],
@@ -453,75 +508,130 @@ def release(version, next_version, remote, no_stats, dry_run):
         or None
     )
 
-    def step(msg, cmd=None):
+    def skip(msg):
+        click.echo(f"  [SKIP] {msg}")
+
+    def step(msg):
         click.echo(f"  {'[DRY-RUN] ' if dry_run else ''}{msg}")
-        if cmd and not dry_run:
-            result = subprocess.run(cmd, cwd=root)
-            if result.returncode != 0:
-                click.echo(f"ERROR: command failed: {' '.join(cmd)}", err=True)
-                sys.exit(1)
 
-    dirty = _run(["git", "status", "--porcelain"])
-    if dirty:
-        click.echo("ERROR: working tree has uncommitted changes.", err=True)
-        sys.exit(1)
+    # Detect state from git to allow resuming after partial failure.
+    release_msg = f"MNT: release {version}"
+    dev_msg = f"MNT: back to dev, start {next_version}"
+    last_msg = _last_commit_msg(root)
+    release_committed = last_msg == release_msg
+    dev_committed = last_msg == dev_msg
 
-    # Pre-flight: abort if tag already exists locally or on remote.
-    if _run(["git", "tag", "-l", tag]):
-        click.echo(
-            f"ERROR: tag {tag} already exists locally. Delete it first.", err=True
+    # Only block on dirty files that are unrelated to a partial release.
+    if not release_committed and not dev_committed:
+        dirty_files = set(
+            (_run(["git", "diff", "--name-only"]) or "").splitlines()
+            + (_run(["git", "diff", "--cached", "--name-only"]) or "").splitlines()
         )
-        sys.exit(1)
-    remote_tag = subprocess.run(
-        ["git", "ls-remote", "--tags", remote, f"refs/tags/{tag}"],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if remote_tag:
-        click.echo(
-            f"ERROR: tag {tag} already exists on {remote}. Delete it first.", err=True
-        )
-        sys.exit(1)
+        unexpected = dirty_files - {"pyproject.toml", "CHANGES.rst"}
+        if unexpected:
+            click.echo(
+                f"ERROR: uncommitted changes in: {', '.join(sorted(unexpected))}",
+                err=True,
+            )
+            sys.exit(1)
 
     click.echo(f"\nReleasing polyxios {version} (next dev: {next_version})\n")
 
-    step(f"Bump pyproject.toml to {version}")
-    if not dry_run:
-        _bump_pyproject(pyproject, new_version=version)
+    # ── Phase 1: prepare and commit release ──────────────────────────────────
 
-    step(f"Update CHANGES.rst: mark {version} with date {today}")
-    if not dry_run:
-        _bump_changelog(changes, release_version=version, release_date=today)
+    if not release_committed and not dev_committed:
+        current_ver = _get_pyproject_version(pyproject)
+        if current_ver == version:
+            skip(f"pyproject.toml already at {version}")
+        else:
+            step(f"Bump pyproject.toml  {current_ver} → {version}")
+            if not dry_run:
+                _bump_pyproject(pyproject, new_version=version)
 
-    if not no_stats:
-        step(f"Append GitHub stats to CHANGES.rst (since {prev_tag})")
+        with open(changes) as f:
+            has_upcoming = "(upcoming)" in f.read()
+        if not has_upcoming:
+            skip("CHANGES.rst already dated")
+        else:
+            step(f"Update CHANGES.rst: stamp {version} with date {today}")
+            if not dry_run:
+                _bump_changelog(changes, release_version=version, release_date=today)
+
+        if not no_stats:
+            step(f"Append GitHub stats (since {prev_tag})")
+            if not dry_run:
+                _append_stats_to_changelog(
+                    changes, release_version=version, prev_tag=prev_tag
+                )
+
+        step(f"Commit '{release_msg}'")
         if not dry_run:
-            _append_stats_to_changelog(
-                changes, release_version=version, prev_tag=prev_tag
-            )
+            _commit_with_retry(release_msg, root=root)
+    else:
+        skip(f"Release commit '{release_msg}' already done")
 
-    step(
-        f"Commit release: 'MNT: release {version}'",
-        ["git", "commit", "-am", f"MNT: release {version}"],
-    )
+    # ── Phase 2: tag ─────────────────────────────────────────────────────────
 
-    step(f"Tag {tag}", ["git", "tag", tag])
+    if _tag_exists_local(tag):
+        skip(f"Tag {tag} already exists locally")
+    else:
+        step(f"Create tag {tag}")
+        if not dry_run:
+            result = subprocess.run(["git", "tag", tag], cwd=root)
+            if result.returncode != 0:
+                click.echo(f"ERROR: failed to create tag {tag}", err=True)
+                sys.exit(1)
 
-    step(f"Push master + {tag} to {remote}", ["git", "push", remote, "master", tag])
+    # ── Phase 3: push release ────────────────────────────────────────────────
 
-    step(f"Bump pyproject.toml to {next_version}")
-    if not dry_run:
-        _bump_pyproject(pyproject, new_version=next_version)
+    if _tag_exists_remote(tag, remote):
+        skip(f"Tag {tag} already on {remote}")
+    else:
+        step(f"Push master + {tag} to {remote}")
+        if not dry_run:
+            result = subprocess.run(["git", "push", remote, "master", tag], cwd=root)
+            if result.returncode != 0:
+                click.echo("ERROR: push failed", err=True)
+                sys.exit(1)
 
-    step(f"Prepend upcoming section for {next_version} in CHANGES.rst")
-    if not dry_run:
-        _prepend_upcoming_section(changes, next_version=next_version)
+    # ── Phase 4: dev bump and commit ─────────────────────────────────────────
 
-    step(
-        f"Commit dev bump: 'MNT: back to dev, start {next_version}'",
-        ["git", "commit", "-am", f"MNT: back to dev, start {next_version}"],
-    )
+    if dev_committed:
+        skip(f"Dev-bump commit '{dev_msg}' already done")
+    else:
+        current_ver = _get_pyproject_version(pyproject)
+        if current_ver == next_version:
+            skip(f"pyproject.toml already at {next_version}")
+        else:
+            step(f"Bump pyproject.toml  {current_ver} → {next_version}")
+            if not dry_run:
+                _bump_pyproject(pyproject, new_version=next_version)
 
-    step(f"Push master to {remote}", ["git", "push", remote, "master"])
+        next_ver_clean = next_version.replace(".dev0", "")
+        with open(changes) as f:
+            has_upcoming_next = f"{next_ver_clean} (upcoming)" in f.read()
+        if has_upcoming_next:
+            skip(f"Upcoming section for {next_ver_clean} already in CHANGES.rst")
+        else:
+            step(f"Prepend upcoming section for {next_ver_clean}")
+            if not dry_run:
+                _prepend_upcoming_section(changes, next_version=next_version)
+
+        step(f"Commit '{dev_msg}'")
+        if not dry_run:
+            _commit_with_retry(dev_msg, root=root)
+
+    # ── Phase 5: push dev ────────────────────────────────────────────────────
+
+    local_sha = _run(["git", "rev-parse", "HEAD"])
+    if local_sha == _remote_head_sha(remote):
+        skip(f"master already up to date on {remote}")
+    else:
+        step(f"Push master to {remote}")
+        if not dry_run:
+            result = subprocess.run(["git", "push", remote, "master"], cwd=root)
+            if result.returncode != 0:
+                click.echo("ERROR: push failed", err=True)
+                sys.exit(1)
 
     click.echo(f"\nDone! {tag} is live on {remote}. Next cycle: {next_version}.")
