@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (use *-test suffix to skip PyPI)'
+        required: true
+        default: 'v0.0.0-test'
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
 
 concurrency:
   group: release-${{ github.ref }}
@@ -19,14 +28,14 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.3
+        uses: pypa/cibuildwheel@v4.1.0
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
@@ -36,11 +45,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -49,7 +58,7 @@ jobs:
           pip install build
           python -m build --sdist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-sdist
           path: dist/*.tar.gz
@@ -62,9 +71,9 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
           merge-multiple: true
@@ -88,7 +97,7 @@ jobs:
               print(f"notes<<EOF_NOTES\n{notes}\nEOF_NOTES", file=fh)
           EOF
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ env.RELEASE_TAG }}
 
       - name: Create release
         env:
@@ -99,21 +108,22 @@ jobs:
             echo "$NOTES" > release_notes.md
             echo "" >> release_notes.md
             echo "---" >> release_notes.md
-            gh release create "${{ github.ref_name }}" \
+            gh release create "${{ env.RELEASE_TAG }}" \
               dist/* \
-              --title "polyxios ${{ github.ref_name }}" \
+              --title "polyxios ${{ env.RELEASE_TAG }}" \
               --notes-file release_notes.md \
               --generate-notes
           else
-            gh release create "${{ github.ref_name }}" \
+            gh release create "${{ env.RELEASE_TAG }}" \
               dist/* \
-              --title "polyxios ${{ github.ref_name }}" \
+              --title "polyxios ${{ env.RELEASE_TAG }}" \
               --generate-notes
           fi
 
   publish_pypi:
     name: PyPI
     needs: [github_release]
+    if: ${{ !contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'test') }}
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -122,7 +132,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
           merge-multiple: true
