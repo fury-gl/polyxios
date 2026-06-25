@@ -230,3 +230,4 @@ prompts/
 tmp/
 generated/
 .vscode/
+AGENTS.md
