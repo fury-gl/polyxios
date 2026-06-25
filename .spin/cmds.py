@@ -297,35 +297,43 @@ def _next_dev_version(version):
 def _bump_pyproject(pyproject_path, *, new_version):
     with open(pyproject_path) as f:
         content = f.read()
-    updated = re.sub(
-        r'^(version\s*=\s*")[^"]*(")',
-        rf"\g<1>{new_version}\g<2>",
-        content,
-        count=1,
-        flags=re.MULTILINE,
-    )
-    if updated == content:
+    pat = re.compile(r'^(version\s*=\s*")[^"]*(")', re.MULTILINE)
+    if not pat.search(content):
         click.echo(f"ERROR: version line not found in {pyproject_path}", err=True)
         sys.exit(1)
+    updated = pat.sub(rf"\g<1>{new_version}\g<2>", content, count=1)
+    if updated == content:
+        return  # already at target version
     with open(pyproject_path, "w") as f:
         f.write(updated)
 
 
-def _bump_changelog(changes_path, *, release_version, next_version, release_date):
+def _bump_changelog(changes_path, *, release_version, release_date):
     with open(changes_path) as f:
         content = f.read()
 
-    dated_heading = f"{release_version} ({release_date})"
-    updated = re.sub(
-        rf"{re.escape(release_version)}\s*\(upcoming\)",
-        dated_heading,
-        content,
-        count=1,
+    # Match any "X.Y.Z (upcoming)" section — anchor + heading + underline.
+    # Updates both the anchor slug and the heading to use release_version.
+    upcoming_pat = re.compile(
+        r"(\.\. _changes_)[^\n:]+(:[ \t]*\n\n)"
+        r"([^\n]+)\s*\(upcoming\)([ \t]*\n)"
+        r"(-+)([ \t]*\n)",
+        re.MULTILINE,
     )
-    if updated == content:
+
+    def _replacer(m):
+        new_heading = f"{release_version} ({release_date})"
+        underline = "-" * len(new_heading)
+        return (
+            f".. _changes_{release_version}:{m.group(2)}"
+            f"{new_heading}{m.group(4)}"
+            f"{underline}{m.group(6)}"
+        )
+
+    updated, n = upcoming_pat.subn(_replacer, content, count=1)
+    if n == 0:
         click.echo(
-            f"WARNING: '{release_version} (upcoming)' not found in {changes_path}.",
-            err=True,
+            f"WARNING: '(upcoming)' section not found in {changes_path}.", err=True
         )
     with open(changes_path, "w") as f:
         f.write(updated)
@@ -357,7 +365,8 @@ def _append_stats_to_changelog(changes_path, *, release_version, prev_tag):
 
     click.echo("  Fetching GitHub stats (set GITHUB_TOKEN to avoid rate limits)...")
     try:
-        stats = mod.generate_stats(since_tag=prev_tag)
+        kwargs = {"since_tag": prev_tag} if prev_tag else {"since_days": 30}
+        stats = mod.generate_stats(**kwargs)
     except Exception as exc:
         click.echo(f"  WARNING: could not fetch stats: {exc}", err=True)
         return
@@ -434,7 +443,15 @@ def release(version, next_version, remote, no_stats, dry_run):
     pyproject = os.path.join(root, "pyproject.toml")
     changes = os.path.join(root, "CHANGES.rst")
 
-    prev_tag = _run(["git", "describe", "--abbrev=0", "--tags"])
+    # Suppress stderr — returns None when no tags exist yet (first release).
+    prev_tag = (
+        subprocess.run(
+            ["git", "describe", "--abbrev=0", "--tags"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        or None
+    )
 
     def step(msg, cmd=None):
         click.echo(f"  {'[DRY-RUN] ' if dry_run else ''}{msg}")
@@ -449,6 +466,23 @@ def release(version, next_version, remote, no_stats, dry_run):
         click.echo("ERROR: working tree has uncommitted changes.", err=True)
         sys.exit(1)
 
+    # Pre-flight: abort if tag already exists locally or on remote.
+    if _run(["git", "tag", "-l", tag]):
+        click.echo(
+            f"ERROR: tag {tag} already exists locally. Delete it first.", err=True
+        )
+        sys.exit(1)
+    remote_tag = subprocess.run(
+        ["git", "ls-remote", "--tags", remote, f"refs/tags/{tag}"],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if remote_tag:
+        click.echo(
+            f"ERROR: tag {tag} already exists on {remote}. Delete it first.", err=True
+        )
+        sys.exit(1)
+
     click.echo(f"\nReleasing polyxios {version} (next dev: {next_version})\n")
 
     step(f"Bump pyproject.toml to {version}")
@@ -457,12 +491,7 @@ def release(version, next_version, remote, no_stats, dry_run):
 
     step(f"Update CHANGES.rst: mark {version} with date {today}")
     if not dry_run:
-        _bump_changelog(
-            changes,
-            release_version=version,
-            next_version=next_version,
-            release_date=today,
-        )
+        _bump_changelog(changes, release_version=version, release_date=today)
 
     if not no_stats:
         step(f"Append GitHub stats to CHANGES.rst (since {prev_tag})")

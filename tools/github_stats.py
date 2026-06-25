@@ -111,9 +111,9 @@ def generate_stats(*, since_tag=None, since_days=None, branch=None):
     issues = _get_closed(pulls=False, since=since, branch=branch)
     pulls = _get_closed(pulls=True, since=since, branch=branch)
 
-    since_tag_arg = f"{since_tag}.." if since_tag else ""
-    log_cmd = ["git", "log", "--oneline", since_tag_arg]
-    author_cmd = ["git", "log", "--format=* %aN", since_tag_arg]
+    range_arg = [f"{since_tag}.."] if since_tag else []
+    log_cmd = ["git", "log", "--oneline"] + range_arg
+    author_cmd = ["git", "log", "--format=* %aN"] + range_arg
     if branch:
         log_cmd.append(branch)
         author_cmd.append(branch)
