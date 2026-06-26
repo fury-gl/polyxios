@@ -14,6 +14,7 @@ py.install_sources(
     '_off.py',
     '_splat.py',
     '_stl.py',
+    '_tecplot.py',
     '_vtk.py',
     '_pvti.py',
     '_pvtp.py',
