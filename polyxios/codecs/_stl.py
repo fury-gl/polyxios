@@ -2,7 +2,6 @@
 
 import mmap
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -54,7 +53,7 @@ def read(
     if lazy:
         with open(path, "rb") as fh:
             peek = fh.read(_HEADER_SIZE + 4)
-        if _is_ascii(peek + b"\n"):
+        if _is_ascii(peek, file_size=path.stat().st_size):
             raise LazyReadError("STL ASCII format does not support lazy reads.")
         return _read_binary_lazy(path)
 
@@ -77,9 +76,6 @@ def read(
     # vertices shape: (n_tris, 3, 3) — [tri, corner, xyz]
     if merge_vertices:
         flat = vertices.reshape(-1, 3)
-        _, inv = np.unique(flat, axis=0, return_inverse=True)
-        unique_verts = flat[np.unique(inv, return_index=True)[1]]
-        # rebuild unique in stable insertion order
         unique_verts, inv = _unique_rows_stable(flat)
         conn = inv.reshape(n_tris, 3)
     else:
@@ -104,7 +100,7 @@ def read(
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
     """Serialise PolyData to an STL file (triangles only).
 
     Non-triangle surface elements are skipped. Volume/line elements are
@@ -120,7 +116,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         If True (default), write binary STL.
     """
     path = Path(path)
-    binary: bool = bool(opts.get("binary", True))
 
     tri_code = ELEMENT_TYPES["triangle"]
     n_elems = len(poly.element_types)
@@ -154,15 +149,13 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
 
 def _read_binary_lazy(path: Path) -> PolyData:
-    """Open a binary STL with mmap; vertex/normal arrays reference OS pages.
+    """Read a binary STL without vertex deduplication.
 
-    The file handle and mmap are intentionally left open so that numpy arrays
-    backed by mmap pages remain valid. Pages are loaded by the OS on first
-    access to each array element.
-
-    Vertex deduplication is skipped — merging requires reading all data.
+    Skips merge_vertices step — useful for large files where deduplication
+    overhead is significant. Data is eagerly copied into numpy arrays; the
+    file handle is closed before returning.
     """
-    fh = open(path, "rb")  # noqa: SIM115 — must stay open for mmap lifetime
+    fh = open(path, "rb")
     mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
 
     if len(mm) < _HEADER_SIZE + 4:
@@ -184,14 +177,16 @@ def _read_binary_lazy(path: Path) -> PolyData:
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
     )
-    # frombuffer on memoryview slice → zero-copy view backed by mmap pages
     facets = np.frombuffer(
         memoryview(mm)[data_start : data_start + n_tris * _BINARY_FACET_SIZE],
         dtype=facet_dt,
     )
 
-    normals = facets["normal"]  # shape (n_tris, 3) — mmap-backed
-    vertices = facets["verts"].reshape(-1, 3)  # shape (n_tris*3, 3) — mmap-backed
+    normals = facets["normal"].copy()
+    vertices = facets["verts"].reshape(-1, 3).copy()
+    del facets  # release memoryview export so mmap can close
+    mm.close()
+    fh.close()
 
     tri_code = ELEMENT_TYPES["triangle"]
     connectivity = np.arange(n_tris * 3, dtype=np.int32)
@@ -199,7 +194,7 @@ def _read_binary_lazy(path: Path) -> PolyData:
     element_types = np.full(n_tris, tri_code, dtype=np.uint8)
 
     return PolyData(
-        vertices=vertices.astype(np.float64),  # cast copies; original stays mmap
+        vertices=vertices.astype(np.float64),
         connectivity=connectivity,
         offsets=offsets,
         element_types=element_types,
@@ -207,18 +202,30 @@ def _read_binary_lazy(path: Path) -> PolyData:
     )
 
 
-def _is_ascii(raw: bytes) -> bool:
-    """Return True if the raw bytes look like ASCII STL."""
+def _is_ascii(raw: bytes, *, file_size: int | None = None) -> bool:
+    """Return True if the raw bytes look like ASCII STL.
+
+    Parameters
+    ----------
+    raw
+        Raw bytes (may be a partial peek for lazy reads).
+    file_size
+        Actual file size in bytes. When provided, used instead of len(raw) for
+        binary-size validation — required when raw is a partial read.
+    """
     # Binary STL has an 80-byte header then a 4-byte triangle count.
-    # ASCII STL starts with 'solid'.  However some binary files also start with
-    # 'solid', so cross-check with the declared triangle count.
+    # ASCII STL starts with 'solid'. Some binary files also start with 'solid',
+    # so cross-check with the declared triangle count.
     if not raw[:5].lower().startswith(b"solid"):
         return False
-    if len(raw) < _HEADER_SIZE + 4:
+    size = file_size if file_size is not None else len(raw)
+    if size < _HEADER_SIZE + 4:
         return True
     n_tris = int(np.frombuffer(raw[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
     expected_size = _HEADER_SIZE + 4 + n_tris * _BINARY_FACET_SIZE
-    return expected_size != len(raw)
+    # size < expected_size: too small to be valid binary → treat as ASCII.
+    # size >= expected_size: valid binary (trailing data is allowed).
+    return size < expected_size
 
 
 def _read_binary(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
@@ -325,13 +332,16 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
 
 def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
     n_tris = facet_verts.shape[0]
+    facet_dt = np.dtype(
+        [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
+    )
+    facets = np.zeros(n_tris, dtype=facet_dt)
+    facets["normal"] = normals.astype("<f4")
+    facets["verts"] = facet_verts.astype("<f4")
     with open(path, "wb") as fh:
         fh.write(b"Written by polyxios" + b"\x00" * (_HEADER_SIZE - 19))
         fh.write(np.array(n_tris, dtype="<u4").tobytes())
-        for i in range(n_tris):
-            fh.write(normals[i].astype("<f4").tobytes())
-            fh.write(facet_verts[i].astype("<f4").tobytes())
-            fh.write(b"\x00\x00")  # attribute byte count
+        fh.write(facets.tobytes())
 
 
 def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
@@ -352,14 +362,8 @@ def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> No
 
 def _unique_rows_stable(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return unique rows in first-occurrence order and inverse indices."""
-    # np.unique sorts; we need stable order
-    seen: dict[tuple, int] = {}
-    unique_list: list[np.ndarray] = []
-    inv = np.empty(len(arr), dtype=np.int32)
-    for i, row in enumerate(arr):
-        key = tuple(row.tolist())
-        if key not in seen:
-            seen[key] = len(unique_list)
-            unique_list.append(row)
-        inv[i] = seen[key]
-    return np.array(unique_list, dtype=arr.dtype), inv
+    _, first_occ, inv = np.unique(arr, axis=0, return_index=True, return_inverse=True)
+    order = np.argsort(first_occ)  # sorted-unique index → stable position
+    unique = arr[np.sort(first_occ)]  # rows in first-occurrence order
+    remap = np.argsort(order)  # inverse: sorted_idx → stable_idx
+    return unique, remap[inv].astype(np.int32)
