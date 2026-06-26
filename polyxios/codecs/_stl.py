@@ -1,0 +1,365 @@
+"""STL (Stereolithography) codec — binary and ASCII, read + write."""
+
+import mmap
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from polyxios._element_types import ELEMENT_TYPES
+from polyxios._types import PolyData
+from polyxios.exceptions import CodecError, LazyReadError
+
+EXTENSION: str = ".stl"
+
+# Binary STL layout constants
+_HEADER_SIZE: int = 80
+_BINARY_FACET_SIZE: int = 50  # 3*float32 normal + 3*3*float32 verts + uint16 attr
+
+
+def read(
+    path: Path | str,
+    *,
+    lazy: bool = False,
+    merge_vertices: bool = True,
+) -> PolyData:
+    """Parse an STL file and return a PolyData of triangles.
+
+    Parameters
+    ----------
+    path
+        Path to the .stl file.
+    lazy
+        If True, mmap the binary data section and return numpy arrays backed
+        by OS pages (loaded on first access). Not supported for ASCII STL.
+        Implies merge_vertices=False — deduplication requires reading all data.
+    merge_vertices
+        If True, deduplicate coincident vertices (default). Ignored when
+        lazy=True.
+
+    Returns
+    -------
+    PolyData
+        Mesh with triangle elements only.
+
+    Raises
+    ------
+    LazyReadError
+        If lazy=True and the file is ASCII STL.
+    CodecError
+        On malformed STL data.
+    """
+    path = Path(path)
+
+    if lazy:
+        with open(path, "rb") as fh:
+            peek = fh.read(_HEADER_SIZE + 4)
+        if _is_ascii(peek + b"\n"):
+            raise LazyReadError("STL ASCII format does not support lazy reads.")
+        return _read_binary_lazy(path)
+
+    raw = path.read_bytes()
+
+    if _is_ascii(raw):
+        vertices, normals = _read_ascii(raw)
+    else:
+        vertices, normals = _read_binary(raw)
+
+    n_tris = vertices.shape[0]
+    if n_tris == 0:
+        return PolyData(
+            vertices=np.empty((0, 3), dtype=np.float64),
+            connectivity=np.array([], dtype=np.int32),
+            offsets=np.zeros(1, dtype=np.int32),
+            element_types=np.array([], dtype=np.uint8),
+        )
+
+    # vertices shape: (n_tris, 3, 3) — [tri, corner, xyz]
+    if merge_vertices:
+        flat = vertices.reshape(-1, 3)
+        _, inv = np.unique(flat, axis=0, return_inverse=True)
+        unique_verts = flat[np.unique(inv, return_index=True)[1]]
+        # rebuild unique in stable insertion order
+        unique_verts, inv = _unique_rows_stable(flat)
+        conn = inv.reshape(n_tris, 3)
+    else:
+        unique_verts = vertices.reshape(-1, 3)
+        conn = np.arange(n_tris * 3, dtype=np.int32).reshape(n_tris, 3)
+
+    tri_code = ELEMENT_TYPES["triangle"]
+    connectivity = conn.astype(np.int32).ravel()
+    offsets = np.arange(0, n_tris * 3 + 1, 3, dtype=np.int32)
+    element_types = np.full(n_tris, tri_code, dtype=np.uint8)
+
+    element_attrs: dict[str, np.ndarray] = {}
+    if normals is not None:
+        element_attrs["normals"] = normals
+
+    return PolyData(
+        vertices=unique_verts.astype(np.float64),
+        connectivity=connectivity,
+        offsets=offsets,
+        element_types=element_types,
+        element_attrs=element_attrs,
+    )
+
+
+def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+    """Serialise PolyData to an STL file (triangles only).
+
+    Non-triangle surface elements are skipped. Volume/line elements are
+    also skipped.
+
+    Parameters
+    ----------
+    poly
+        PolyData to write.
+    path
+        Output file path.
+    binary
+        If True (default), write binary STL.
+    """
+    path = Path(path)
+    binary: bool = bool(opts.get("binary", True))
+
+    tri_code = ELEMENT_TYPES["triangle"]
+    n_elems = len(poly.element_types)
+
+    tri_indices = [i for i in range(n_elems) if int(poly.element_types[i]) == tri_code]
+
+    if not tri_indices:
+        raise CodecError("STL requires triangle elements; none found in PolyData.")
+
+    verts = poly.vertices
+    n_tris = len(tri_indices)
+
+    # Collect per-triangle vertex triplets and compute face normals
+    facet_verts = np.empty((n_tris, 3, 3), dtype=np.float32)
+    for out_i, elem_i in enumerate(tri_indices):
+        s, e = int(poly.offsets[elem_i]), int(poly.offsets[elem_i + 1])
+        idx = poly.connectivity[s:e]
+        facet_verts[out_i] = verts[idx].astype(np.float32)
+
+    normals = _compute_normals(facet_verts)
+
+    if binary:
+        _write_binary(path, facet_verts, normals)
+    else:
+        _write_ascii(path, facet_verts, normals)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _read_binary_lazy(path: Path) -> PolyData:
+    """Open a binary STL with mmap; vertex/normal arrays reference OS pages.
+
+    The file handle and mmap are intentionally left open so that numpy arrays
+    backed by mmap pages remain valid. Pages are loaded by the OS on first
+    access to each array element.
+
+    Vertex deduplication is skipped — merging requires reading all data.
+    """
+    fh = open(path, "rb")  # noqa: SIM115 — must stay open for mmap lifetime
+    mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+
+    if len(mm) < _HEADER_SIZE + 4:
+        mm.close()
+        fh.close()
+        raise CodecError("Binary STL too short.")
+
+    n_tris = int(np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
+    data_start = _HEADER_SIZE + 4
+    expected = data_start + n_tris * _BINARY_FACET_SIZE
+
+    if len(mm) < expected:
+        mm.close()
+        fh.close()
+        raise CodecError(
+            f"Binary STL truncated: expected {expected} bytes, got {len(mm)}."
+        )
+
+    facet_dt = np.dtype(
+        [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
+    )
+    # frombuffer on memoryview slice → zero-copy view backed by mmap pages
+    facets = np.frombuffer(
+        memoryview(mm)[data_start : data_start + n_tris * _BINARY_FACET_SIZE],
+        dtype=facet_dt,
+    )
+
+    normals = facets["normal"]  # shape (n_tris, 3) — mmap-backed
+    vertices = facets["verts"].reshape(-1, 3)  # shape (n_tris*3, 3) — mmap-backed
+
+    tri_code = ELEMENT_TYPES["triangle"]
+    connectivity = np.arange(n_tris * 3, dtype=np.int32)
+    offsets = np.arange(0, n_tris * 3 + 1, 3, dtype=np.int32)
+    element_types = np.full(n_tris, tri_code, dtype=np.uint8)
+
+    return PolyData(
+        vertices=vertices.astype(np.float64),  # cast copies; original stays mmap
+        connectivity=connectivity,
+        offsets=offsets,
+        element_types=element_types,
+        element_attrs={"normals": normals},
+    )
+
+
+def _is_ascii(raw: bytes) -> bool:
+    """Return True if the raw bytes look like ASCII STL."""
+    # Binary STL has an 80-byte header then a 4-byte triangle count.
+    # ASCII STL starts with 'solid'.  However some binary files also start with
+    # 'solid', so cross-check with the declared triangle count.
+    if not raw[:5].lower().startswith(b"solid"):
+        return False
+    if len(raw) < _HEADER_SIZE + 4:
+        return True
+    n_tris = int(np.frombuffer(raw[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
+    expected_size = _HEADER_SIZE + 4 + n_tris * _BINARY_FACET_SIZE
+    return expected_size != len(raw)
+
+
+def _read_binary(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """Parse binary STL bytes.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        (vertices, normals) where vertices is shape (n_tris, 3, 3) float32
+        and normals is shape (n_tris, 3) float32.
+    """
+    if len(raw) < _HEADER_SIZE + 4:
+        raise CodecError("Binary STL too short.")
+
+    n_tris = int(np.frombuffer(raw[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
+    data_start = _HEADER_SIZE + 4
+    expected = data_start + n_tris * _BINARY_FACET_SIZE
+    if len(raw) < expected:
+        raise CodecError(
+            f"Binary STL truncated: expected {expected} bytes, got {len(raw)}."
+        )
+
+    # Layout per facet: 3 float32 normal, 9 float32 verts, 1 uint16 attr
+    facet_dt = np.dtype(
+        [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
+    )
+    facets = np.frombuffer(raw[data_start:expected], dtype=facet_dt)
+    return facets["verts"].copy(), facets["normal"].copy()
+
+
+def _read_ascii(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
+    """Parse ASCII STL bytes.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        (vertices, normals) shape (n_tris, 3, 3) and (n_tris, 3).
+    """
+    text = raw.decode("ascii", errors="replace")
+    lines = iter(text.splitlines())
+
+    verts_list: list[list[list[float]]] = []
+    normals_list: list[list[float]] = []
+    current_normal: list[float] = [0.0, 0.0, 0.0]
+    current_verts: list[list[float]] = []
+
+    for line in lines:
+        stripped = line.strip().lower()
+        if stripped.startswith("facet normal"):
+            parts = stripped.split()
+            try:
+                current_normal = [float(parts[2]), float(parts[3]), float(parts[4])]
+            except (IndexError, ValueError):
+                current_normal = [0.0, 0.0, 0.0]
+            current_verts = []
+        elif stripped.startswith("vertex"):
+            parts = stripped.split()
+            try:
+                current_verts.append(
+                    [float(parts[1]), float(parts[2]), float(parts[3])]
+                )
+            except (IndexError, ValueError) as exc:
+                raise CodecError(f"Malformed vertex line: {line!r}") from exc
+        elif stripped.startswith("endfacet"):
+            if len(current_verts) != 3:
+                raise CodecError(
+                    f"STL facet has {len(current_verts)} vertices, expected 3."
+                )
+            verts_list.append(current_verts)
+            normals_list.append(current_normal)
+
+    if not verts_list:
+        return np.empty((0, 3, 3), dtype=np.float32), np.empty((0, 3), dtype=np.float32)
+
+    return (
+        np.array(verts_list, dtype=np.float32),
+        np.array(normals_list, dtype=np.float32),
+    )
+
+
+def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
+    """Compute face normals from triangle vertex triplets.
+
+    Parameters
+    ----------
+    facet_verts
+        Shape (n_tris, 3, 3), float32.
+
+    Returns
+    -------
+    np.ndarray
+        Shape (n_tris, 3), float32 unit normals.
+    """
+    v0 = facet_verts[:, 0, :]
+    v1 = facet_verts[:, 1, :]
+    v2 = facet_verts[:, 2, :]
+    edge1 = v1 - v0
+    edge2 = v2 - v0
+    normals = np.cross(edge1, edge2)
+    norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1.0, norms)
+    return (normals / norms).astype(np.float32)
+
+
+def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
+    n_tris = facet_verts.shape[0]
+    with open(path, "wb") as fh:
+        fh.write(b"Written by polyxios" + b"\x00" * (_HEADER_SIZE - 19))
+        fh.write(np.array(n_tris, dtype="<u4").tobytes())
+        for i in range(n_tris):
+            fh.write(normals[i].astype("<f4").tobytes())
+            fh.write(facet_verts[i].astype("<f4").tobytes())
+            fh.write(b"\x00\x00")  # attribute byte count
+
+
+def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
+    n_tris = facet_verts.shape[0]
+    with open(path, "w", encoding="ascii") as fh:
+        fh.write("solid polyxios\n")
+        for i in range(n_tris):
+            nx, ny, nz = normals[i]
+            fh.write(f"  facet normal {nx:.6e} {ny:.6e} {nz:.6e}\n")
+            fh.write("    outer loop\n")
+            for j in range(3):
+                x, y, z = facet_verts[i, j]
+                fh.write(f"      vertex {x:.6e} {y:.6e} {z:.6e}\n")
+            fh.write("    endloop\n")
+            fh.write("  endfacet\n")
+        fh.write("endsolid polyxios\n")
+
+
+def _unique_rows_stable(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return unique rows in first-occurrence order and inverse indices."""
+    # np.unique sorts; we need stable order
+    seen: dict[tuple, int] = {}
+    unique_list: list[np.ndarray] = []
+    inv = np.empty(len(arr), dtype=np.int32)
+    for i, row in enumerate(arr):
+        key = tuple(row.tolist())
+        if key not in seen:
+            seen[key] = len(unique_list)
+            unique_list.append(row)
+        inv[i] = seen[key]
+    return np.array(unique_list, dtype=arr.dtype), inv
