@@ -115,6 +115,7 @@ triangle), avoiding the extra pass over the data.
 | DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
 | Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
+| Kratos MDPA | `.mdpa` | ✓ | ✓ | - |
 | Nastran | `.bdf` `.nas` `.fem` `.dat`* | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request |
 | Tecplot ASCII | `.tec` `.dat`* | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; binary `.plt` is recognised but not read |
 | SU2 | `.su2` | ✓ | ✓ | ASCII, VTK element codes, boundary markers → element tags |
@@ -127,7 +128,7 @@ triangle), avoiding the extra pass over the data.
 in the Tecplot codec, a bulk data card in the Nastran one, and anything else reports both
 candidates. Writing to `.dat` needs an explicit `fmt=`.
 
-**20 formats supported** - more coming via the plugin system.
+**21 formats supported** - more coming via the plugin system.
 
 ---
 
