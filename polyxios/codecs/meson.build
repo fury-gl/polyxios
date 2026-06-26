@@ -16,6 +16,7 @@ py.install_sources(
     '_stl.py',
     '_su2.py',
     '_tecplot.py',
+    '_tetgen.py',
     '_vtk.py',
     '_pvti.py',
     '_pvtp.py',
