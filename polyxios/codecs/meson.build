@@ -4,6 +4,7 @@ py.install_sources(
     '_mesh.py',
     '_obj.py',
     '_ply.py',
+    '_abaqus.py',
     '_splat.py',
     '_stl.py',
     '_vtk.py',

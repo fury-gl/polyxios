@@ -212,6 +212,9 @@ tempCodeRunnerFile.py
 CLAUDE.md
 .claude/
 
+# Auto-generated version file
+polyxios/version.py
+
 # Cython generated C files
 *.c
 *.cpp
