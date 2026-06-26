@@ -113,8 +113,9 @@ triangle), avoiding the extra pass over the data.
 | Medit binary | `.meshb` | ✓ | ✓ | binary only |
 | DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
+| Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
 
-**11 formats supported** - more coming via the plugin system.
+**12 formats supported** - more coming via the plugin system.
 
 ---
 
