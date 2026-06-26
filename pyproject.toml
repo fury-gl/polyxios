@@ -75,6 +75,11 @@ force-sort-within-sections = true
 [tool.ruff.format]
 quote-style = "double"
 
+[tool.codespell]
+# 'domin domout' is the Netgen .vol surface-element column header, spelled that
+# way by the format. Scoped to the pair so a bare 'domin' is still a typo.
+ignore-regex = 'domin\s+domout'
+
 [tool.mypy]
 strict = true
 python_version = "3.11"
