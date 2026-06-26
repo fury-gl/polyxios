@@ -3,10 +3,10 @@
 Supported formats
 -----------------
 polyxios can read: .obj  .ply  .vtk  .vtp  .vtr  .vtu  .vti  .vts
-                   .pvtp .pvtr .pvtu .pvti .pvts .vtm
+                   .pvtp .pvtr .pvtu .pvti .pvts .vtm  .stl
 
 Sample packs available via the fetcher (auto-downloaded from GitHub releases):
-  obj  ply  vtk  vtp  vtr  vtu
+  obj  ply  vtk  vtp  vtr  vtu  stl
 """
 
 import argparse
@@ -19,7 +19,7 @@ import polyxios
 from polyxios.fetcher import fetch, fetch_by_extension
 import polyxios.transforms as transforms
 
-_FETCHABLE_EXTS = ("obj", "ply", "vtk", "vtp", "vtr", "vtu")
+_FETCHABLE_EXTS = ("obj", "ply", "vtk", "vtp", "vtr", "vtu", "stl")
 
 
 def _build_actors(*, poly, render_lines=False):
@@ -80,10 +80,11 @@ def main():
         description=(
             "Visualize a mesh file via polyxios + FURY.\n\n"
             "Accepted formats: .obj  .ply  .vtk  .vtp  .vtr  .vtu  .vti  .vts\n"
-            "                  .pvtp .pvtr .pvtu .pvti .pvts .vtm\n\n"
-            "Sample packs for obj / ply / vtk / vtp / vtr / vtu are fetched "
+            "                  .pvtp .pvtr .pvtu .pvti .pvts .vtm  .stl\n\n"
+            "Sample packs for obj / ply / vtk / vtp / vtr / vtu / stl are fetched "
             "automatically from the polyxios-data GitHub release and cached under "
-            "~/.polyxios/<ext>/. Pass --list to see what is already cached."
+            "~/.polyxios/<ext>/. Pass --list to see what is already cached.\n"
+            "STL example: python visualize_mesh.py 20mm-xyz-cube.stl"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
