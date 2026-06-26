@@ -118,9 +118,10 @@ triangle), avoiding the extra pass over the data.
 | Nastran | `.bdf` `.nas` `.fem` | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request; `.dat` via `fmt=".bdf"` |
 | Tecplot ASCII | `.tec` | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; `.dat` via `fmt=".tec"` |
 | SU2 | `.su2` | ✓ | ✓ | ASCII, VTK element codes, boundary markers → element tags |
+| TetGen | `.ele`+`.node` | ✓ | ✓ | paired files, 1-/0-based indices, boundary markers → vertex tags, region attrs |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 
-**17 formats supported** - more coming via the plugin system.
+**18 formats supported** - more coming via the plugin system.
 
 ---
 
