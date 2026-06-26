@@ -11,6 +11,7 @@ py.install_sources(
     '_gmsh.py',
     '_meshb.py',
     '_nastran.py',
+    '_off.py',
     '_splat.py',
     '_stl.py',
     '_vtk.py',
