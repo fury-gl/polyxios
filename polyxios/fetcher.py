@@ -121,7 +121,6 @@ _EXT_TO_PACKAGE: dict[str, str] = {
     "vol": "netgen",
     "f3grid": "flac3d",
     "tec": "tecplot",
-    "mesh": "medit",
     "meshb": "medit",
     "xml": "dolfin",
 }
