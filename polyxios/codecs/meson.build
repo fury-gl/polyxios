@@ -8,6 +8,7 @@ py.install_sources(
     '_avs.py',
     '_dolfin.py',
     '_flac3d.py',
+    '_gmsh.py',
     '_meshb.py',
     '_splat.py',
     '_stl.py',
