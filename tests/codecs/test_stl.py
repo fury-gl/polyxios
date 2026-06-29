@@ -47,6 +47,7 @@ def test_roundtrip_ascii(tmp_path: Path) -> None:
         _sort_rows(poly.vertices),
         atol=1e-6,
     )
+    assert poly2.connectivity.shape == poly.connectivity.shape
 
 
 def test_binary_file_is_binary(tmp_path: Path) -> None:
@@ -96,6 +97,7 @@ def test_no_merge_vertices(tmp_path: Path) -> None:
     write(poly, tmp, binary=True)
     poly2 = read(tmp, merge_vertices=False)
     assert poly2.vertices.shape[0] == 4 * 3  # 4 tris * 3 verts each
+    assert poly2.connectivity.shape == (4 * 3,)
 
 
 def test_lazy_binary(tmp_path: Path) -> None:
@@ -141,6 +143,26 @@ def test_degenerate_triangle_normals(tmp_path: Path) -> None:
     assert not np.any(np.isnan(normals)), "NaN normal produced for degenerate triangle"
     norms = np.linalg.norm(normals, axis=1)
     np.testing.assert_allclose(norms, 1.0, atol=1e-5)
+
+
+def test_malformed_ascii_too_many_vertices(tmp_path: Path) -> None:
+    """ASCII STL with more than 3 vertices per facet must raise CodecError."""
+    bad_stl = (
+        b"solid bad\n"
+        b"  facet normal 0 0 1\n"
+        b"    outer loop\n"
+        b"      vertex 0 0 0\n"
+        b"      vertex 1 0 0\n"
+        b"      vertex 0 1 0\n"
+        b"      vertex 0 0 1\n"
+        b"    endloop\n"
+        b"  endfacet\n"
+        b"endsolid bad\n"
+    )
+    tmp = tmp_path / "bad.stl"
+    tmp.write_bytes(bad_stl)
+    with pytest.raises(CodecError):
+        read(tmp)
 
 
 def test_malformed_ascii_too_few_vertices(tmp_path: Path) -> None:
