@@ -124,14 +124,12 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
         raise CodecError("STL requires triangle elements; none found in PolyData.")
 
     verts = poly.vertices
-    n_tris = len(tri_indices)
 
-    # Collect per-triangle vertex triplets and compute face normals
-    facet_verts = np.empty((n_tris, 3, 3), dtype=np.float32)
-    for out_i, elem_i in enumerate(tri_indices):
-        s, e = int(poly.offsets[elem_i]), int(poly.offsets[elem_i + 1])
-        idx = poly.connectivity[s:e]
-        facet_verts[out_i] = verts[idx].astype(np.float32)
+    # Vectorised gather: each triangle element has exactly 3 connectivity entries
+    starts = poly.offsets[tri_indices]
+    conn_indices = starts[:, None] + np.arange(3)
+    vertex_indices = poly.connectivity[conn_indices]
+    facet_verts = verts[vertex_indices].astype(np.float32)
 
     normals = _compute_normals(facet_verts)
 
@@ -269,8 +267,8 @@ def _read_ascii(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
             parts = stripped.split()
             try:
                 current_normal = [float(parts[2]), float(parts[3]), float(parts[4])]
-            except (IndexError, ValueError):
-                current_normal = [0.0, 0.0, 0.0]
+            except (IndexError, ValueError) as exc:
+                raise CodecError(f"Malformed facet normal line: {line!r}") from exc
             current_verts = []
         elif stripped.startswith("vertex"):
             parts = stripped.split()
@@ -308,7 +306,8 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Shape (n_tris, 3), float32 unit normals.
+        Shape (n_tris, 3), float32 unit normals. Degenerate (zero-area)
+        triangles get [0, 0, 1] as a stable fallback.
     """
     v0 = facet_verts[:, 0, :]
     v1 = facet_verts[:, 1, :]
@@ -317,8 +316,11 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
     edge2 = v2 - v0
     normals = np.cross(edge1, edge2)
     norms = np.linalg.norm(normals, axis=1, keepdims=True)
+    zero_mask = (norms < np.finfo(np.float32).tiny).ravel()
     norms = np.where(norms < np.finfo(np.float32).tiny, 1.0, norms)
-    return (normals / norms).astype(np.float32)
+    result = (normals / norms).astype(np.float32)
+    result[zero_mask] = [0.0, 0.0, 1.0]
+    return result
 
 
 def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
@@ -355,7 +357,7 @@ def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> No
 def _unique_rows_stable(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return unique rows in first-occurrence order and inverse indices."""
     _, first_occ, inv = np.unique(arr, axis=0, return_index=True, return_inverse=True)
-    order = np.argsort(first_occ)  # sorted-unique index → stable position
-    unique = arr[np.sort(first_occ)]  # rows in first-occurrence order
-    remap = np.argsort(order)  # inverse: sorted_idx → stable_idx
-    return unique, remap[inv].astype(np.int32)
+    order = np.argsort(first_occ)
+    remap = np.empty_like(order)
+    remap[order] = np.arange(len(order))
+    return arr[first_occ[order]], remap[inv].astype(np.int32)

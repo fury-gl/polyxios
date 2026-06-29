@@ -139,7 +139,7 @@ def test_degenerate_triangle_normals(tmp_path: Path) -> None:
     normals = poly2.element_attrs["normals"]
     assert not np.any(np.isnan(normals)), "NaN normal produced for degenerate triangle"
     norms = np.linalg.norm(normals, axis=1)
-    np.testing.assert_allclose(norms[1], 1.0, atol=1e-5)
+    np.testing.assert_allclose(norms, 1.0, atol=1e-5)
 
 
 def test_malformed_ascii_too_few_vertices(tmp_path: Path) -> None:
