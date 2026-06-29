@@ -53,7 +53,9 @@ def read(
     if lazy:
         with open(path, "rb") as fh:
             peek = fh.read(_HEADER_SIZE + 4)
-        if _is_ascii(peek, file_size=path.stat().st_size):
+            fh.seek(0, 2)
+            file_size = fh.tell()
+        if _is_ascii(peek, file_size=file_size):
             raise LazyReadError("STL ASCII format does not support lazy reads.")
         return _read_binary_lazy(path)
 
@@ -275,6 +277,8 @@ def _read_ascii(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
     for line in lines:
         stripped = line.strip().lower()
         if stripped.startswith("facet normal"):
+            # Consecutive facet normal lines: current_verts is reset, so any
+            # incomplete prior facet is silently dropped (lenient parsing).
             parts = stripped.split()
             try:
                 current_normal = [float(parts[2]), float(parts[3]), float(parts[4])]
@@ -327,8 +331,8 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
     edge2 = v2 - v0
     normals = np.cross(edge1, edge2)
     norms = np.linalg.norm(normals, axis=1, keepdims=True)
-    zero_mask = (norms < np.finfo(np.float32).tiny).ravel()
-    norms = np.where(norms < np.finfo(np.float32).tiny, 1.0, norms)
+    zero_mask = (norms < 1e-10).ravel()
+    norms = np.where(norms < 1e-10, 1.0, norms)
     result = (normals / norms).astype(np.float32)
     result[zero_mask] = [0.0, 0.0, 1.0]
     return result
@@ -343,25 +347,36 @@ def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> N
     facets["normal"] = normals.astype("<f4")
     facets["verts"] = facet_verts.astype("<f4")
     with open(path, "wb") as fh:
-        _hdr = b"Written by polyxios"
-        fh.write(_hdr + b"\x00" * (_HEADER_SIZE - len(_hdr)))
+        hdr = b"Written by polyxios"
+        fh.write(hdr + b"\x00" * (_HEADER_SIZE - len(hdr)))
         fh.write(np.array(n_tris, dtype="<u4").tobytes())
         fh.write(facets.tobytes())
 
 
 def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
     n_tris = facet_verts.shape[0]
+    n = normals.astype(np.float32)
+    v = facet_verts.astype(np.float32)
+
+    def _fmt3(prefix: str, arr: np.ndarray) -> np.ndarray:
+        """Format (m, 3) float array as 'prefix x y z\n' strings."""
+        return np.array([f"{prefix}{r[0]:.6e} {r[1]:.6e} {r[2]:.6e}\n" for r in arr])
+
+    # Build (n_tris, 7) object array: one row per facet, one column per line.
+    # Columns: facet-normal, outer-loop, vertex×3, endloop, endfacet.
+    # Flattening avoids per-triangle Python iteration during the write.
+    blocks = np.empty((n_tris, 7), dtype=object)
+    blocks[:, 0] = _fmt3("  facet normal ", n)
+    blocks[:, 1] = "    outer loop\n"
+    blocks[:, 2] = _fmt3("      vertex ", v[:, 0, :])
+    blocks[:, 3] = _fmt3("      vertex ", v[:, 1, :])
+    blocks[:, 4] = _fmt3("      vertex ", v[:, 2, :])
+    blocks[:, 5] = "    endloop\n"
+    blocks[:, 6] = "  endfacet\n"
+
     with open(path, "w", encoding="ascii", newline="\n") as fh:
         fh.write("solid polyxios\n")
-        for i in range(n_tris):
-            nx, ny, nz = normals[i]
-            fh.write(f"  facet normal {nx:.6e} {ny:.6e} {nz:.6e}\n")
-            fh.write("    outer loop\n")
-            for j in range(3):
-                x, y, z = facet_verts[i, j]
-                fh.write(f"      vertex {x:.6e} {y:.6e} {z:.6e}\n")
-            fh.write("    endloop\n")
-            fh.write("  endfacet\n")
+        fh.write("".join(blocks.ravel().tolist()))
         fh.write("endsolid polyxios\n")
 
 
