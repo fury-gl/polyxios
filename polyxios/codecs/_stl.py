@@ -125,7 +125,10 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
 
     verts = poly.vertices
 
-    # Vectorised gather: each triangle element has exactly 3 connectivity entries
+    # Vectorised gather — validate each triangle has exactly 3 connectivity slots
+    sizes = poly.offsets[tri_indices + 1] - poly.offsets[tri_indices]
+    if np.any(sizes != 3):
+        raise CodecError("PolyData triangle element with connectivity != 3 vertices.")
     starts = poly.offsets[tri_indices]
     conn_indices = starts[:, None] + np.arange(3)
     vertex_indices = poly.connectivity[conn_indices]
@@ -149,6 +152,10 @@ def _read_binary_lazy(path: Path) -> PolyData:
 
     Skips merge_vertices step — useful for large files where deduplication
     overhead is significant. Data is eagerly copied; file is closed on return.
+
+    Normals are the values stored in the STL file (may be all-zero — the STL
+    spec allows writers to omit them). Callers requiring unit normals should
+    recompute from vertices.
     """
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
@@ -211,6 +218,10 @@ def _is_ascii(raw: bytes, *, file_size: int | None = None) -> bool:
     expected_size = _HEADER_SIZE + 4 + n_tris * _BINARY_FACET_SIZE
     # size < expected_size: too small to be valid binary → treat as ASCII.
     # size >= expected_size: valid binary (trailing data is allowed).
+    # Heuristic limit: a corrupt n_tris can produce expected_size > size for a
+    # valid binary file whose header starts with 'solid', misrouting it to the
+    # ASCII parser. This edge case is undetected; CAD files with corrupt counts
+    # may fail with a misleading parse error.
     return size < expected_size
 
 
@@ -340,7 +351,7 @@ def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> N
 
 def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
     n_tris = facet_verts.shape[0]
-    with open(path, "w", encoding="ascii") as fh:
+    with open(path, "w", encoding="ascii", newline="\n") as fh:
         fh.write("solid polyxios\n")
         for i in range(n_tris):
             nx, ny, nz = normals[i]
