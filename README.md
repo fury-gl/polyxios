@@ -54,8 +54,10 @@ first_vertex = mesh.vertices[0]
 # Element connectivity is still on disk until you access it
 ```
 
-Lazy loading is supported for binary `.vtk` and `.ply` files. ASCII formats
-load eagerly (the whole file must be parsed to extract values).
+Lazy loading is supported for binary `.vtk`, `.ply`, and `.stl` files. ASCII
+formats load eagerly (the whole file must be parsed to extract values). Binary
+STL lazy mode skips vertex deduplication — vertices are returned as-is (3 per
+triangle), avoiding the extra pass over the data.
 
 ---
 
@@ -68,8 +70,9 @@ load eagerly (the whole file must be parsed to extract values).
 | VTK PolyData | `.vtp` | ✓ | ✓ | - |
 | Wavefront OBJ | `.obj` | ✓ | ✓ | - |
 | Stanford PLY | `.ply` | ✓ | ✓ | binary only |
+| STL | `.stl` | ✓ | ✓ | binary only |
 
-**5 formats supported** - more coming via the plugin system.
+**6 formats supported** - more coming via the plugin system.
 
 ---
 
@@ -99,7 +102,7 @@ no fork required, no pull request needed.
 **Step 1 - write a codec** (two functions, nothing more):
 
 ```python
-# mypackage/stl_codec.py
+# mypackage/abc_codec.py
 from polyxios._registry import Codec
 from polyxios._types import PolyData
 
@@ -110,21 +113,21 @@ def write(poly: PolyData, path, **opts) -> None:
     ...
 
 def register():
-    return ".stl", Codec(read, write)
+    return ".abc", Codec(read, write)
 ```
 
 **Step 2 - declare an entry point** in your `pyproject.toml`:
 
 ```toml
 [project.entry-points."polyxios.codecs"]
-stl = "mypackage.stl_codec:register"
+abc = "mypackage.abc_codec:register"
 ```
 
-After `pip install mypackage`, polyxios picks up `.stl` automatically -
+After `pip install mypackage`, polyxios picks up `.abc` automatically -
 no configuration, no restart needed:
 
 ```python
-mesh = px.read("model.stl")   # works out of the box
+mesh = px.read("model.abc")   # works out of the box
 ```
 
 ---
