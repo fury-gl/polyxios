@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata
-from polyxios.codecs._stl import _HEADER_SIZE, read, write
+from polyxios._types import PolyData
+from polyxios.codecs._stl import _BINARY_FACET_SIZE, _HEADER_SIZE, read, write
 from polyxios.exceptions import CodecError, LazyReadError
 
 
@@ -14,7 +15,7 @@ def _sort_rows(a: np.ndarray) -> np.ndarray:
     return a[np.lexsort(a.T[::-1])]
 
 
-def _tetrahedron() -> object:
+def _tetrahedron() -> PolyData:
     verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
     return make_polydata(
         verts,
@@ -158,6 +159,35 @@ def test_malformed_ascii_too_few_vertices(tmp_path: Path) -> None:
     tmp.write_bytes(bad_stl)
     with pytest.raises(CodecError):
         read(tmp)
+
+
+def test_read_empty_binary_stl(tmp_path: Path) -> None:
+    """Binary STL with n_tris=0 must return empty PolyData."""
+    stl_file = tmp_path / "empty.stl"
+    stl_file.write_bytes(b"\x00" * _HEADER_SIZE + np.array(0, dtype="<u4").tobytes())
+    poly = read(str(stl_file))
+    assert len(poly.element_types) == 0
+    assert poly.vertices.shape == (0, 3)
+
+
+def test_lazy_binary_stored_normals_returned_as_is(tmp_path: Path) -> None:
+    """Lazy read returns STL-embedded normals unchanged (may be all-zero)."""
+    poly = _tetrahedron()
+    stl_file = tmp_path / "test.stl"
+    write(poly, str(stl_file), binary=True)
+    raw = bytearray(stl_file.read_bytes())
+    data_start = _HEADER_SIZE + 4
+    for i in range(4):
+        raw[
+            data_start + i * _BINARY_FACET_SIZE : data_start
+            + i * _BINARY_FACET_SIZE
+            + 12
+        ] = b"\x00" * 12
+    stl_file.write_bytes(bytes(raw))
+    poly_lazy = read(str(stl_file), lazy=True)
+    normals = poly_lazy.element_attrs["normals"]
+    assert normals.shape == (4, 3)
+    assert np.all(normals == 0.0)
 
 
 def test_binary_with_solid_header(tmp_path: Path) -> None:
