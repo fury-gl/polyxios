@@ -29,9 +29,9 @@ def read(
     path
         Path to the .stl file.
     lazy
-        If True, mmap the binary data section and return numpy arrays backed
-        by OS pages (loaded on first access). Not supported for ASCII STL.
-        Implies merge_vertices=False — deduplication requires reading all data.
+        If True, skip vertex deduplication (merge_vertices is ignored).
+        Useful for large files where deduplication overhead is significant.
+        Not supported for ASCII STL.
     merge_vertices
         If True, deduplicate coincident vertices (default). Ignored when
         lazy=True.
@@ -118,11 +118,9 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
     path = Path(path)
 
     tri_code = ELEMENT_TYPES["triangle"]
-    n_elems = len(poly.element_types)
+    tri_indices = np.where(poly.element_types == tri_code)[0]
 
-    tri_indices = [i for i in range(n_elems) if int(poly.element_types[i]) == tri_code]
-
-    if not tri_indices:
+    if len(tri_indices) == 0:
         raise CodecError("STL requires triangle elements; none found in PolyData.")
 
     verts = poly.vertices
@@ -152,41 +150,31 @@ def _read_binary_lazy(path: Path) -> PolyData:
     """Read a binary STL without vertex deduplication.
 
     Skips merge_vertices step — useful for large files where deduplication
-    overhead is significant. Data is eagerly copied into numpy arrays; the
-    file handle is closed before returning.
+    overhead is significant. Data is eagerly copied; file is closed on return.
     """
-    fh = open(path, "rb")
-    mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
-
-    if len(mm) < _HEADER_SIZE + 4:
-        mm.close()
-        fh.close()
-        raise CodecError("Binary STL too short.")
-
-    n_tris = int(np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
-    data_start = _HEADER_SIZE + 4
-    expected = data_start + n_tris * _BINARY_FACET_SIZE
-
-    if len(mm) < expected:
-        mm.close()
-        fh.close()
-        raise CodecError(
-            f"Binary STL truncated: expected {expected} bytes, got {len(mm)}."
-        )
-
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
     )
-    facets = np.frombuffer(
-        memoryview(mm)[data_start : data_start + n_tris * _BINARY_FACET_SIZE],
-        dtype=facet_dt,
-    )
-
-    normals = facets["normal"].copy()
-    vertices = facets["verts"].reshape(-1, 3).copy()
-    del facets  # release memoryview export so mmap can close
-    mm.close()
-    fh.close()
+    with open(path, "rb") as fh:
+        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            if len(mm) < _HEADER_SIZE + 4:
+                raise CodecError("Binary STL too short.")
+            n_tris = int(
+                np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0]
+            )
+            data_start = _HEADER_SIZE + 4
+            expected = data_start + n_tris * _BINARY_FACET_SIZE
+            if len(mm) < expected:
+                raise CodecError(
+                    f"Binary STL truncated: expected {expected} bytes, got {len(mm)}."
+                )
+            facets = np.frombuffer(
+                memoryview(mm)[data_start : data_start + n_tris * _BINARY_FACET_SIZE],
+                dtype=facet_dt,
+            )
+            normals = facets["normal"].copy()
+            vertices = facets["verts"].reshape(-1, 3).copy()
+            del facets  # release memoryview before mm closes
 
     tri_code = ELEMENT_TYPES["triangle"]
     connectivity = np.arange(n_tris * 3, dtype=np.int32)
@@ -264,8 +252,11 @@ def _read_ascii(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
     tuple[np.ndarray, np.ndarray]
         (vertices, normals) shape (n_tris, 3, 3) and (n_tris, 3).
     """
-    text = raw.decode("ascii", errors="replace")
-    lines = iter(text.splitlines())
+    try:
+        text = raw.decode("ascii", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise CodecError(f"ASCII STL contains non-ASCII bytes: {exc}") from exc
+    lines = text.splitlines()
 
     verts_list: list[list[list[float]]] = []
     normals_list: list[list[float]] = []
@@ -326,7 +317,7 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
     edge2 = v2 - v0
     normals = np.cross(edge1, edge2)
     norms = np.linalg.norm(normals, axis=1, keepdims=True)
-    norms = np.where(norms == 0, 1.0, norms)
+    norms = np.where(norms < np.finfo(np.float32).tiny, 1.0, norms)
     return (normals / norms).astype(np.float32)
 
 
@@ -339,7 +330,8 @@ def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> N
     facets["normal"] = normals.astype("<f4")
     facets["verts"] = facet_verts.astype("<f4")
     with open(path, "wb") as fh:
-        fh.write(b"Written by polyxios" + b"\x00" * (_HEADER_SIZE - 19))
+        _hdr = b"Written by polyxios"
+        fh.write(_hdr + b"\x00" * (_HEADER_SIZE - len(_hdr)))
         fh.write(np.array(n_tris, dtype="<u4").tobytes())
         fh.write(facets.tobytes())
 

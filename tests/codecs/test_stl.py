@@ -7,7 +7,11 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios.codecs._stl import _HEADER_SIZE, read, write
-from polyxios.exceptions import CodecError
+from polyxios.exceptions import CodecError, LazyReadError
+
+
+def _sort_rows(a: np.ndarray) -> np.ndarray:
+    return a[np.lexsort(a.T[::-1])]
 
 
 def _tetrahedron() -> object:
@@ -25,8 +29,8 @@ def test_roundtrip_binary(tmp_path: Path) -> None:
     poly2 = read(tmp)
     assert len(poly2.element_types) == 4
     np.testing.assert_allclose(
-        np.sort(poly2.vertices, axis=0),
-        np.sort(poly.vertices, axis=0),
+        _sort_rows(poly2.vertices),
+        _sort_rows(poly.vertices),
         atol=1e-6,
     )
 
@@ -38,8 +42,8 @@ def test_roundtrip_ascii(tmp_path: Path) -> None:
     poly2 = read(tmp)
     assert len(poly2.element_types) == 4
     np.testing.assert_allclose(
-        np.sort(poly2.vertices, axis=0),
-        np.sort(poly.vertices, axis=0),
+        _sort_rows(poly2.vertices),
+        _sort_rows(poly.vertices),
         atol=1e-6,
     )
 
@@ -110,8 +114,6 @@ def test_lazy_ascii_raises(tmp_path: Path) -> None:
     poly = _tetrahedron()
     tmp = tmp_path / "test.stl"
     write(poly, tmp, binary=False)
-    from polyxios.exceptions import LazyReadError
-
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
 
@@ -122,6 +124,40 @@ def test_write_no_triangles_raises(tmp_path: Path) -> None:
     tmp = tmp_path / "test.stl"
     with pytest.raises(CodecError):
         write(poly, tmp)
+
+
+def test_degenerate_triangle_normals(tmp_path: Path) -> None:
+    """Zero-area triangle must not produce NaN or zero normal."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [2, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+    )
+    tmp = tmp_path / "test.stl"
+    write(poly, tmp, binary=True)
+    poly2 = read(tmp)
+    normals = poly2.element_attrs["normals"]
+    assert not np.any(np.isnan(normals)), "NaN normal produced for degenerate triangle"
+    norms = np.linalg.norm(normals, axis=1)
+    np.testing.assert_allclose(norms[1], 1.0, atol=1e-5)
+
+
+def test_malformed_ascii_too_few_vertices(tmp_path: Path) -> None:
+    """ASCII STL with fewer than 3 vertices per facet must raise CodecError."""
+    bad_stl = (
+        b"solid bad\n"
+        b"  facet normal 0 0 1\n"
+        b"    outer loop\n"
+        b"      vertex 0 0 0\n"
+        b"      vertex 1 0 0\n"
+        b"    endloop\n"
+        b"  endfacet\n"
+        b"endsolid bad\n"
+    )
+    tmp = tmp_path / "bad.stl"
+    tmp.write_bytes(bad_stl)
+    with pytest.raises(CodecError):
+        read(tmp)
 
 
 def test_binary_with_solid_header(tmp_path: Path) -> None:
