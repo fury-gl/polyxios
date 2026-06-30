@@ -71,8 +71,9 @@ triangle), avoiding the extra pass over the data.
 | Wavefront OBJ | `.obj` | ✓ | ✓ | - |
 | Stanford PLY | `.ply` | ✓ | ✓ | binary only |
 | STL | `.stl` | ✓ | ✓ | binary only |
+| Abaqus | `.inp` | ✓ | ✓ | - |
 
-**6 formats supported** - more coming via the plugin system.
+**7 formats supported** - more coming via the plugin system.
 
 ---
 
