@@ -72,8 +72,9 @@ triangle), avoiding the extra pass over the data.
 | Stanford PLY | `.ply` | ✓ | ✓ | binary only |
 | STL | `.stl` | ✓ | ✓ | binary only |
 | Abaqus | `.inp` | ✓ | ✓ | - |
+| AVS-UCD | `.avs` | ✓ | ✓ | - |
 
-**7 formats supported** - more coming via the plugin system.
+**8 formats supported** - more coming via the plugin system.
 
 ---
 

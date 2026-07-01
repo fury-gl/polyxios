@@ -5,6 +5,7 @@ py.install_sources(
     '_obj.py',
     '_ply.py',
     '_abaqus.py',
+    '_avs.py',
     '_splat.py',
     '_stl.py',
     '_vtk.py',
