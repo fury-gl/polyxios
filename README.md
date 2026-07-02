@@ -74,8 +74,9 @@ triangle), avoiding the extra pass over the data.
 | Abaqus | `.inp` | ✓ | ✓ | - |
 | AVS-UCD | `.avs` | ✓ | ✓ | - |
 | Medit binary | `.meshb` | ✓ | ✓ | binary only |
+| DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
 
-**9 formats supported** - more coming via the plugin system.
+**10 formats supported** - more coming via the plugin system.
 
 ---
 
