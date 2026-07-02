@@ -35,7 +35,7 @@ def read(
         Parsed mesh data.
     """
     codec = resolve(path, fmt, registry or _REGISTRY)
-    return codec.read(path, lazy=lazy)
+    return codec.read(path=path, lazy=lazy)
 
 
 def write(
@@ -62,7 +62,7 @@ def write(
         Format-specific options passed to the codec's write function.
     """
     codec = resolve(path, fmt, registry or _REGISTRY)
-    codec.write(poly, path, **opts)
+    codec.write(poly=poly, path=path, **opts)
 
 
 __all__ = [

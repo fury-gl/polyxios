@@ -73,8 +73,9 @@ triangle), avoiding the extra pass over the data.
 | STL | `.stl` | ✓ | ✓ | binary only |
 | Abaqus | `.inp` | ✓ | ✓ | - |
 | AVS-UCD | `.avs` | ✓ | ✓ | - |
+| Medit binary | `.meshb` | ✓ | ✓ | binary only |
 
-**8 formats supported** - more coming via the plugin system.
+**9 formats supported** - more coming via the plugin system.
 
 ---
 
