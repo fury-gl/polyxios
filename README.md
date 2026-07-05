@@ -75,8 +75,9 @@ triangle), avoiding the extra pass over the data.
 | AVS-UCD | `.avs` | ✓ | ✓ | - |
 | Medit binary | `.meshb` | ✓ | ✓ | binary only |
 | DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
+| Well-Known Text | `.wkt` | ✓ | ✓ | - |
 
-**10 formats supported** - more coming via the plugin system.
+**11 formats supported** - more coming via the plugin system.
 
 ---
 
