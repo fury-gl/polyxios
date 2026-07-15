@@ -27,6 +27,42 @@ Format-specific options
     px.write(mesh, "brain.vtk", binary=True)
     px.write(mesh, "brain.ply", binary=True, endian="little")
 
+
+Command Line Interface (pxios)
+------------------------------
+
+polyxios comes with a command-line interface ``pxios`` to quickly fetch, list, convert, and visualize 3D models.
+
+Available subcommands:
+
+*   ``pxios list``: Lists all available remote assets grouped by package that can be fetched.
+*   ``pxios fetch <filename|extension>``: Downloads and caches a model file (e.g., ``bunny.obj``) or an entire extension pack zip (e.g., ``obj`` or ``.obj``).
+*   ``pxios convert <input_file> <output_file>``: Converts a model file from one format to another directly in a single process.
+*   ``pxios viz [filename]``: Visualizes a local or cached model file using the FURY library.
+    *   ``--list``: Lists all locally cached files (can be filtered by ``--ext``).
+    *   ``--ext EXT``: Filter cached files or use as extension fallback when no filename is given.
+    *   ``--lines``: Render line elements using ``actor.line`` instead of rendering as a point cloud.
+
+Example commands:
+
+.. code-block:: bash
+
+    # List all fetchable remote models
+    pxios list
+
+    # Fetch a single model
+    pxios fetch bunny.obj
+
+    # Fetch a whole extension folder package zip
+    pxios fetch vtk
+
+    # Convert a mesh file
+    pxios convert bunny.obj bunny.vtk
+
+    # Visualize a model
+    pxios viz bunny.obj
+
+
 Lazy loading
 ------------
 
