@@ -61,9 +61,9 @@ def cmd_fetch(args) -> int:
         if not ext:
             ext_clean = args.filename.lower().lstrip(".")
             fetch_by_extension(ext_clean, overwrite=args.overwrite)
-            from polyxios.fetcher import _EXT_TO_PACKAGE
+            from polyxios.fetcher import get_package_name
 
-            package = _EXT_TO_PACKAGE.get(ext_clean, ext_clean)
+            package = get_package_name(ext_clean)
             path = os.path.join(POLYXIOS_HOME, package)
             logger.info(f"Successfully fetched package to: {path}")
         else:
@@ -111,14 +111,13 @@ def cmd_convert(args) -> int:
 def cmd_viz(args) -> int:
     """Visualize a 3D model using the FURY renderer library.
 
-    Handles dataset listing (`--list`), automatic sample package downloading via
-    extension selection (`--ext`), and parses/renders the geometry using suitable
-    actors (surface, line, or point cloud).
+    Parses and renders the geometry using suitable actors (surface, line,
+    or point cloud).
 
     Parameters
     ----------
     args : argparse.Namespace
-        Parsed arguments containing visualization, listing, and filtering options.
+        Parsed arguments containing visualization and filtering options.
 
     Returns
     -------
@@ -126,65 +125,20 @@ def cmd_viz(args) -> int:
         Exit status code (0 for success, 1 for failure).
     """
     try:
-        ext = args.ext.lower().lstrip(".") if args.ext else None
+        if not args.filename:
+            logger.error("Error: filename is required for visualization.")
+            return 1
 
-        if args.list:
-            if ext:
-                paths = fetch_by_extension(ext)
-                if not paths:
-                    logger.warning(
-                        f"No local .{ext} files cached.\n"
-                        f"Run without --list to download the sample pack."
-                    )
-                else:
-                    logger.info(f"Cached .{ext} files:")
-                    for p in paths:
-                        logger.info(f"  {p}")
-            else:
-                logger.info("Cached files:")
-                found_any = False
-                if os.path.exists(POLYXIOS_HOME):
-                    for pkg in sorted(os.listdir(POLYXIOS_HOME)):
-                        pkg_dir = os.path.join(POLYXIOS_HOME, pkg)
-                        if os.path.isdir(pkg_dir):
-                            files = sorted(
-                                f
-                                for f in os.listdir(pkg_dir)
-                                if os.path.isfile(os.path.join(pkg_dir, f))
-                                and not f.startswith(".")
-                            )
-                            if files:
-                                logger.info(f"[{pkg}]")
-                                for f in files:
-                                    logger.info(f"  {os.path.join(pkg_dir, f)}")
-                                found_any = True
-                if not found_any:
-                    logger.info("No cached files found.")
-            return 0
-
-        ext_default = ext or "vtk"
-        ext = ext_default.lower().lstrip(".")
-
-        if args.filename:
-            filename = args.filename
-            p = Path(filename)
-            if p.exists() or p.parent != Path("."):
-                path = str(p.resolve())
-            else:
-                try:
-                    path = fetch(filename)
-                except Exception as e:
-                    logger.error(f"Could not fetch '{filename}': {e}")
-                    return 1
+        filename = args.filename
+        p = Path(filename)
+        if p.exists() or p.parent != Path("."):
+            path = str(p.resolve())
         else:
-            paths = fetch_by_extension(ext)
-            if not paths:
-                logger.error(
-                    f"No .{ext} files found in the sample pack. Try a different --ext."
-                )
+            try:
+                path = fetch(filename)
+            except Exception as e:
+                logger.error(f"Could not fetch '{filename}': {e}")
                 return 1
-            path = paths[0]
-            logger.info(f"No filename given - using first cached .{ext} file: {path}")
 
         logger.info(f"Reading {path} ...")
         start_time = time.perf_counter()
@@ -212,30 +166,39 @@ def cmd_viz(args) -> int:
             return 0
 
         actors = []
-        faces = polydata.faces
-        if faces is None:
-            surface = transforms.extract_surface(polydata)
-            faces = surface.faces
-        if faces is not None and len(faces) > 0:
-            colors = transforms.vertex_colors(polydata)
-            actors.append(
-                actor.surface(
-                    vertices=polydata.vertices,
-                    faces=faces,
-                    colors=colors if colors is not None else (0.8, 0.7, 0.6),
-                )
-            )
-        elif args.lines and polydata.lines:
+        if args.points:
+            logger.info("  Rendering strictly as point cloud per --points request.")
+            actors.append(actor.point(polydata.vertices, colors=(0.9, 0.9, 0.9)))
+        elif args.lines:
+            lines_list = polydata.lines
+            if not lines_list or len(lines_list) == 0:
+                import numpy as np
+
+                lines_list = [np.arange(len(polydata.vertices), dtype=np.int32)]
             lines_coords = [
-                polydata.vertices[idx].astype("float64") for idx in polydata.lines
+                polydata.vertices[idx].astype("float64") for idx in lines_list
             ]
             logger.info(
                 f"  Rendering {len(lines_coords)} line segment(s) with actor.line."
             )
             actors.append(actor.line(lines_coords, colors=(0.2, 0.8, 0.2)))
         else:
-            logger.info("  No renderable geometry - rendering as point cloud.")
-            actors.append(actor.point(polydata.vertices, colors=(0.9, 0.9, 0.9)))
+            faces = polydata.faces
+            if faces is None:
+                surface = transforms.extract_surface(polydata)
+                faces = surface.faces
+            if faces is not None and len(faces) > 0:
+                colors = transforms.vertex_colors(polydata)
+                actors.append(
+                    actor.surface(
+                        vertices=polydata.vertices,
+                        faces=faces,
+                        colors=colors if colors is not None else (0.8, 0.7, 0.6),
+                    )
+                )
+            else:
+                logger.info("  No renderable geometry - rendering as point cloud.")
+                actors.append(actor.point(polydata.vertices, colors=(0.9, 0.9, 0.9)))
 
         window.show(actors)
         return 0
@@ -245,7 +208,7 @@ def cmd_viz(args) -> int:
 
 
 def cmd_list(args) -> int:
-    """List all available remote files grouped by package.
+    """List all available remote or cached files grouped by package.
 
     Parameters
     ----------
@@ -255,11 +218,102 @@ def cmd_list(args) -> int:
     Returns
     -------
     int
-        Exit status code (0 for success).
+        Exit status code (0 for success, 1 for failure).
     """
+    if args.codecs:
+        logger.info("File formats supported by polyxios codecs:")
+        import polyxios
+        from polyxios.fetcher import _EXT_TO_PACKAGE
+
+        all_exts = sorted(ext.lstrip(".") for ext in polyxios._REGISTRY.keys())
+        pkg_to_exts = {}
+        for ext_name in all_exts:
+            pkg = _EXT_TO_PACKAGE.get(ext_name, ext_name)
+            pkg_to_exts.setdefault(pkg, []).append(f".{ext_name}")
+
+        for pkg, exts in sorted(pkg_to_exts.items()):
+            logger.info(f"  {pkg} ({', '.join(exts)})")
+        return 0
+
+    if args.extensions:
+        logger.info("File formats available in remote catalog:")
+        from polyxios.fetcher import _EXT_TO_PACKAGE, _load_models_catalog
+
+        package_to_exts = {}
+        try:
+            catalog = _load_models_catalog()
+            ext_to_package = catalog.get("ext_to_package", {})
+            for ext_name, pkg in ext_to_package.items():
+                package_to_exts.setdefault(pkg, []).append(ext_name.lstrip("."))
+
+            catalog_formats = catalog.get("formats", {})
+            for pkg in catalog_formats.keys():
+                if pkg not in package_to_exts:
+                    package_to_exts[pkg] = [pkg]
+        except Exception:
+            pass
+
+        if not package_to_exts:
+            for ext_name, pkg in _EXT_TO_PACKAGE.items():
+                package_to_exts.setdefault(pkg, []).append(ext_name.lstrip("."))
+
+        for pkg, exts in sorted(package_to_exts.items()):
+            exts_fmt = [f".{e}" for e in sorted(exts)]
+            logger.info(f"  {pkg} ({', '.join(exts_fmt)})")
+        return 0
+
+    if args.local:
+        if args.ext:
+            ext_clean = args.ext.lower().lstrip(".")
+            from polyxios.fetcher import get_package_name
+
+            package = get_package_name(ext_clean)
+            pkg_dir = os.path.join(POLYXIOS_HOME, package)
+            found_any = False
+            if os.path.exists(pkg_dir) and os.path.isdir(pkg_dir):
+                files = sorted(
+                    f
+                    for f in os.listdir(pkg_dir)
+                    if os.path.isfile(os.path.join(pkg_dir, f))
+                    and not f.startswith(".")
+                    and f.lower().endswith(f".{ext_clean}")
+                )
+                if files:
+                    logger.info(f"Cached .{ext_clean} files:")
+                    for f in files:
+                        logger.info(f"  {os.path.join(pkg_dir, f)}")
+                    found_any = True
+            if not found_any:
+                logger.info(f"No local .{ext_clean} files cached.")
+        else:
+            logger.info("Cached files:")
+            found_any = False
+            if os.path.exists(POLYXIOS_HOME):
+                for pkg in sorted(os.listdir(POLYXIOS_HOME)):
+                    pkg_dir = os.path.join(POLYXIOS_HOME, pkg)
+                    if os.path.isdir(pkg_dir):
+                        files = sorted(
+                            f
+                            for f in os.listdir(pkg_dir)
+                            if os.path.isfile(os.path.join(pkg_dir, f))
+                            and not f.startswith(".")
+                        )
+                        if files:
+                            logger.info(f"[{pkg}]")
+                            for f in files:
+                                logger.info(f"  {os.path.join(pkg_dir, f)}")
+                            found_any = True
+            if not found_any:
+                logger.info("No cached files found.")
+        return 0
+
     from polyxios.fetcher import get_fetchable_files
 
-    files_dict = get_fetchable_files()
+    try:
+        files_dict = get_fetchable_files()
+    except Exception as e:
+        logger.error(f"Error fetching catalog: {e}")
+        return 1
 
     if args.ext:
         ext_clean = args.ext.lower().lstrip(".")
@@ -286,8 +340,6 @@ def cmd_list(args) -> int:
 def main():
     """Main CLI entry point for pxios. Parses arguments and routes commands."""
     _setup_logging()
-
-    available_exts = get_available_extensions()
 
     parser = argparse.ArgumentParser(
         description="Polyxios CLI (pxios): Fetch, convert, and visualize 3D models."
@@ -316,43 +368,46 @@ def main():
     )
     viz_parser.add_argument(
         "filename",
-        nargs="?",
         help=(
             "Filename to fetch and visualize (e.g. 'mesh.vtk', 'bunny.obj'), or a "
-            "local path (relative or absolute). "
-            "The extension determines which sample pack is downloaded when the file "
-            "is not already on disk. "
-            f"Fetchable extensions: {', '.join(available_exts)}. "
-            "Omit to use the first locally cached file for --ext (default: vtk)."
+            "local path (relative or absolute)."
         ),
-    )
-    viz_parser.add_argument(
-        "--ext",
-        default=None,
-        metavar="EXT",
-        help=(
-            "Which sample pack to use when no filename is given "
-            f"({', '.join(available_exts)}). Default: None (lists all packages when using --list)."
-        ),
-    )
-    viz_parser.add_argument(
-        "--list",
-        action="store_true",
-        help="List locally cached files and exit (optionally filter by --ext).",
     )
     viz_parser.add_argument(
         "--lines",
         action="store_true",
-        help="Render line/poly_line elements with actor.line instead of point cloud.",
+        help="Render line/poly_line elements with actor.line instead of surface.",
+    )
+    viz_parser.add_argument(
+        "--points",
+        action="store_true",
+        help="Render strictly as a point cloud.",
     )
 
     list_parser = subparsers.add_parser(
-        "list", help="List all available remote files that we can fetch"
+        "list", help="List all available remote or cached files"
     )
     list_parser.add_argument(
         "ext",
         nargs="?",
         help="Optional extension name to filter the listed files (e.g. 'obj', 'vtk')",
+    )
+    list_parser.add_argument(
+        "--local",
+        action="store_true",
+        help="List locally cached files instead of remote files",
+    )
+    list_parser.add_argument(
+        "--extensions",
+        "--formats",
+        dest="extensions",
+        action="store_true",
+        help="List all formats and extensions available in the remote catalog",
+    )
+    list_parser.add_argument(
+        "--codecs",
+        action="store_true",
+        help="List all formats supported by active local codecs",
     )
 
     args = parser.parse_args()
