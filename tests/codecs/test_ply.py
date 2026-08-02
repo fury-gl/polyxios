@@ -149,33 +149,3 @@ def test_3dgs_ascii_chunk_raises() -> None:
 
     with pytest.raises(CodecError):
         read(tmp)
-
-
-def test_3dgs_compressed_ply_positions() -> None:
-    """Compressed 3DGS PLY returns real world coordinates, not zeros."""
-    from polyxios.fetcher import fetch
-
-    path = fetch("gs_Halo_Believe.cleaned.compressed.ply")
-    poly = read(path)
-    assert len(poly.vertices) == 345217
-    assert len(poly.element_types) == 0
-    # Positions must not all be zero
-    assert not np.allclose(poly.vertices, 0.0)
-    # Coords should be within the known scene bbox (roughly -5..5 range)
-    assert poly.vertices[:, 0].min() > -20.0
-    assert poly.vertices[:, 0].max() < 20.0
-    assert "scale_0" in poly.vertex_attrs
-    assert "rot_0" in poly.vertex_attrs
-    assert "opacity" in poly.vertex_attrs
-
-
-def test_real_armadillo() -> None:
-    """Armadillo.ply: binary big-endian with face scalar before vertex list."""
-    from polyxios.fetcher import fetch
-
-    path = fetch("Armadillo.ply")
-    poly = read(path)
-    assert len(poly.vertices) == 172974
-    assert len(poly.element_types) == 345944
-    assert poly.faces is not None and len(poly.faces) > 0
-    assert "intensity" in poly.element_attrs

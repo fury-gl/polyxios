@@ -44,13 +44,15 @@ polyxios comes with a command-line interface `pxios` to quickly fetch, list, con
 
 ### Subcommands
 
-*   **`pxios list`**: Lists all available remote assets grouped by package that can be fetched.
+*   **`pxios list`**: Lists all available remote or cached files, or registered formats.
+    *   `--local`: Lists locally cached files (can filter by optional extension argument, e.g. `pxios list obj --local`).
+    *   `--extensions` / `--formats`: Lists all formats and extensions available in the remote catalog.
+    *   `--codecs`: Lists all formats supported by polyxios codecs.
 *   **`pxios fetch <filename|extension>`**: Downloads and caches a model file (e.g., `bunny.obj`) or an entire extension pack zip (e.g., `obj` or `.obj`).
 *   **`pxios convert <input_file> <output_file>`**: Converts a model file from one format to another directly in a single process.
-*   **`pxios viz [filename]`**: Visualizes a local or cached model file using the [FURY](https://fury.gl) library.
-    *   `--list`: Lists all locally cached files (can be filtered by `--ext`).
-    *   `--ext EXT`: Filter cached files or use as extension fallback when no filename is given.
-    *   `--lines`: Render line elements using `actor.line` instead of rendering as a point cloud.
+*   **`pxios viz <filename>`**: Visualizes a local or cached model file using the [FURY](https://fury.gl) library.
+    *   `--lines`: Render line elements using `actor.line` instead of rendering as a surface/point cloud.
+    *   `--points`: Render strictly as a point cloud.
 
 ```bash
 # List all fetchable remote models
