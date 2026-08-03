@@ -1,7 +1,7 @@
+from polyxios import transforms
 from polyxios._registry import Codec, build_default_registry, resolve
 from polyxios._types import PolyData, make_polydata
 from polyxios.fetcher import fetch
-import polyxios.transforms as transforms
 from polyxios.validate import validate
 from polyxios.version import version as __version__
 
@@ -66,13 +66,13 @@ def write(
 
 
 __all__ = [
-    "__version__",
     "Codec",
     "PolyData",
+    "__version__",
+    "fetch",
     "make_polydata",
     "read",
     "transforms",
     "validate",
     "write",
-    "fetch",
 ]

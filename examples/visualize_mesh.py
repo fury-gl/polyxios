@@ -16,8 +16,8 @@ import sys
 from fury import actor, window
 
 import polyxios
+from polyxios import transforms
 from polyxios.fetcher import fetch, fetch_by_extension
-import polyxios.transforms as transforms
 
 _FETCHABLE_EXTS = ("obj", "ply", "vtk", "vtp", "vtr", "vtu", "stl")
 
