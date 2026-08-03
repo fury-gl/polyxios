@@ -29,8 +29,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 import polyxios
+from polyxios import transforms
 from polyxios.fetcher import fetch, fetch_by_extension
-import polyxios.transforms as transforms
 
 
 def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:

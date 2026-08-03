@@ -37,7 +37,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 import polyxios
-import polyxios.transforms as transforms
+from polyxios import transforms
 
 # ---------------------------------------------------------------------------
 # Helpers
