@@ -185,8 +185,9 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         if binary:
             _write_bin_f64(poly.vertices.ravel(), fh)
         else:
-            for v in poly.vertices:
-                fh.write(f"{v[0]:.10g} {v[1]:.10g} {v[2]:.10g}\n".encode())
+            fh.writelines(
+                f"{v[0]:.10g} {v[1]:.10g} {v[2]:.10g}\n".encode() for v in poly.vertices
+            )
 
         if vtk_version == "5.1":
             _write_cells_v51(poly, fh, binary)
