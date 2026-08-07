@@ -30,7 +30,9 @@ py.install_sources(
     'exceptions.py',
     'transforms.py',
     'validate.py',
-    'fetcher.py'
+    'fetcher.py',
+    'cli.py',
+    'helper.py'
   ],
   subdir: 'polyxios',
 )

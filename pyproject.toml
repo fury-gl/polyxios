@@ -28,6 +28,9 @@ doc = [
     "pydata-sphinx-theme",
 ]
 
+[project.scripts]
+pxios = "polyxios.cli:main"
+
 [project.entry-points."polyxios.codecs"]
 # third-party packages register their own entry points here
 
