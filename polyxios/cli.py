@@ -6,11 +6,18 @@ import sys
 import time
 
 import polyxios
-from polyxios.fetcher import POLYXIOS_HOME, fetch, fetch_by_extension
+from polyxios.fetcher import (
+    _EXT_TO_PACKAGE,
+    POLYXIOS_HOME,
+    _load_models_catalog,
+    fetch,
+    fetch_by_extension,
+    get_fetchable_files,
+    get_package_name,
+)
 from polyxios.helper import read_polydata
-import polyxios.transforms as transforms
 
-logger = logging.getLogger("polyxios.cli")
+logger = logging.getLogger("polyxios")
 
 
 class _Formatter(logging.Formatter):
@@ -23,23 +30,25 @@ class _Formatter(logging.Formatter):
 
 
 def _setup_logging():
-    """Configure stream handler for CLI logging to stdout."""
+    """Configure stream handlers for CLI logging: stdout for INFO, stderr for WARNING+."""
     logger.handlers.clear()
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(_Formatter())
-    logger.addHandler(handler)
+
+    class InfoFilter(logging.Filter):
+        def filter(self, record):
+            return record.levelno <= logging.INFO
+
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(_Formatter())
+    stdout_handler.addFilter(InfoFilter())
+    logger.addHandler(stdout_handler)
+
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(_Formatter())
+    stderr_handler.setLevel(logging.WARNING)
+    logger.addHandler(stderr_handler)
+
     logger.setLevel(logging.INFO)
-
-
-def get_available_extensions() -> list[str]:
-    """Return the list of all registered codec extensions (without dots).
-
-    Returns
-    -------
-    list of str
-        Supported file extensions like ['obj', 'ply', 'vtk', ...].
-    """
-    return sorted(ext.lstrip(".") for ext in polyxios._REGISTRY.keys())
+    logger.propagate = False
 
 
 def cmd_fetch(args) -> int:
@@ -56,12 +65,10 @@ def cmd_fetch(args) -> int:
         Exit status code (0 for success, 1 for failure).
     """
     try:
-        logger.info(f"Fetching '{args.filename}'...")
         _, ext = os.path.splitext(args.filename.lower())
         if not ext:
             ext_clean = args.filename.lower().lstrip(".")
             fetch_by_extension(ext_clean, overwrite=args.overwrite)
-            from polyxios.fetcher import get_package_name
 
             package = get_package_name(ext_clean)
             path = os.path.join(POLYXIOS_HOME, package)
@@ -88,6 +95,11 @@ def cmd_convert(args) -> int:
     int
         Exit status code (0 for success, 1 for failure).
     """
+    if os.path.exists(args.output_file) and not getattr(args, "force", False):
+        logger.error(
+            f"Error: Output file '{args.output_file}' already exists. Use --force to overwrite."
+        )
+        return 1
     try:
         logger.info(f"Reading '{args.input_file}'...")
         start_read_time = time.perf_counter()
@@ -134,26 +146,14 @@ def cmd_viz(args) -> int:
         if p.exists() or p.parent != Path("."):
             path = str(p.resolve())
         else:
-            try:
-                path = fetch(filename)
-            except Exception as e:
-                logger.error(f"Could not fetch '{filename}': {e}")
-                return 1
+            package = get_package_name(os.path.splitext(filename)[1][1:])
+            path = os.path.join(POLYXIOS_HOME, package, filename)
 
         logger.info(f"Reading {path} ...")
         start_time = time.perf_counter()
         polydata = read_polydata(path)
         elapsed = time.perf_counter() - start_time
         logger.info(f"Loaded in {elapsed:.4f} seconds")
-
-        try:
-            from fury import actor, window
-        except ImportError:
-            logger.error(
-                "FURY is not installed. Please install it to visualize models:\n"
-                "  pip install fury"
-            )
-            return 1
 
         logger.info(
             f"  {len(polydata.vertices)} vertices | "
@@ -165,43 +165,13 @@ def cmd_viz(args) -> int:
             logger.info("  No geometry (FIELD data) - skipping window.")
             return 0
 
-        actors = []
-        if args.points:
-            logger.info("  Rendering strictly as point cloud per --points request.")
-            actors.append(actor.point(polydata.vertices, colors=(0.9, 0.9, 0.9)))
-        elif args.lines:
-            lines_list = polydata.lines
-            if not lines_list or len(lines_list) == 0:
-                import numpy as np
+        from polyxios.helper import visualize_mesh
 
-                lines_list = [np.arange(len(polydata.vertices), dtype=np.int32)]
-            lines_coords = [
-                polydata.vertices[idx].astype("float64") for idx in lines_list
-            ]
-            logger.info(
-                f"  Rendering {len(lines_coords)} line segment(s) with actor.line."
-            )
-            actors.append(actor.line(lines_coords, colors=(0.2, 0.8, 0.2)))
-        else:
-            faces = polydata.faces
-            if faces is None:
-                surface = transforms.extract_surface(polydata)
-                faces = surface.faces
-            if faces is not None and len(faces) > 0:
-                colors = transforms.vertex_colors(polydata)
-                actors.append(
-                    actor.surface(
-                        vertices=polydata.vertices,
-                        faces=faces,
-                        colors=colors if colors is not None else (0.8, 0.7, 0.6),
-                    )
-                )
-            else:
-                logger.info("  No renderable geometry - rendering as point cloud.")
-                actors.append(actor.point(polydata.vertices, colors=(0.9, 0.9, 0.9)))
-
-        window.show(actors)
+        visualize_mesh(polydata, lines=args.lines, points=args.points)
         return 0
+    except ImportError as e:
+        logger.error(str(e))
+        return 1
     except Exception as e:
         logger.error(f"Error visualizing model: {e}")
         return 1
@@ -222,8 +192,6 @@ def cmd_list(args) -> int:
     """
     if args.codecs:
         logger.info("File formats supported by polyxios codecs:")
-        import polyxios
-        from polyxios.fetcher import _EXT_TO_PACKAGE
 
         all_exts = sorted(ext.lstrip(".") for ext in polyxios._REGISTRY.keys())
         pkg_to_exts = {}
@@ -237,12 +205,12 @@ def cmd_list(args) -> int:
 
     if args.extensions:
         logger.info("File formats available in remote catalog:")
-        from polyxios.fetcher import _EXT_TO_PACKAGE, _load_models_catalog
 
         package_to_exts = {}
         try:
             catalog = _load_models_catalog()
-            ext_to_package = catalog.get("ext_to_package", {})
+            ext_to_package = dict(_EXT_TO_PACKAGE)
+            ext_to_package.update(catalog.get("ext_to_package", {}))
             for ext_name, pkg in ext_to_package.items():
                 package_to_exts.setdefault(pkg, []).append(ext_name.lstrip("."))
 
@@ -250,8 +218,8 @@ def cmd_list(args) -> int:
             for pkg in catalog_formats.keys():
                 if pkg not in package_to_exts:
                     package_to_exts[pkg] = [pkg]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.info(f"Catalog formats list retrieval failed: {e}")
 
         if not package_to_exts:
             for ext_name, pkg in _EXT_TO_PACKAGE.items():
@@ -265,7 +233,6 @@ def cmd_list(args) -> int:
     if args.local:
         if args.ext:
             ext_clean = args.ext.lower().lstrip(".")
-            from polyxios.fetcher import get_package_name
 
             package = get_package_name(ext_clean)
             pkg_dir = os.path.join(POLYXIOS_HOME, package)
@@ -307,8 +274,6 @@ def cmd_list(args) -> int:
                 logger.info("No cached files found.")
         return 0
 
-    from polyxios.fetcher import get_fetchable_files
-
     try:
         files_dict = get_fetchable_files()
     except Exception as e:
@@ -344,6 +309,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Polyxios CLI (pxios): Fetch, convert, and visualize 3D models."
     )
+    parser.add_argument(
+        "--version",
+        "-V",
+        action="version",
+        version=f"polyxios {polyxios.__version__}",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     fetch_parser = subparsers.add_parser("fetch", help="Fetch a model file")
@@ -354,12 +325,20 @@ def main():
     fetch_parser.add_argument(
         "--overwrite", action="store_true", help="Force overwrite existing cached file"
     )
+    fetch_parser.set_defaults(func=cmd_fetch)
 
     convert_parser = subparsers.add_parser(
         "convert", help="Convert a model file to another format"
     )
     convert_parser.add_argument("input_file", help="Path to the input model file")
     convert_parser.add_argument("output_file", help="Path to the output model file")
+    convert_parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Force overwrite existing output file",
+    )
+    convert_parser.set_defaults(func=cmd_convert)
 
     viz_parser = subparsers.add_parser(
         "viz",
@@ -373,16 +352,18 @@ def main():
             "local path (relative or absolute)."
         ),
     )
-    viz_parser.add_argument(
+    viz_group = viz_parser.add_mutually_exclusive_group()
+    viz_group.add_argument(
         "--lines",
         action="store_true",
-        help="Render line/poly_line elements with actor.line instead of surface.",
+        help="Render line/poly_line elements or surface wireframe instead of solid surface.",
     )
-    viz_parser.add_argument(
+    viz_group.add_argument(
         "--points",
         action="store_true",
         help="Render strictly as a point cloud.",
     )
+    viz_parser.set_defaults(func=cmd_viz)
 
     list_parser = subparsers.add_parser(
         "list", help="List all available remote or cached files"
@@ -409,17 +390,10 @@ def main():
         action="store_true",
         help="List all formats supported by active local codecs",
     )
+    list_parser.set_defaults(func=cmd_list)
 
     args = parser.parse_args()
-
-    if args.command == "fetch":
-        sys.exit(cmd_fetch(args))
-    elif args.command == "convert":
-        sys.exit(cmd_convert(args))
-    elif args.command == "viz":
-        sys.exit(cmd_viz(args))
-    elif args.command == "list":
-        sys.exit(cmd_list(args))
+    sys.exit(args.func(args))
 
 
 if __name__ == "__main__":

@@ -27,6 +27,9 @@ doc = [
     "sphinx-gallery",
     "pydata-sphinx-theme",
 ]
+viz = [
+    "fury>=2",
+]
 
 [project.scripts]
 pxios = "polyxios.cli:main"

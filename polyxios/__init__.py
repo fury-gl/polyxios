@@ -2,6 +2,7 @@ from polyxios import transforms
 from polyxios._registry import Codec, build_default_registry, resolve
 from polyxios._types import PolyData, make_polydata
 from polyxios.fetcher import fetch
+from polyxios.helper import read_polydata, visualize_mesh
 from polyxios.validate import validate
 from polyxios.version import version as __version__
 
@@ -75,4 +76,7 @@ __all__ = [
     "transforms",
     "validate",
     "write",
+    "fetch",
+    "read_polydata",
+    "visualize_mesh",
 ]
