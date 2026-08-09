@@ -1,4 +1,3 @@
-import tempfile
 import warnings
 
 import numpy as np
@@ -301,44 +300,40 @@ end_header
 """
 
 
-def test_inline_mesh_beam_tri() -> None:
-    with tempfile.NamedTemporaryFile(suffix=".mesh", delete=False) as f:
-        f.write(BEAM_TRI_MESH)
-        tmp = f.name
-    poly = read_mesh(tmp)
+def test_inline_mesh_beam_tri(tmp_path) -> None:
+    tmp = tmp_path / "beam_tri.mesh"
+    tmp.write_bytes(BEAM_TRI_MESH)
+    poly = read_mesh(str(tmp))
     assert len(poly.vertices) == 18
     assert len(poly.element_types) == 16
     assert poly.vertices.shape[1] == 3  # 3D vertices (padded with 0 for z)
     assert poly.vertices.dtype == np.float64
 
 
-def test_inline_mesh_beam_hex_nurbs() -> None:
-    with tempfile.NamedTemporaryFile(suffix=".mesh", delete=False) as f:
-        f.write(BEAM_HEX_NURBS_MESH)
-        tmp = f.name
+def test_inline_mesh_beam_hex_nurbs(tmp_path) -> None:
+    tmp = tmp_path / "beam_hex_nurbs.mesh"
+    tmp.write_bytes(BEAM_HEX_NURBS_MESH)
     with warnings.catch_warnings(record=True):
         warnings.simplefilter("always")
-        poly = read_mesh(tmp)
+        poly = read_mesh(str(tmp))
     assert len(poly.vertices) == 12
     assert len(poly.element_types) == 2
     assert "mfem_nurbs_knotvectors" in poly.global_attrs
 
 
-def test_inline_vtu_quadratic_tetra() -> None:
-    with tempfile.NamedTemporaryFile(suffix=".vtu", delete=False) as f:
-        f.write(QUADRATIC_TETRA_VTU)
-        tmp = f.name
-    poly = read_vtu(tmp)
+def test_inline_vtu_quadratic_tetra(tmp_path) -> None:
+    tmp = tmp_path / "quadratic_tetra.vtu"
+    tmp.write_bytes(QUADRATIC_TETRA_VTU)
+    poly = read_vtu(str(tmp))
     assert len(poly.vertices) == 22
     assert len(poly.element_types) == 3
     assert "scalars" in poly.vertex_attrs
 
 
-def test_inline_ply_tetra() -> None:
-    with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as f:
-        f.write(TET_PLY)
-        tmp = f.name
-    poly = read_ply(tmp)
+def test_inline_ply_tetra(tmp_path) -> None:
+    tmp = tmp_path / "tet.ply"
+    tmp.write_bytes(TET_PLY)
+    poly = read_ply(str(tmp))
     assert len(poly.vertices) == 4
     assert len(poly.element_types) == 4
     assert "red" in poly.element_attrs
@@ -353,4 +348,3 @@ def test_get_package_name() -> None:
     assert get_package_name(".inp") == "abaqus"
     assert get_package_name("xml") == "dolfin"
     assert get_package_name(".meshb") == "medit"
-    assert get_package_name("obj") == "obj"

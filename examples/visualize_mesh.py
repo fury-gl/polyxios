@@ -13,41 +13,11 @@ import argparse
 from pathlib import Path
 import sys
 
-from fury import actor, window
-
 import polyxios
-from polyxios import transforms
 from polyxios.fetcher import fetch, fetch_by_extension
+from polyxios.helper import visualize_mesh
 
 _FETCHABLE_EXTS = ("obj", "ply", "vtk", "vtp", "vtr", "vtu", "stl")
-
-
-def _build_actors(*, poly, render_lines=False):
-    if len(poly.vertices) == 0:
-        return None
-    faces = poly.faces
-    if faces is None:
-        surface = transforms.extract_surface(poly)
-        faces = surface.faces
-    if faces is not None and len(faces) > 0:
-        colors = transforms.vertex_colors(poly)
-        return [
-            actor.surface(
-                poly.vertices,
-                faces,
-                colors=colors if colors is not None else (0.8, 0.7, 0.6),
-            )
-        ]
-    if render_lines:
-        line_indices = poly.lines
-        if line_indices:
-            lines_coords = [
-                poly.vertices[idx].astype("float64") for idx in line_indices
-            ]
-            print(f"  Rendering {len(lines_coords)} line segment(s) with actor.line.")
-            return [actor.line(lines_coords, colors=(0.2, 0.8, 0.2))]
-    print("  No renderable geometry — rendering as point cloud.")
-    return [actor.point(poly.vertices, colors=(0.9, 0.9, 0.9))]
 
 
 def visualize(*, path, render_lines=False):
@@ -68,11 +38,10 @@ def visualize(*, path, render_lines=False):
         f"{len(poly.element_types)} elements | "
         f"vertex attrs: {list(poly.vertex_attrs) or 'none'}"
     )
-    actors = _build_actors(poly=poly, render_lines=render_lines)
-    if actors is None:
+    if len(poly.vertices) == 0:
         print("  No geometry (FIELD data) — skipping window.")
         return
-    window.show(actors)
+    visualize_mesh(poly, lines=render_lines)
 
 
 def main():

@@ -33,56 +33,40 @@ def temp_polyxios_home(tmp_path, monkeypatch):
                 "bunny.obj": {
                     "url": "https://example.com/obj/bunny.obj",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
                 "armadillo.obj": {
                     "url": "https://example.com/obj/armadillo.obj",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
             },
             "ply": {
                 "cow.ply": {
                     "url": "https://example.com/ply/cow.ply",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 }
             },
             "vtk": {
                 "1.vtk": {
                     "url": "https://example.com/vtk/1.vtk",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
                 "2.vtk": {
                     "url": "https://example.com/vtk/2.vtk",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
                 "armadillo.vtk": {
                     "url": "https://example.com/vtk/armadillo.vtk",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
             },
             "gmsh": {
                 "insulated-2.2.msh": {
                     "url": "https://example.com/gmsh/insulated-2.2.msh",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
                 "insulated-4.1.msh": {
                     "url": "https://example.com/gmsh/insulated-4.1.msh",
                     "sha256": "562137f76553b18244985a2ffe614824d99c5f98f2160b4f08e48ff1647f89ab",
-                    "size_bytes": 100,
-                    "size_pretty": "100 B",
                 },
             },
         },
@@ -132,76 +116,91 @@ def test_cli_fetch(temp_polyxios_home, monkeypatch, capsys):
 
 
 def test_cli_viz(temp_polyxios_home, monkeypatch, capsys):
+    pytest.importorskip("fury")
+
+    def mock_show(actors):
+        assert isinstance(actors, list)
+        assert len(actors) > 0
+
+    monkeypatch.setattr("fury.window.show", mock_show)
+
     obj_dir = temp_polyxios_home / "obj"
     obj_dir.mkdir()
     model_path = obj_dir / "armadillo.obj"
     create_real_model(model_path)
 
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
 
-    try:
-        import fury  # noqa: F401
-
-        monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj"])
-        with pytest.raises(SystemExit) as excinfo:
-            main()
-        assert excinfo.value.code == 0
-
-        captured = capsys.readouterr()
-        assert f"Reading {model_path}" in captured.out
-    except ImportError:
-        monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj"])
-        with pytest.raises(SystemExit) as excinfo:
-            main()
-        assert excinfo.value.code == 1
-
-        captured = capsys.readouterr()
-        assert (
-            "FURY is not installed" in captured.err
-            or "FURY is not installed" in captured.out
-        )
+    captured = capsys.readouterr()
+    assert f"Reading {model_path}" in captured.out
 
 
 def test_cli_viz_lines(temp_polyxios_home, monkeypatch, capsys):
+    pytest.importorskip("fury")
+
+    def mock_show(actors):
+        assert isinstance(actors, list)
+        assert len(actors) > 0
+
+    monkeypatch.setattr("fury.window.show", mock_show)
+
     obj_dir = temp_polyxios_home / "obj"
     obj_dir.mkdir()
     model_path = obj_dir / "armadillo.obj"
     create_real_model(model_path)
 
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-
-    try:
-        import fury  # noqa: F401
-
-        monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj", "--lines"])
-        with pytest.raises(SystemExit) as excinfo:
-            main()
-        assert excinfo.value.code == 0
-        captured = capsys.readouterr()
-        assert "Rendering 1 line segment(s) with actor.line" in captured.out
-    except ImportError:
-        pass
+    monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj", "--lines"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+    captured = capsys.readouterr()
+    assert "No line elements found. Rendering surface wireframe." in captured.out
 
 
 def test_cli_viz_points(temp_polyxios_home, monkeypatch, capsys):
+    pytest.importorskip("fury")
+
+    def mock_show(actors):
+        assert isinstance(actors, list)
+        assert len(actors) > 0
+
+    monkeypatch.setattr("fury.window.show", mock_show)
+
     obj_dir = temp_polyxios_home / "obj"
     obj_dir.mkdir()
     model_path = obj_dir / "armadillo.obj"
     create_real_model(model_path)
 
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj", "--points"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+    captured = capsys.readouterr()
+    assert "Rendering strictly as point cloud" in captured.out
 
-    try:
-        import fury  # noqa: F401
 
-        monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj", "--points"])
-        with pytest.raises(SystemExit) as excinfo:
-            main()
-        assert excinfo.value.code == 0
-        captured = capsys.readouterr()
-        assert "Rendering strictly as point cloud" in captured.out
-    except ImportError:
-        pass
+def test_cli_viz_no_fury(temp_polyxios_home, monkeypatch, capsys):
+    # Mask fury module
+    monkeypatch.setitem(sys.modules, "fury", None)
+
+    obj_dir = temp_polyxios_home / "obj"
+    obj_dir.mkdir()
+    model_path = obj_dir / "armadillo.obj"
+    create_real_model(model_path)
+
+    monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "FURY is not installed" in captured.err
 
 
 def test_cli_list_local(temp_polyxios_home, monkeypatch, capsys):
@@ -341,7 +340,7 @@ def test_cli_list_filtered(temp_polyxios_home, monkeypatch, capsys):
         main()
     assert excinfo.value.code == 1
     captured = capsys.readouterr()
-    assert "No package/extension found matching 'invalid'" in captured.out
+    assert "No package/extension found matching 'invalid'" in captured.err
 
 
 def test_cli_fetch_folder(temp_polyxios_home, monkeypatch, capsys):
@@ -389,3 +388,78 @@ def test_cli_list_codecs(temp_polyxios_home, monkeypatch, capsys):
     assert "obj (.obj)" in captured.out
     assert "vtk (.vtk)" in captured.out
     assert "abaqus (.inp)" in captured.out
+
+
+def test_cli_fetch_with_zip_companion(temp_polyxios_home, monkeypatch):
+    import io
+    import json
+    import os
+    import urllib.request
+    import zipfile
+
+    models_file = temp_polyxios_home / "models.json"
+    mock_catalog = {
+        "ext_to_package": {
+            "vtp": "vtp",
+            "zip": "vtp",
+        },
+        "formats": {
+            "vtp": {
+                "mock_dataset.vtp": {
+                    "url": "https://example.com/vtp/mock_dataset.vtp",
+                    "sha256": "fake_sha",
+                    "size_bytes": 10,
+                },
+                "mock_dataset.zip": {
+                    "url": "https://example.com/vtp/mock_dataset.zip",
+                    "sha256": "fake_sha",
+                    "size_bytes": 50,
+                },
+            }
+        },
+    }
+    models_file.write_text(json.dumps(mock_catalog), encoding="utf-8")
+
+    vtp_data = b"vtp data"
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        zf.writestr("mock_dataset/piece_0.vtp", "sub-piece content")
+    zip_data = zip_buffer.getvalue()
+
+    def mock_urlopen(req, timeout=None):
+        class MockResponse:
+            def __init__(self, data):
+                self.data = data
+                self.headers = {"Content-Length": str(len(data))}
+
+            def read(self, chunk_size=None):
+                if chunk_size is None:
+                    return self.data
+                # Return data in chunks to emulate stream reading
+                res = self.data
+                self.data = b""
+                return res
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        url = req.full_url
+        if url.endswith(".zip"):
+            return MockResponse(zip_data)
+        else:
+            return MockResponse(vtp_data)
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+
+    from polyxios.fetcher import fetch
+
+    path = fetch("mock_dataset.vtp")
+
+    assert os.path.exists(path)
+    extracted_file = os.path.join(os.path.dirname(path), "mock_dataset", "piece_0.vtp")
+    assert os.path.exists(extracted_file)
+    with open(extracted_file) as f:
+        assert f.read() == "sub-piece content"
