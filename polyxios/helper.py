@@ -1,21 +1,42 @@
+import logging
 from pathlib import Path
 import xml.etree.ElementTree as ET
+
+import numpy as np
 
 import polyxios
 from polyxios.fetcher import fetch
 import polyxios.transforms as transforms
 
+logger = logging.getLogger("polyxios.helper")
 
-def read_multiblock_vtp(path: Path) -> polyxios.PolyData:
+_DEFAULT_SURFACE_COLOR = (0.8, 0.7, 0.6)
+_DEFAULT_POINT_COLOR = (0.9, 0.9, 0.9)
+
+_VOLUME_ELEMENT_TYPES = frozenset(
+    {
+        "tetra",
+        "hexahedron",
+        "wedge",
+        "pyramid",
+        "quadratic_tetra",
+        "quadratic_hexahedron",
+    }
+)
+
+
+def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
     """Load a vtkMultiBlockDataSet .vtp index file and merge its components.
 
     Reads the provided .vtp file, extracts references to individual sub-dataset
     files (under the <vtkMultiBlockDataSet> element), reads each sub-file, and
-    merges them into a single consolidated PolyData object.
+    merges them into a single consolidated PolyData object. Referenced sub-files
+    that are missing on disk are skipped with a warning, so a partially
+    downloaded companion directory still loads.
 
     Parameters
     ----------
-    path : Path
+    path : str or Path
         The file path to the parent .vtp index file.
 
     Returns
@@ -27,9 +48,12 @@ def read_multiblock_vtp(path: Path) -> polyxios.PolyData:
     ------
     ValueError
         If the index file does not contain a <vtkMultiBlockDataSet> element.
+    PermissionError
+        If a referenced sub-file resolves outside the index file's directory.
     FileNotFoundError
         If no referenced sub-files could be successfully found/read.
     """
+    path = Path(path)
     raw = path.read_bytes()
     app_marker = raw.find(b"<AppendedData")
     xml_bytes = (raw[:app_marker] + b"</VTKFile>") if app_marker != -1 else raw
@@ -57,10 +81,68 @@ def read_multiblock_vtp(path: Path) -> polyxios.PolyData:
     polys = []
     for sub in sub_paths:
         if not sub.exists():
-            raise FileNotFoundError(f"Sub-file not found: {sub}")
+            logger.warning(f"  Sub-file not found, skipping: {sub}")
+            continue
         polys.append(polyxios.read(str(sub)))
 
+    if not polys:
+        missing = "\n  ".join(str(p) for p in sub_paths[:5])
+        raise FileNotFoundError(
+            f"No sub-files found for '{path}'.\n"
+            f"Expected files such as:\n  {missing}\n"
+            "Ensure the companion directory is present alongside the index file."
+        )
+
+    logger.info(f"Loaded {len(polys)} of {len(sub_paths)} sub-file(s).")
     return transforms.merge(*polys)
+
+
+def _uniform_colors(color: tuple[float, float, float], n_verts: int) -> np.ndarray:
+    """Broadcast a single RGB color to one float32 entry per vertex.
+
+    Parameters
+    ----------
+    color : tuple of float
+        RGB components in [0, 1].
+    n_verts : int
+        Number of vertices to color.
+
+    Returns
+    -------
+    numpy.ndarray
+        Float32 array of shape (n_verts, 3). FURY's surface actor rejects a
+        single color tuple, so per-vertex colors are always supplied.
+    """
+    return np.tile(np.asarray(color, dtype=np.float32), (n_verts, 1))
+
+
+def resolve_path(filename: str | Path) -> Path:
+    """Resolve a filename to a local path, fetching it from the catalog if needed.
+
+    Parameters
+    ----------
+    filename : str or Path
+        A local path, or the bare name of an asset listed in the remote catalog.
+
+    Returns
+    -------
+    Path
+        The local path of the file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file exists neither locally nor in the remote catalog.
+    """
+    p = Path(filename)
+    if p.exists():
+        return p
+    try:
+        return Path(fetch(p.name))
+    except Exception as e:
+        raise FileNotFoundError(
+            f"No such file: '{filename}' (and not found in remote catalog: {e})"
+        ) from e
 
 
 def read_polydata(filename: str) -> polyxios.PolyData:
@@ -87,16 +169,7 @@ def read_polydata(filename: str) -> polyxios.PolyData:
     Exception
         Any codec or format reading exceptions raised by the polyxios backend.
     """
-    p = Path(filename)
-    if p.exists():
-        path = p
-    else:
-        try:
-            path = Path(fetch(p.name))
-        except Exception as e:
-            raise FileNotFoundError(
-                f"No such file: '{filename}' (and not found in remote catalog: {e})"
-            ) from e
+    path = resolve_path(filename)
 
     try:
         return polyxios.read(str(path))
@@ -138,30 +211,12 @@ def visualize_mesh(
     if len(polydata.vertices) == 0:
         return
 
-    colors = None
-    for col_attr in ["colors", "rgb", "red"]:
-        if col_attr in polydata.vertex_attrs:
-            colors = polydata.vertex_attrs[col_attr]
-            break
-    if colors is None:
-        colors = transforms.vertex_colors(polydata)
+    # transforms.vertex_colors picks the first (n_verts, >= 3) attribute and
+    # normalizes it to floats in [0, 1], which is what the actors expect.
+    colors = transforms.vertex_colors(polydata)
+    surface_colors = _uniform_colors(_DEFAULT_SURFACE_COLOR, len(polydata.vertices))
 
-    has_volume = any(
-        t
-        in [
-            "tetra",
-            "hexahedron",
-            "wedge",
-            "pyramid",
-            "quadratic_tetra",
-            "quadratic_hexahedron",
-        ]
-        for t in polydata.element_types
-    )
-
-    import logging
-
-    logger = logging.getLogger("polyxios.helper")
+    has_volume = any(t in _VOLUME_ELEMENT_TYPES for t in polydata.element_types)
 
     actors = []
     if points:
@@ -169,7 +224,7 @@ def visualize_mesh(
         actors.append(
             actor.point(
                 polydata.vertices,
-                colors=colors if colors is not None else (0.9, 0.9, 0.9),
+                colors=colors if colors is not None else _DEFAULT_POINT_COLOR,
             )
         )
     elif lines:
@@ -192,20 +247,14 @@ def visualize_mesh(
                 surf_actor = actor.surface(
                     vertices=polydata.vertices,
                     faces=faces,
-                    colors=colors if colors is not None else (0.8, 0.7, 0.6),
+                    colors=colors if colors is not None else surface_colors,
                 )
                 surf_actor.material.wireframe = True
-                try:
-                    import numpy as np
-
-                    coords = polydata.vertices
-                    if len(coords) > 0:
-                        bbox_min = coords.min(axis=0)
-                        bbox_max = coords.max(axis=0)
-                        diag = np.linalg.norm(bbox_max - bbox_min)
-                        surf_actor.material.wireframe_thickness = max(diag * 0.05, 0.5)
-                except Exception:
-                    pass
+                coords = polydata.vertices
+                bbox_min = coords.min(axis=0)
+                bbox_max = coords.max(axis=0)
+                diag = float(np.linalg.norm(bbox_max - bbox_min))
+                surf_actor.material.wireframe_thickness = max(diag * 0.005, 0.5)
                 actors.append(surf_actor)
             else:
                 logger.warning(
@@ -214,7 +263,7 @@ def visualize_mesh(
                 actors.append(
                     actor.point(
                         polydata.vertices,
-                        colors=colors if colors is not None else (0.9, 0.9, 0.9),
+                        colors=colors if colors is not None else _DEFAULT_POINT_COLOR,
                     )
                 )
     else:
@@ -227,7 +276,7 @@ def visualize_mesh(
                 actor.surface(
                     vertices=polydata.vertices,
                     faces=faces,
-                    colors=colors if colors is not None else (0.8, 0.7, 0.6),
+                    colors=colors if colors is not None else surface_colors,
                 )
             )
         else:
@@ -235,7 +284,7 @@ def visualize_mesh(
             actors.append(
                 actor.point(
                     polydata.vertices,
-                    colors=colors if colors is not None else (0.9, 0.9, 0.9),
+                    colors=colors if colors is not None else _DEFAULT_POINT_COLOR,
                 )
             )
 
