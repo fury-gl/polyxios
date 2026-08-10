@@ -5,7 +5,7 @@ import pytest
 
 import polyxios
 from polyxios import make_polydata
-from polyxios.helper import read_multiblock_vtp, read_polydata
+from polyxios.helper import read_multiblock_vtp, read_polydata, resolve_path
 
 _INDEX_TEMPLATE = """<?xml version="1.0"?>
 <VTKFile type="vtkMultiBlockDataSet" version="1.0">
@@ -68,6 +68,20 @@ def test_read_multiblock_vtp_skips_missing_sub_files(tmp_path) -> None:
     assert len(poly.vertices) == 3
 
 
+def test_read_multiblock_vtp_skips_unreadable_sub_files(tmp_path) -> None:
+    """A corrupt piece is skipped like a missing one instead of failing the load."""
+    pieces = tmp_path / "blocks"
+    pieces.mkdir()
+    _write_piece(pieces / "piece_0.vtp")
+    (pieces / "piece_1.vtp").write_text("not a vtp file at all", encoding="utf-8")
+
+    index = tmp_path / "index.vtp"
+    _write_index(index, ["blocks/piece_0.vtp", "blocks/piece_1.vtp"])
+
+    poly = read_multiblock_vtp(index)
+    assert len(poly.vertices) == 3
+
+
 def test_read_multiblock_vtp_all_missing_raises(tmp_path) -> None:
     index = tmp_path / "index.vtp"
     _write_index(index, ["blocks/piece_0.vtp"])
@@ -122,3 +136,27 @@ def test_read_polydata_missing_file_raises(tmp_path, monkeypatch) -> None:
     )
     with pytest.raises(FileNotFoundError, match="No such file"):
         read_polydata(str(tmp_path / "nope.obj"))
+
+
+def test_resolve_path_does_not_fetch_for_a_path_like_name(
+    tmp_path, monkeypatch
+) -> None:
+    """A missing path is reported as missing, never swapped for a catalog asset."""
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("a path with a directory must not be fetched")
+
+    monkeypatch.setattr("polyxios.helper.fetch", _boom)
+
+    with pytest.raises(FileNotFoundError, match="No such file"):
+        resolve_path(tmp_path / "data" / "bunny.obj")
+    with pytest.raises(FileNotFoundError, match="No such file"):
+        resolve_path("data/bunny.obj")
+
+
+def test_resolve_path_fetches_a_bare_name(tmp_path, monkeypatch) -> None:
+    asset = tmp_path / "bunny.obj"
+    asset.write_text("x", encoding="utf-8")
+    monkeypatch.setattr("polyxios.helper.fetch", lambda name, **kwargs: str(asset))
+
+    assert resolve_path("bunny.obj") == asset

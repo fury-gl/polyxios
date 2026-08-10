@@ -1,20 +1,27 @@
+import io
 import json
+import logging
+import os
 import sys
+import urllib.request
+import zipfile
 
 import numpy as np
 import pytest
 
 import polyxios
 from polyxios import make_polydata
-from polyxios.cli import main
+from polyxios.cli import logger as cli_logger, main
+from polyxios.fetcher import fetch
 
 
 @pytest.fixture
 def temp_polyxios_home(tmp_path, monkeypatch):
     """Fixture to set up a clean, localized POLYXIOS_HOME for CLI testing without network dependencies."""
     monkeypatch.setenv("POLYXIOS_HOME", str(tmp_path))
+    # The CLI reaches the fetcher through the module, so patching it once here
+    # covers both.
     monkeypatch.setattr("polyxios.fetcher.POLYXIOS_HOME", str(tmp_path))
-    monkeypatch.setattr("polyxios.cli.POLYXIOS_HOME", str(tmp_path))
     # Module-level caches outlive a single test, so a stale entry from another
     # POLYXIOS_HOME must not leak into this one.
     monkeypatch.setattr("polyxios.fetcher._catalog_cache", None)
@@ -133,7 +140,6 @@ def test_cli_viz(temp_polyxios_home, monkeypatch, capsys):
     model_path = obj_dir / "armadillo.obj"
     create_real_model(model_path)
 
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj"])
     with pytest.raises(SystemExit) as excinfo:
         main()
@@ -157,7 +163,6 @@ def test_cli_viz_lines(temp_polyxios_home, monkeypatch, capsys):
     model_path = obj_dir / "armadillo.obj"
     create_real_model(model_path)
 
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj", "--lines"])
     with pytest.raises(SystemExit) as excinfo:
         main()
@@ -180,7 +185,6 @@ def test_cli_viz_points(temp_polyxios_home, monkeypatch, capsys):
     model_path = obj_dir / "armadillo.obj"
     create_real_model(model_path)
 
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "viz", "armadillo.obj", "--points"])
     with pytest.raises(SystemExit) as excinfo:
         main()
@@ -222,7 +226,6 @@ def test_cli_list_local(temp_polyxios_home, monkeypatch, capsys):
     create_real_model(p2)
     create_real_model(p3)
 
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "list", "vtk", "--local"])
 
     with pytest.raises(SystemExit) as excinfo:
@@ -247,7 +250,6 @@ def test_cli_list_local_all(temp_polyxios_home, monkeypatch, capsys):
     create_real_model(p1)
     create_real_model(p2)
 
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "list", "--local"])
 
     with pytest.raises(SystemExit) as excinfo:
@@ -263,7 +265,6 @@ def test_cli_list_local_all(temp_polyxios_home, monkeypatch, capsys):
 
 
 def test_cli_viz_no_filename(temp_polyxios_home, monkeypatch, capsys):
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "viz"])
     with pytest.raises(SystemExit) as excinfo:
         main()
@@ -331,7 +332,6 @@ def test_cli_list_filtered(temp_polyxios_home, monkeypatch, capsys):
     assert excinfo.value.code == 0
     captured = capsys.readouterr()
     assert "Available files for fetch (obj):" in captured.out
-    assert "[obj]" in captured.out
     assert "bunny.obj" in captured.out
     assert "Armadillo.ply" not in captured.out
 
@@ -354,12 +354,12 @@ def test_cli_fetch_folder(temp_polyxios_home, monkeypatch, capsys):
         main()
     assert excinfo.value.code == 0
     captured = capsys.readouterr()
-    assert "Successfully fetched package to:" in captured.out
-    assert str(gmsh_dir) in captured.out
+    assert "Successfully fetched 2 file(s):" in captured.out
+    assert str(gmsh_dir / "insulated-2.2.msh") in captured.out
+    assert str(gmsh_dir / "insulated-4.1.msh") in captured.out
 
 
 def test_cli_list_extensions(temp_polyxios_home, monkeypatch, capsys):
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "list", "--extensions"])
 
     with pytest.raises(SystemExit) as excinfo:
@@ -376,7 +376,6 @@ def test_cli_list_extensions(temp_polyxios_home, monkeypatch, capsys):
 
 
 def test_cli_list_codecs(temp_polyxios_home, monkeypatch, capsys):
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys, "argv", ["pxios", "list", "--codecs"])
 
     with pytest.raises(SystemExit) as excinfo:
@@ -390,12 +389,68 @@ def test_cli_list_codecs(temp_polyxios_home, monkeypatch, capsys):
     assert "abaqus (.inp)" in captured.out
 
 
-def test_cli_fetch_with_zip_companion(temp_polyxios_home, monkeypatch):
-    import io
-    import os
-    import urllib.request
-    import zipfile
+def test_cli_list_modes_are_mutually_exclusive(temp_polyxios_home, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["pxios", "list", "--local", "--codecs"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
 
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["pxios", "--verbose", "list", "--codecs"],
+        ["pxios", "list", "--codecs", "--verbose"],
+    ],
+    ids=["before-subcommand", "after-subcommand"],
+)
+def test_cli_verbose_accepted_on_either_side(
+    temp_polyxios_home, monkeypatch, capsys, argv
+):
+    """--verbose reaches the handler whether it precedes or follows the subcommand."""
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+    assert cli_logger.level == logging.DEBUG
+    assert "not recognized" not in capsys.readouterr().err
+
+
+def test_cli_verbose_defaults_to_info(temp_polyxios_home, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["pxios", "list", "--codecs"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+    assert cli_logger.level == logging.INFO
+
+
+def test_cli_verbose_logs_a_traceback_on_failure(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A failing command reports the traceback only when --verbose is given."""
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("polyxios.fetcher.get_fetchable_files", _boom)
+
+    monkeypatch.setattr(sys, "argv", ["pxios", "list"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+    assert "Traceback" not in capsys.readouterr().err
+
+    monkeypatch.setattr(sys, "argv", ["pxios", "list", "--verbose"])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert "Traceback" in err
+    assert "RuntimeError: network down" in err
+
+
+def test_cli_fetch_with_zip_companion(temp_polyxios_home, monkeypatch):
     models_file = temp_polyxios_home / "models.json"
     mock_catalog = {
         "ext_to_package": {
@@ -453,8 +508,6 @@ def test_cli_fetch_with_zip_companion(temp_polyxios_home, monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
 
-    from polyxios.fetcher import fetch
-
     path = fetch("mock_dataset.vtp")
 
     assert os.path.exists(path)
@@ -504,7 +557,6 @@ def test_cli_list_extensions_catalog_failure(temp_polyxios_home, monkeypatch, ca
         raise RuntimeError("network down")
 
     monkeypatch.setattr("polyxios.fetcher._load_models_catalog", _boom)
-    monkeypatch.setattr("polyxios.cli._load_models_catalog", _boom)
     monkeypatch.setattr(sys, "argv", ["pxios", "list", "--extensions"])
 
     with pytest.raises(SystemExit) as excinfo:

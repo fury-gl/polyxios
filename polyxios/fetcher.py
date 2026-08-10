@@ -31,6 +31,10 @@ _MODELS_URL = os.getenv(
 _CATALOG_TIMEOUT = 5
 _DOWNLOAD_TIMEOUT = 30
 
+# How long a cached models.json is reused before the remote copy is consulted
+# again, in seconds.
+_CATALOG_TTL = 86400
+
 _EXT_TO_PACKAGE: dict[str, str] = {
     "inp": "abaqus",
     "fem": "nastran",
@@ -196,12 +200,89 @@ def _safe_extract_zip(zip_path: str, target_dir: str) -> None:
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         for member in zip_ref.namelist():
             resolved = (dest / member).resolve()
-            if resolved != dest and not resolved.is_relative_to(dest):
+            if not resolved.is_relative_to(dest):
                 raise FetcherError(
                     f"Refusing to extract '{member}': it resolves outside "
                     f"'{target_dir}'."
                 )
         zip_ref.extractall(target_dir)
+
+
+def _match_catalog_key(formats_dict: dict, filename: str) -> str | None:
+    """Return the catalog key matching `filename`, compared case-insensitively.
+
+    Parameters
+    ----------
+    formats_dict : dict
+        The catalog entries of a single package.
+    filename : str
+        The asset name to look up.
+
+    Returns
+    -------
+    str or None
+        The matching key as spelled in the catalog, or None.
+    """
+    target = filename.lower()
+    for key in formats_dict:
+        if key.lower() == target:
+            return key
+    return None
+
+
+def _zip_companion(formats_dict: dict, match_filename: str) -> str | None:
+    """Return the catalog key of the archive holding `match_filename`'s pieces.
+
+    Parameters
+    ----------
+    formats_dict : dict
+        The catalog entries of a single package.
+    match_filename : str
+        An asset key as spelled in the catalog.
+
+    Returns
+    -------
+    str or None
+        The companion archive key, or None when the asset is standalone or is
+        itself an archive.
+    """
+    if match_filename.lower().endswith(".zip"):
+        return None
+    base_name, _ = os.path.splitext(match_filename)
+    return _match_catalog_key(formats_dict, f"{base_name}.zip")
+
+
+def _fetch_and_extract_companion(
+    zip_filename: str, target_dir: str, *, package: str, overwrite: bool
+) -> None:
+    """Download a companion archive and unpack it beside the asset it belongs to.
+
+    Parameters
+    ----------
+    zip_filename : str
+        The companion archive key as spelled in the catalog.
+    target_dir : str
+        The package directory the archive is unpacked into.
+    package : str
+        The catalog package the archive belongs to.
+    overwrite : bool
+        Force re-download of the archive.
+
+    Raises
+    ------
+    FetcherError
+        If the archive cannot be downloaded or extracted.
+    """
+    zip_local_path = fetch(zip_filename, overwrite=overwrite, package=package)
+    try:
+        _safe_extract_zip(zip_local_path, target_dir)
+        extracted_flag = pjoin(target_dir, f".extracted_{zip_filename}")
+        with open(extracted_flag, "w", encoding="utf-8") as f:
+            f.write("ok")
+    except FetcherError:
+        raise
+    except Exception as e:
+        raise FetcherError(f"Failed to extract zip file '{zip_filename}': {e}") from e
 
 
 def _show_progress(filename: str, downloaded: int, total: int) -> None:
@@ -228,7 +309,7 @@ def _load_models_catalog() -> dict:
     use_cached = False
     if os.path.exists(local_path):
         try:
-            if time.time() - os.path.getmtime(local_path) < 86400:
+            if time.time() - os.path.getmtime(local_path) < _CATALOG_TTL:
                 use_cached = True
         except Exception:
             pass
@@ -346,6 +427,7 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
     target_dir = pjoin(POLYXIOS_HOME, package)
     target_path = pjoin(target_dir, filename)
 
+    missing_companion = None
     if os.path.exists(target_path) and not overwrite:
         # The cached copy is only reusable when its checksum still matches the
         # one the catalog advertises today; a re-released asset must be
@@ -353,53 +435,50 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
         try:
             catalog = _load_models_catalog()
             formats_dict = catalog.get("formats", {}).get(package, {})
-            match_filename = None
-            for k in formats_dict.keys():
-                if k.lower() == filename_lower:
-                    match_filename = k
-                    break
+            match_filename = _match_catalog_key(formats_dict, filename_lower)
             if match_filename:
                 file_info = formats_dict[match_filename]
-                if (
+                expected_sha = file_info.get("sha256")
+                if expected_sha and (
                     "size_bytes" not in file_info
                     or os.path.getsize(target_path) == file_info["size_bytes"]
                 ):
-                    if _verify_and_cache(target_path, file_info["sha256"]):
-                        base_name, _ = os.path.splitext(match_filename)
-                        zip_filename = f"{base_name}.zip"
-                        has_zip = any(
-                            k.lower() == zip_filename.lower()
-                            for k in formats_dict.keys()
-                        )
-                        if has_zip:
-                            extracted_dir = pjoin(target_dir, base_name)
-                            extracted_flag = pjoin(
-                                target_dir, f".extracted_{zip_filename}"
-                            )
-                            if os.path.exists(extracted_dir) and os.path.exists(
-                                extracted_flag
-                            ):
-                                return target_path
-                        else:
+                    if _verify_and_cache(target_path, expected_sha):
+                        zip_filename = _zip_companion(formats_dict, match_filename)
+                        if zip_filename is None:
                             return target_path
+                        base_name, _ = os.path.splitext(match_filename)
+                        extracted_dir = pjoin(target_dir, base_name)
+                        extracted_flag = pjoin(target_dir, f".extracted_{zip_filename}")
+                        if os.path.exists(extracted_dir) and os.path.exists(
+                            extracted_flag
+                        ):
+                            return target_path
+                        missing_companion = zip_filename
         except FetcherError as e:
             logger.debug(f"Catalog unavailable while reusing cache: {e}", exc_info=True)
-        except (OSError, KeyError) as e:
+        except OSError as e:
             logger.debug(f"Cannot reuse cached '{filename}': {e}", exc_info=True)
+
+    if missing_companion is not None:
+        # The asset itself is intact, only its companion pieces are missing, so
+        # re-fetch the archive alone instead of downloading both again.
+        _fetch_and_extract_companion(
+            missing_companion, target_dir, package=package, overwrite=overwrite
+        )
+        return target_path
 
     try:
         catalog = _load_models_catalog()
     except Exception:
-        if os.path.exists(target_path):
+        # An intact cached copy is better than nothing when the catalog is
+        # unreachable, but it cannot satisfy an explicit re-download request.
+        if os.path.exists(target_path) and not overwrite:
             return target_path
         raise
 
     formats_dict = catalog.get("formats", {}).get(package, {})
-    match_filename = None
-    for k in formats_dict.keys():
-        if k.lower() == filename_lower:
-            match_filename = k
-            break
+    match_filename = _match_catalog_key(formats_dict, filename_lower)
 
     if not match_filename:
         raise FetcherError(
@@ -413,6 +492,12 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
     if not url.lower().startswith("https://"):
         raise FetcherError(
             f"Refusing to download '{match_filename}': catalog URL is not https."
+        )
+
+    expected_sha = file_info.get("sha256")
+    if not expected_sha:
+        raise FetcherError(
+            f"Refusing to download '{match_filename}': catalog entry has no sha256."
         )
 
     os.makedirs(target_dir, exist_ok=True)
@@ -440,7 +525,7 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
             sys.stdout.write("\n")
             sys.stdout.flush()
 
-        if not _verify_sha256(temp_path, file_info["sha256"]):
+        if not _verify_sha256(temp_path, expected_sha):
             raise FetcherError(
                 f"Integrity verification failed for {match_filename}. Checksum mismatch."
             )
@@ -454,7 +539,7 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
             cache[key] = {
                 "mtime": stat.st_mtime,
                 "size": stat.st_size,
-                "sha256": file_info["sha256"],
+                "sha256": expected_sha,
             }
             _save_verified_cache(cache)
         except OSError as e:
@@ -483,31 +568,11 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
             except OSError as e:
                 logger.debug(f"Failed to remove '{temp_path}': {e}", exc_info=True)
 
-    if not match_filename.lower().endswith(".zip"):
-        base_name, _ = os.path.splitext(match_filename)
-        zip_filename = f"{base_name}.zip"
-
-        formats_dict = catalog.get("formats", {}).get(package, {})
-        has_zip = False
-        for k in formats_dict.keys():
-            if k.lower() == zip_filename.lower():
-                has_zip = True
-                zip_filename = k
-                break
-
-        if has_zip:
-            zip_local_path = fetch(zip_filename, overwrite=overwrite, package=package)
-            try:
-                _safe_extract_zip(zip_local_path, target_dir)
-                extracted_flag = pjoin(target_dir, f".extracted_{zip_filename}")
-                with open(extracted_flag, "w", encoding="utf-8") as f:
-                    f.write("ok")
-            except FetcherError:
-                raise
-            except Exception as e:
-                raise FetcherError(
-                    f"Failed to extract zip file '{zip_filename}': {e}"
-                ) from e
+    zip_filename = _zip_companion(formats_dict, match_filename)
+    if zip_filename is not None:
+        _fetch_and_extract_companion(
+            zip_filename, target_dir, package=package, overwrite=overwrite
+        )
 
     return target_path
 
