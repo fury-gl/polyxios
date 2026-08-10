@@ -27,7 +27,7 @@ import argparse
 from pathlib import Path
 import sys
 
-from polyxios.fetcher import fetch, fetch_by_extension
+from polyxios.fetcher import fetch, get_cached_files
 from polyxios.helper import read_multiblock_vtp
 
 
@@ -61,7 +61,7 @@ def main():
     args = parser.parse_args()
 
     if args.list:
-        paths = fetch_by_extension("vtp")
+        paths = get_cached_files("vtp")
         if not paths:
             print(
                 "No local VTP files cached.\n"
