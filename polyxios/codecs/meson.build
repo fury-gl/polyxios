@@ -7,6 +7,7 @@ py.install_sources(
     '_abaqus.py',
     '_avs.py',
     '_dolfin.py',
+    '_flac3d.py',
     '_meshb.py',
     '_splat.py',
     '_stl.py',
