@@ -14,7 +14,7 @@ from pathlib import Path
 import sys
 
 import polyxios
-from polyxios.fetcher import fetch, fetch_by_extension
+from polyxios.fetcher import fetch, fetch_by_extension, get_cached_files
 from polyxios.helper import visualize_mesh
 
 _FETCHABLE_EXTS = ("obj", "ply", "vtk", "vtp", "vtr", "vtu", "stl")
@@ -93,7 +93,7 @@ def main():
     ext = args.ext.lower().lstrip(".")
 
     if args.list:
-        paths = fetch_by_extension(ext)
+        paths = get_cached_files(ext)
         if not paths:
             print(
                 f"No local .{ext} files cached.\n"
