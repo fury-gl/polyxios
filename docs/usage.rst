@@ -39,7 +39,7 @@ polyxios comes with a command-line interface ``pxios`` to quickly fetch, list, c
     *   ``--extensions`` / ``--formats``: Lists all formats and extensions available in the remote catalog.
     *   ``--codecs``: Lists all formats supported by polyxios codecs.
 
-*   ``pxios fetch <filename|extension>``: Downloads and caches a model file (e.g., ``bunny.obj``) or an entire extension pack zip (e.g., ``obj`` or ``.obj``).
+*   ``pxios fetch <filename|extension>``: Downloads and caches a single model file (e.g., ``bunny.obj``) or every model catalogued for an extension (e.g., ``obj`` or ``.obj``).
 *   ``pxios convert <input_file> <output_file>``: Converts a model file from one format to another directly in a single process.
 *   ``pxios viz <filename>``: Visualizes a local or cached model file using the FURY library.
 
@@ -56,7 +56,7 @@ Example commands:
     # Fetch a single model
     pxios fetch bunny.obj
 
-    # Fetch a whole extension folder package zip
+    # Fetch every model catalogued for an extension
     pxios fetch vtk
 
     # Convert a mesh file
