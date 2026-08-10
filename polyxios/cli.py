@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-from pathlib import Path
 import sys
 import time
 
@@ -15,7 +14,7 @@ from polyxios.fetcher import (
     get_fetchable_files,
     get_package_name,
 )
-from polyxios.helper import read_polydata
+from polyxios.helper import read_polydata, resolve_path, visualize_mesh
 
 logger = logging.getLogger("polyxios")
 
@@ -78,7 +77,7 @@ def cmd_fetch(args) -> int:
             logger.info(f"Successfully fetched to: {path}")
         return 0
     except Exception as e:
-        logger.error(f"Error fetching model: {e}")
+        logger.error(f"Failed to fetch model: {e}")
         return 1
 
 
@@ -95,9 +94,9 @@ def cmd_convert(args) -> int:
     int
         Exit status code (0 for success, 1 for failure).
     """
-    if os.path.exists(args.output_file) and not getattr(args, "force", False):
+    if os.path.exists(args.output_file) and not args.force:
         logger.error(
-            f"Error: Output file '{args.output_file}' already exists. Use --force to overwrite."
+            f"Output file '{args.output_file}' already exists. Use --force to overwrite."
         )
         return 1
     try:
@@ -116,7 +115,7 @@ def cmd_convert(args) -> int:
         logger.info("Conversion successful.")
         return 0
     except Exception as e:
-        logger.error(f"Error converting model: {e}")
+        logger.error(f"Failed to convert model: {e}")
         return 1
 
 
@@ -138,16 +137,10 @@ def cmd_viz(args) -> int:
     """
     try:
         if not args.filename:
-            logger.error("Error: filename is required for visualization.")
+            logger.error("A filename is required for visualization.")
             return 1
 
-        filename = args.filename
-        p = Path(filename)
-        if p.exists() or p.parent != Path("."):
-            path = str(p.resolve())
-        else:
-            package = get_package_name(os.path.splitext(filename)[1][1:])
-            path = os.path.join(POLYXIOS_HOME, package, filename)
+        path = str(resolve_path(args.filename))
 
         logger.info(f"Reading {path} ...")
         start_time = time.perf_counter()
@@ -165,15 +158,13 @@ def cmd_viz(args) -> int:
             logger.info("  No geometry (FIELD data) - skipping window.")
             return 0
 
-        from polyxios.helper import visualize_mesh
-
         visualize_mesh(polydata, lines=args.lines, points=args.points)
         return 0
     except ImportError as e:
         logger.error(str(e))
         return 1
     except Exception as e:
-        logger.error(f"Error visualizing model: {e}")
+        logger.error(f"Failed to visualize model: {e}")
         return 1
 
 
@@ -193,7 +184,7 @@ def cmd_list(args) -> int:
     if args.codecs:
         logger.info("File formats supported by polyxios codecs:")
 
-        all_exts = sorted(ext.lstrip(".") for ext in polyxios._REGISTRY.keys())
+        all_exts = [ext.lstrip(".") for ext in polyxios.supported_extensions()]
         pkg_to_exts = {}
         for ext_name in all_exts:
             pkg = _EXT_TO_PACKAGE.get(ext_name, ext_name)
@@ -207,6 +198,7 @@ def cmd_list(args) -> int:
         logger.info("File formats available in remote catalog:")
 
         package_to_exts = {}
+        catalog_failed = False
         try:
             catalog = _load_models_catalog()
             ext_to_package = dict(_EXT_TO_PACKAGE)
@@ -219,7 +211,10 @@ def cmd_list(args) -> int:
                 if pkg not in package_to_exts:
                     package_to_exts[pkg] = [pkg]
         except Exception as e:
-            logger.info(f"Catalog formats list retrieval failed: {e}")
+            catalog_failed = True
+            logger.warning(
+                f"Catalog retrieval failed ({e}); listing built-in formats only."
+            )
 
         if not package_to_exts:
             for ext_name, pkg in _EXT_TO_PACKAGE.items():
@@ -228,7 +223,7 @@ def cmd_list(args) -> int:
         for pkg, exts in sorted(package_to_exts.items()):
             exts_fmt = [f".{e}" for e in sorted(exts)]
             logger.info(f"  {pkg} ({', '.join(exts_fmt)})")
-        return 0
+        return 1 if catalog_failed else 0
 
     if args.local:
         if args.ext:
@@ -277,7 +272,7 @@ def cmd_list(args) -> int:
     try:
         files_dict = get_fetchable_files()
     except Exception as e:
-        logger.error(f"Error fetching catalog: {e}")
+        logger.error(f"Failed to retrieve catalog: {e}")
         return 1
 
     if args.ext:
