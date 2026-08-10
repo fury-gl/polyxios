@@ -33,7 +33,9 @@ Command Line Interface (pxios)
 
 polyxios comes with a command-line interface ``pxios`` to quickly fetch, list, convert, and visualize 3D models.
 
-*   ``pxios list``: Lists all available remote or cached files, or registered formats.
+``--verbose`` can be given on either side of the subcommand (e.g. ``pxios --verbose fetch bunny.obj`` or ``pxios fetch bunny.obj --verbose``) to print debug logs and full tracebacks when a command fails.
+
+*   ``pxios list``: Lists all available remote or cached files, or registered formats. The three listing modes below are mutually exclusive.
 
     *   ``--local``: Lists locally cached files (can filter by optional extension argument, e.g. ``pxios list obj --local``).
     *   ``--extensions`` / ``--formats``: Lists all formats and extensions available in the remote catalog.

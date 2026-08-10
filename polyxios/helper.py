@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -13,16 +15,13 @@ logger = logging.getLogger("polyxios.helper")
 _DEFAULT_SURFACE_COLOR = (0.8, 0.7, 0.6)
 _DEFAULT_POINT_COLOR = (0.9, 0.9, 0.9)
 
-_VOLUME_ELEMENT_TYPES = frozenset(
-    {
-        "tetra",
-        "hexahedron",
-        "wedge",
-        "pyramid",
-        "quadratic_tetra",
-        "quadratic_hexahedron",
-    }
-)
+# Wireframe thickness is a screen-space width in pixels, so it must not be
+# scaled by the mesh bounding box.
+_WIREFRAME_THICKNESS = 1.0
+
+# Kept in sync with the surface extractor rather than hand-listed, so a volume
+# element type added there is never rendered as raw interior faces here.
+_VOLUME_ELEMENT_TYPES = frozenset(transforms._VOL_ELEMENT_FACES)
 
 
 def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
@@ -31,8 +30,8 @@ def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
     Reads the provided .vtp file, extracts references to individual sub-dataset
     files (under the <vtkMultiBlockDataSet> element), reads each sub-file, and
     merges them into a single consolidated PolyData object. Referenced sub-files
-    that are missing on disk are skipped with a warning, so a partially
-    downloaded companion directory still loads.
+    that are missing on disk, or that fail to read, are skipped with a warning,
+    so a partially downloaded companion directory still loads.
 
     Parameters
     ----------
@@ -83,7 +82,10 @@ def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
         if not sub.exists():
             logger.warning(f"  Sub-file not found, skipping: {sub}")
             continue
-        polys.append(polyxios.read(str(sub)))
+        try:
+            polys.append(polyxios.read(str(sub)))
+        except Exception as e:
+            logger.warning(f"  Sub-file could not be read, skipping: {sub} ({e})")
 
     if not polys:
         missing = "\n  ".join(str(p) for p in sub_paths[:5])
@@ -119,6 +121,11 @@ def _uniform_colors(color: tuple[float, float, float], n_verts: int) -> np.ndarr
 def resolve_path(filename: str | Path) -> Path:
     """Resolve a filename to a local path, fetching it from the catalog if needed.
 
+    Only a bare asset name (no directory component) is looked up in the remote
+    catalog. A path such as ``data/bunny.obj`` that does not exist is reported
+    as missing rather than silently replaced by an unrelated catalog asset that
+    happens to share its basename.
+
     Parameters
     ----------
     filename : str or Path
@@ -137,6 +144,8 @@ def resolve_path(filename: str | Path) -> Path:
     p = Path(filename)
     if p.exists():
         return p
+    if p.parent != Path("."):
+        raise FileNotFoundError(f"No such file: '{filename}'")
     try:
         return Path(fetch(p.name))
     except Exception as e:
@@ -145,7 +154,7 @@ def resolve_path(filename: str | Path) -> Path:
         ) from e
 
 
-def read_polydata(filename: str) -> polyxios.PolyData:
+def read_polydata(filename: str | Path) -> polyxios.PolyData:
     """Read a PolyData object from the given file, resolving fetches and VTP index files.
 
     Checks if the file exists locally. If it doesn't, resolves it by calling the
@@ -154,7 +163,7 @@ def read_polydata(filename: str) -> polyxios.PolyData:
 
     Parameters
     ----------
-    filename : str
+    filename : str or Path
         The target filename or full path to the 3D model file.
 
     Returns
@@ -214,7 +223,7 @@ def visualize_mesh(
     # transforms.vertex_colors picks the first (n_verts, >= 3) attribute and
     # normalizes it to floats in [0, 1], which is what the actors expect.
     colors = transforms.vertex_colors(polydata)
-    surface_colors = _uniform_colors(_DEFAULT_SURFACE_COLOR, len(polydata.vertices))
+    n_verts = len(polydata.vertices)
 
     has_volume = any(t in _VOLUME_ELEMENT_TYPES for t in polydata.element_types)
 
@@ -229,7 +238,7 @@ def visualize_mesh(
         )
     elif lines:
         lines_list = polydata.lines
-        if lines_list and len(lines_list) > 0:
+        if lines_list:
             lines_coords = [
                 polydata.vertices[idx].astype("float64") for idx in lines_list
             ]
@@ -247,14 +256,12 @@ def visualize_mesh(
                 surf_actor = actor.surface(
                     vertices=polydata.vertices,
                     faces=faces,
-                    colors=colors if colors is not None else surface_colors,
+                    colors=colors
+                    if colors is not None
+                    else _uniform_colors(_DEFAULT_SURFACE_COLOR, n_verts),
                 )
                 surf_actor.material.wireframe = True
-                coords = polydata.vertices
-                bbox_min = coords.min(axis=0)
-                bbox_max = coords.max(axis=0)
-                diag = float(np.linalg.norm(bbox_max - bbox_min))
-                surf_actor.material.wireframe_thickness = max(diag * 0.005, 0.5)
+                surf_actor.material.wireframe_thickness = _WIREFRAME_THICKNESS
                 actors.append(surf_actor)
             else:
                 logger.warning(
@@ -276,7 +283,9 @@ def visualize_mesh(
                 actor.surface(
                     vertices=polydata.vertices,
                     faces=faces,
-                    colors=colors if colors is not None else surface_colors,
+                    colors=colors
+                    if colors is not None
+                    else _uniform_colors(_DEFAULT_SURFACE_COLOR, n_verts),
                 )
             )
         else:

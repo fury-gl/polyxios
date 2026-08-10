@@ -179,3 +179,83 @@ def test_get_cached_files_lists_without_network(home, monkeypatch) -> None:
 
 def test_get_cached_files_missing_package(home) -> None:
     assert get_cached_files("obj") == []
+
+
+def test_catalog_entry_without_checksum_is_refused(home, monkeypatch) -> None:
+    _write_catalog(home, {"obj": {"bunny.obj": {"url": "https://example.com/b.obj"}}})
+    called = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda *a, **k: called.append(1) or None
+    )
+
+    with pytest.raises(FetcherError, match="no sha256"):
+        fetch("bunny.obj")
+    assert not called
+
+
+def test_overwrite_is_not_satisfied_by_cache_when_catalog_is_down(
+    home, monkeypatch
+) -> None:
+    obj_dir = home / "obj"
+    obj_dir.mkdir()
+    (obj_dir / "bunny.obj").write_bytes(b"cached")
+
+    def _boom(*args, **kwargs):
+        raise FetcherError("catalog unreachable")
+
+    monkeypatch.setattr("polyxios.fetcher._load_models_catalog", _boom)
+
+    # Without overwrite the intact cached copy is still good enough.
+    assert fetch("bunny.obj") == str(obj_dir / "bunny.obj")
+
+    with pytest.raises(FetcherError, match="catalog unreachable"):
+        fetch("bunny.obj", overwrite=True)
+
+
+def test_missing_companion_refetches_only_the_archive(home, monkeypatch) -> None:
+    """An intact asset with unpacked pieces missing pulls the archive alone."""
+    payload = b"index contents"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("dataset/piece_0.vtp", "piece")
+    zip_payload = buffer.getvalue()
+
+    _write_catalog(
+        home,
+        {
+            "vtp": {
+                "dataset.vtp": {
+                    "url": "https://example.com/dataset.vtp",
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                },
+                "dataset.zip": {
+                    "url": "https://example.com/dataset.zip",
+                    "sha256": hashlib.sha256(zip_payload).hexdigest(),
+                },
+            }
+        },
+    )
+
+    vtp_dir = home / "vtp"
+    vtp_dir.mkdir()
+    (vtp_dir / "dataset.vtp").write_bytes(payload)
+
+    requested = []
+    zip_urlopen = _mock_urlopen(zip_payload)
+
+    def _urlopen(req, timeout=None):
+        requested.append(req.full_url)
+        return zip_urlopen(req, timeout=timeout)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen)
+
+    path = fetch("dataset.vtp")
+
+    assert requested == ["https://example.com/dataset.zip"]
+    assert open(path, "rb").read() == payload
+    assert (vtp_dir / "dataset" / "piece_0.vtp").read_text() == "piece"
+
+    # A second call finds the extraction flag and stays off the network.
+    requested.clear()
+    fetch("dataset.vtp")
+    assert requested == []
