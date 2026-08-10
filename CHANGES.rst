@@ -9,7 +9,22 @@ Changelog
 0.3.0 (upcoming)
 ----------------
 
-(No entries yet.)
+New features
+~~~~~~~~~~~~
+
+- ``pxios`` command line interface with ``fetch``, ``list``, ``convert`` and
+  ``viz`` subcommands. Visualization requires the optional ``viz`` extra
+  (``pip install polyxios[viz]``).
+- ``polyxios.read_polydata`` and ``polyxios.visualize_mesh`` helpers, plus
+  ``polyxios.supported_extensions`` to introspect the codec registry.
+
+Changes
+~~~~~~~
+
+- The fetcher now resolves assets through a remote ``models.json`` catalog and
+  downloads files individually, instead of pinned per-format release zips.
+  Downloads are checksum-verified and the result is cached across runs; set
+  ``POLYXIOS_MODELS_URL`` to pin the catalog to an immutable URL.
 
 .. _changes_0.2.0:
 

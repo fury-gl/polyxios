@@ -27,6 +27,12 @@ doc = [
     "sphinx-gallery",
     "pydata-sphinx-theme",
 ]
+viz = [
+    "fury>=2",
+]
+
+[project.scripts]
+pxios = "polyxios.cli:main"
 
 [project.entry-points."polyxios.codecs"]
 # third-party packages register their own entry points here
@@ -45,6 +51,9 @@ package = "polyxios"
 [tool.pytest.ini_options]
 addopts = "--durations=10 -v"
 testpaths = ["tests"]
+markers = [
+    "network: downloads assets from the remote data catalog (deselect with -m 'not network')",
+]
 
 [tool.ruff]
 line-length = 88

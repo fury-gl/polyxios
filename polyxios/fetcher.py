@@ -1,120 +1,40 @@
 import hashlib
+import json
+import logging
 import os
 from os.path import expanduser, join as pjoin
+from pathlib import Path
 import sys
+import time
 import urllib.error
 import urllib.request
 import zipfile
 
 from polyxios.exceptions import FetcherError
 
+logger = logging.getLogger("polyxios.fetcher")
+
 POLYXIOS_HOME = os.getenv("POLYXIOS_HOME", pjoin(expanduser("~"), ".polyxios"))
 
-_GITHUB_BASE = "https://github.com/fury-gl/polyxios-data/releases/download"
+# The catalog is the trust root for every download: asset checksums are read
+# from it rather than pinned in this file. It is served from a mutable branch so
+# newly published assets are picked up automatically; set POLYXIOS_MODELS_URL to
+# an immutable raw URL (release tag or commit sha) to pin it.
+_MODELS_URL = os.getenv(
+    "POLYXIOS_MODELS_URL",
+    "https://raw.githubusercontent.com/fury-gl/polyxios-data/master/models.json",
+)
 
-# (release_tag, sha256) per package name
-_PACKAGES: dict[str, tuple[str, str]] = {
-    # v0.1.0 — large curated collections
-    "mesh": (
-        "v0.1.0",
-        "9d90a3c8c642674b3c567045b6dd8feb0fe0135a1c4d7b4e757aca52f939c40f",
-    ),
-    "msh": (
-        "v0.1.0",
-        "63dd184754b3500fe2bf0df51dbb8ab9bc06ec51dc240e96f26741358d9c1d94",
-    ),
-    "obj": (
-        "v0.1.0",
-        "30660894f05786e369f557d9137f779ddf65c5f1a7dd753de1854caa6444f2c4",
-    ),
-    "ply": (
-        "v0.1.0",
-        "b867443f52cf794d2467ab2ba58aaa5763fdabf321c9fe1a1f221b2179d2e9ed",
-    ),
-    "vtk": (
-        "v0.1.0",
-        "0ae5335020cfc8b520d90fcb5b7898a7f377520b4f6db672ba6a20770e7c7dde",
-    ),
-    "vtp": (
-        "v0.1.0",
-        "6dd8f15e4ae8e387925b855ace6adf94998bf47959de8374df76e155fb3fc67b",
-    ),
-    "vtr": (
-        "v0.1.0",
-        "c69b2c00b65cd2f34a23f92f03eed82126d868440741a6da60c43e64635928e9",
-    ),
-    "vtu": (
-        "v0.1.0",
-        "245004ae8dea5303b18359d416481b8eb1df16687bc7d165c5ee79cad7b695c5",
-    ),
-    # v0.2.0 — small curated test files per codec
-    "abaqus": (
-        "v0.2.0",
-        "2d59d621c1d9f98a86f708f6a1458dabba995bb14a0acb44b2f45bb52f95a69d",
-    ),
-    "avs": (
-        "v0.2.0",
-        "ca78183ba5a1a1344dfc782f1fc5f5cda5d7ab13ae03ac61281974df31f84d48",
-    ),
-    "dolfin": (
-        "v0.2.0",
-        "935a44466aa1e588c064d8a1e38e9bdcf4a025a606d664e0fdc1f893c747cf87",
-    ),
-    "flac3d": (
-        "v0.2.0",
-        "5a22537a6d432d745b0e5f1d845aa5b376a50cc4467b36af5dbe7157e1040f0b",
-    ),
-    "gmsh": (
-        "v0.2.0",
-        "f28886206e9494ef8a705420fc411962bfaa5cc5fca6b21005e324a426eb5b51",
-    ),
-    "mdpa": (
-        "v0.2.0",
-        "8d1c9eb5533b52bfcc99bfebd7173864cc0a2c9fc625f669a659ca96586a764a",
-    ),
-    "medit": (
-        "v0.2.0",
-        "ced4fadccf6b55cc4706059e36a966397fc8fa6403a2b25f5dbfd36ffaf2e5c3",
-    ),
-    "nastran": (
-        "v0.2.0",
-        "645d77eb32422601536a9bbeb3748050a138508e1074b29e5d5710e069d904ef",
-    ),
-    "netgen": (
-        "v0.2.0",
-        "89dd9e2465896598ea592e66d087253f7760fa258bf34f76a3958144260f96b4",
-    ),
-    "off": (
-        "v0.2.0",
-        "702c23dc40f593970d7af0f240f2f47fd97a4e64d719202c6a34917e33b12f37",
-    ),
-    "stl": (
-        "v0.2.0",
-        "046830521708462449cdaf420f515a5fdb4bb8f68a71c01ecfb4831e863b4152",
-    ),
-    "su2": (
-        "v0.2.0",
-        "8bb72ab83ac97b0e63e6ebdb1813f036a22f293fdac12775eef1b035ec8e3b61",
-    ),
-    "tecplot": (
-        "v0.2.0",
-        "34ef9c1890f170e6e937cd5d970fce3f90c4f85de375bd1b1909881fe0d28634",
-    ),
-    "tetgen": (
-        "v0.2.0",
-        "fcac38d7f8898e2af1478b9a2acd76097494598073dc648d46762cf5fdd861b5",
-    ),
-    "ugrid": (
-        "v0.2.0",
-        "83b3e87077455f4038b5112e8917c590520b0ed1c01935b3bf106e2c71e0a026",
-    ),
-    "wkt": (
-        "v0.2.0",
-        "02be71804c9a3cf39a558dd852e1a55e9b7f8fcd3c30263c4a5cb67efca16803",
-    ),
-}
+# The catalog is a few kilobytes, so a short timeout keeps offline use snappy.
+# Assets can be hundreds of megabytes: the timeout applies to each socket
+# operation, so it must tolerate slow links rather than the whole transfer.
+_CATALOG_TIMEOUT = 5
+_DOWNLOAD_TIMEOUT = 30
 
-# File extension → package name (only needed when they differ)
+# How long a cached models.json is reused before the remote copy is consulted
+# again, in seconds.
+_CATALOG_TTL = 86400
+
 _EXT_TO_PACKAGE: dict[str, str] = {
     "inp": "abaqus",
     "fem": "nastran",
@@ -123,7 +43,69 @@ _EXT_TO_PACKAGE: dict[str, str] = {
     "tec": "tecplot",
     "meshb": "medit",
     "xml": "dolfin",
+    "msh": "gmsh",
 }
+
+
+_catalog_cache = None
+
+# (models.json path, mtime) -> ext_to_package mapping, so repeated extension
+# lookups do not re-read and re-parse the catalog from disk every call.
+_ext_map_cache: tuple[tuple[str, float], dict[str, str]] | None = None
+
+
+def _load_ext_to_package() -> dict[str, str]:
+    """Return the catalog's extension to package mapping, without any download.
+
+    Returns
+    -------
+    dict of str to str
+        Mapping read from the in-memory catalog when one is loaded, otherwise
+        from the cached ``models.json``. Empty when neither is available.
+    """
+    global _ext_map_cache
+
+    if _catalog_cache is not None:
+        return _catalog_cache.get("ext_to_package", {})
+
+    local_path = pjoin(POLYXIOS_HOME, "models.json")
+    try:
+        key = (local_path, os.path.getmtime(local_path))
+    except OSError:
+        return {}
+
+    if _ext_map_cache is not None and _ext_map_cache[0] == key:
+        return _ext_map_cache[1]
+
+    try:
+        with open(local_path, encoding="utf-8") as f:
+            mapping = json.load(f).get("ext_to_package", {})
+    except (OSError, ValueError) as e:
+        logger.debug(f"Failed to read ext_to_package from cache: {e}", exc_info=True)
+        return {}
+
+    _ext_map_cache = (key, mapping)
+    return mapping
+
+
+def get_package_name(ext: str) -> str:
+    """Resolve a file extension to its corresponding package name.
+
+    Parameters
+    ----------
+    ext : str
+        The file extension (e.g., '.inp' or 'inp').
+
+    Returns
+    -------
+    str
+        The resolved package name.
+    """
+    ext_clean = ext.lower().lstrip(".")
+    catalog_map = _load_ext_to_package()
+    if ext_clean in catalog_map:
+        return catalog_map[ext_clean]
+    return _EXT_TO_PACKAGE.get(ext_clean, ext_clean)
 
 
 def _verify_sha256(filepath: str, expected_sha: str) -> bool:
@@ -132,6 +114,175 @@ def _verify_sha256(filepath: str, expected_sha: str) -> bool:
         for byte_block in iter(lambda: f.read(65536), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest().lower() == expected_sha.lower()
+
+
+_verified_cache = None
+
+
+def _get_verified_cache() -> dict:
+    global _verified_cache
+    if _verified_cache is not None:
+        return _verified_cache
+
+    cache_path = pjoin(POLYXIOS_HOME, ".models_cache")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, encoding="utf-8") as f:
+                _verified_cache = json.load(f)
+                if isinstance(_verified_cache, dict):
+                    return _verified_cache
+        except (OSError, ValueError) as e:
+            logger.debug(f"Failed to read verification cache: {e}", exc_info=True)
+    _verified_cache = {}
+    return _verified_cache
+
+
+def _save_verified_cache(cache: dict) -> None:
+    cache_path = pjoin(POLYXIOS_HOME, ".models_cache")
+    try:
+        os.makedirs(POLYXIOS_HOME, exist_ok=True)
+        temp_cache_path = cache_path + f".{os.getpid()}.tmp"
+        with open(temp_cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2)
+        os.replace(temp_cache_path, cache_path)
+    except OSError as e:
+        logger.debug(f"Failed to save verification cache: {e}", exc_info=True)
+
+
+def _verify_and_cache(filepath: str, expected_sha: str) -> bool:
+    if not os.path.exists(filepath):
+        return False
+
+    try:
+        stat = os.stat(filepath)
+        mtime = stat.st_mtime
+        size = stat.st_size
+    except OSError as e:
+        logger.debug(f"Failed to stat '{filepath}': {e}", exc_info=True)
+        return False
+
+    cache = _get_verified_cache()
+    key = os.path.abspath(filepath)
+    entry = cache.get(key)
+
+    if (
+        entry
+        and entry.get("mtime") == mtime
+        and entry.get("size") == size
+        and entry.get("sha256") == expected_sha
+    ):
+        return True
+
+    if _verify_sha256(filepath, expected_sha):
+        cache[key] = {"mtime": mtime, "size": size, "sha256": expected_sha}
+        _save_verified_cache(cache)
+        return True
+
+    return False
+
+
+def _safe_extract_zip(zip_path: str, target_dir: str) -> None:
+    """Extract an archive into a directory, rejecting members that escape it.
+
+    Parameters
+    ----------
+    zip_path : str
+        Path to the archive to extract.
+    target_dir : str
+        Directory the archive must be extracted into.
+
+    Raises
+    ------
+    FetcherError
+        If any member resolves outside `target_dir` (zip slip).
+    """
+    dest = Path(target_dir).resolve()
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        for member in zip_ref.namelist():
+            resolved = (dest / member).resolve()
+            if not resolved.is_relative_to(dest):
+                raise FetcherError(
+                    f"Refusing to extract '{member}': it resolves outside "
+                    f"'{target_dir}'."
+                )
+        zip_ref.extractall(target_dir)
+
+
+def _match_catalog_key(formats_dict: dict, filename: str) -> str | None:
+    """Return the catalog key matching `filename`, compared case-insensitively.
+
+    Parameters
+    ----------
+    formats_dict : dict
+        The catalog entries of a single package.
+    filename : str
+        The asset name to look up.
+
+    Returns
+    -------
+    str or None
+        The matching key as spelled in the catalog, or None.
+    """
+    target = filename.lower()
+    for key in formats_dict:
+        if key.lower() == target:
+            return key
+    return None
+
+
+def _zip_companion(formats_dict: dict, match_filename: str) -> str | None:
+    """Return the catalog key of the archive holding `match_filename`'s pieces.
+
+    Parameters
+    ----------
+    formats_dict : dict
+        The catalog entries of a single package.
+    match_filename : str
+        An asset key as spelled in the catalog.
+
+    Returns
+    -------
+    str or None
+        The companion archive key, or None when the asset is standalone or is
+        itself an archive.
+    """
+    if match_filename.lower().endswith(".zip"):
+        return None
+    base_name, _ = os.path.splitext(match_filename)
+    return _match_catalog_key(formats_dict, f"{base_name}.zip")
+
+
+def _fetch_and_extract_companion(
+    zip_filename: str, target_dir: str, *, package: str, overwrite: bool
+) -> None:
+    """Download a companion archive and unpack it beside the asset it belongs to.
+
+    Parameters
+    ----------
+    zip_filename : str
+        The companion archive key as spelled in the catalog.
+    target_dir : str
+        The package directory the archive is unpacked into.
+    package : str
+        The catalog package the archive belongs to.
+    overwrite : bool
+        Force re-download of the archive.
+
+    Raises
+    ------
+    FetcherError
+        If the archive cannot be downloaded or extracted.
+    """
+    zip_local_path = fetch(zip_filename, overwrite=overwrite, package=package)
+    try:
+        _safe_extract_zip(zip_local_path, target_dir)
+        extracted_flag = pjoin(target_dir, f".extracted_{zip_filename}")
+        with open(extracted_flag, "w", encoding="utf-8") as f:
+            f.write("ok")
+    except FetcherError:
+        raise
+    except Exception as e:
+        raise FetcherError(f"Failed to extract zip file '{zip_filename}': {e}") from e
 
 
 def _show_progress(filename: str, downloaded: int, total: int) -> None:
@@ -147,73 +298,101 @@ def _show_progress(filename: str, downloaded: int, total: int) -> None:
     sys.stdout.flush()
 
 
-def _download_and_extract_zip(subfolder: str) -> None:
-    pkg = _PACKAGES.get(subfolder)
-    if not pkg:
-        raise FetcherError(
-            f"Extension format classification '{subfolder}' is not an official release package."
-        )
-    release_tag, expected_sha = pkg
+def _load_models_catalog() -> dict:
+    """Load the models catalog from raw GitHub or local cache."""
+    global _catalog_cache
+    if _catalog_cache is not None:
+        return _catalog_cache
 
-    target_dir = pjoin(POLYXIOS_HOME, subfolder)
-    os.makedirs(target_dir, exist_ok=True)
+    local_path = pjoin(POLYXIOS_HOME, "models.json")
 
-    zip_filename = f"{subfolder}.zip"
-    zip_url = f"{_GITHUB_BASE}/{release_tag}/{zip_filename}"
-    temp_zip_path = pjoin(target_dir, f".temp_{subfolder}.zip")
+    use_cached = False
+    if os.path.exists(local_path):
+        try:
+            if time.time() - os.path.getmtime(local_path) < _CATALOG_TTL:
+                use_cached = True
+        except Exception:
+            pass
+
+    if use_cached:
+        try:
+            with open(local_path, encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "formats" in data:
+                    _catalog_cache = data
+                    return data
+        except Exception as e:
+            logger.debug(f"Failed to read fresh local models.json: {e}", exc_info=True)
 
     try:
         req = urllib.request.Request(
-            zip_url, headers={"User-Agent": "polyxios-fetcher"}
+            _MODELS_URL, headers={"User-Agent": "polyxios-fetcher"}
         )
-        with urllib.request.urlopen(req, timeout=15) as response:
-            total_size = int(response.headers.get("Content-Length", 0))
-            downloaded = 0
-
-            with open(temp_zip_path, "wb") as f:
-                while True:
-                    chunk = response.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    _show_progress(zip_filename, downloaded, total_size)
-
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-
-        if not _verify_sha256(temp_zip_path, expected_sha):
-            raise FetcherError(
-                f"Integrity verification failed for {zip_filename}. Checksum mismatch."
-            )
-
-        with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
-            zip_ref.extractall(target_dir)
-
-    except urllib.error.HTTPError as e:
-        sys.stdout.write("\n")
-        sys.stdout.flush()
-        if e.code == 404:
-            raise FetcherError(
-                f"Release package '{zip_filename}' was not found on remote server."
-            ) from e
-        raise FetcherError(
-            f"HTTP error occurred while downloading package: {e.code} {e.reason}"
-        ) from e
+        with urllib.request.urlopen(req, timeout=_CATALOG_TIMEOUT) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            if isinstance(data, dict) and "formats" in data:
+                os.makedirs(POLYXIOS_HOME, exist_ok=True)
+                temp_local_path = local_path + f".{os.getpid()}.tmp"
+                with open(temp_local_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                os.replace(temp_local_path, local_path)
+                _catalog_cache = data
+                return data
     except Exception as e:
-        sys.stdout.write("\n")
-        sys.stdout.flush()
-        raise FetcherError(
-            f"Failed to synchronize asset package '{zip_filename}': {e}"
-        ) from e
-    finally:
-        if os.path.exists(temp_zip_path):
-            os.remove(temp_zip_path)
+        logger.debug(
+            f"Catalog download failed, falling back to local cache: {e}", exc_info=True
+        )
+
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "formats" in data:
+                    try:
+                        os.utime(local_path, None)
+                    except Exception:
+                        pass
+                    _catalog_cache = data
+                    return data
+                else:
+                    _catalog_cache = None
+                    try:
+                        os.remove(local_path)
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"Failed to read local models.json cache: {e}", exc_info=True)
+            _catalog_cache = None
+            try:
+                os.remove(local_path)
+            except Exception:
+                pass
+
+    raise FetcherError(
+        "Could not retrieve models catalog from remote repository or local cache."
+    )
 
 
-def fetch(filename: str, overwrite: bool = False) -> str:
+def get_fetchable_files() -> dict[str, list[str]]:
+    """Return a dictionary of all fetchable packages and their available files.
+
+    Returns
+    -------
+    dict of str to list of str
+        Mapping of package/extension name to list of available filenames.
+
+    Raises
+    ------
+    FetcherError
+        If the catalog could not be retrieved from both remote and cache.
     """
-    Resolve, download, and track local path for any Polyxios test asset.
+    catalog = _load_models_catalog()
+    formats = catalog.get("formats", {})
+    return {fmt: sorted(files.keys()) for fmt, files in formats.items()}
+
+
+def fetch(filename: str, overwrite: bool = False, *, package: str | None = None) -> str:
+    """Resolve, download, and track local path for any Polyxios test asset.
 
     Parameters
     ----------
@@ -221,41 +400,241 @@ def fetch(filename: str, overwrite: bool = False) -> str:
         The name of the file to fetch (e.g., 'stanford-bunny.obj').
     overwrite : bool, optional
         Force re-download of the asset even if it exists locally.
+    package : str, optional
+        Manually override the target catalog package name.
 
     Returns
     -------
     str
         The absolute local path to the fetched file.
+
+    Raises
+    -------
+    FetcherError
+        If filename is invalid or is not found in the package.
     """
     filename_lower = filename.lower()
 
-    _, ext = os.path.splitext(filename_lower)
-    if not ext:
-        raise FetcherError(
-            f"Cannot resolve target folder: filename '{filename}' has no extension."
-        )
-    ext_clean = ext[1:]
-    package = _EXT_TO_PACKAGE.get(ext_clean, ext_clean)
+    if package is None:
+        _, ext = os.path.splitext(filename_lower)
+        if not ext:
+            raise FetcherError(
+                f"Cannot resolve target folder: filename '{filename}' has no extension."
+            )
+        ext_clean = ext[1:]
+        package = get_package_name(ext_clean)
 
     target_dir = pjoin(POLYXIOS_HOME, package)
     target_path = pjoin(target_dir, filename)
 
+    missing_companion = None
     if os.path.exists(target_path) and not overwrite:
+        # The cached copy is only reusable when its checksum still matches the
+        # one the catalog advertises today; a re-released asset must be
+        # re-downloaded even though the local file is intact.
+        try:
+            catalog = _load_models_catalog()
+            formats_dict = catalog.get("formats", {}).get(package, {})
+            match_filename = _match_catalog_key(formats_dict, filename_lower)
+            if match_filename:
+                file_info = formats_dict[match_filename]
+                expected_sha = file_info.get("sha256")
+                if expected_sha and (
+                    "size_bytes" not in file_info
+                    or os.path.getsize(target_path) == file_info["size_bytes"]
+                ):
+                    if _verify_and_cache(target_path, expected_sha):
+                        zip_filename = _zip_companion(formats_dict, match_filename)
+                        if zip_filename is None:
+                            return target_path
+                        base_name, _ = os.path.splitext(match_filename)
+                        extracted_dir = pjoin(target_dir, base_name)
+                        extracted_flag = pjoin(target_dir, f".extracted_{zip_filename}")
+                        if os.path.exists(extracted_dir) and os.path.exists(
+                            extracted_flag
+                        ):
+                            return target_path
+                        missing_companion = zip_filename
+        except FetcherError as e:
+            logger.debug(f"Catalog unavailable while reusing cache: {e}", exc_info=True)
+        except OSError as e:
+            logger.debug(f"Cannot reuse cached '{filename}': {e}", exc_info=True)
+
+    if missing_companion is not None:
+        # The asset itself is intact, only its companion pieces are missing, so
+        # re-fetch the archive alone instead of downloading both again.
+        _fetch_and_extract_companion(
+            missing_companion, target_dir, package=package, overwrite=overwrite
+        )
         return target_path
 
-    _download_and_extract_zip(package)
+    try:
+        catalog = _load_models_catalog()
+    except Exception:
+        # An intact cached copy is better than nothing when the catalog is
+        # unreachable, but it cannot satisfy an explicit re-download request.
+        if os.path.exists(target_path) and not overwrite:
+            return target_path
+        raise
 
-    if not os.path.exists(target_path):
+    formats_dict = catalog.get("formats", {}).get(package, {})
+    match_filename = _match_catalog_key(formats_dict, filename_lower)
+
+    if not match_filename:
         raise FetcherError(
-            f"Asset '{filename}' was not found in the extracted '{package}.zip' package."
+            f"Asset '{filename}' was not found in the catalog under package '{package}'."
+        )
+
+    file_info = formats_dict[match_filename]
+    target_path = pjoin(target_dir, match_filename)
+
+    url = file_info.get("url", "")
+    if not url.lower().startswith("https://"):
+        raise FetcherError(
+            f"Refusing to download '{match_filename}': catalog URL is not https."
+        )
+
+    expected_sha = file_info.get("sha256")
+    if not expected_sha:
+        raise FetcherError(
+            f"Refusing to download '{match_filename}': catalog entry has no sha256."
+        )
+
+    os.makedirs(target_dir, exist_ok=True)
+    temp_path = pjoin(target_dir, f".temp_{os.getpid()}_{match_filename}")
+
+    try:
+        logger.info(
+            f"Fetching '{match_filename}'... Please wait, it might take some time "
+            "to download. Do not close or cancel this process."
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "polyxios-fetcher"})
+        with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as response:
+            total_size = int(response.headers.get("Content-Length", 0))
+            downloaded = 0
+
+            with open(temp_path, "wb") as f:
+                while True:
+                    chunk = response.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    _show_progress(match_filename, downloaded, total_size)
+
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+
+        if not _verify_sha256(temp_path, expected_sha):
+            raise FetcherError(
+                f"Integrity verification failed for {match_filename}. Checksum mismatch."
+            )
+
+        os.replace(temp_path, target_path)
+
+        try:
+            stat = os.stat(target_path)
+            cache = _get_verified_cache()
+            key = os.path.abspath(target_path)
+            cache[key] = {
+                "mtime": stat.st_mtime,
+                "size": stat.st_size,
+                "sha256": expected_sha,
+            }
+            _save_verified_cache(cache)
+        except OSError as e:
+            logger.debug(f"Failed to record '{target_path}' as verified: {e}")
+
+    except FetcherError:
+        raise
+    except urllib.error.HTTPError as e:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        if e.code == 404:
+            raise FetcherError(
+                f"Asset file '{match_filename}' was not found on remote server."
+            ) from e
+        raise FetcherError(
+            f"HTTP error occurred while downloading asset: {e.code} {e.reason}"
+        ) from e
+    except Exception as e:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        raise FetcherError(f"Failed to download asset '{match_filename}': {e}") from e
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError as e:
+                logger.debug(f"Failed to remove '{temp_path}': {e}", exc_info=True)
+
+    zip_filename = _zip_companion(formats_dict, match_filename)
+    if zip_filename is not None:
+        _fetch_and_extract_companion(
+            zip_filename, target_dir, package=package, overwrite=overwrite
         )
 
     return target_path
 
 
-def fetch_by_extension(ext: str, overwrite: bool = False) -> list[str]:
+def _select_by_extension(paths: list[str], ext_clean: str) -> list[str]:
+    """Keep the paths carrying an extension, or every non-archive path.
+
+    Parameters
+    ----------
+    paths : list of str
+        Candidate paths.
+    ext_clean : str
+        Extension to keep, without leading dot.
+
+    Returns
+    -------
+    list of str
+        Paths ending with `ext_clean`, or, when none do (the caller passed a
+        package name such as 'gmsh' rather than an extension), every path that
+        is not a zip companion.
     """
-    Discover and download all remote assets matching a specific file extension.
+    matching = [p for p in paths if p.lower().endswith(f".{ext_clean}")]
+    if matching:
+        return matching
+    return [p for p in paths if not p.lower().endswith(".zip")]
+
+
+def get_cached_files(ext: str) -> list[str]:
+    """List the already downloaded assets for an extension, without any network.
+
+    Parameters
+    ----------
+    ext : str
+        The extension to query (e.g., '.vtp' or 'vtp').
+
+    Returns
+    -------
+    list of str
+        The absolute local paths of the cached files, sorted.
+    """
+    ext_clean = ext.lower().lstrip(".")
+    if not ext_clean:
+        raise FetcherError("Invalid extension format provided.")
+
+    target_dir = pjoin(POLYXIOS_HOME, get_package_name(ext_clean))
+    if not os.path.isdir(target_dir):
+        return []
+
+    cached = [
+        pjoin(target_dir, entry)
+        for entry in sorted(os.listdir(target_dir))
+        if not entry.startswith(".") and os.path.isfile(pjoin(target_dir, entry))
+    ]
+    return _select_by_extension(cached, ext_clean)
+
+
+def fetch_by_extension(ext: str, overwrite: bool = False) -> list[str]:
+    """Discover and download all remote assets matching a specific file extension.
+
+    Every asset the catalog lists for the extension is downloaded unless an
+    up-to-date copy is already cached. Use `get_cached_files` to list what is
+    already on disk without contacting the network.
 
     Parameters
     ----------
@@ -273,18 +652,22 @@ def fetch_by_extension(ext: str, overwrite: bool = False) -> list[str]:
     if not ext_clean:
         raise FetcherError("Invalid extension format provided.")
 
-    package = _EXT_TO_PACKAGE.get(ext_clean, ext_clean)
-    target_dir = pjoin(POLYXIOS_HOME, package)
-    is_empty = not os.path.exists(target_dir) or not os.listdir(target_dir)
+    package = get_package_name(ext_clean)
+    catalog = _load_models_catalog()
 
-    if is_empty or overwrite:
-        _download_and_extract_zip(package)
+    format_files = catalog.get("formats", {}).get(package, {})
+    if not format_files:
+        raise FetcherError(f"No assets found for extension/format '{ext_clean}'.")
+
+    total_size = sum(info.get("size_bytes", 0) for info in format_files.values())
+    logger.info(
+        f"Starting download of {len(format_files)} files for extension '{ext_clean}' "
+        f"(Total size: {total_size / (1024 * 1024):.2f} MB)..."
+    )
 
     local_files = []
-    if os.path.exists(target_dir):
-        for entry in os.listdir(target_dir):
-            full_path = pjoin(target_dir, entry)
-            if os.path.isfile(full_path) and entry.lower().endswith(f".{ext_clean}"):
-                local_files.append(full_path)
+    for filename in sorted(format_files.keys()):
+        local_path = fetch(filename, overwrite=overwrite)
+        local_files.append(local_path)
 
-    return sorted(local_files)
+    return _select_by_extension(local_files, ext_clean)

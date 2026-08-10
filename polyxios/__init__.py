@@ -2,10 +2,27 @@ from polyxios import transforms
 from polyxios._registry import Codec, build_default_registry, resolve
 from polyxios._types import PolyData, make_polydata
 from polyxios.fetcher import fetch
+from polyxios.helper import read_polydata, visualize_mesh
 from polyxios.validate import validate
 from polyxios.version import version as __version__
 
 _REGISTRY: dict[str, Codec] = build_default_registry()
+
+
+def supported_extensions(*, registry: dict | None = None) -> list[str]:
+    """List the file extensions the registry can read and write.
+
+    Parameters
+    ----------
+    registry
+        Custom codec registry. Uses the built-in registry if None.
+
+    Returns
+    -------
+    list of str
+        Sorted extensions, each with its leading dot (e.g. '.obj').
+    """
+    return sorted(registry or _REGISTRY)
 
 
 def read(
@@ -72,7 +89,10 @@ __all__ = [
     "fetch",
     "make_polydata",
     "read",
+    "read_polydata",
+    "supported_extensions",
     "transforms",
     "validate",
+    "visualize_mesh",
     "write",
 ]
