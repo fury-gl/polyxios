@@ -8,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._ply import read, write
 from polyxios.exceptions import LazyReadError
+from polyxios.fetcher import fetch
 
 
 def _synthetic_mesh() -> object:
@@ -149,3 +150,31 @@ def test_3dgs_ascii_chunk_raises() -> None:
 
     with pytest.raises(CodecError):
         read(tmp)
+
+
+@pytest.mark.network
+def test_3dgs_compressed_ply_positions() -> None:
+    """Compressed 3DGS PLY returns real world coordinates, not zeros."""
+    path = fetch("gs_Halo_Believe.cleaned.compressed.ply")
+    poly = read(path)
+    assert len(poly.vertices) == 345217
+    assert len(poly.element_types) == 0
+    # Positions must not all be zero
+    assert not np.allclose(poly.vertices, 0.0)
+    # Coords should be within the known scene bbox (roughly -5..5 range)
+    assert poly.vertices[:, 0].min() > -20.0
+    assert poly.vertices[:, 0].max() < 20.0
+    assert "scale_0" in poly.vertex_attrs
+    assert "rot_0" in poly.vertex_attrs
+    assert "opacity" in poly.vertex_attrs
+
+
+@pytest.mark.network
+def test_real_armadillo() -> None:
+    """Armadillo.ply: binary big-endian with face scalar before vertex list."""
+    path = fetch("Armadillo.ply")
+    poly = read(path)
+    assert len(poly.vertices) == 172974
+    assert len(poly.element_types) == 345944
+    assert poly.faces is not None and len(poly.faces) > 0
+    assert "intensity" in poly.element_attrs

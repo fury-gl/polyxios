@@ -8,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._vtu import read, write
 from polyxios.exceptions import LazyReadError
+from polyxios.fetcher import fetch
 
 
 def _tet_mesh() -> object:
@@ -77,3 +78,23 @@ def test_element_attrs() -> None:
     poly2 = read(tmp)
     assert "stress" in poly2.element_attrs
     np.testing.assert_allclose(poly2.element_attrs["stress"], stress, atol=1e-6)
+
+
+@pytest.mark.network
+@pytest.mark.parametrize(
+    "filename,expected_verts,expected_cells",
+    [
+        ("quadraticTetra01.vtu", 22, 3),
+        ("Hexahedron.vtu", 26, 7),
+        ("QuadraticPyramid.vtu", 153, 48),
+        ("QuadraticWedge.vtu", 93, 16),
+        ("polyhedron2pieces.vtu", 18, 4),
+    ],
+)
+def test_real_files(filename: str, expected_verts: int, expected_cells: int) -> None:
+    path = fetch(filename)
+    poly = read(path)
+    assert len(poly.vertices) == expected_verts
+    assert len(poly.element_types) == expected_cells
+    assert poly.vertices.shape[1] == 3
+    assert poly.vertices.dtype == np.float64

@@ -1,3 +1,4 @@
+import json
 import sys
 
 import numpy as np
@@ -14,8 +15,11 @@ def temp_polyxios_home(tmp_path, monkeypatch):
     monkeypatch.setenv("POLYXIOS_HOME", str(tmp_path))
     monkeypatch.setattr("polyxios.fetcher.POLYXIOS_HOME", str(tmp_path))
     monkeypatch.setattr("polyxios.cli.POLYXIOS_HOME", str(tmp_path))
-
-    import json
+    # Module-level caches outlive a single test, so a stale entry from another
+    # POLYXIOS_HOME must not leak into this one.
+    monkeypatch.setattr("polyxios.fetcher._catalog_cache", None)
+    monkeypatch.setattr("polyxios.fetcher._ext_map_cache", None)
+    monkeypatch.setattr("polyxios.fetcher._verified_cache", None)
 
     models_data = {
         "ext_to_package": {
@@ -290,8 +294,6 @@ def test_cli_convert(temp_polyxios_home, monkeypatch, capsys):
 
 
 def test_cli_list(temp_polyxios_home, monkeypatch, capsys):
-    import json
-
     models_file = temp_polyxios_home / "models.json"
     mock_catalog = {
         "formats": {
@@ -314,8 +316,6 @@ def test_cli_list(temp_polyxios_home, monkeypatch, capsys):
 
 
 def test_cli_list_filtered(temp_polyxios_home, monkeypatch, capsys):
-    import json
-
     models_file = temp_polyxios_home / "models.json"
     mock_catalog = {
         "formats": {
@@ -392,7 +392,6 @@ def test_cli_list_codecs(temp_polyxios_home, monkeypatch, capsys):
 
 def test_cli_fetch_with_zip_companion(temp_polyxios_home, monkeypatch):
     import io
-    import json
     import os
     import urllib.request
     import zipfile
@@ -463,3 +462,69 @@ def test_cli_fetch_with_zip_companion(temp_polyxios_home, monkeypatch):
     assert os.path.exists(extracted_file)
     with open(extracted_file) as f:
         assert f.read() == "sub-piece content"
+
+
+def test_cli_convert_refuses_existing_output(temp_polyxios_home, monkeypatch, capsys):
+    input_path = temp_polyxios_home / "armadillo.obj"
+    output_path = temp_polyxios_home / "output.vtk"
+    create_real_model(input_path)
+    output_path.write_text("do not clobber me", encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys, "argv", ["pxios", "convert", str(input_path), str(output_path)]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "already exists" in captured.err
+    assert output_path.read_text(encoding="utf-8") == "do not clobber me"
+
+
+def test_cli_convert_force_overwrites(temp_polyxios_home, monkeypatch, capsys):
+    input_path = temp_polyxios_home / "armadillo.obj"
+    output_path = temp_polyxios_home / "output.vtk"
+    create_real_model(input_path)
+    output_path.write_text("stale", encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys, "argv", ["pxios", "convert", str(input_path), str(output_path), "--force"]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+
+    assert "Conversion successful." in capsys.readouterr().out
+    assert len(polyxios.read(str(output_path)).vertices) == 3
+
+
+def test_cli_list_extensions_catalog_failure(temp_polyxios_home, monkeypatch, capsys):
+    def _boom():
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("polyxios.fetcher._load_models_catalog", _boom)
+    monkeypatch.setattr("polyxios.cli._load_models_catalog", _boom)
+    monkeypatch.setattr(sys, "argv", ["pxios", "list", "--extensions"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+
+    captured = capsys.readouterr()
+    assert "Catalog retrieval failed" in captured.err
+    # The built-in fallback map is still listed.
+    assert "abaqus (.inp)" in captured.out
+
+
+def test_cli_convert_missing_input(temp_polyxios_home, monkeypatch, capsys):
+    missing = temp_polyxios_home / "nope.obj"
+    output_path = temp_polyxios_home / "out.vtk"
+
+    monkeypatch.setattr(
+        sys, "argv", ["pxios", "convert", str(missing), str(output_path)]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+    assert "Failed to convert model" in capsys.readouterr().err

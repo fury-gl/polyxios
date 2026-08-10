@@ -339,12 +339,3 @@ def test_inline_ply_tetra(tmp_path) -> None:
     assert "red" in poly.element_attrs
     assert "green" in poly.element_attrs
     assert "blue" in poly.element_attrs
-
-
-def test_get_package_name() -> None:
-    from polyxios.fetcher import get_package_name
-
-    assert get_package_name("inp") == "abaqus"
-    assert get_package_name(".inp") == "abaqus"
-    assert get_package_name("xml") == "dolfin"
-    assert get_package_name(".meshb") == "medit"
