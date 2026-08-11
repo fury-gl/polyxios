@@ -9,6 +9,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._mesh import read, write
 from polyxios.exceptions import CodecError
+from polyxios.fetcher import fetch
 
 
 def _tet_mesh() -> object:
@@ -121,6 +122,7 @@ def test_written_file_is_valid_mfem() -> None:
     assert first_line == "MFEM mesh v1.0"
 
 
+@pytest.mark.network
 @pytest.mark.parametrize(
     "filename,expected_verts,expected_elems",
     [
@@ -133,8 +135,6 @@ def test_written_file_is_valid_mfem() -> None:
     ],
 )
 def test_real_files(filename: str, expected_verts: int, expected_elems: int) -> None:
-    from polyxios.fetcher import fetch
-
     path = fetch(filename)
     poly = read(path)
     assert len(poly.vertices) == expected_verts
@@ -143,16 +143,16 @@ def test_real_files(filename: str, expected_verts: int, expected_elems: int) -> 
     assert poly.vertices.dtype == np.float64
 
 
+@pytest.mark.network
 def test_high_order_mesh_reads_coords() -> None:
     """High-order meshes (nodes section) must not return all-zero coordinates."""
-    from polyxios.fetcher import fetch
-
     path = fetch("escher-p2.mesh")
     poly = read(path)
     assert len(poly.vertices) > 0
     assert not np.allclose(poly.vertices, 0.0), "Coordinates must not all be zero."
 
 
+@pytest.mark.network
 @pytest.mark.parametrize(
     "filename,expected_verts,expected_elems",
     [
@@ -166,8 +166,6 @@ def test_inline_real_files(
     filename: str, expected_verts: int, expected_elems: int
 ) -> None:
     """INLINE real files generate correct vertex and element counts."""
-    from polyxios.fetcher import fetch
-
     path = fetch(filename)
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
@@ -179,10 +177,9 @@ def test_inline_real_files(
     assert not np.allclose(poly.vertices, 0.0)
 
 
+@pytest.mark.network
 def test_nurbs_real_file_control_points() -> None:
     """NURBS real file: control points extracted, knot vectors non-empty."""
-    from polyxios.fetcher import fetch
-
     path = fetch("beam-hex-nurbs.mesh")
     with warnings.catch_warnings(record=True):
         warnings.simplefilter("always")
@@ -193,10 +190,9 @@ def test_nurbs_real_file_control_points() -> None:
     assert len(poly.global_attrs["mfem_nurbs_weights"]) > 0
 
 
+@pytest.mark.network
 def test_nc_real_file_full_reconstruction() -> None:
     """NC real file: vertex_parents midpoints reconstruct all 223 vertices."""
-    from polyxios.fetcher import fetch
-
     path = fetch("amr-hex.mesh")
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
