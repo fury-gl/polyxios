@@ -3,7 +3,8 @@
 Supports POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON,
 MULTIPOLYGON and GEOMETRYCOLLECTION, with the optional ``Z`` / ``M`` /
 ``ZM`` dimension suffixes.  Z values are preserved, 2D coordinates are
-padded with ``z=0`` and M (measure) values are read and discarded.
+padded with ``z=0`` and M (measure) values are read and discarded.  An
+EWKT ``SRID=<n>;`` prefix is accepted and dropped.
 
 Polygon interior rings (holes) become separate ``polygon`` elements.
 Ring membership is carried by two element attributes:
@@ -15,11 +16,23 @@ Ring membership is carried by two element attributes:
     ``0`` for an exterior ring and ``1..n`` for interior rings (holes);
     ``-1`` for elements that are not part of a polygon.
 
-The association is carried by attribute values rather than by element
-positions, so rings stay linked when elements are filtered, reordered or
-merged.
+On write, rings are regrouped from those attribute values rather than
+from element positions, so holes stay attached to their exterior ring
+after elements are filtered or reordered.  Each element carrying
+``wkt_ring == 0`` opens a new polygon, which keeps two meshes that were
+merged - and therefore reuse the same identifiers - from being welded
+into one geometry.
+
+Two lossy write behaviours are worth knowing about:
+
+* WKT has a single polygon and a single line geometry, so ``triangle``,
+  ``quad`` and ``polygon`` all come back as ``polygon``, and ``line``
+  comes back as ``poly_line``.
+* Reading interns identical coordinates into one vertex, so geometries
+  that touch share vertices instead of duplicating them.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
 import re
 from typing import Any
@@ -74,44 +87,74 @@ _GEOMETRY_KEYWORDS: frozenset[str] = frozenset(
 # ── Tokeniser / recursive-descent parser ─────────────────────────────────────
 
 _NUMBER_PATTERN: str = r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?"
-_TOKEN_RE = re.compile(rf"[A-Za-z]+|[()]|,|{_NUMBER_PATTERN}")
+#: ``#`` comments are only recognised at the start of a line; ``;`` and ``=``
+#: exist for the EWKT ``SRID=<n>;`` prefix.
+_TOKEN_RE = re.compile(rf"(?m)^[^\S\n]*#[^\n]*|[A-Za-z]+|[()]|,|;|=|{_NUMBER_PATTERN}")
 _NUMBER_RE = re.compile(rf"{_NUMBER_PATTERN}\Z")
 
 
-def _tokenize(text: str) -> list[str]:
-    """Split WKT text into a flat list of tokens.
+def _line_of(text: str, offset: int) -> int:
+    """Return the 1-based line number of a character offset.
 
-    Tokens are keywords, ``(``, ``)``, ``,`` or numeric literals.  Any
-    non-whitespace character that is not part of a token is rejected
-    rather than silently dropped.
+    Parameters
+    ----------
+    text
+        WKT source text.
+    offset
+        Character offset into ``text``.
+
+    Returns
+    -------
+    int
+        Line number containing ``offset``.
+    """
+    return text.count("\n", 0, offset) + 1
+
+
+def _iter_tokens(text: str) -> Iterator[tuple[str, int]]:
+    """Yield ``(token, offset)`` pairs for WKT text, lazily.
+
+    Tokens are keywords, ``(``, ``)``, ``,``, ``;``, ``=`` or numeric
+    literals.  Comment lines are skipped and any non-whitespace character
+    that cannot start a token is rejected rather than silently dropped.
 
     Parameters
     ----------
     text
         WKT source text.
 
-    Returns
-    -------
-    list of str
-        The tokens, in source order.
+    Yields
+    ------
+    tuple of (str, int)
+        The token and its character offset, in source order.
 
     Raises
     ------
     CodecError
         On any character that cannot start a token.
     """
-    tokens: list[str] = []
     pos = 0
     for match in _TOKEN_RE.finditer(text):
-        gap = text[pos : match.start()].strip()
-        if gap:
-            raise CodecError(f".wkt: unexpected character {gap[0]!r}.")
-        tokens.append(match.group())
+        gap = text[pos : match.start()]
+        stripped = gap.strip()
+        if stripped:
+            bad = pos + gap.index(stripped[0])
+            raise CodecError(
+                f".wkt:{_line_of(text, bad)}: unexpected character {stripped[0]!r}."
+            )
         pos = match.end()
-    trailing = text[pos:].strip()
-    if trailing:
-        raise CodecError(f".wkt: unexpected character {trailing[0]!r}.")
-    return tokens
+        token = match.group()
+        if token.lstrip().startswith("#"):
+            continue
+        yield token, match.start()
+
+    trailing = text[pos:]
+    stripped = trailing.strip()
+    if stripped:
+        bad = pos + trailing.index(stripped[0])
+        raise CodecError(
+            f".wkt:{_line_of(text, bad)}: unexpected character {stripped[0]!r}."
+        )
 
 
 def _split_keyword(token: str) -> tuple[str, str]:
@@ -145,16 +188,20 @@ class _Parser:
     """Recursive-descent WKT parser.
 
     Collects parsed geometries into shared vertex / connectivity lists.
+    Tokens are pulled lazily from the source text, so a malformed file is
+    rejected without materialising a token list for the whole input.
 
     Parameters
     ----------
-    tokens
-        Token list produced by :func:`_tokenize`.
+    text
+        WKT source text.
     """
 
-    def __init__(self, tokens: list[str]) -> None:
-        self.tokens = tokens
-        self.pos = 0
+    def __init__(self, text: str) -> None:
+        self._text = text
+        self._tokens = _iter_tokens(text)
+        self._lookahead: tuple[str, int] | None = None
+        self._offset = 0
 
         # Shared vertex deduplication
         self._vert_map: dict[tuple[float, float, float], int] = {}
@@ -174,23 +221,41 @@ class _Parser:
 
     # ── helpers ───────────────────────────────────────────────────────────
 
+    def _error(self, message: str) -> CodecError:
+        """Return a CodecError tagged with the current source line."""
+        return CodecError(f".wkt:{_line_of(self._text, self._offset)}: {message}")
+
+    def _fill(self) -> None:
+        if self._lookahead is None:
+            self._lookahead = next(self._tokens, None)
+
     def _peek(self) -> str | None:
-        return self.tokens[self.pos] if self.pos < len(self.tokens) else None
+        self._fill()
+        return None if self._lookahead is None else self._lookahead[0]
+
+    def _eof_offset(self) -> int:
+        """Return the offset of the last non-blank character of the source."""
+        index = len(self._text) - 1
+        while index >= 0 and self._text[index].isspace():
+            index -= 1
+        return max(index, 0)
 
     def _advance(self) -> str:
-        if self.pos >= len(self.tokens):
-            raise CodecError(".wkt: unexpected end of input.")
-        tok = self.tokens[self.pos]
-        self.pos += 1
+        self._fill()
+        if self._lookahead is None:
+            self._offset = self._eof_offset()
+            raise self._error("unexpected end of input.")
+        tok, self._offset = self._lookahead
+        self._lookahead = None
         return tok
 
     def _expect(self, expected: str) -> None:
         tok = self._advance()
         if tok != expected:
-            raise CodecError(f".wkt: expected '{expected}', got '{tok}'.")
+            raise self._error(f"expected '{expected}', got '{tok}'.")
 
     def _at_end(self) -> bool:
-        return self.pos >= len(self.tokens)
+        return self._peek() is None
 
     def _at_number(self) -> bool:
         tok = self._peek()
@@ -200,7 +265,7 @@ class _Parser:
         """Consume one token and return it as a finite float."""
         tok = self._advance()
         if _NUMBER_RE.match(tok) is None:
-            raise CodecError(f".wkt: expected a number, got '{tok}'.")
+            raise self._error(f"expected a number, got '{tok}'.")
         return float(tok)
 
     def _maybe_empty(self) -> bool:
@@ -211,14 +276,23 @@ class _Parser:
             return True
         return False
 
+    def _maybe_srid(self) -> None:
+        """Consume an EWKT ``SRID=<n>;`` prefix if present."""
+        tok = self._peek()
+        if tok is not None and tok.upper() == "SRID":
+            self._advance()
+            self._expect("=")
+            self._number()
+            self._expect(";")
+
     def _intern_vertex(self, x: float, y: float, z: float) -> int:
         key = (x, y, z)
         idx = self._vert_map.get(key)
         if idx is not None:
             return idx
         if len(self._verts) >= MAX_SAFE_VERTICES:
-            raise CodecError(
-                f".wkt: vertex count exceeds the safety cap {MAX_SAFE_VERTICES}."
+            raise self._error(
+                f"vertex count exceeds the safety cap {MAX_SAFE_VERTICES}."
             )
         idx = len(self._verts)
         self._vert_map[key] = idx
@@ -252,12 +326,12 @@ class _Parser:
             Index of the appended element.
         """
         if len(self._types) >= MAX_SAFE_ELEMENTS:
-            raise CodecError(
-                f".wkt: element count exceeds the safety cap {MAX_SAFE_ELEMENTS}."
+            raise self._error(
+                f"element count exceeds the safety cap {MAX_SAFE_ELEMENTS}."
             )
         if len(self._conn) + len(indices) > MAX_SAFE_CONN:
-            raise CodecError(
-                f".wkt: connectivity size exceeds the safety cap {MAX_SAFE_CONN}."
+            raise self._error(
+                f"connectivity size exceeds the safety cap {MAX_SAFE_CONN}."
             )
         self._conn.extend(indices)
         self._offsets.append(self._offsets[-1] + len(indices))
@@ -339,8 +413,8 @@ class _Parser:
             Current GEOMETRYCOLLECTION nesting depth.
         """
         if depth > MAX_NESTING_DEPTH:
-            raise CodecError(
-                f".wkt: geometry nesting deeper than {MAX_NESTING_DEPTH} levels."
+            raise self._error(
+                f"geometry nesting deeper than {MAX_NESTING_DEPTH} levels."
             )
 
         keyword, own_suffix = _split_keyword(self._advance())
@@ -363,7 +437,7 @@ class _Parser:
         elif keyword == "POLYGON":
             self._parse_polygon(dim)
         else:
-            raise CodecError(f".wkt: unsupported geometry type '{keyword}'.")
+            raise self._error(f"unsupported geometry type '{keyword}'.")
 
     def _parse_point(self, suffix: str) -> None:
         if self._maybe_empty():
@@ -379,16 +453,20 @@ class _Parser:
             return
         indices = self._parse_coord_list(suffix)
         if len(indices) < 2:
-            raise CodecError(".wkt: LINESTRING must have at least 2 points.")
+            raise self._error("LINESTRING must have at least 2 points.")
         self._add_element("poly_line", indices)
 
     def _parse_ring(self, suffix: str, *, what: str) -> list[int]:
         """Parse one polygon ring and strip its closing duplicate."""
         indices = self._parse_coord_list(suffix)
-        if len(indices) > 1 and indices[0] == indices[-1]:
-            indices = indices[:-1]
-        if len(indices) < 3:
-            raise CodecError(f".wkt: POLYGON {what} must have at least 3 points.")
+        # Some writers repeat the closing point more than once; strip every
+        # trailing copy so a ring is always stored in its open form.
+        while len(indices) > 1 and indices[0] == indices[-1]:
+            indices.pop()
+        # Vertices are interned, so distinct indices are distinct points:
+        # a ring collapsed onto one or two points encloses no area.
+        if len(indices) < 3 or len(set(indices)) < 3:
+            raise self._error(f"POLYGON {what} must have at least 3 distinct points.")
         return indices
 
     def _parse_polygon(self, suffix: str) -> None:
@@ -442,9 +520,8 @@ class _Parser:
             if not self._maybe_empty():
                 indices = self._parse_coord_list(suffix)
                 if len(indices) < 2:
-                    raise CodecError(
-                        ".wkt: LINESTRING in MULTILINESTRING must have at least "
-                        "2 points."
+                    raise self._error(
+                        "LINESTRING in MULTILINESTRING must have at least 2 points."
                     )
                 self._add_element("poly_line", indices)
             if self._peek() == ",":
@@ -482,13 +559,19 @@ class _Parser:
     def parse_all(self) -> PolyData:
         """Parse all geometries and return a PolyData.
 
+        Top-level geometries may be separated by whitespace or by commas,
+        the shape produced by CSV and database exports.
+
         Returns
         -------
         PolyData
             Parsed mesh data.
         """
         while not self._at_end():
+            self._maybe_srid()
             self._parse_geometry()
+            if self._peek() == ",":
+                self._advance()
 
         if self._dropped_measures:
             warnings.warn(
@@ -540,10 +623,53 @@ def _fmt_coords(coords: np.ndarray, *, with_z: bool) -> str:
     return ", ".join(f"{_fmt(c[0])} {_fmt(c[1])}" for c in coords)
 
 
+def _ring_points(coords: np.ndarray) -> np.ndarray:
+    """Return a ring's points with its closing duplicates removed.
+
+    An element may store a ring either open or explicitly closed.  The
+    open form is what decides whether the ring is degenerate, since the
+    reader strips the closing point again; trailing repeats of the first
+    point are all removed so that writing stays idempotent.
+
+    Parameters
+    ----------
+    coords
+        Ring coordinates as stored by the element.
+
+    Returns
+    -------
+    numpy.ndarray
+        The ring without its closing duplicates.
+    """
+    end = len(coords)
+    while end > 1 and np.array_equal(coords[0], coords[end - 1]):
+        end -= 1
+    return coords[:end]
+
+
+def _is_usable_ring(coords: np.ndarray) -> bool:
+    """Return True when an open ring has the 3 distinct points WKT needs.
+
+    Parameters
+    ----------
+    coords
+        Ring coordinates with the closing duplicate already removed.
+
+    Returns
+    -------
+    bool
+        True when the ring encloses an area and survives a read back.
+    """
+    seen: set[tuple[float, float, float]] = set()
+    for point in coords:
+        seen.add((float(point[0]), float(point[1]), float(point[2])))
+        if len(seen) >= 3:
+            return True
+    return False
+
+
 def _fmt_ring(coords: np.ndarray, *, with_z: bool) -> str:
-    """Format a polygon ring, closing it if it is not already closed."""
-    if len(coords) > 1 and np.array_equal(coords[0], coords[-1]):
-        coords = coords[:-1]
+    """Format an open polygon ring, appending its closing point."""
     closed = np.vstack([coords, coords[:1]])
     return f"({_fmt_coords(closed, with_z=with_z)})"
 
@@ -553,6 +679,47 @@ def _element_coords(poly: PolyData, index: int) -> np.ndarray:
     start = int(poly.offsets[index])
     end = int(poly.offsets[index + 1])
     return poly.vertices[poly.connectivity[start:end]]
+
+
+def _mesh_has_z(poly: PolyData) -> bool:
+    """Return True when any referenced vertex carries a non-zero z.
+
+    The whole mesh shares one dimensionality so that a single file does
+    not mix ``POINT`` and ``POINT Z`` geometries.
+
+    Parameters
+    ----------
+    poly
+        PolyData about to be written.
+
+    Returns
+    -------
+    bool
+        True when the file must be written with Z coordinates.
+    """
+    if not len(poly.vertices):
+        return False
+    z = (
+        poly.vertices[poly.connectivity, 2]
+        if len(poly.connectivity)
+        else poly.vertices[:, 2]
+    )
+    finite = z[np.isfinite(z)]
+    return bool(np.any(finite != 0.0))
+
+
+def _as_int_attr(values: np.ndarray, *, name: str) -> np.ndarray | None:
+    """Return an integer view of a ring attribute, or None if unusable."""
+    arr = np.asarray(values)
+    if np.issubdtype(arr.dtype, np.integer):
+        return arr
+    if np.issubdtype(arr.dtype, np.floating) and bool(np.isfinite(arr).all()):
+        return arr.astype(np.int64)
+    warnings.warn(
+        f".wkt write: '{name}' is not an integer attribute; polygon holes ignored.",
+        stacklevel=4,
+    )
+    return None
 
 
 def _ring_attrs(poly: PolyData, n_elems: int) -> tuple[np.ndarray, np.ndarray] | None:
@@ -569,42 +736,82 @@ def _ring_attrs(poly: PolyData, n_elems: int) -> tuple[np.ndarray, np.ndarray] |
             stacklevel=3,
         )
         return None
-    return np.asarray(polygon_ids), np.asarray(ring_indices)
+    ids = _as_int_attr(polygon_ids, name=POLYGON_ID_ATTR)
+    rings = _as_int_attr(ring_indices, name=RING_INDEX_ATTR)
+    if ids is None or rings is None:
+        return None
+    return ids, rings
 
 
-def _polygon_run_end(
-    polygon_ids: np.ndarray, ring_indices: np.ndarray, start: int, n_elems: int
-) -> int:
-    """Return the exclusive end of the ring run belonging to one polygon.
+def _polygon_groups(
+    poly: PolyData,
+    ring_attrs: tuple[np.ndarray, np.ndarray],
+    n_elems: int,
+) -> tuple[dict[int, list[int]], dict[int, int]]:
+    """Group polygon rings that belong to the same WKT geometry.
 
-    The run stops at the next exterior ring (``wkt_ring == 0``) so that
-    two polygons that ended up with the same identifier - as happens when
-    two meshes are merged - are not welded into a single geometry.
+    Rings are grouped by ``wkt_polygon_id`` regardless of their position,
+    so a hole stays attached to its exterior ring after the elements have
+    been filtered or reordered.  Within one identifier, every exterior
+    ring (``wkt_ring == 0``) opens a new group, which keeps merged meshes
+    that reuse the same identifiers from being welded into one geometry;
+    holes seen before any exterior ring join the first group of their
+    identifier, or form a group of their own when that identifier has no
+    exterior ring left.
 
     Parameters
     ----------
-    polygon_ids
-        Per-element polygon identifiers.
-    ring_indices
-        Per-element ring indices.
-    start
-        Index of the first ring of the polygon.
+    poly
+        PolyData about to be written.
+    ring_attrs
+        The polygon-id and ring-index attribute arrays.
     n_elems
         Total element count.
 
     Returns
     -------
-    int
-        Exclusive end index of the run.
+    tuple of (dict, dict)
+        Mapping from anchor element index to its member element indices
+        (exterior ring first), and mapping from element index to the
+        anchor of the group it belongs to.
     """
-    end = start + 1
-    while (
-        end < n_elems
-        and polygon_ids[end] == polygon_ids[start]
-        and ring_indices[end] != 0
-    ):
-        end += 1
-    return end
+    polygon_ids, ring_indices = ring_attrs
+
+    members_of: dict[int, list[int]] = {}
+    for i in range(n_elems):
+        name = ELEMENT_TYPES_INV.get(int(poly.element_types[i]), "")
+        if _POLYXIOS_TO_WKT.get(name) != "POLYGON":
+            continue
+        polygon_id = int(polygon_ids[i])
+        if polygon_id >= 0:
+            members_of.setdefault(polygon_id, []).append(i)
+
+    raw_groups: list[list[int]] = []
+    for members in members_of.values():
+        current: list[int] | None = None
+        pending: list[int] = []
+        for i in members:
+            if int(ring_indices[i]) == 0:
+                current = [i, *pending]
+                pending = []
+                raw_groups.append(current)
+            elif current is None:
+                pending.append(i)
+            else:
+                current.append(i)
+        if pending:
+            raw_groups.append(pending)
+
+    groups: dict[int, list[int]] = {}
+    anchor_of: dict[int, int] = {}
+    for group in raw_groups:
+        group.sort(key=lambda k: (int(ring_indices[k]), k))
+        anchor = min(group)
+        groups[anchor] = group
+        for i in group:
+            anchor_of[i] = anchor
+
+    return groups, anchor_of
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -613,8 +820,9 @@ def _polygon_run_end(
 def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     """Parse a WKT file and return a PolyData.
 
-    The file may contain one geometry per line, or a single multi-line
-    geometry.  Blank lines and lines starting with ``#`` are ignored.
+    The file may contain one geometry per line, a single multi-line
+    geometry, or comma-separated geometries.  Blank lines and lines
+    starting with ``#`` are ignored.
 
     Parameters
     ----------
@@ -638,18 +846,10 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     if lazy:
         raise LazyReadError("WKT format does not support lazy reads (ASCII only).")
 
-    text = Path(path).read_text(encoding="utf-8-sig")
-    # Strip comment lines
-    lines = [
-        ln for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")
-    ]
-    joined = " ".join(lines)
-
-    tokens = _tokenize(joined)
-    if not tokens:
-        return _empty_polydata()
-
-    return _Parser(tokens).parse_all()
+    # errors="replace" keeps a non-UTF-8 file inside the codec error
+    # contract: the replacement character is rejected by the tokeniser.
+    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    return _Parser(text).parse_all()
 
 
 def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
@@ -680,37 +880,31 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     n_elems = len(poly.element_types)
 
     ring_attrs = _ring_attrs(poly, n_elems)
+    if ring_attrs is None:
+        groups: dict[int, list[int]] = {}
+        anchor_of: dict[int, int] = {}
+    else:
+        groups, anchor_of = _polygon_groups(poly, ring_attrs, n_elems)
 
-    i = 0
-    while i < n_elems:
+    has_z = _mesh_has_z(poly)
+    suffix = " Z" if has_z else ""
+
+    for i in range(n_elems):
+        if anchor_of.get(i, i) != i:
+            # Already written as an interior ring of an earlier polygon.
+            continue
+
         name = ELEMENT_TYPES_INV.get(int(poly.element_types[i]), "")
         geometry = _POLYXIOS_TO_WKT.get(name)
         if geometry is None:
             skipped_types.add(name or str(int(poly.element_types[i])))
-            i += 1
             continue
 
-        # Gather the rings of a multi-ring polygon: a contiguous run of
-        # elements sharing the same non-negative polygon id.
-        end = i + 1
-        if geometry == "POLYGON" and ring_attrs is not None:
-            polygon_ids, ring_indices = ring_attrs
-            if polygon_ids[i] >= 0:
-                end = _polygon_run_end(polygon_ids, ring_indices, i, n_elems)
-                order = sorted(range(i, end), key=lambda k: int(ring_indices[k]))
-            else:
-                order = [i]
-        else:
-            order = [i]
-
-        rings = [_element_coords(poly, k) for k in order]
+        rings = [_element_coords(poly, k) for k in groups.get(i, [i])]
         if not all(np.isfinite(r).all() for r in rings):
             skipped_nonfinite += len(rings)
-            i = end
             continue
 
-        has_z = any(bool((r[:, 2] != 0.0).any()) for r in rings)
-        suffix = " Z" if has_z else ""
         coords = rings[0]
 
         if geometry == "POINT":
@@ -725,17 +919,19 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
                 lines.append(
                     f"LINESTRING{suffix} ({_fmt_coords(coords, with_z=has_z)})"
                 )
-        elif len(rings[0]) < 3:
-            # A degenerate exterior ring drops the whole polygon: promoting a
-            # hole to exterior would silently invert the geometry.
-            skipped_degenerate += len(rings)
         else:
-            usable = [rings[0]] + [r for r in rings[1:] if len(r) >= 3]
-            skipped_degenerate += len(rings) - len(usable)
+            # Rings are measured open: a ring stored with its closing
+            # duplicate loses that point again when it is read back.
+            open_rings = [_ring_points(r) for r in rings]
+            if not _is_usable_ring(open_rings[0]):
+                # A degenerate exterior ring drops the whole polygon: promoting
+                # a hole to exterior would silently invert the geometry.
+                skipped_degenerate += len(open_rings)
+                continue
+            usable = [open_rings[0]] + [r for r in open_rings[1:] if _is_usable_ring(r)]
+            skipped_degenerate += len(open_rings) - len(usable)
             body = ", ".join(_fmt_ring(r, with_z=has_z) for r in usable)
             lines.append(f"POLYGON{suffix} ({body})")
-
-        i = end
 
     if skipped_types:
         warnings.warn(
