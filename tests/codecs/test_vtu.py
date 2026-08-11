@@ -8,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._vtu import read, write
 from polyxios.exceptions import LazyReadError
+from polyxios.fetcher import fetch
 
 
 def _tet_mesh() -> object:
@@ -79,6 +80,7 @@ def test_element_attrs() -> None:
     np.testing.assert_allclose(poly2.element_attrs["stress"], stress, atol=1e-6)
 
 
+@pytest.mark.network
 @pytest.mark.parametrize(
     "filename,expected_verts,expected_cells",
     [
@@ -90,8 +92,6 @@ def test_element_attrs() -> None:
     ],
 )
 def test_real_files(filename: str, expected_verts: int, expected_cells: int) -> None:
-    from polyxios.fetcher import fetch
-
     path = fetch(filename)
     poly = read(path)
     assert len(poly.vertices) == expected_verts

@@ -8,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._ply import read, write
 from polyxios.exceptions import LazyReadError
+from polyxios.fetcher import fetch
 
 
 def _synthetic_mesh() -> object:
@@ -151,10 +152,9 @@ def test_3dgs_ascii_chunk_raises() -> None:
         read(tmp)
 
 
+@pytest.mark.network
 def test_3dgs_compressed_ply_positions() -> None:
     """Compressed 3DGS PLY returns real world coordinates, not zeros."""
-    from polyxios.fetcher import fetch
-
     path = fetch("gs_Halo_Believe.cleaned.compressed.ply")
     poly = read(path)
     assert len(poly.vertices) == 345217
@@ -169,10 +169,9 @@ def test_3dgs_compressed_ply_positions() -> None:
     assert "opacity" in poly.vertex_attrs
 
 
+@pytest.mark.network
 def test_real_armadillo() -> None:
     """Armadillo.ply: binary big-endian with face scalar before vertex list."""
-    from polyxios.fetcher import fetch
-
     path = fetch("Armadillo.ply")
     poly = read(path)
     assert len(poly.vertices) == 172974
