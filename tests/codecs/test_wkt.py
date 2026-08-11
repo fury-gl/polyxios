@@ -7,8 +7,17 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
-from polyxios.codecs._wkt import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.codecs._wkt import POLYGON_ID_ATTR, RING_INDEX_ATTR, read, write
+from polyxios.exceptions import CodecError, LazyReadError
+
+
+def _rings_of(poly, polygon_id: int) -> list[int]:
+    """Return the element indices of one WKT polygon, exterior ring first."""
+    ids = poly.element_attrs[POLYGON_ID_ATTR]
+    rings = poly.element_attrs[RING_INDEX_ATTR]
+    members = [i for i in range(len(ids)) if ids[i] == polygon_id]
+    return sorted(members, key=lambda i: int(rings[i]))
+
 
 # ── Inline WKT test data ─────────────────────────────────────────────────────
 
@@ -206,7 +215,9 @@ def test_polygon_with_hole(tmp_path: Path) -> None:
     poly = read(tmp)
     # 1 exterior + 1 hole = 2 polygon elements
     assert sum(1 for t in poly.element_types if t == ELEMENT_TYPES["polygon"]) == 2
-    assert "hole_of_0_0" in poly.element_tags
+    assert list(poly.element_attrs[POLYGON_ID_ATTR]) == [0, 0]
+    assert list(poly.element_attrs[RING_INDEX_ATTR]) == [0, 1]
+    assert _rings_of(poly, 0) == [0, 1]
 
 
 def test_geometrycollection(tmp_path: Path) -> None:
@@ -277,13 +288,17 @@ def test_write_hole_roundtrip(tmp_path: Path) -> None:
             ("polygon", np.array([[0, 1, 2, 3]])),
             ("polygon", np.array([[4, 5, 6]])),
         ],
-        element_tags={"hole_of_0_0": np.array([1], dtype=np.int32)},
+        element_attrs={
+            POLYGON_ID_ATTR: np.array([0, 0], dtype=np.int32),
+            RING_INDEX_ATTR: np.array([0, 1], dtype=np.int32),
+        },
     )
     tmp = tmp_path / "hole_rt.wkt"
     write(poly, tmp)
+    assert tmp.read_text().count("POLYGON") == 1
     poly2 = read(tmp)
-    assert "hole_of_0_0" in poly2.element_tags
     assert sum(1 for t in poly2.element_types if t == ELEMENT_TYPES["polygon"]) == 2
+    assert _rings_of(poly2, 0) == [0, 1]
 
 
 def test_registry_auto_discovery() -> None:
@@ -346,12 +361,12 @@ def test_wkt_polygon_hole(tmp_path: Path) -> None:
     # 1 exterior polygon + 1 hole polygon = 2 elements
     polygon_count = sum(1 for t in poly.element_types if t == ELEMENT_TYPES["polygon"])
     assert polygon_count == 2
-    assert "hole_of_0_0" in poly.element_tags
     # Exterior: (35 10, 10 20, 15 40, 45 45) → 4 unique pts
     ext_n = poly.offsets[1] - poly.offsets[0]
     assert ext_n == 4
     # Hole: (20 30, 35 35, 30 20) → 3 unique pts
-    hole_ei = int(poly.element_tags["hole_of_0_0"][0])
+    ext_ei, hole_ei = _rings_of(poly, 0)
+    assert ext_ei == 0
     hole_n = poly.offsets[hole_ei + 1] - poly.offsets[hole_ei]
     assert hole_n == 3
 
@@ -400,7 +415,8 @@ def test_wkt_multipolygon_hole(tmp_path: Path) -> None:
     # 1st polygon (3 pts) + 2nd polygon exterior (5 pts) + 2nd hole (3 pts) = 3 elements
     polygon_count = sum(1 for t in poly.element_types if t == ELEMENT_TYPES["polygon"])
     assert polygon_count == 3
-    assert "hole_of_1_0" in poly.element_tags
+    assert list(poly.element_attrs[POLYGON_ID_ATTR]) == [0, 1, 1]
+    assert list(poly.element_attrs[RING_INDEX_ATTR]) == [0, 0, 1]
     # First polygon: (40 40, 20 45, 45 30) → 3 pts
     assert poly.offsets[1] - poly.offsets[0] == 3
     # Second polygon exterior: (20 35, 45 20, 30 5, 10 10, 10 30) → 5 pts
@@ -431,15 +447,29 @@ def test_wkt_all_samples_roundtrip(tmp_path: Path) -> None:
         out = tmp_path / f"{name}_rt.wkt"
         write(poly, out)
         poly2 = read(out)
-        assert len(poly2.element_types) == len(poly.element_types), (
-            f"roundtrip mismatch for {name}"
+        np.testing.assert_array_equal(
+            poly2.element_types,
+            poly.element_types,
+            err_msg=f"element type mismatch for {name}",
         )
-        np.testing.assert_allclose(
-            poly2.vertices,
-            poly.vertices,
-            atol=1e-8,
-            err_msg=f"vertex mismatch for {name}",
+        np.testing.assert_array_equal(
+            poly2.offsets, poly.offsets, err_msg=f"offsets mismatch for {name}"
         )
+        np.testing.assert_array_equal(
+            poly2.connectivity,
+            poly.connectivity,
+            err_msg=f"connectivity mismatch for {name}",
+        )
+        np.testing.assert_array_equal(
+            poly2.vertices, poly.vertices, err_msg=f"vertex mismatch for {name}"
+        )
+        for attr in (POLYGON_ID_ATTR, RING_INDEX_ATTR):
+            if attr in poly.element_attrs:
+                np.testing.assert_array_equal(
+                    poly2.element_attrs[attr],
+                    poly.element_attrs[attr],
+                    err_msg=f"{attr} mismatch for {name}",
+                )
 
 
 def test_wkt_all_samples_via_top_level(tmp_path: Path) -> None:
@@ -450,3 +480,275 @@ def test_wkt_all_samples_via_top_level(tmp_path: Path) -> None:
         src = _write_wkt(tmp_path, name, content)
         poly = polyxios.read(str(src))
         assert len(poly.element_types) > 0, f"empty result for {name}"
+
+
+# ── Malformed input ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "POINT (1 2",  # truncated
+        "POINT ()",  # no coordinates
+        "POINT (1 2))",  # unbalanced
+        "POINT (1)",  # missing y
+        "POINT (nan 2)",  # not a number
+        "POINT (1; 2)",  # stray character
+        "POINT (1 2) $$$",  # trailing junk
+        "SRID=4326;POINT (1 2)",  # EWKT prefix
+        "CIRCULARSTRING (1 1, 2 2, 3 1)",  # unsupported type
+        "LINESTRING (0 0)",  # too few points
+        "POLYGON ((0 0, 1 1, 0 0))",  # degenerate ring
+        "POLYGON ((0 0, 1 0, 1 1, 0 0), (2 2, 3 3, 2 2))",  # degenerate hole
+    ],
+)
+def test_malformed_raises_codec_error(tmp_path: Path, content: str) -> None:
+    """Malformed WKT must raise CodecError, never a bare Python exception."""
+    tmp = _write_wkt(tmp_path, "bad", content)
+    with pytest.raises(CodecError):
+        read(tmp)
+
+
+# ── Dimension suffixes ───────────────────────────────────────────────────────
+
+
+def test_measure_is_not_read_as_z(tmp_path: Path) -> None:
+    """POINT M carries a measure, not a z value."""
+    tmp = _write_wkt(tmp_path, "m", "POINT M (1 2 5)\n")
+    with pytest.warns(UserWarning, match="measure"):
+        poly = read(tmp)
+    pt_idx = poly.connectivity[poly.offsets[0] : poly.offsets[1]]
+    np.testing.assert_allclose(poly.vertices[pt_idx[0]], [1, 2, 0])
+
+
+def test_zm_suffix(tmp_path: Path) -> None:
+    """POINT ZM keeps z and drops the measure."""
+    tmp = _write_wkt(tmp_path, "zm", "POINT ZM (1 2 3 4)\n")
+    with pytest.warns(UserWarning, match="measure"):
+        poly = read(tmp)
+    pt_idx = poly.connectivity[poly.offsets[0] : poly.offsets[1]]
+    np.testing.assert_allclose(poly.vertices[pt_idx[0]], [1, 2, 3])
+
+
+def test_undeclared_fourth_value_is_a_measure(tmp_path: Path) -> None:
+    """Four values without a suffix mean XYZM."""
+    tmp = _write_wkt(tmp_path, "xyzm", "POINT (1 2 3 4)\n")
+    with pytest.warns(UserWarning, match="measure"):
+        poly = read(tmp)
+    pt_idx = poly.connectivity[poly.offsets[0] : poly.offsets[1]]
+    np.testing.assert_allclose(poly.vertices[pt_idx[0]], [1, 2, 3])
+
+
+def test_glued_dimension_suffix(tmp_path: Path) -> None:
+    """The glued POINTZ spelling is accepted."""
+    tmp = _write_wkt(tmp_path, "glued", "POINTZ (1 2 3)\n")
+    poly = read(tmp)
+    pt_idx = poly.connectivity[poly.offsets[0] : poly.offsets[1]]
+    np.testing.assert_allclose(poly.vertices[pt_idx[0]], [1, 2, 3])
+
+
+def test_collection_propagates_suffix(tmp_path: Path) -> None:
+    """A collection's Z suffix applies to its members."""
+    tmp = _write_wkt(
+        tmp_path,
+        "gc_z",
+        "GEOMETRYCOLLECTION Z (POINT (1 2 3), LINESTRING (0 0 1, 1 1 2))\n",
+    )
+    poly = read(tmp)
+    assert len(poly.element_types) == 2
+    assert poly.vertices[:, 2].tolist() == [3.0, 1.0, 2.0]
+
+
+def test_deep_nesting_is_rejected(tmp_path: Path) -> None:
+    """Deeply nested collections raise CodecError, not RecursionError."""
+    depth = 5000
+    tmp = _write_wkt(
+        tmp_path,
+        "deep",
+        "GEOMETRYCOLLECTION (" * depth + "POINT (1 2)" + ")" * depth,
+    )
+    with pytest.raises(CodecError, match="nesting"):
+        read(tmp)
+
+
+def test_utf8_bom(tmp_path: Path) -> None:
+    """A UTF-8 BOM does not break parsing."""
+    tmp = tmp_path / "bom.wkt"
+    tmp.write_text("POINT (1 2)\n", encoding="utf-8-sig")
+    poly = read(tmp)
+    assert len(poly.element_types) == 1
+
+
+# ── Nested EMPTY geometries ──────────────────────────────────────────────────
+
+
+def test_empty_members(tmp_path: Path) -> None:
+    """EMPTY members inside multi-geometries are skipped, not parsed."""
+    tmp = _write_wkt(
+        tmp_path,
+        "empties",
+        "GEOMETRYCOLLECTION (MULTIPOINT (EMPTY, (1 2)), "
+        "MULTILINESTRING (EMPTY, (0 0, 1 1)), "
+        "MULTIPOLYGON (EMPTY, ((0 0, 1 0, 1 1, 0 0))))\n",
+    )
+    poly = read(tmp)
+    types = [int(t) for t in poly.element_types]
+    assert types == [
+        ELEMENT_TYPES["vertex"],
+        ELEMENT_TYPES["poly_line"],
+        ELEMENT_TYPES["polygon"],
+    ]
+
+
+# ── Write-side behaviour ─────────────────────────────────────────────────────
+
+
+def test_write_empty_polydata(tmp_path: Path) -> None:
+    """Writing an empty mesh produces an empty file, not a blank line."""
+    poly = make_polydata(np.zeros((0, 3), dtype=np.float64), [])
+    tmp = tmp_path / "empty.wkt"
+    write(poly, tmp)
+    assert tmp.read_text() == ""
+    assert len(read(tmp).element_types) == 0
+
+
+def test_write_precision_is_exact(tmp_path: Path) -> None:
+    """Coordinates round-trip bit-for-bit."""
+    verts = np.array([[0.1234567890123456, 1e-17, 12345678.87654321]])
+    poly = make_polydata(verts, [("vertex", np.array([[0]]))])
+    tmp = tmp_path / "prec.wkt"
+    write(poly, tmp)
+    np.testing.assert_array_equal(read(tmp).vertices, verts)
+
+
+def test_write_unsupported_type_warns_once(tmp_path: Path) -> None:
+    """Unsupported element types produce a single aggregated warning."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts, [("tetra", np.array([[0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3]]))]
+    )
+    tmp = tmp_path / "tetra.wkt"
+    with pytest.warns(UserWarning, match="not representable") as record:
+        write(poly, tmp)
+    assert len(record) == 1
+    assert tmp.read_text() == ""
+
+
+def test_write_orphan_hole_is_kept(tmp_path: Path) -> None:
+    """A hole whose exterior ring is gone is still written out."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("polygon", np.array([[0, 1, 2]]))],
+        element_attrs={
+            POLYGON_ID_ATTR: np.array([3], dtype=np.int32),
+            RING_INDEX_ATTR: np.array([1], dtype=np.int32),
+        },
+    )
+    tmp = tmp_path / "orphan.wkt"
+    write(poly, tmp)
+    assert tmp.read_text().count("POLYGON") == 1
+    assert len(read(tmp).element_types) == 1
+
+
+def test_write_ignores_mismatched_ring_attrs(tmp_path: Path) -> None:
+    """Ring attributes of the wrong length are ignored with a warning."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("polygon", np.array([[0, 1, 2], [1, 2, 3]]))],
+        element_attrs={
+            POLYGON_ID_ATTR: np.array([0], dtype=np.int32),
+            RING_INDEX_ATTR: np.array([0], dtype=np.int32),
+        },
+    )
+    tmp = tmp_path / "mismatch.wkt"
+    with pytest.warns(UserWarning, match="element count"):
+        write(poly, tmp)
+    assert tmp.read_text().count("POLYGON") == 2
+
+
+def test_write_skips_non_finite(tmp_path: Path) -> None:
+    """Non-finite coordinates cannot be expressed in WKT and are skipped."""
+    verts = np.array([[0, 0, 0], [np.nan, 1, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("vertex", np.array([[0], [1]]))])
+    tmp = tmp_path / "nan.wkt"
+    with pytest.warns(UserWarning, match="non-finite"):
+        write(poly, tmp)
+    assert tmp.read_text().strip() == "POINT (0.0 0.0)"
+
+
+def test_write_closes_already_closed_ring(tmp_path: Path) -> None:
+    """A ring stored with its closing duplicate is not closed twice."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 0, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("polygon", np.array([[0, 1, 2, 3]]))])
+    tmp = tmp_path / "closed.wkt"
+    write(poly, tmp)
+    assert tmp.read_text().count(",") == 3
+    poly2 = read(tmp)
+    assert poly2.offsets[1] - poly2.offsets[0] == 3
+
+
+def test_write_degenerate_exterior_drops_polygon(tmp_path: Path) -> None:
+    """A hole is never promoted to exterior when the exterior is degenerate."""
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [5, 5, 0], [6, 5, 0], [6, 6, 0]], dtype=np.float64
+    )
+    poly = make_polydata(
+        verts,
+        [
+            ("polygon", np.array([[0, 1]])),
+            ("polygon", np.array([[2, 3, 4]])),
+        ],
+        element_attrs={
+            POLYGON_ID_ATTR: np.array([0, 0], dtype=np.int32),
+            RING_INDEX_ATTR: np.array([0, 1], dtype=np.int32),
+        },
+    )
+    tmp = tmp_path / "degenerate.wkt"
+    with pytest.warns(UserWarning, match="too few points"):
+        write(poly, tmp)
+    assert tmp.read_text() == ""
+
+
+def test_merged_polygons_are_not_welded(tmp_path: Path) -> None:
+    """Two merged meshes reusing polygon id 0 stay two polygons."""
+    from polyxios.transforms import merge
+
+    src = _write_wkt(
+        tmp_path,
+        "hole_only",
+        "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (1 1, 2 1, 2 2, 1 1))\n",
+    )
+    poly = read(src)
+    merged = merge(poly, poly)
+    assert list(merged.element_attrs[POLYGON_ID_ATTR]) == [0, 0, 0, 0]
+
+    out = tmp_path / "merged.wkt"
+    write(merged, out)
+    assert out.read_text().count("POLYGON") == 2
+    poly2 = read(out)
+    assert list(poly2.element_attrs[RING_INDEX_ATTR]) == [0, 1, 0, 1]
+    assert list(poly2.element_attrs[POLYGON_ID_ATTR]) == [0, 0, 1, 1]
+
+
+def test_holes_survive_element_filtering(tmp_path: Path) -> None:
+    """Ring attributes keep holes linked after a transform reorders elements."""
+    from polyxios.transforms import filter_element_type
+
+    tmp = _write_wkt(
+        tmp_path,
+        "mixed",
+        "POINT (9 9)\nPOLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (1 1, 2 1, 2 2, 1 1))\n",
+    )
+    poly = read(tmp)
+    filtered = filter_element_type(poly, keep="polygon")
+    assert len(filtered.element_types) == 2
+    ids = filtered.element_attrs[POLYGON_ID_ATTR]
+    rings = filtered.element_attrs[RING_INDEX_ATTR]
+    assert list(ids) == [0, 0]
+    assert list(rings) == [0, 1]
+
+    out = tmp_path / "filtered.wkt"
+    write(filtered, out)
+    assert out.read_text().count("POLYGON") == 1
