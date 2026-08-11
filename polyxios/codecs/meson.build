@@ -25,6 +25,7 @@ py.install_sources(
     '_vtr.py',
     '_vts.py',
     '_vtu.py',
+    '_wkt.py',
   ],
   subdir: 'polyxios/codecs',
 )
