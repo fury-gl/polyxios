@@ -495,7 +495,7 @@ def test_wkt_all_samples_via_top_level(tmp_path: Path) -> None:
         "POINT (nan 2)",  # not a number
         "POINT (1; 2)",  # stray character
         "POINT (1 2) $$$",  # trailing junk
-        "SRID=4326;POINT (1 2)",  # EWKT prefix
+        "SRID=;POINT (1 2)",  # EWKT prefix without an SRID value
         "CIRCULARSTRING (1 1, 2 2, 3 1)",  # unsupported type
         "LINESTRING (0 0)",  # too few points
         "POLYGON ((0 0, 1 1, 0 0))",  # degenerate ring
@@ -752,3 +752,182 @@ def test_holes_survive_element_filtering(tmp_path: Path) -> None:
     out = tmp_path / "filtered.wkt"
     write(filtered, out)
     assert out.read_text().count("POLYGON") == 1
+
+
+def _reorder(poly, order: list[int]):
+    """Return a copy of poly with its elements in the given order."""
+    from polyxios._types import PolyData
+
+    conn: list[int] = []
+    offsets = [0]
+    for k in order:
+        start, end = int(poly.offsets[k]), int(poly.offsets[k + 1])
+        conn.extend(int(c) for c in poly.connectivity[start:end])
+        offsets.append(offsets[-1] + (end - start))
+    return PolyData(
+        vertices=poly.vertices,
+        connectivity=np.array(conn, dtype=np.int32),
+        offsets=np.array(offsets, dtype=np.int32),
+        element_types=np.array([poly.element_types[k] for k in order], dtype=np.uint8),
+        element_attrs={
+            key: np.asarray(values)[order] for key, values in poly.element_attrs.items()
+        },
+    )
+
+
+def test_reordered_rings_stay_linked(tmp_path: Path) -> None:
+    """A hole separated from its exterior ring is still written as a hole."""
+    tmp = _write_wkt(
+        tmp_path,
+        "mixed",
+        "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (1 1, 2 1, 2 2, 1 1))\nPOINT (9 9)\n",
+    )
+    poly = read(tmp)
+    # exterior, point, hole - the rings are no longer adjacent
+    shuffled = _reorder(poly, [0, 2, 1])
+
+    out = tmp_path / "reordered.wkt"
+    write(shuffled, out)
+    assert out.read_text().count("POLYGON") == 1
+
+    poly2 = read(out)
+    assert list(poly2.element_attrs[POLYGON_ID_ATTR]) == [0, 0, -1]
+    assert list(poly2.element_attrs[RING_INDEX_ATTR]) == [0, 1, -1]
+
+
+def test_holes_survive_a_reversed_mesh(tmp_path: Path) -> None:
+    """Reversing the element order keeps every polygon whole."""
+    tmp = _write_wkt(
+        tmp_path,
+        "two",
+        "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (1 1, 2 1, 2 2, 1 1))\n"
+        "POLYGON ((20 0, 30 0, 30 10, 20 10, 20 0), (21 1, 22 1, 22 2, 21 1))\n",
+    )
+    poly = read(tmp)
+    reversed_mesh = _reorder(poly, [3, 2, 1, 0])
+
+    out = tmp_path / "reversed.wkt"
+    write(reversed_mesh, out)
+    assert out.read_text().count("POLYGON") == 2
+    poly2 = read(out)
+    assert list(poly2.element_attrs[RING_INDEX_ATTR]) == [0, 1, 0, 1]
+
+
+def test_non_utf8_file_raises_codec_error(tmp_path: Path) -> None:
+    """A non-UTF-8 file must not leak UnicodeDecodeError."""
+    tmp = tmp_path / "latin1.wkt"
+    tmp.write_bytes(b"POINT (1 2)\nPOINT (3 \xff)\n")
+    with pytest.raises(CodecError):
+        read(tmp)
+
+
+def test_error_message_reports_the_line(tmp_path: Path) -> None:
+    """Parse errors name the offending source line."""
+    tmp = _write_wkt(tmp_path, "bad_line", "POINT (1 2)\nPOINT (3 4)\nPOINT (5 $)\n")
+    with pytest.raises(CodecError, match=r"\.wkt:3:"):
+        read(tmp)
+
+
+def test_error_message_reports_the_line_for_syntax(tmp_path: Path) -> None:
+    """A structural error also carries its line number."""
+    tmp = _write_wkt(tmp_path, "bad_syntax", "POINT (1 2)\nLINESTRING (0 0\n")
+    with pytest.raises(CodecError, match=r"\.wkt:2:"):
+        read(tmp)
+
+
+def test_comma_separated_geometries(tmp_path: Path) -> None:
+    """Top-level geometries may be comma separated, as CSV exports emit."""
+    tmp = _write_wkt(tmp_path, "csv", "POINT (1 2), POINT (3 4), LINESTRING (0 0, 1 1)")
+    poly = read(tmp)
+    assert len(poly.element_types) == 3
+    assert poly.element_types[2] == ELEMENT_TYPES["poly_line"]
+
+
+def test_ewkt_srid_prefix_is_accepted(tmp_path: Path) -> None:
+    """An EWKT SRID prefix is dropped, not rejected."""
+    tmp = _write_wkt(
+        tmp_path, "ewkt", "SRID=4326;POINT (1 2)\nSRID=4326;LINESTRING (0 0, 1 1)\n"
+    )
+    poly = read(tmp)
+    assert len(poly.element_types) == 2
+    pt_idx = poly.connectivity[poly.offsets[0] : poly.offsets[1]]
+    np.testing.assert_allclose(poly.vertices[pt_idx[0]], [1, 2, 0])
+
+
+def test_comment_is_only_recognized_at_line_start(tmp_path: Path) -> None:
+    """A stray # inside a geometry is an error, not a comment."""
+    tmp = _write_wkt(tmp_path, "midline", "POINT (1 2) # trailing\n")
+    with pytest.raises(CodecError):
+        read(tmp)
+
+
+def test_write_uses_one_dimensionality(tmp_path: Path) -> None:
+    """A mesh with any non-zero z is written entirely in 3D."""
+    verts = np.array([[0, 0, 0], [1, 1, 2]], dtype=np.float64)
+    poly = make_polydata(verts, [("vertex", np.array([[0], [1]]))])
+    tmp = tmp_path / "mixed_z.wkt"
+    write(poly, tmp)
+    assert tmp.read_text().splitlines() == [
+        "POINT Z (0.0 0.0 0.0)",
+        "POINT Z (1.0 1.0 2.0)",
+    ]
+    np.testing.assert_allclose(read(tmp).vertices, verts)
+
+
+def test_write_ignores_non_integer_ring_attrs(tmp_path: Path) -> None:
+    """Ring attributes that cannot be integers are ignored with a warning."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("polygon", np.array([[0, 1, 2], [1, 2, 3]]))],
+        element_attrs={
+            POLYGON_ID_ATTR: np.array([0.0, np.nan]),
+            RING_INDEX_ATTR: np.array([0.0, 1.0]),
+        },
+    )
+    tmp = tmp_path / "float_attrs.wkt"
+    with pytest.warns(UserWarning, match="not an integer attribute"):
+        write(poly, tmp)
+    assert tmp.read_text().count("POLYGON") == 2
+
+
+def test_collapsed_ring_is_rejected(tmp_path: Path) -> None:
+    """A ring collapsed onto fewer than 3 distinct points is not a polygon."""
+    tmp = _write_wkt(tmp_path, "collapsed", "POLYGON ((0 0, 0 0, 0 0, 0 0))\n")
+    with pytest.raises(CodecError, match="distinct"):
+        read(tmp)
+
+
+def test_write_drops_collapsed_ring(tmp_path: Path) -> None:
+    """A zero-area ring is skipped instead of being written back unreadable."""
+    verts = np.array([[0, 0, 0], [1, 1, 1]], dtype=np.float64)
+    poly = make_polydata(verts, [("polygon", np.array([[0, 0, 0, 0]]))])
+    tmp = tmp_path / "collapsed.wkt"
+    with pytest.warns(UserWarning, match="too few points"):
+        write(poly, tmp)
+    assert tmp.read_text() == ""
+
+
+def test_repeated_closing_point_is_stripped(tmp_path: Path) -> None:
+    """A ring whose closing point is repeated keeps its open form."""
+    tmp = _write_wkt(tmp_path, "closed_twice", "POLYGON ((0 0, 1 0, 1 1, 0 0, 0 0))\n")
+    poly = read(tmp)
+    assert poly.offsets[1] - poly.offsets[0] == 3
+
+
+def test_write_read_is_idempotent(tmp_path: Path) -> None:
+    """A second write → read cycle must not keep shaving ring points."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 0, 0]], dtype=np.float64)
+    # The element stores the ring already closed, twice over.
+    poly = make_polydata(verts, [("polygon", np.array([[0, 1, 2, 3, 0]]))])
+    first = tmp_path / "gen1.wkt"
+    write(poly, first)
+    poly2 = read(first)
+    second = tmp_path / "gen2.wkt"
+    write(poly2, second)
+    poly3 = read(second)
+
+    assert first.read_text() == second.read_text()
+    np.testing.assert_array_equal(poly2.offsets, poly3.offsets)
+    np.testing.assert_array_equal(poly2.connectivity, poly3.connectivity)
+    np.testing.assert_array_equal(poly2.vertices, poly3.vertices)
