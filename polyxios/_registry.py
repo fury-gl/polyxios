@@ -99,7 +99,8 @@ def resolve(
     path
         File path (used to infer extension if fmt is None).
     fmt
-        Explicit format override (e.g. '.vtk').
+        Explicit format override (e.g. '.vtk'). The leading dot and the case
+        are both optional, so 'vtk' and 'VTK' resolve the same way.
     registry
         Codec registry to search.
 
@@ -113,7 +114,11 @@ def resolve(
     UnsupportedFormatError
         If no codec is registered for the resolved extension.
     """
-    ext = fmt.lower() if fmt is not None else Path(path).suffix.lower()
+    if fmt is None:
+        ext = Path(path).suffix.lower()
+    else:
+        ext = fmt.strip().lower()
+        ext = ext if ext.startswith(".") else f".{ext}"
     if ext not in registry:
         raise UnsupportedFormatError(f"No codec for '{ext}'")
     return registry[ext]
