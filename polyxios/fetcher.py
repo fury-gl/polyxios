@@ -37,6 +37,10 @@ _CATALOG_TTL = 86400
 
 _EXT_TO_PACKAGE: dict[str, str] = {
     "inp": "abaqus",
+    # A Nastran bulk data deck answers to several extensions; they name one
+    # format, so `--codecs` must group them under one package.
+    "bdf": "nastran",
+    "nas": "nastran",
     "fem": "nastran",
     "vol": "netgen",
     "f3grid": "flac3d",

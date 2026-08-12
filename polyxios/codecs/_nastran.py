@@ -3,6 +3,10 @@
 Reads free-field (comma separated), small-field (8-column) and large-field
 (16-column) bulk data cards, including continuation lines. Writes free-field
 cards.
+
+Registered for ``.bdf``, ``.nas`` and ``.fem``. A deck named ``.dat`` reads
+through ``read(path, fmt=".bdf")``; see ``EXTENSIONS`` for why that one is
+not claimed outright.
 """
 
 import bisect
@@ -20,6 +24,14 @@ from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".bdf"
+
+# A bulk data deck ships under several names: '.bdf' is the canonical one,
+# '.nas' is the Nastran input spelling and '.fem' is what Altair OptiStruct
+# writes. '.dat' is deliberately absent — LS-DYNA, Tecplot and plain ASCII
+# tables all claim it, so binding it here would hand every '.dat' in the
+# world to this codec and foreclose the extension for the others. Read one
+# with ``read(path, fmt=".bdf")``.
+EXTENSIONS: tuple[str, ...] = (".bdf", ".nas", ".fem")
 
 # Bulk data is ASCII, but comments and INCLUDE paths written by a
 # pre-processor need not be, and a stray byte there must not sink the read.
@@ -450,7 +462,9 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     Parameters
     ----------
     path
-        Path to the .bdf file.
+        Path to the bulk data file (``.bdf``, ``.nas`` or ``.fem``). A deck
+        named ``.dat`` needs ``polyxios.read(path, fmt=".bdf")``, that
+        extension being too widely shared to bind to one codec.
     lazy
         Ignored (ASCII format; always loads eagerly).
 
@@ -822,7 +836,8 @@ def write(
     poly
         PolyData to write.
     path
-        Output .bdf path.
+        Output path. The deck is the same whichever of ``.bdf``, ``.nas``
+        and ``.fem`` names it; ``.bdf`` is the canonical spelling.
     field_format
         ``"free"`` writes comma separated cards, ``"large"`` writes
         16-column ``GRID*`` cards. Element cards stay free field either
