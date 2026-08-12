@@ -23,8 +23,9 @@ def build_default_registry() -> dict[str, Codec]:
     A format known by several extensions may also expose
     ``EXTENSIONS : tuple[str, ...]``, and every entry is registered against
     the same Codec. ``EXTENSION`` stays the canonical spelling — the one the
-    docs quote and the one a writer should prefer — so a module declaring
-    ``EXTENSIONS`` lists it there too.
+    docs quote and the one a writer should prefer — and is registered first
+    whether or not ``EXTENSIONS`` repeats it, so a typo there cannot drop a
+    format's own extension.
 
     Also loads third-party codecs declared under the ``polyxios.codecs``
     entry-point group; those stay one extension per entry point.
@@ -65,14 +66,19 @@ def build_default_registry() -> dict[str, Codec]:
 
             # A bare string is iterable, so it would register one entry per
             # character; only a real sequence widens the registration.
-            exts = getattr(mod, "EXTENSIONS", (ext,))
+            exts = getattr(mod, "EXTENSIONS", ())
             if not isinstance(exts, (tuple, list)) or not all(
                 isinstance(e, str) for e in exts
             ):
-                exts = (ext,)
+                exts = ()
 
             codec = Codec(read_fn, write_fn)
-            for alias in exts:
+            # EXTENSION leads, so a module whose EXTENSIONS forgets its own
+            # canonical spelling still answers to it; dict.fromkeys drops the
+            # repeat the usual case produces. resolve() looks a key up in
+            # lower case, so a capitalised spelling has to be folded here or
+            # it registers a key nothing can reach.
+            for alias in dict.fromkeys(e.lower() for e in (ext, *exts)):
                 registry[alias] = codec
 
     try:
@@ -80,7 +86,10 @@ def build_default_registry() -> dict[str, Codec]:
 
         for ep in entry_points(group="polyxios.codecs"):
             ext, codec = ep.load()()
-            registry[ext] = codec
+            # Same folding as the built-in codecs: resolve() looks keys up in
+            # lower case, and a key it cannot reach is worse than none.
+            if isinstance(ext, str):
+                registry[ext.lower()] = codec
     except Exception:
         pass
 
