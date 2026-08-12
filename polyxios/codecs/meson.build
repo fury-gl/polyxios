@@ -10,6 +10,7 @@ py.install_sources(
     '_flac3d.py',
     '_gmsh.py',
     '_meshb.py',
+    '_nastran.py',
     '_splat.py',
     '_stl.py',
     '_vtk.py',

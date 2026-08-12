@@ -114,9 +114,10 @@ triangle), avoiding the extra pass over the data.
 | DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
 | Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
+| Nastran | `.bdf` `.nas` `.fem` | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request; `.dat` via `fmt=".bdf"` |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 
-**13 formats supported** - more coming via the plugin system.
+**14 formats supported** - more coming via the plugin system.
 
 ---
 
