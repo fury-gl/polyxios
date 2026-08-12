@@ -81,3 +81,31 @@ def test_a_single_extension_codec_still_registers() -> None:
     registry = build_default_registry()
     assert ".obj" in registry
     assert ".stl" in registry
+
+
+def test_extension_registers_even_when_extensions_omits_it(monkeypatch) -> None:
+    """EXTENSION leads, so a typo in EXTENSIONS cannot drop the canonical one."""
+    import polyxios.codecs._nastran as nastran
+
+    monkeypatch.setattr(nastran, "EXTENSIONS", (".nas", ".fem"), raising=True)
+    registry = build_default_registry()
+    assert registry[".bdf"] is registry[".nas"] is registry[".fem"]
+
+
+def test_a_malformed_extensions_falls_back_to_extension(monkeypatch) -> None:
+    import polyxios.codecs._nastran as nastran
+
+    monkeypatch.setattr(nastran, "EXTENSIONS", ".bdf", raising=True)
+    registry = build_default_registry()
+    assert ".bdf" in registry
+    assert "b" not in registry
+
+
+def test_a_capitalised_extension_registers_in_lower_case(monkeypatch) -> None:
+    """resolve() looks keys up folded, so an unfolded key is unreachable."""
+    import polyxios.codecs._nastran as nastran
+
+    monkeypatch.setattr(nastran, "EXTENSIONS", (".BDF", ".Nas"), raising=True)
+    registry = build_default_registry()
+    assert ".BDF" not in registry
+    assert registry[".bdf"] is registry[".nas"]

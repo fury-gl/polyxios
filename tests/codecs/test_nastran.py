@@ -597,6 +597,40 @@ def test_large_field_write_warns_when_rounding(tmp_path) -> None:
     np.testing.assert_allclose(back, verts, rtol=1e-9)
 
 
+def test_large_field_write_stays_finite_at_the_top_of_the_range(tmp_path) -> None:
+    """Trimming a coordinate to sixteen characters must not round it to inf.
+
+    The largest double shortens to '1.797693135E+308', which fits the field
+    and reads back as infinity; the next shorter form does not.
+    """
+    huge = np.finfo(np.float64).max
+    verts = np.array(
+        [[huge, -huge, 1.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]], dtype=np.float64
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+
+    tmp = tmp_path / "huge_large.bdf"
+    with pytest.warns(UserWarning, match="16-character large field"):
+        write(poly, tmp, field_format="large")
+
+    back = read(tmp).vertices
+    assert np.isfinite(back).all()
+    np.testing.assert_allclose(back, verts, rtol=1e-8)
+
+
+def test_free_field_write_keeps_the_top_of_the_range_exact(tmp_path) -> None:
+    huge = np.finfo(np.float64).max
+    verts = np.array(
+        [[huge, -huge, 1.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]], dtype=np.float64
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+
+    tmp = tmp_path / "huge_free.bdf"
+    with pytest.warns(UserWarning):
+        write(poly, tmp)
+    np.testing.assert_array_equal(read(tmp).vertices, verts)
+
+
 def test_unknown_field_format_raises(tmp_path) -> None:
     with pytest.raises(CodecError, match="unknown field_format"):
         write(_tet_mesh(), tmp_path / "bad.bdf", field_format="small")
@@ -1007,3 +1041,221 @@ def test_registry_roundtrip(tmp_path) -> None:
     poly2 = polyxios.read(str(tmp))
     np.testing.assert_allclose(poly2.vertices, poly.vertices)
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
+
+
+def test_large_field_star_padded_into_column_eight(tmp_path) -> None:
+    """The large-field star may sit anywhere in the eight column name field."""
+    tmp = _write(
+        tmp_path,
+        "BEGIN BULK\n"
+        "GRID   *1                               0.0             0.0\n"
+        "*       0.0\n"
+        "GRID   *2                               1.0             0.0\n"
+        "*       0.0\n"
+        "GRID   *3                               0.0             1.0\n"
+        "*       0.0\n"
+        "CTRIA3 *1               1               1               2\n"
+        "*       3\n"
+        "ENDDATA\n",
+    )
+    poly = read(tmp)
+    np.testing.assert_allclose(poly.vertices, [[0, 0, 0], [1, 0, 0], [0, 1, 0]], atol=0)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+
+
+def test_orphan_continuation_warns(tmp_path) -> None:
+    """A continuation with no card ahead of it is dropped, but reported."""
+    tmp = _write(
+        tmp_path,
+        "BEGIN BULK\n+,7,8\nGRID,1,,0.,0.,0.\nENDDATA\n",
+    )
+    with pytest.warns(UserWarning, match="precede any card"):
+        poly = read(tmp)
+    assert len(poly.vertices) == 1
+
+
+def test_include_path_holding_a_comma_still_warns(tmp_path) -> None:
+    """A comma in the quoted path makes the line look free field."""
+    tmp = _write(
+        tmp_path,
+        "BEGIN BULK\nINCLUDE 'part,1.bdf'\nGRID,1,,0.,0.,0.\nENDDATA\n",
+    )
+    with pytest.warns(UserWarning, match="INCLUDE"):
+        poly = read(tmp)
+    assert len(poly.vertices) == 1
+
+
+def test_aero_cards_are_not_reported_as_elements(tmp_path) -> None:
+    tmp = _write(
+        tmp_path,
+        "BEGIN BULK\nCAERO1,1,1,0,0,0,0,0\nGRID,1,,0.,0.,0.\nENDDATA\n",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert len(read(tmp).vertices) == 1
+
+
+def test_non_finite_property_ids_fall_back_without_a_numpy_warning(tmp_path) -> None:
+    """A NaN pid must warn and fall back, not raise numpy's cast warning."""
+    poly = _tri_mesh()
+    poly.element_attrs["pid"] = np.array([np.nan, np.nan])
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write(poly, tmp_path / "nan.bdf")
+    messages = [str(w.message) for w in caught]
+    assert any("not integral" in m for m in messages)
+    assert not any("invalid value encountered" in m for m in messages)
+    assert "CTRIA3,1,1," in (tmp_path / "nan.bdf").read_text()
+
+
+def test_offsets_length_mismatch_raises(tmp_path) -> None:
+    poly = _tri_mesh()
+    bad = PolyData(
+        vertices=poly.vertices,
+        connectivity=poly.connectivity,
+        offsets=poly.offsets[:-1],
+        element_types=poly.element_types,
+    )
+    with pytest.raises(CodecError, match="offsets has length"):
+        write(bad, tmp_path / "bad.bdf")
+
+
+def test_offsets_past_the_end_of_connectivity_raises(tmp_path) -> None:
+    """A truncated connectivity must not write a card short of a grid point."""
+    poly = _tri_mesh()
+    bad = PolyData(
+        vertices=poly.vertices,
+        connectivity=poly.connectivity[:-1],
+        offsets=poly.offsets,
+        element_types=poly.element_types,
+    )
+    with pytest.raises(CodecError, match="offsets end at"):
+        write(bad, tmp_path / "bad.bdf")
+
+
+@pytest.mark.parametrize("shape", [(2, 2), (6,), (2, 3, 1)])
+def test_write_rejects_vertices_that_are_not_three_wide(tmp_path, shape) -> None:
+    poly = PolyData(
+        vertices=np.zeros(shape, dtype=np.float64),
+        connectivity=np.array([], dtype=np.int32),
+        offsets=np.array([0], dtype=np.int32),
+        element_types=np.array([], dtype=np.uint8),
+    )
+    with pytest.raises(CodecError, match="expected \\(n_vertices, 3\\)"):
+        write(poly, tmp_path / "bad.bdf")
+
+
+def test_write_accepts_an_empty_vertex_array_of_any_shape(tmp_path) -> None:
+    poly = PolyData(
+        vertices=np.array([], dtype=np.float64),
+        connectivity=np.array([], dtype=np.int32),
+        offsets=np.array([0], dtype=np.int32),
+        element_types=np.array([], dtype=np.uint8),
+    )
+    tmp = tmp_path / "empty.bdf"
+    write(poly, tmp)
+    assert read(tmp).vertices.shape == (0, 3)
+
+
+def test_marker_past_column_seventy_two_leaves_field_nine_as_data(tmp_path) -> None:
+    """A card reaching the continuation field cannot hide a marker before it.
+
+    Field 9 spans columns 64 to 72, so '+9' there is grid point 9, and the
+    '+11' past column 72 is the marker.
+    """
+    grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(12))
+    card = "CHEXA   1       1       1       2       3       4       5       +9      +11"
+    tmp = _write(
+        tmp_path,
+        "BEGIN BULK\n" + grids + card + "\n+11     6       7       8\nENDDATA\n",
+    )
+    np.testing.assert_array_equal(read(tmp).connectivity, [0, 1, 2, 3, 4, 8, 5, 6])
+
+
+def test_begin_bulk_tolerates_extra_blanks(tmp_path) -> None:
+    tmp = _write(
+        tmp_path,
+        "SOL 101\nCEND\nBEGIN   BULK\nGRID,1,,1.,2.,3.\nENDDATA\n",
+    )
+    np.testing.assert_allclose(read(tmp).vertices, [[1.0, 2.0, 3.0]])
+
+
+def test_written_exponents_are_uppercase(tmp_path) -> None:
+    """Bulk data spells an exponent 'E'; Python's repr spells it 'e'."""
+    verts = np.array([[1e-7, 1e20, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    tmp = tmp_path / "exp.bdf"
+    write(poly, tmp)
+
+    text = tmp.read_text()
+    assert "1.E-07" in text
+    assert "e" not in text.partition("BEGIN BULK")[2]
+    np.testing.assert_array_equal(read(tmp).vertices, verts)
+
+
+def test_free_field_reals_keep_their_magnitude_when_truncated(tmp_path) -> None:
+    """A solver cutting a field to 8 characters must not lose the exponent.
+
+    ``1.2345678901234E-05`` truncates to ``1.234567``, five orders of
+    magnitude out; the fixed-point spelling truncates to ``0.000012``.
+    """
+    verts = np.array([[1.2345678901234e-05, 2.0**-40, 0.0], [1.0, 0.0, 0.0], [0, 1, 0]])
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    tmp = tmp_path / "mag.bdf"
+    with pytest.warns(UserWarning, match="more than 8 characters"):
+        write(poly, tmp)
+
+    fields = next(
+        line for line in tmp.read_text().splitlines() if line.startswith("GRID,1,")
+    ).split(",")[3:5]
+    for text, value in zip(fields, verts[0, :2]):
+        assert "E" not in text.upper(), text
+        assert float(text[:8]) == pytest.approx(value, rel=0.1)
+
+    np.testing.assert_array_equal(read(tmp).vertices, verts)
+
+
+def test_write_warns_when_no_free_field_spelling_survives(tmp_path) -> None:
+    """A huge exponent has no fixed-point spelling worth writing."""
+    verts = np.array([[-9.87654321e300, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    with pytest.warns(UserWarning, match="reads a different magnitude"):
+        write(poly, tmp_path / "huge.bdf")
+
+
+def test_free_field_cards_stay_within_eighty_columns(tmp_path) -> None:
+    """A bulk data record is 80 columns wide however long the reals are."""
+    verts = np.array(
+        [
+            [1.2345678901234e-08, 9.8765432109876e-09, 1.1111111111111e-08],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    tmp = tmp_path / "wide.bdf"
+    with pytest.warns(UserWarning, match="more than 8 characters"):
+        write(poly, tmp)
+
+    lines = tmp.read_text().splitlines()
+    assert all(len(line) <= 80 for line in lines)
+    assert any(line.endswith(",+") for line in lines)
+    np.testing.assert_array_equal(read(tmp).vertices, verts)
+
+
+def test_property_id_tags_cover_every_element(tmp_path) -> None:
+    """Ids come out ascending, each carrying its elements in deck order."""
+    tmp = _write(
+        tmp_path,
+        "BEGIN BULK\n"
+        "GRID,1,,0.,0.,0.\nGRID,2,,1.,0.,0.\nGRID,3,,0.,1.,0.\n"
+        "CTRIA3,1,7,1,2,3\nCTRIA3,2,3,1,2,3\nCTRIA3,3,7,1,2,3\nCTRIA3,4,3,1,2,3\n"
+        "ENDDATA\n",
+    )
+    poly = read(tmp)
+    assert list(poly.element_tags) == ["pid_3", "pid_7"]
+    np.testing.assert_array_equal(poly.element_tags["pid_3"], [1, 3])
+    np.testing.assert_array_equal(poly.element_tags["pid_7"], [0, 2])
+    assert poly.element_tags["pid_3"].dtype == np.int32
+    np.testing.assert_array_equal(poly.element_attrs["pid"], [7, 3, 7, 3])

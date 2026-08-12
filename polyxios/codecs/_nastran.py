@@ -2,7 +2,7 @@
 
 Reads free-field (comma separated), small-field (8-column) and large-field
 (16-column) bulk data cards, including continuation lines. Writes free-field
-cards.
+cards, or large-field ``GRID*`` cards on request.
 
 Registered for ``.bdf``, ``.nas`` and ``.fem``. A deck named ``.dat`` reads
 through ``read(path, fmt=".bdf")``; see ``EXTENSIONS`` for why that one is
@@ -70,6 +70,11 @@ _POLYXIOS_TO_CARD: dict[str, str] = {
 # keep the "skipped element card" warning free of false positives.
 _NON_ELEMENT_C_CARDS: frozenset[str] = frozenset(
     {
+        "CAERO1",
+        "CAERO2",
+        "CAERO3",
+        "CAERO4",
+        "CAERO5",
         "CBARAO",
         "CEND",
         "CGEN",
@@ -103,6 +108,10 @@ _FIELDS_PER_LINE: int = 9
 _PAYLOAD_END: int = 72
 _LARGE_WIDTH: int = 16
 
+# A bulk data record is read from an 80 column line whatever the field
+# format, so a free-field card carrying long reals breaks on width too.
+_LINE_LIMIT: int = 80
+
 # Nastran keeps only the first eight characters of a free-field entry, the
 # same precision a small-field card carries.
 _FREE_SIGNIFICANT: int = 8
@@ -110,6 +119,14 @@ _FREE_SIGNIFICANT: int = 8
 # Enough digits to round-trip any double, the starting point when trimming
 # a real down to a fixed field width.
 _MAX_DIGITS: int = 17
+
+# A solver truncating a free-field entry to its first eight characters only
+# rounds it when what falls off is fractional digits; cutting an exponent or
+# an integer digit moves the value by orders of magnitude instead. Below one,
+# an exact fixed-point spelling always truncates safely, so it is preferred
+# over the exponent form up to this many decimals — past that the field grows
+# unreasonable and the exponent form is kept, with a warning.
+_MAX_FIXED_DECIMALS: int = 30
 
 # Ids travel through int32 arrays, so anything wider is refused rather than
 # wrapped around silently.
@@ -208,12 +225,14 @@ def _split_card_line(line: str, *, width: int | None = None) -> tuple[list[str],
     The tenth field of a line is the continuation field by definition, so a
     free-field line is cut there whatever it holds — an unnamed marker is
     blank and a named one is often numeric (``+11``). Fixed-field markers
-    sit past column 72 on a full line, but a short card leaves its marker
-    inside the payload, where only :func:`_is_marker` tells it from data.
-    A ``+`` prefixed integer is ambiguous either way, so it is reported back
-    rather than dropped, and the next line decides. A ``+`` prefixed real
-    (``+1.5``) is not: a continuation marker names a card, and no marker
-    name carries a decimal point or an exponent, so it stays data.
+    sit past column 72, which the payload slice drops: a line reaching that
+    far has its marker there, so its last payload field is data whatever it
+    looks like. Only a line stopping short of column 72 leaves the question
+    open, and there :func:`_is_marker` tells a marker from data. A ``+``
+    prefixed integer is ambiguous either way, so it is reported back rather
+    than dropped, and the next line decides. A ``+`` prefixed real (``+1.5``)
+    is not: a continuation marker names a card, and no marker name carries a
+    decimal point or an exponent, so it stays data.
 
     Parameters
     ----------
@@ -260,6 +279,12 @@ def _split_card_line(line: str, *, width: int | None = None) -> tuple[list[str],
             line[j : j + width].strip()
             for j in range(8, min(len(line), _PAYLOAD_END), width)
         ]
+        # The card reaches into the continuation field, so whatever marker it
+        # carries sits there, past the payload the slice above kept. The last
+        # payload field is then data by position, and a '+3' spelling of an
+        # id must not be mistaken for a marker and dropped.
+        if len(line.rstrip()) > _PAYLOAD_END:
+            return fields, False
 
     if len(fields) > 1 and fields[-1][:1] in ("+", "*"):
         if _is_marker(fields[-1]):
@@ -287,6 +312,11 @@ def _bulk_cards(text: str) -> Iterator[list[str]]:
     list of str
         One field list per logical card.
 
+    Warns
+    -----
+    UserWarning
+        If a continuation line precedes any card, having nothing to continue.
+
     Raises
     ------
     CodecError
@@ -301,13 +331,16 @@ def _bulk_cards(text: str) -> Iterator[list[str]]:
 
     start = 0
     for i, line in enumerate(lines):
-        if line.strip().upper().startswith("BEGIN BULK"):
+        # The delimiter is free format, so the two words may be spaced apart
+        # by any run of blanks.
+        if " ".join(line.split()).upper().startswith("BEGIN BULK"):
             start = i + 1
             break
 
     current: list[str] | None = None
     pending = False
     width = 8
+    orphans = 0
     for line in lines[start:]:
         if line.strip().upper().startswith("ENDDATA"):
             break
@@ -316,7 +349,12 @@ def _bulk_cards(text: str) -> Iterator[list[str]]:
             line, width=width if continues else None
         )
         if continues:
-            if current is not None:
+            if current is None:
+                # A continuation with no card ahead of it has nothing to
+                # continue; its fields are dropped, so say so rather than
+                # lose them quietly.
+                orphans += 1
+            else:
                 # A numeric named marker ('+11') survives _split_card_line,
                 # since nothing in that line tells it from a signed integer
                 # field. A line continuing the card settles it — Nastran
@@ -340,6 +378,11 @@ def _bulk_cards(text: str) -> Iterator[list[str]]:
         width = 16 if fields[0].endswith("*") else 8
     if current is not None:
         yield current
+    if orphans:
+        warnings.warn(
+            f".bdf: {orphans} continuation line(s) precede any card and were dropped",
+            stacklevel=3,
+        )
 
 
 def _field(fields: list[str], index: int) -> str:
@@ -488,7 +531,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     Mid-side nodes of higher-order cards (e.g. CTETRA with 10 grid points)
     are dropped, keeping the corner nodes only. Element cards whose shape
     has no polyxios counterpart (CBAR, CROD, ...) are skipped with a
-    warning. ``INCLUDE`` statements are not followed. A blank property id
+    warning, as is a continuation line with no card ahead of it to
+    continue. ``INCLUDE`` statements are not followed. A blank property id
     reads as 1; PSHELL, PSOLID and the other property cards are not parsed,
     so the ids carry no name or material.
     """
@@ -514,7 +558,10 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
     text = Path(path).read_text(encoding=_READ_ENCODING, errors="replace")
     for fields in _bulk_cards(text):
-        card = fields[0].rstrip("*").upper()
+        # The large-field star only has to sit somewhere in the eight column
+        # name field, so 'GRID   *' names the same card as 'GRID*'. Strip the
+        # star wherever it landed, then the padding it left behind.
+        card = fields[0].replace("*", "").strip().upper()
 
         if card == "GRID":
             node_id = _to_int(_field(fields, 1), ctx="GRID id")
@@ -534,7 +581,10 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             coords.extend(xyz)
             continue
 
-        if card == "INCLUDE":
+        # A comma in the quoted path makes the line look free field, so the
+        # name field arrives glued to the head of the path ("INCLUDE 'PART").
+        # Match on the prefix, or a skipped INCLUDE goes unreported.
+        if card.startswith("INCLUDE"):
             includes += 1
             continue
 
@@ -606,9 +656,16 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     if pid_list:
         pids = np.array(pid_list, dtype=np.int32)
         element_attrs["pid"] = pids
+        # One flatnonzero per distinct id rescans the whole array each time,
+        # which a deck carrying thousands of properties feels; a single
+        # stable sort groups every id in one pass, ids ascending and members
+        # ascending inside a group, as the scan produced them.
+        order = np.argsort(pids, kind="stable").astype(np.int32)
+        ranked = pids[order]
+        starts = np.flatnonzero(np.concatenate(([True], ranked[1:] != ranked[:-1])))
         element_tags = {
-            f"{_PID_TAG_PREFIX}{pid}": np.flatnonzero(pids == pid).astype(np.int32)
-            for pid in np.unique(pids)
+            f"{_PID_TAG_PREFIX}{int(pid)}": members
+            for pid, members in zip(ranked[starts], np.split(order, starts[1:]))
         }
 
     return PolyData(
@@ -654,7 +711,9 @@ def _fmt_real(value: float, *, width: int | None = None) -> str:
     mantissa, sep, exponent = repr(number).partition("e")
     if "." not in mantissa:
         mantissa += "."
-    text = f"{mantissa}{sep}{exponent}"
+    # Bulk data spells an exponent 'E' or 'D'; Python's repr spells it 'e',
+    # which a strict reader rejects.
+    text = f"{mantissa}{sep.upper()}{exponent}"
 
     if width is None or len(text) <= width:
         return text
@@ -667,13 +726,111 @@ def _fmt_real(value: float, *, width: int | None = None) -> str:
         if "." not in mantissa:
             mantissa += "."
         candidate = f"{mantissa}{sep}{exponent}"
-        if len(candidate) <= width:
+        # Dropping digits rounds the mantissa, and rounding up at the top of
+        # the double range steps past it: 1.7976931348623157E+308 shortens to
+        # '1.797693135E+308', which fits sixteen characters and reads back as
+        # infinity. Keep only a candidate that still names a finite value, so
+        # the search falls through to the next shorter form instead.
+        if len(candidate) <= width and math.isfinite(float(candidate)):
             return candidate
     raise CodecError(f".bdf: cannot write {number!r} in a {width}-character field")
 
 
+def _survives_truncation(text: str) -> bool:
+    """Tell whether the first eight characters still name the same value.
+
+    A solver keeps only that much of a free-field entry. Dropping the tail
+    of a plain decimal drops fractional digits, which merely rounds the
+    value; cutting an exponent (``1.2345678901234E-05`` → ``1.234567``) or
+    an integer digit (``123456789012345.6`` → ``12345678``) moves it by
+    orders of magnitude.
+
+    Parameters
+    ----------
+    text
+        Field text as it would be written.
+
+    Returns
+    -------
+    bool
+    """
+    if len(text) <= _FREE_SIGNIFICANT:
+        return True
+    if "E" in text.upper():
+        return False
+    return len(text.partition(".")[0]) <= _FREE_SIGNIFICANT
+
+
+def _exact_fixed_point(number: float, text: str) -> str | None:
+    """Spell a magnitude below one in fixed point, exactly, or give up.
+
+    The exponent form already says how many decimals that takes: the digits
+    behind its point, shifted down by the exponent. Searching for the count
+    instead would cost one format call per candidate, on every coordinate of
+    a mesh whose whole scale sits below one.
+
+    Parameters
+    ----------
+    number
+        Value to spell; only magnitudes below one are worth asking about,
+        every other fixed-point form being longer than the exponent one.
+    text
+        The value's exponent form, as :func:`_fmt_real` gives it.
+
+    Returns
+    -------
+    str or None
+        Shortest fixed-point text that reads back as ``number``, or None
+        when it would run past :data:`_MAX_FIXED_DECIMALS` decimals.
+    """
+    mantissa, _, exponent = text.partition("E")
+    if not exponent:
+        return None
+    decimals = len(mantissa.partition(".")[2]) - int(exponent)
+    if not 0 < decimals <= _MAX_FIXED_DECIMALS:
+        return None
+    fixed = f"{number:.{decimals}f}"
+    return fixed if float(fixed) == number else None
+
+
+def _free_field_real(value: float) -> str:
+    """Format a float as a free-field real a solver cannot misread.
+
+    The exact spelling wins whenever an eight character truncation leaves
+    it recognisable. When it does not — an exponent form below one, say —
+    an exact fixed-point spelling is tried instead: it is longer, but what
+    a solver cuts off it is fractional digits rather than the exponent.
+
+    Parameters
+    ----------
+    value
+        Value to format.
+
+    Returns
+    -------
+    str
+
+    Raises
+    ------
+    CodecError
+        If the value is not finite.
+    """
+    text = _fmt_real(value)
+    number = float(value)
+    if _survives_truncation(text) or not 0.0 < abs(number) < 1.0:
+        return text
+    fixed = _exact_fixed_point(number, text)
+    if fixed is not None and _survives_truncation(fixed):
+        return fixed
+    return text
+
+
 def _card_lines(fields: list[str]) -> list[str]:
     """Render a free-field card as physical lines with continuations.
+
+    A line ends at the ninth field, the tenth being the continuation field,
+    or at column 80, the width of a bulk data record — a long real reaches
+    the second bound well before the first.
 
     Parameters
     ----------
@@ -685,19 +842,28 @@ def _card_lines(fields: list[str]) -> list[str]:
     list of str
         One entry per physical line.
     """
-    head, rest = fields[:_FIELDS_PER_LINE], fields[_FIELDS_PER_LINE:]
-    if not rest:
-        return [",".join(head)]
-
-    lines = [",".join([*head, "+"])]
+    lines: list[str] = []
+    rest = list(fields)
     while rest:
-        chunk, rest = rest[: _FIELDS_PER_LINE - 1], rest[_FIELDS_PER_LINE - 1 :]
-        tail = ["+"] if rest else []
-        lines.append(",".join(["+", *chunk, *tail]))
+        # The opening line leads with the card name, the rest with the marker
+        # tying them to it.
+        head = ["+"] if lines else []
+        chunk: list[str] = []
+        while rest and len(head) + len(chunk) < _FIELDS_PER_LINE:
+            # A continuation costs a ',+' this line may still have to pay, so
+            # budget for it whether or not more fields follow. The first field
+            # of a line goes in unweighed, or an over-wide one would stall.
+            width = len(",".join([*head, *chunk, rest[0]])) + 2
+            if chunk and width > _LINE_LIMIT:
+                break
+            chunk.append(rest.pop(0))
+        lines.append(",".join([*head, *chunk, *(["+"] if rest else [])]))
     return lines
 
 
-def _grid_lines(index: int, xyz: np.ndarray, *, large: bool) -> tuple[list[str], int]:
+def _grid_lines(
+    index: int, xyz: np.ndarray, *, large: bool
+) -> tuple[list[str], int, int]:
     """Render one GRID card, free field or large field.
 
     Parameters
@@ -715,20 +881,26 @@ def _grid_lines(index: int, xyz: np.ndarray, *, large: bool) -> tuple[list[str],
         Physical lines of the card.
     int
         Number of coordinates the field width cannot hold exactly.
+    int
+        Number of coordinates no free-field spelling keeps recognisable
+        under a solver's eight character truncation; always 0 in large
+        field, whose sixteen characters the text already fits.
     """
     if not large:
-        texts = [_fmt_real(value) for value in xyz]
+        texts = [_free_field_real(value) for value in xyz]
         # Free field keeps only the first eight characters of a field, so a
-        # longer one reads back exactly here but not in a solver.
+        # longer one reads back exactly here but rounded in a solver — or,
+        # when even the fixed-point spelling stays out of reach, wrong.
         lost = sum(len(text) > _FREE_SIGNIFICANT for text in texts)
-        return _card_lines(["GRID", str(index + 1), "", *texts]), lost
+        misread = sum(not _survives_truncation(text) for text in texts)
+        return _card_lines(["GRID", str(index + 1), "", *texts]), lost, misread
 
     texts = [_fmt_real(value, width=_LARGE_WIDTH) for value in xyz]
     lost = sum(float(text) != float(value) for text, value in zip(texts, xyz))
 
     ids = "".join(f"{text:<{_LARGE_WIDTH}}" for text in (str(index + 1), ""))
     body = "".join(f"{text:<{_LARGE_WIDTH}}" for text in texts[:2])
-    return [f"{'GRID*':<8}{ids}{body}".rstrip(), f"{'*':<8}{texts[2]}"], lost
+    return [f"{'GRID*':<8}{ids}{body}".rstrip(), f"{'*':<8}{texts[2]}"], lost, 0
 
 
 def _stored_pids(poly: PolyData, n_elems: int) -> np.ndarray | None:
@@ -763,7 +935,12 @@ def _stored_pids(poly: PolyData, n_elems: int) -> np.ndarray | None:
         return None
 
     try:
-        pids = values.astype(np.int32)
+        # A NaN or out of range float raises the invalid/overflow flag rather
+        # than an exception, and numpy turns that into a RuntimeWarning a
+        # warnings filter may promote to an error. The value it does produce
+        # fails the equality check below, which is the answer wanted here.
+        with np.errstate(invalid="ignore", over="ignore"):
+            pids = values.astype(np.int32)
     except (TypeError, ValueError):
         pids = None
     if pids is None or not np.array_equal(pids, values):
@@ -848,9 +1025,12 @@ def write(
     Raises
     ------
     CodecError
-        If ``field_format`` is unknown, an element type id is unknown, has
-        no Nastran write mapping, carries an unexpected number of grid
-        points, or references a vertex outside the vertex array.
+        If ``field_format`` is unknown, ``vertices`` is not shaped
+        ``(n_vertices, 3)``, ``offsets`` does not hold one entry per element
+        plus a closing one, ``offsets`` ends past the end of
+        ``connectivity``, an element type id is unknown, has no Nastran
+        write mapping, carries an unexpected number of grid points, or
+        references a vertex outside the vertex array.
 
     Notes
     -----
@@ -863,12 +1043,19 @@ def write(
     undefined in the deck.
 
     Coordinates are written with the shortest text that round-trips the
-    double exactly, so a deck read back by polyxios is bit-for-bit
-    identical. Nastran itself keeps only the first eight characters of a
-    free-field entry, so values needing more are read rounded by a solver
-    and a warning says so; ``field_format="large"`` raises that budget to
-    sixteen characters, which holds ten to fourteen significant digits
-    depending on the sign and the exponent.
+    double exactly, which free field has the room for: a deck written that
+    way and read back by polyxios is bit-for-bit identical. Nastran itself
+    keeps only the first eight characters of a free-field entry, so values
+    needing more are read rounded by a solver and a warning says so. A
+    magnitude below one whose short spelling carries an exponent is written
+    in fixed point instead, longer but truncating to the right magnitude
+    rather than to a stray mantissa; the few values no spelling saves —
+    very large or very small exponents — get a warning of their own.
+    ``field_format="large"`` raises the solver's budget to sixteen
+    characters, which holds ten to fourteen significant digits depending on
+    the sign and the exponent, but caps the written text at sixteen too:
+    a value needing more is rounded on the way out, with a warning, and
+    then no longer round-trips exactly.
     """
     if field_format not in ("free", "large"):
         raise CodecError(
@@ -876,7 +1063,18 @@ def write(
         )
     large = field_format == "large"
 
-    n_verts = len(poly.vertices)
+    vertices = np.asarray(poly.vertices)
+    # A GRID card carries exactly three coordinates, so a row holding fewer
+    # writes a card short of one — silently in free field, and as a bare
+    # IndexError in large field. An empty mesh emits no GRID at all, so its
+    # shape is nobody's business.
+    if vertices.size and (vertices.ndim != 2 or vertices.shape[1] != 3):
+        raise CodecError(
+            f".bdf: vertices has shape {vertices.shape}, expected (n_vertices, 3)"
+        )
+
+    n_verts = len(vertices)
+    n_elems = len(poly.element_types)
     connectivity = np.asarray(poly.connectivity)
     if connectivity.size and (
         int(connectivity.min()) < 0 or int(connectivity.max()) >= n_verts
@@ -885,15 +1083,33 @@ def write(
             ".bdf: connectivity references a vertex outside the vertex array"
             f" of length {n_verts}"
         )
+    # One offset per element plus the closing one; without this the element
+    # loop below walks off the end with a bare IndexError.
+    if len(poly.offsets) != n_elems + 1:
+        raise CodecError(
+            f".bdf: offsets has length {len(poly.offsets)}, expected"
+            f" {n_elems + 1} for {n_elems} element(s)"
+        )
+    # The closing offset says where the connectivity array ends. A shorter
+    # one hands the element loop a truncated slice, and the grid point count
+    # is checked against the offsets rather than the slice, so the card goes
+    # out missing a grid point instead of the write failing.
+    if int(poly.offsets[-1]) > connectivity.size:
+        raise CodecError(
+            f".bdf: offsets end at {int(poly.offsets[-1])} but connectivity holds"
+            f" {connectivity.size} entries"
+        )
 
     pids = _element_pids(poly)
     lines: list[str] = ["$ Nastran BDF exported by polyxios", "BEGIN BULK"]
 
     lost = 0
-    for i, vertex in enumerate(poly.vertices):
-        card_lines, lost_here = _grid_lines(i, vertex, large=large)
+    misread = 0
+    for i, vertex in enumerate(vertices):
+        card_lines, lost_here, misread_here = _grid_lines(i, vertex, large=large)
         lines.extend(card_lines)
         lost += lost_here
+        misread += misread_here
 
     if lost and large:
         warnings.warn(
@@ -909,8 +1125,16 @@ def write(
             " them rounded. Pass field_format='large' to keep more digits.",
             stacklevel=2,
         )
+    if misread:
+        warnings.warn(
+            f".bdf: {misread} coordinate(s) have no free-field spelling that"
+            f" survives being cut to {_FREE_SIGNIFICANT} characters; a solver"
+            " loses their exponent and reads a different magnitude, not a"
+            " rounded value. Pass field_format='large'.",
+            stacklevel=2,
+        )
 
-    for ei in range(len(poly.element_types)):
+    for ei in range(n_elems):
         type_id = int(poly.element_types[ei])
         name = ELEMENT_TYPES_INV.get(type_id)
         if name is None:
@@ -926,7 +1150,7 @@ def write(
                 f".bdf: element {ei} of type '{name}' has {end - start} grid"
                 f" points, expected {expected}"
             )
-        nodes = [str(int(connectivity[j]) + 1) for j in range(start, end)]
+        nodes = [str(node + 1) for node in connectivity[start:end].tolist()]
         lines.extend(_card_lines([card, str(ei + 1), str(int(pids[ei])), *nodes]))
 
     lines.append("ENDDATA")
