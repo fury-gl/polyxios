@@ -39,7 +39,8 @@ def read(
     path
         File path to read.
     fmt
-        Format override (e.g. '.vtk'). Inferred from file extension if None.
+        Format override (e.g. '.vtk'). The leading dot and the case are
+        both optional. Inferred from the file extension if None.
     lazy
         If True and the format supports it, use mmap for the binary data
         section so pages are loaded on demand.
@@ -72,7 +73,8 @@ def write(
     path
         Output file path.
     fmt
-        Format override (e.g. '.vtk'). Inferred from file extension if None.
+        Format override (e.g. '.vtk'). The leading dot and the case are
+        both optional. Inferred from the file extension if None.
     registry
         Custom codec registry. Uses the built-in registry if None.
     **opts
