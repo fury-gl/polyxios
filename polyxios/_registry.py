@@ -20,13 +20,20 @@ def build_default_registry() -> dict[str, Codec]:
       - ``write`` : callable
       - ``EXTENSION`` : str  (e.g. ``".vtk"``)
 
+    A format known by several extensions may also expose
+    ``EXTENSIONS : tuple[str, ...]``, and every entry is registered against
+    the same Codec. ``EXTENSION`` stays the canonical spelling — the one the
+    docs quote and the one a writer should prefer — so a module declaring
+    ``EXTENSIONS`` lists it there too.
+
     Also loads third-party codecs declared under the ``polyxios.codecs``
-    entry-point group.
+    entry-point group; those stay one extension per entry point.
 
     Returns
     -------
     dict[str, Codec]
-        Mapping from file extension (e.g. '.vtk') to Codec.
+        Mapping from file extension (e.g. '.vtk') to Codec. Two extensions
+        of one format map to the same Codec instance.
     """
     import importlib
     from pathlib import Path as _Path
@@ -53,8 +60,20 @@ def build_default_registry() -> dict[str, Codec]:
             read_fn = getattr(mod, "read", None)
             write_fn = getattr(mod, "write", None)
 
-            if isinstance(ext, str) and callable(read_fn) and callable(write_fn):
-                registry[ext] = Codec(read_fn, write_fn)
+            if not (isinstance(ext, str) and callable(read_fn) and callable(write_fn)):
+                continue
+
+            # A bare string is iterable, so it would register one entry per
+            # character; only a real sequence widens the registration.
+            exts = getattr(mod, "EXTENSIONS", (ext,))
+            if not isinstance(exts, (tuple, list)) or not all(
+                isinstance(e, str) for e in exts
+            ):
+                exts = (ext,)
+
+            codec = Codec(read_fn, write_fn)
+            for alias in exts:
+                registry[alias] = codec
 
     try:
         from importlib.metadata import entry_points
