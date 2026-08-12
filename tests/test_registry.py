@@ -54,6 +54,13 @@ def test_dat_reads_through_an_explicit_format(tmp_path) -> None:
     )
 
 
+@pytest.mark.parametrize("fmt", [".vtk", "vtk", "VTK", ".VTK"])
+def test_resolve_normalises_an_explicit_format(fmt) -> None:
+    """A leading dot and the case of `fmt` are both optional."""
+    registry = _stub_registry()
+    assert resolve("mesh.bin", fmt, registry) is registry[".vtk"]
+
+
 def test_resolve_falls_back_to_the_path_suffix() -> None:
     registry = _stub_registry()
     assert resolve("mesh.VTK", None, registry) is registry[".vtk"]
@@ -62,6 +69,11 @@ def test_resolve_falls_back_to_the_path_suffix() -> None:
 def test_resolve_rejects_an_unknown_format() -> None:
     with pytest.raises(UnsupportedFormatError, match="No codec for '.nope'"):
         resolve("mesh.nope", None, _stub_registry())
+
+
+def test_resolve_reports_a_dotless_format_with_its_dot() -> None:
+    with pytest.raises(UnsupportedFormatError, match="No codec for '.nope'"):
+        resolve("mesh.bin", "nope", _stub_registry())
 
 
 def test_a_single_extension_codec_still_registers() -> None:
