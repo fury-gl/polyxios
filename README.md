@@ -108,6 +108,7 @@ triangle), avoiding the extra pass over the data.
 | Wavefront OBJ | `.obj` | ✓ | ✓ | - |
 | Stanford PLY | `.ply` | ✓ | ✓ | binary only |
 | STL | `.stl` | ✓ | ✓ | binary only |
+| OFF | `.off` | ✓ | ✓ | ASCII + big-endian binary, `ST`/`C`/`N` variants → vertex/face attrs |
 | Abaqus | `.inp` | ✓ | ✓ | - |
 | AVS-UCD | `.avs` | ✓ | ✓ | - |
 | Medit binary | `.meshb` | ✓ | ✓ | binary only |
@@ -117,7 +118,7 @@ triangle), avoiding the extra pass over the data.
 | Nastran | `.bdf` `.nas` `.fem` | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request; `.dat` via `fmt=".bdf"` |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 
-**14 formats supported** - more coming via the plugin system.
+**15 formats supported** - more coming via the plugin system.
 
 ---
 
