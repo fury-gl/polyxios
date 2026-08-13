@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import io
 import json
 import os
+from pathlib import Path
+import urllib.error
 import urllib.request
 import zipfile
 
 import pytest
 
+from polyxios import fetcher
 from polyxios.exceptions import FetcherError
 from polyxios.fetcher import (
     _safe_extract_zip,
@@ -259,3 +263,113 @@ def test_missing_companion_refetches_only_the_archive(home, monkeypatch) -> None
     requested.clear()
     fetch("dataset.vtp")
     assert requested == []
+
+
+def _flaky_urlopen(payload: bytes, failures: int, exc: Exception):
+    """urlopen that drops the transfer `failures` times, then succeeds."""
+    calls = {"n": 0}
+    ok = _mock_urlopen(payload)
+
+    def _urlopen(req, timeout=None):
+        calls["n"] += 1
+        if calls["n"] <= failures:
+            raise exc
+        return ok(req, timeout)
+
+    _urlopen.calls = calls
+    return _urlopen
+
+
+def test_dropped_transfer_is_retried(home, monkeypatch) -> None:
+    payload = b"mesh bytes"
+    _write_catalog(
+        home,
+        {
+            "obj": {
+                "cube.obj": {
+                    "url": "https://example.invalid/cube.obj",
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                }
+            }
+        },
+    )
+    flaky = _flaky_urlopen(
+        payload, 2, http.client.RemoteDisconnected("Remote end closed connection")
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(fetcher.time, "sleep", lambda _s: None)
+
+    path = fetch("cube.obj", package="obj")
+    assert Path(path).read_bytes() == payload
+    assert flaky.calls["n"] == 3
+
+
+def test_retries_are_bounded(home, monkeypatch) -> None:
+    _write_catalog(
+        home,
+        {
+            "obj": {
+                "cube.obj": {
+                    "url": "https://example.invalid/cube.obj",
+                    "sha256": hashlib.sha256(b"x").hexdigest(),
+                }
+            }
+        },
+    )
+    flaky = _flaky_urlopen(b"x", 99, ConnectionResetError("connection reset"))
+    monkeypatch.setattr(urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(fetcher.time, "sleep", lambda _s: None)
+
+    with pytest.raises(FetcherError, match="connection reset"):
+        fetch("cube.obj", package="obj")
+    assert flaky.calls["n"] == fetcher._DOWNLOAD_ATTEMPTS
+
+
+def test_not_found_is_not_retried(home, monkeypatch) -> None:
+    _write_catalog(
+        home,
+        {
+            "obj": {
+                "cube.obj": {
+                    "url": "https://example.invalid/cube.obj",
+                    "sha256": hashlib.sha256(b"x").hexdigest(),
+                }
+            }
+        },
+    )
+    flaky = _flaky_urlopen(
+        b"x",
+        99,
+        urllib.error.HTTPError("https://example.invalid/cube.obj", 404, "", {}, None),
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(fetcher.time, "sleep", lambda _s: None)
+
+    with pytest.raises(FetcherError, match="not found on remote server"):
+        fetch("cube.obj", package="obj")
+    assert flaky.calls["n"] == 1
+
+
+def test_server_error_is_retried(home, monkeypatch) -> None:
+    payload = b"mesh bytes"
+    _write_catalog(
+        home,
+        {
+            "obj": {
+                "cube.obj": {
+                    "url": "https://example.invalid/cube.obj",
+                    "sha256": hashlib.sha256(payload).hexdigest(),
+                }
+            }
+        },
+    )
+    flaky = _flaky_urlopen(
+        payload,
+        1,
+        urllib.error.HTTPError("https://example.invalid/cube.obj", 503, "", {}, None),
+    )
+    monkeypatch.setattr(urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(fetcher.time, "sleep", lambda _s: None)
+
+    assert Path(fetch("cube.obj", package="obj")).read_bytes() == payload
+    assert flaky.calls["n"] == 2
