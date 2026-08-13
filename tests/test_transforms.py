@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from polyxios import make_polydata
+from polyxios import make_polydata, transforms
 from polyxios.transforms import (
     extract_surface,
     filter_element_type,
@@ -184,3 +185,74 @@ def test_extract_surface_corpus_ball() -> None:
     surf = extract_surface(poly)
     assert len(surf.element_types) > 0
     assert surf.faces is not None
+
+
+def test_merge_fills_missing_multichannel_attr() -> None:
+    """A missing (n, k) attribute needs a placeholder of matching width."""
+    a = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"normals": np.ones((3, 3))},
+    )
+    b = make_polydata(np.zeros((3, 3)), [("triangle", np.array([[0, 1, 2]]))])
+    merged = transforms.merge(a, b)
+    assert merged.vertex_attrs["normals"].shape == (6, 3)
+    np.testing.assert_allclose(merged.vertex_attrs["normals"][:3], 1.0)
+    assert np.isnan(merged.vertex_attrs["normals"][3:]).all()
+
+
+def test_merge_fills_missing_multichannel_element_attr() -> None:
+    a = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_attrs={"colors": np.ones((1, 4))},
+    )
+    b = make_polydata(np.zeros((3, 3)), [("triangle", np.array([[0, 1, 2]]))])
+    merged = transforms.merge(a, b)
+    assert merged.element_attrs["colors"].shape == (2, 4)
+
+
+def test_merge_rejects_mismatched_channel_counts() -> None:
+    a = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"colors": np.ones((3, 3))},
+    )
+    b = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"colors": np.ones((3, 4))},
+    )
+    with pytest.raises(ValueError, match="channel counts differ"):
+        transforms.merge(a, b)
+
+
+def test_vertex_colors_prefers_the_colors_attribute() -> None:
+    """Normals are the same shape as an RGB triple; they are not colours."""
+    poly = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={
+            "normals": np.tile([0.0, 0.0, -1.0], (3, 1)),
+            "colors": np.tile([1.0, 0.0, 0.0], (3, 1)),
+        },
+    )
+    np.testing.assert_allclose(transforms.vertex_colors(poly), [[1, 0, 0]] * 3)
+
+
+def test_vertex_colors_skips_attrs_with_negative_values() -> None:
+    poly = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"normals": np.tile([0.0, 0.0, -1.0], (3, 1))},
+    )
+    assert transforms.vertex_colors(poly) is None
+
+
+def test_vertex_colors_still_falls_back_to_an_unnamed_attr() -> None:
+    poly = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"rgb": np.tile([255.0, 0.0, 0.0], (3, 1))},
+    )
+    np.testing.assert_allclose(transforms.vertex_colors(poly), [[1, 0, 0]] * 3)

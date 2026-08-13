@@ -17,6 +17,10 @@ _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
 _QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
 
+# The vertex attribute a codec writes colours to when the format names them
+# (.off, and anything else that grows colour support).
+_COLOR_ATTR_NAME = "colors"
+
 
 def pipeline(*fns: Callable[[PolyData], PolyData]) -> Callable[[PolyData], PolyData]:
     """Left-to-right function composition for PolyData transforms.
@@ -73,6 +77,32 @@ def remove_orphan_vertices(poly: PolyData) -> PolyData:
         vertex_attrs=new_vertex_attrs,
         vertex_tags=new_vertex_tags,
     )
+
+
+def _fill_like(ref: np.ndarray, length: int) -> np.ndarray:
+    """Build a placeholder block matching a reference attribute's channels.
+
+    An attribute is not always one number per vertex or element — normals,
+    colours and texture coordinates are (n, k) — so the placeholder has to
+    keep the reference's trailing shape or the concatenation has nothing to
+    line up against.
+    """
+    return np.full(
+        (length, *ref.shape[1:]),
+        np.nan if np.issubdtype(ref.dtype, np.floating) else -1,
+        dtype=ref.dtype,
+    )
+
+
+def _concat_attr(parts: list[np.ndarray], what: str) -> np.ndarray:
+    """Join one attribute's blocks, naming it if their channels disagree."""
+    shapes = {p.shape[1:] for p in parts}
+    if len(shapes) > 1:
+        raise ValueError(
+            f"cannot merge {what}: channel counts differ across inputs "
+            f"({', '.join(str(s) for s in sorted(shapes))})"
+        )
+    return np.concatenate(parts)
 
 
 def merge(*polys: PolyData) -> PolyData:
@@ -132,13 +162,8 @@ def merge(*polys: PolyData) -> PolyData:
                 parts.append(p.vertex_attrs[key])
             else:
                 ref = next(q.vertex_attrs[key] for q in polys if key in q.vertex_attrs)
-                fill = np.full(
-                    p.vertices.shape[0],
-                    np.nan if np.issubdtype(ref.dtype, np.floating) else -1,
-                    dtype=ref.dtype,
-                )
-                parts.append(fill)
-        merged_vertex_attrs[key] = np.concatenate(parts)
+                parts.append(_fill_like(ref, p.vertices.shape[0]))
+        merged_vertex_attrs[key] = _concat_attr(parts, f"vertex_attrs['{key}']")
 
     merged_element_attrs: dict[str, np.ndarray] = {}
     for key in all_element_attr_keys:
@@ -150,13 +175,8 @@ def merge(*polys: PolyData) -> PolyData:
                 ref = next(
                     q.element_attrs[key] for q in polys if key in q.element_attrs
                 )
-                fill = np.full(
-                    len(p.element_types),
-                    np.nan if np.issubdtype(ref.dtype, np.floating) else -1,
-                    dtype=ref.dtype,
-                )
-                parts.append(fill)
-        merged_element_attrs[key] = np.concatenate(parts)
+                parts.append(_fill_like(ref, len(p.element_types)))
+        merged_element_attrs[key] = _concat_attr(parts, f"element_attrs['{key}']")
 
     # Merge element_tags: shift element indices
     merged_element_tags: dict[str, np.ndarray] = {}
@@ -391,14 +411,30 @@ def vertex_colors(poly: PolyData) -> np.ndarray | None:
     -------
     numpy.ndarray or None
         Float32 array of shape (n_verts, 3) in [0, 1], or None if no
-        vertex attribute with 3 or more channels exists.
+        vertex attribute looks like a colour.
+
+    Notes
+    -----
+    An attribute named for colour wins outright. Otherwise the first (n, >= 3)
+    attribute is taken, skipping any that carries a negative value: codecs
+    that read colours also read normals, and a normal is the same shape as an
+    RGB triple, so shape alone would hand back surface directions as colours.
     """
-    for arr in poly.vertex_attrs.values():
-        if arr.ndim == 2 and arr.shape[1] >= 3:
-            rgb = arr[:, :3].astype(np.float32)
-            if rgb.max() > 1.0:
-                rgb = rgb / 255.0
-            return rgb
+    named = poly.vertex_attrs.get(_COLOR_ATTR_NAME)
+    candidates = [named] if named is not None else []
+    candidates.extend(
+        arr for name, arr in poly.vertex_attrs.items() if name != _COLOR_ATTR_NAME
+    )
+
+    for arr in candidates:
+        if arr.ndim != 2 or arr.shape[1] < 3:
+            continue
+        rgb = arr[:, :3].astype(np.float32)
+        if arr is not named and rgb.min() < 0.0:
+            continue
+        if rgb.max() > 1.0:
+            rgb = rgb / 255.0
+        return rgb
     return None
 
 

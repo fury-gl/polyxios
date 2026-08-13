@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 import json
 import logging
 import os
@@ -30,6 +31,13 @@ _MODELS_URL = os.getenv(
 # operation, so it must tolerate slow links rather than the whole transfer.
 _CATALOG_TIMEOUT = 5
 _DOWNLOAD_TIMEOUT = 30
+
+# A dropped connection mid-transfer is common enough on the asset host to fail
+# a CI run on its own; a couple of retries turn that into a pause. Only status
+# codes that a repeat could plausibly clear are retried.
+_DOWNLOAD_ATTEMPTS = 3
+_RETRY_BACKOFF = 1.0
+_RETRIABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 # How long a cached models.json is reused before the remote copy is consulted
 # again, in seconds.
@@ -302,6 +310,70 @@ def _show_progress(filename: str, downloaded: int, total: int) -> None:
     sys.stdout.flush()
 
 
+def _download_to(url: str, temp_path: str, filename: str) -> None:
+    """Stream a URL into a file, retrying a transfer the far end drops.
+
+    Parameters
+    ----------
+    url
+        Asset URL, already checked to be https.
+    temp_path
+        File the bytes are written to; overwritten on every attempt.
+    filename
+        Asset name, used for the progress line and log messages.
+
+    Raises
+    ------
+    Exception
+        The last transport error, once the attempts run out. The caller wraps
+        it into a FetcherError.
+
+    Notes
+    -----
+    The asset host closes a connection mid-transfer often enough to redden an
+    otherwise green CI run, and a dropped socket says nothing about whether
+    the asset is fetchable. A status code that describes the request itself —
+    a 404, a 403 — is not retried, because repeating it cannot change it.
+    """
+    for attempt in range(_DOWNLOAD_ATTEMPTS):
+        last_attempt = attempt == _DOWNLOAD_ATTEMPTS - 1
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "polyxios-fetcher"}
+            )
+            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as response:
+                total_size = int(response.headers.get("Content-Length", 0))
+                downloaded = 0
+
+                with open(temp_path, "wb") as f:
+                    while True:
+                        chunk = response.read(65536)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        _show_progress(filename, downloaded, total_size)
+
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            return
+        except urllib.error.HTTPError as e:
+            if last_attempt or e.code not in _RETRIABLE_STATUS:
+                raise
+            error: Exception = e
+        except (OSError, http.client.HTTPException) as e:
+            if last_attempt:
+                raise
+            error = e
+
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        logger.debug(
+            f"Retrying '{filename}' after a failed transfer: {error}", exc_info=True
+        )
+        time.sleep(_RETRY_BACKOFF * 2**attempt)
+
+
 def _load_models_catalog() -> dict:
     """Load the models catalog from raw GitHub or local cache."""
     global _catalog_cache
@@ -512,22 +584,7 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
             f"Fetching '{match_filename}'... Please wait, it might take some time "
             "to download. Do not close or cancel this process."
         )
-        req = urllib.request.Request(url, headers={"User-Agent": "polyxios-fetcher"})
-        with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as response:
-            total_size = int(response.headers.get("Content-Length", 0))
-            downloaded = 0
-
-            with open(temp_path, "wb") as f:
-                while True:
-                    chunk = response.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    _show_progress(match_filename, downloaded, total_size)
-
-            sys.stdout.write("\n")
-            sys.stdout.flush()
+        _download_to(url, temp_path, match_filename)
 
         if not _verify_sha256(temp_path, expected_sha):
             raise FetcherError(
