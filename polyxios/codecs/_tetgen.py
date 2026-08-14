@@ -113,19 +113,51 @@ def _pair_paths(path: Path) -> tuple[Path, Path]:
     return path.with_name(path.name + ".node"), path.with_name(path.name + ".ele")
 
 
+def _exists(path: Path) -> bool:
+    """Return whether ``path`` is on disk, as a CodecError when that is unknown.
+
+    ``Path.exists`` answers False for a name that is absent but propagates the
+    OSError for one it is not allowed to look at, so a directory the process
+    cannot search would otherwise raise a bare ``PermissionError`` out of a
+    codec whose contract is ``CodecError``. Answering False instead would be
+    worse than either: a file that is on disk would be reported missing, and
+    the caller would go looking for a path that is already there.
+    """
+    try:
+        return path.exists()
+    except OSError as exc:
+        raise CodecError(f".tetgen: cannot check for '{path}': {exc}") from exc
+
+
 def _find_half(path: Path, suffix: str) -> Path:
     """Return the sibling to read, preferring one that is actually there.
 
     A pair written ``MESH.ELE``/``MESH.NODE`` names its halves in upper case,
     and on a case-sensitive filesystem the lower-cased sibling is a file that
-    does not exist. The lower-cased name is still what comes back when neither
-    spelling is on disk, so the error names the conventional one.
+    does not exist. Both conventional spellings are tried, then the directory
+    is listed for one that differs only in case, so a ``Mesh.Node`` written by
+    a tool that title-cases its output is still found. The lower-cased name is
+    what comes back when nothing matches, so the error names the usual one.
     """
     lower = _sibling(path, suffix)
-    if lower.exists():
+    if _exists(lower):
         return lower
     upper = _sibling(path, suffix.upper())
-    return upper if upper.exists() else lower
+    if _exists(upper):
+        return upper
+    # Listing is the only way to reach a half spelled ``Mesh.Node``, and it is
+    # paid for only once both conventional spellings have already missed.
+    wanted = lower.name.lower()
+    try:
+        for entry in lower.parent.iterdir():
+            if entry.name.lower() == wanted:
+                return entry
+    except OSError:
+        # A directory that stats but does not list leaves the case-folded name
+        # unknowable. Falling through reports the half as missing, which is the
+        # honest answer when the only spelling that could match cannot be seen.
+        pass
+    return lower
 
 
 def _tokenize(path: Path) -> list[str]:
@@ -198,23 +230,28 @@ def _records(
     columns the file does not carry looks like, and reading on from there would
     pull the next row's leading number in as this row's last value.
     """
-    body = tokens[start:]
+    # Counted rather than sliced: ``tokens[start:]`` would copy the whole body
+    # only to copy the part that is wanted out of it again, which on a mesh of
+    # any size is two throwaway lists the length of the file.
+    available = len(tokens) - start
     needed = n_rows * n_cols
-    if len(body) < needed:
+    if available < needed:
         raise CodecError(
             f".tetgen: {where} truncated — {n_rows} {what} of {n_cols} column(s)"
-            f" need {needed} value(s), found {len(body)}."
+            f" need {needed} value(s), found {available}."
         )
-    if len(body) > needed:
+    if available > needed:
         # Trailing values are ones this reader will never see; going quiet
         # would report a smaller file than the one on disk.
         warnings.warn(
-            f".tetgen: {where} carries {len(body) - needed} value(s) past the"
+            f".tetgen: {where} carries {available - needed} value(s) past the"
             f" {n_rows} {what} its header declares; ignored.",
             stacklevel=4,
         )
     try:
-        return np.array(body[:needed], dtype=np.float64).reshape(n_rows, n_cols)
+        return np.array(tokens[start : start + needed], dtype=np.float64).reshape(
+            n_rows, n_cols
+        )
     except ValueError as exc:
         raise CodecError(f".tetgen: non-numeric value in {where}.") from exc
 
@@ -293,11 +330,14 @@ def _resolve_ids(refs: np.ndarray, ids: np.ndarray, n_pts: int) -> np.ndarray:
     )
     if contiguous:
         mapped = refs - first
-        if mapped.min() < 0 or mapped.max() >= n_pts:
-            lo, hi = int(refs.min()), int(refs.max())
+        # The offending number, not the span every reference covers: a mesh
+        # whose references are sound but for one names the one, and the sorted
+        # branch below already reports it that way.
+        outside = (mapped < 0) | (mapped >= n_pts)
+        if outside.any():
             raise CodecError(
-                f".tetgen: element references node {lo}..{hi}, outside the"
-                f" {first}..{first + n_pts - 1} the .node file lists."
+                f".tetgen: element references node {int(refs[outside][0])},"
+                f" outside the {first}..{first + n_pts - 1} the .node file lists."
             )
         return mapped
 
@@ -388,7 +428,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         Path to either half of the pair; the other is found beside it under the
         same stem.
     lazy
-        Ignored (ASCII format; always loads eagerly).
+        Ignored; a true value is warned about (ASCII format, always loads
+        eagerly).
 
     Returns
     -------
@@ -430,13 +471,13 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     given = Path(path)
     node_path = _find_half(given, ".node")
     ele_path = _find_half(given, ".ele")
-    if not node_path.exists():
+    if not _exists(node_path):
         raise CodecError(f".tetgen: .node file not found: '{node_path}'.")
 
     vertices, ids, vertex_attrs, markers = _read_node(node_path)
     n_pts = vertices.shape[0]
 
-    if ele_path.exists():
+    if _exists(ele_path):
         refs, _n_nodes, element_attrs = _read_ele(ele_path)
         n_tets = refs.shape[0]
         flat = _resolve_ids(refs.reshape(-1), ids, n_pts)
@@ -593,9 +634,14 @@ def _node_attrs(poly: PolyData) -> list[np.ndarray]:
 
     A node attribute is one number per node, so a multi-component array — a
     normal, a colour — has no column to go in and is left out with a word.
+
+    No more columns are written than reading admits. Going past that cap would
+    put a ``.node`` on disk that this codec refuses on the way back in, which
+    is a worse answer than a warning and a file that reads.
     """
     n_verts = poly.vertices.shape[0]
     columns: list[np.ndarray] = []
+    kept: list[str] = []
     skipped: list[str] = []
     for name in sorted(poly.vertex_attrs, key=lambda n: _natural_key(str(n))):
         arr = np.asarray(poly.vertex_attrs[name])
@@ -603,12 +649,22 @@ def _node_attrs(poly: PolyData) -> list[np.ndarray]:
             skipped.append(str(name))
             continue
         columns.append(arr.astype(np.float64, copy=False))
+        kept.append(str(name))
     if skipped:
         warnings.warn(
             f".tetgen: vertex attribute(s) {sorted(skipped)} are not one scalar"
             " per vertex and have no column in a .node file; skipped.",
             stacklevel=3,
         )
+    if len(columns) > _MAX_ATTR_COLUMNS:
+        over = kept[_MAX_ATTR_COLUMNS:]
+        warnings.warn(
+            f".tetgen: {len(over)} vertex attribute(s) past the"
+            f" {_MAX_ATTR_COLUMNS}-column cap a .node file is read back under"
+            f" were skipped, the last kept being {kept[_MAX_ATTR_COLUMNS - 1]!r}.",
+            stacklevel=3,
+        )
+        columns = columns[:_MAX_ATTR_COLUMNS]
     return columns
 
 
@@ -736,10 +792,12 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     read back named ``attr_<k>``, since the format stores no names; a number
     inside a name orders by value, so ``attr_10`` follows ``attr_9`` rather
     than ``attr_1``. Anything wider than one column per vertex is skipped with
-    a warning. One scalar ``element_attrs`` entry becomes the element
-    attribute — ``region`` when the mesh has it, else the first name, warned
-    about because it reads back as ``region``. ``element_tags`` and
-    ``global_attrs`` have nowhere to go and are not written.
+    a warning, as is anything past the column cap reading admits, so the pair
+    that lands on disk is always one this codec reads back. One scalar
+    ``element_attrs`` entry becomes the element attribute — ``region`` when the
+    mesh has it, else the first name, warned about because it reads back as
+    ``region``. ``element_tags`` and ``global_attrs`` have nowhere to go and
+    are not written.
     """
     float_fmt = opts.pop("float_fmt", _DEFAULT_FLOAT_FMT)
     if opts:
