@@ -116,9 +116,10 @@ triangle), avoiding the extra pass over the data.
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
 | Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
 | Nastran | `.bdf` `.nas` `.fem` | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request; `.dat` via `fmt=".bdf"` |
+| Tecplot ASCII | `.tec` | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; `.dat` via `fmt=".tec"` |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 
-**15 formats supported** - more coming via the plugin system.
+**16 formats supported** - more coming via the plugin system.
 
 ---
 
