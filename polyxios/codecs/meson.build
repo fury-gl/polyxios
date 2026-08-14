@@ -17,6 +17,7 @@ py.install_sources(
     '_su2.py',
     '_tecplot.py',
     '_tetgen.py',
+    '_ugrid.py',
     '_vtk.py',
     '_pvti.py',
     '_pvtp.py',
