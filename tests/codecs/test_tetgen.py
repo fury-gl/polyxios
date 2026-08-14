@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from polyxios import make_polydata, read as api_read, write as api_write
-from polyxios.codecs._tetgen import read, write
+from polyxios.codecs._tetgen import _MAX_ATTR_COLUMNS as _MAX_ATTR, read, write
 from polyxios.exceptions import CodecError
 
 _VERTS = np.array(
@@ -19,10 +20,14 @@ def _tet_mesh(**kwargs):
 
 
 def _pair(tmp_path: Path, node: str, ele: str | None = None, stem: str = "mesh"):
-    """Write a .node (and optional .ele) pair and return the .ele path."""
-    (tmp_path / f"{stem}.node").write_text(node)
+    """Write a .node (and optional .ele) pair and return the .ele path.
+
+    The encoding is named because Windows would otherwise pick cp1252, which
+    has no spelling for the BOM one of these files opens with.
+    """
+    (tmp_path / f"{stem}.node").write_text(node, encoding="utf-8")
     if ele is not None:
-        (tmp_path / f"{stem}.ele").write_text(ele)
+        (tmp_path / f"{stem}.ele").write_text(ele, encoding="utf-8")
     return tmp_path / f"{stem}.ele"
 
 
@@ -214,13 +219,15 @@ def test_unsupported_element_width_raises(tmp_path: Path) -> None:
 
 def test_node_file_missing_raises(tmp_path: Path) -> None:
     ele = tmp_path / "ghost.ele"
-    ele.write_text("1 4 0\n1 1 2 3 4\n")
+    ele.write_text("1 4 0\n1 1 2 3 4\n", encoding="utf-8")
     with pytest.raises(CodecError, match=".node file not found"):
         read(ele)
 
 
 def test_missing_ele_reads_point_cloud(tmp_path: Path) -> None:
-    (tmp_path / "cloud.node").write_text("2 3 0 0\n1 0 0 0\n2 1 0 0\n")
+    (tmp_path / "cloud.node").write_text(
+        "2 3 0 0\n1 0 0 0\n2 1 0 0\n", encoding="utf-8"
+    )
     with pytest.warns(UserWarning, match="point cloud"):
         back = read(tmp_path / "cloud.node")
     assert len(back.element_types) == 0
@@ -229,7 +236,7 @@ def test_missing_ele_reads_point_cloud(tmp_path: Path) -> None:
 
 def test_named_ele_file_missing_raises(tmp_path: Path) -> None:
     """A caller who named the .ele half gets an error, not a point cloud."""
-    (tmp_path / "half.node").write_text("2 3 0 0\n1 0 0 0\n2 1 0 0\n")
+    (tmp_path / "half.node").write_text("2 3 0 0\n1 0 0 0\n2 1 0 0\n", encoding="utf-8")
     with pytest.raises(CodecError, match=".ele file not found"):
         read(tmp_path / "half.ele")
 
@@ -468,6 +475,11 @@ def test_write_to_uppercase_node_half_names_the_sibling_alike(tmp_path: Path) ->
 
 
 def test_uppercase_extensions_find_their_sibling(tmp_path: Path) -> None:
+    """Only exercises ``_find_half`` on a case-sensitive filesystem.
+
+    Elsewhere the lower-cased guess already matches the file on disk, so this
+    asserts nothing about the fallback. Linux CI is what covers it.
+    """
     poly = _tet_mesh()
     write(poly, tmp_path / "mesh.ele")
     (tmp_path / "mesh.node").rename(tmp_path / "MESH.NODE")
@@ -529,6 +541,64 @@ def test_write_leaves_no_half_pair_on_failure(tmp_path: Path) -> None:
         write(broken, tmp_path / "mesh.ele")
     assert not (tmp_path / "mesh.node").exists()
     assert not (tmp_path / "mesh.ele").exists()
+
+
+def test_too_many_vertex_attrs_are_capped_to_what_reading_admits(
+    tmp_path: Path,
+) -> None:
+    """A written .node has to be one this codec reads back."""
+    poly = _tet_mesh(
+        vertex_attrs={f"attr_{k}": np.full(4, float(k)) for k in range(_MAX_ATTR + 5)}
+    )
+    with pytest.warns(UserWarning, match="past the .* cap"):
+        write(poly, tmp_path / "wide.ele")
+    back = read(tmp_path / "wide.ele")
+    assert len(back.vertex_attrs) == _MAX_ATTR
+    # The columns kept are the first by name order, not an arbitrary slice.
+    np.testing.assert_allclose(back.vertex_attrs["attr_0"], np.zeros(4))
+    np.testing.assert_allclose(
+        back.vertex_attrs[f"attr_{_MAX_ATTR - 1}"], np.full(4, float(_MAX_ATTR - 1))
+    )
+
+
+def test_unknown_node_reference_names_the_offending_node(tmp_path: Path) -> None:
+    """Not the span every reference covers — the one that is wrong."""
+    ele = _pair(
+        tmp_path,
+        "4 3 0 0\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n",
+        "1 4 0\n1 1 2 3 99\n",
+    )
+    with pytest.raises(CodecError, match=r"references node 99, outside the 1\.\.4"):
+        read(ele)
+
+
+def test_unsearchable_directory_raises_codec_error(tmp_path: Path) -> None:
+    """``Path.exists`` propagates EACCES; the codec's contract is CodecError."""
+    if os.name != "posix" or os.geteuid() == 0:
+        pytest.skip("needs POSIX permissions and a non-root user")
+    sub = tmp_path / "locked"
+    sub.mkdir()
+    (sub / "m.node").write_text("0 3 0 0\n", encoding="utf-8")
+    (sub / "m.ele").write_text("0 4 0\n", encoding="utf-8")
+    sub.chmod(0o000)
+    try:
+        with pytest.raises(CodecError, match="cannot check for"):
+            read(sub / "m.ele")
+    finally:
+        sub.chmod(0o755)
+
+
+def test_mixed_case_half_is_found(tmp_path: Path) -> None:
+    """A ``Mesh.Node`` pair is neither all-lower nor all-upper.
+
+    Only bites on a case-sensitive filesystem; on macOS/Windows the lookup
+    succeeds before the directory scan this exercises is ever reached.
+    """
+    poly = _tet_mesh()
+    write(poly, tmp_path / "mesh.ele")
+    (tmp_path / "mesh.node").rename(tmp_path / "Mesh.Node")
+    (tmp_path / "mesh.ele").rename(tmp_path / "Mesh.Ele")
+    np.testing.assert_allclose(read(tmp_path / "Mesh.Ele").vertices, poly.vertices)
 
 
 def test_bad_region_attr_warns_and_is_dropped(tmp_path: Path) -> None:
