@@ -12,10 +12,13 @@ sphinx-docs/
   requirements.txt            doc build deps
   index.rst                   landing page (raw HTML include + hidden toctree)
   _includes/homepage.html     the landing page markup - edit copy here
+  _includes/formats_grid.html the eighteen format cards on formats/index
   _static/css/retro.css       the whole theme: palettes, chrome, landing page
   _static/js/homepage.js      copy button for the hero install command
   _static/switcher.json       version switcher index - edit on every release
   _templates/py-version.html  the "py>=3.11" navbar chip
+  _templates/sidebar-nav-bs.html  full-tree section navigation (see below)
+  _templates/navbar-nav.html      the four fixed header links
   usage.rst                   quickstart, now pointing at the split-out pages
   lazy_loading.rst            split out of the old usage.rst
   transforms.rst              split out of the old usage.rst
@@ -66,6 +69,35 @@ Your existing `installation.rst`, `contributing.rst`, `development.rst`,
 * The logo text in `conf.py` is written `&lt;polyxios /&gt;`. pydata drops the
   string into the template unescaped, so a literal `<polyxios />` is parsed as
   an unknown HTML element and renders nothing at all.
+
+## Header links
+
+`_templates/navbar-nav.html` replaces pydata's auto-generated header nav, which
+listed every top-level toctree entry and spilled the rest into a "More"
+dropdown. The four links - docs, formats, cli, api - are hard-coded in that
+template; add one there, not in the toctree.
+
+## Section navigation
+
+pydata's stock `sidebar-nav-bs.html` renders the toctree from `startdepth=1` -
+only the pages nested under the current top-level entry. This toctree is flat at
+the top level, so that left the sidebar empty on every page. The override in
+`_templates/sidebar-nav-bs.html` passes `startdepth=0`, so each page carries the
+whole documentation tree.
+
+The landing page is the exception and drops the sidebar entirely, via
+`html_sidebars = {"index": []}`.
+
+Sidebar entries read as filenames (`usage.rst`, `formats/`) because the toctree
+in `index.rst` gives each page an explicit label: `usage.rst <usage>`. The page's
+own title, its breadcrumb and its prev/next label all still come from the `rst`
+heading, so only the sidebar changes.
+
+`show_nav_level: 1` keeps sections with children (formats, api) collapsible -
+`retro.css` swaps pydata's chevron for a terminal-style `[+]` / `[-]`. Raising
+it to `2` expands everything but removes the toggles, which is a poor trade with
+eighteen format pages. `collapse_navigation: False` puts every section's children
+in the DOM so the toggles work without a page load.
 
 ## Version switcher
 

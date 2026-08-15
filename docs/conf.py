@@ -120,7 +120,15 @@ html_theme_options = {
     "navbar_align": "left",
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
     "show_prev_next": True,
+    # _templates/sidebar-nav-bs.html renders the toctree from depth 0, so every
+    # page carries the whole documentation tree. Top-level entries are always
+    # visible; sections with children (formats, api) expand on click, and the
+    # section containing the current page is expanded on load. Raising this to 2
+    # expands everything but drops the toggles entirely, which loses the
+    # collapse affordance on the eighteen format pages.
     "show_nav_level": 1,
+    "navigation_depth": 3,
+    "collapse_navigation": False,
     "navigation_with_keys": False,
     "footer_start": ["copyright"],
     "footer_end": ["last-updated"],

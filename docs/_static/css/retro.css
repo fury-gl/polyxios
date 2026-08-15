@@ -187,6 +187,13 @@ body::after {
   color: var(--px-bg);
   text-shadow: none;
 }
+/* the terminal cursor that follows the mark */
+.bd-header .navbar-brand .title::after,
+.bd-header .navbar-brand p::after {
+  content: "_";
+  margin-left: 0.1em;
+  animation: px-blink 1.1s steps(1) infinite;
+}
 
 /* --- version switcher --------------------------------------------------- */
 
@@ -267,25 +274,69 @@ body::after {
 }
 .bd-sidebar-secondary .page-toc .onthispage::before { content: "// "; }
 
+/* Section navigation. _templates/sidebar-nav-bs.html renders the whole toctree
+   here, so these rules have to hold up several levels deep. */
+
+nav.bd-links p.bd-links__title {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--px-dim);
+  margin-bottom: 0.9rem;
+}
+nav.bd-links p.bd-links__title::before { content: "// "; }
+
 nav.bd-links li > a {
   color: var(--px-fg);
   padding-left: 0.4rem;
   border-left: 2px solid transparent;
 }
 nav.bd-links li > a:hover { color: var(--px-accent); background: transparent; }
-nav.bd-links .current > a,
-nav.bd-links li.active > a {
+/* an ancestor of the open page is only dimly marked; the page itself is not */
+nav.bd-links li.current > a { color: var(--px-fg); font-weight: 700; }
+nav.bd-links a.current,
+nav.bd-links li.active > a.current {
   color: var(--px-accent) !important;
   border-left-color: var(--px-accent);
   font-weight: 700;
   background: transparent !important;
 }
+
 /* file-tree glyph in the nav, retro terminal listing */
 nav.bd-links li > a::before {
   content: "\251C\2500 ";
   color: var(--px-dim);
 }
 nav.bd-links li:last-child > a::before { content: "\2514\2500 "; }
+
+/* nested levels: indent under a guide rule, glyphs repeat per level */
+nav.bd-links ul ul {
+  margin-left: 0.45rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--px-line);
+}
+nav.bd-links ul ul li > a { font-size: 0.95em; }
+
+/* collapsible parents: swap the chevron icon for a terminal-style [+]/[-] */
+nav.bd-links li.has-children { position: relative; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle {
+  width: 1.7rem;
+  height: 1.7rem;
+  top: 0.05rem;
+}
+.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover { background: transparent; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle i { display: none; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle::before {
+  content: "[+]";
+  color: var(--px-dim);
+  font-size: 0.72rem;
+}
+.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover::before { color: var(--px-accent); }
+.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle::before {
+  content: "[-]";
+  color: var(--px-accent);
+}
 
 /* --- code blocks -------------------------------------------------------- */
 
@@ -345,6 +396,48 @@ p.px-badges code {
 p.px-badges code:first-child { color: var(--px-accent); }
 p.px-badges code:nth-child(2) { color: var(--px-accent-2); }
 
+/* --- format card grid (formats/index.rst) ------------------------------- */
+
+.px-fmtgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--px-line);
+  border: 1px solid var(--px-line);
+  margin: 2rem 0;
+}
+.px-fmtcard {
+  background: var(--px-bg);
+  padding: 1.2rem 1.2rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+}
+.px-fmtcard:hover { background: var(--px-panel); }
+.bd-content .px-fmtcard p { margin: 0; }
+.bd-content .px-fmtname {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--px-fg);
+  margin-bottom: 0.7rem !important;
+}
+.px-fmtext { color: var(--px-accent); font-weight: 400; font-size: 0.84em; margin-left: 0.35rem; }
+.bd-content .px-fmtdesc {
+  font-size: 0.78rem;
+  line-height: 1.75;
+  color: var(--px-dim);
+  flex: 1;
+  margin-bottom: 1.1rem !important;
+}
+.px-fmtlinks { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: baseline; }
+.px-fmtlinks a { text-decoration: none; }
+.px-fmtread { font-size: 0.8rem; font-weight: 700; color: var(--px-accent); }
+.px-fmtspec { font-size: 0.74rem; color: var(--px-dim); }
+.px-fmtspec:hover { color: var(--px-accent-2); }
+
+@media (max-width: 767px) {
+  .px-fmtgrid { grid-template-columns: minmax(0, 1fr); }
+}
+
 p.px-speclink { margin: 1.4rem 0 2.4rem; }
 p.px-speclink a {
   display: inline-block;
@@ -395,15 +488,20 @@ ul.px-quirks li::before {
 
 /* --- landing page ------------------------------------------------------- */
 
-/* the landing page is full-bleed: undo the theme's 60em article column */
+/* The landing page is full-bleed. Two theme caps are in the way: the 60em
+   article column, and the 88rem .bd-page-width on the container. Both are
+   dropped here, so the page runs to the viewport with only its own gutter.
+   The 1800px stop only bites on ultrawide displays, where an unbounded hero
+   grid would stretch past reading width. */
 .bd-article-container:has(.px-home) {
   max-width: none;
   padding: 0;
   overflow-x: visible;
 }
 .bd-main:has(.px-home) .bd-content { justify-content: stretch; }
+.bd-container__inner:has(.px-home) { max-width: none; }
 
-.px-home { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+.px-home { max-width: 1800px; margin: 0 auto; padding: 0 2rem; }
 .px-home a { text-decoration: none; }
 
 .px-hero {
