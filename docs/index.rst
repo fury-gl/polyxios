@@ -9,14 +9,14 @@
    :hidden:
    :maxdepth: 2
 
-   installation
-   usage
-   formats/index
-   lazy_loading
-   transforms
-   cli
-   plugins
-   api/index
-   contributing
-   development
-   changelog
+   installation.rst <installation>
+   usage.rst <usage>
+   formats/ <formats/index>
+   lazy_loading.rst <lazy_loading>
+   transforms.rst <transforms>
+   cli.rst <cli>
+   plugins.rst <plugins>
+   api/ <api/index>
+   contributing.rst <contributing>
+   development.rst <development>
+   changelog.rst <changelog>
