@@ -1,0 +1,164 @@
+<!--
+  Landing page markup, pulled into index.rst by a raw:: html directive.
+  Every class is styled in _static/css/retro.css - edit copy here, look there.
+-->
+<div class="px-home">
+
+  <section class="px-hero">
+    <div class="px-hero-copy">
+      <p class="px-kicker">// read_anything()</p>
+      <h1 class="px-title">ONE LINE IN.<br>ANY MESH OUT.</h1>
+      <p class="px-lede">
+        Reading 3D meshes in Python normally means installing one library per
+        format. polyxios is a single small, maintained package that reads and
+        writes all eighteen &mdash; and raises instead of quietly corrupting
+        your data.
+      </p>
+      <div class="px-btnrow">
+        <span class="px-install">
+          <code class="px-cmd">$ pip install polyxios</code>
+          <button type="button" class="px-copy" aria-label="Copy install command">copy</button>
+        </span>
+        <a class="px-btn" href="usage.html">docs() -&gt;</a>
+        <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
+      </div>
+      <div class="px-stats">
+        <div><b>18</b><span>formats</span></div>
+        <div><b>1</b><span>dependency</span></div>
+        <div><b>0</b><span>silent truncations</span></div>
+        <div><b>mmap</b><span>lazy reads</span></div>
+      </div>
+    </div>
+
+    <div class="px-panel">
+      <div class="px-panel-head"><span>read_write.py</span><span>&mdash; &#9633; &times;</span></div>
+<pre class="px-code"><span class="k">import</span> polyxios <span class="k">as</span> px
+
+mesh = px.read(<span class="s">"brain.vtk"</span>)
+mesh.vertices.shape        <span class="c"># (n, 3)</span>
+<span class="k">len</span>(mesh.element_types)     <span class="c"># 2</span>
+
+px.write(mesh, <span class="s">"brain.ply"</span>)
+px.write(mesh, <span class="s">"brain.stl"</span>, binary=<span class="b">True</span>)
+
+<span class="c"># gigabytes? memory-map it</span>
+mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)<span class="px-cursor">&#9608;</span></pre>
+    </div>
+  </section>
+
+  <section class="px-section">
+    <p class="px-secnum"><b>01</b> <span>// formats</span></p>
+    <h2 class="px-h2">supported_extensions()</h2>
+    <p class="px-sub">Every format carries its own page: what the specification says,
+      what polyxios does with it, and a link to the authoritative document.</p>
+    <div class="px-table">
+      <div class="px-tr px-th"><span>format</span><span>ext</span><span>read</span><span>write</span><span>lazy</span></div>
+      <a class="px-tr" href="formats/vtk.html"><span>VTK Legacy</span><span class="px-ext">.vtk</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/vtr.html"><span>VTK RectilinearGrid</span><span class="px-ext">.vtr</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vtp.html"><span>VTK PolyData</span><span class="px-ext">.vtp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/obj.html"><span>Wavefront OBJ</span><span class="px-ext">.obj</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/ply.html"><span>Stanford PLY</span><span class="px-ext">.ply</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/stl.html"><span>STL</span><span class="px-ext">.stl</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/off.html"><span>OFF</span><span class="px-ext">.off</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/abaqus.html"><span>Abaqus</span><span class="px-ext">.inp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/avs.html"><span>AVS-UCD</span><span class="px-ext">.avs</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/meshb.html"><span>Medit binary</span><span class="px-ext">.meshb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/tetgen.html"><span>TetGen</span><span class="px-ext">.ele + .node</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/wkt.html"><span>Well-Known Text</span><span class="px-ext">.wkt</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 18 codecs registered by extension</p>
+    </div>
+  </section>
+
+  <section class="px-section">
+    <p class="px-secnum"><b>02</b> <span>// guarantees</span></p>
+    <h2 class="px-h2">assert not corrupted</h2>
+    <div class="px-grid4">
+      <div class="px-card">
+        <p class="px-cardnum">[00]</p>
+        <h3>No silent corruption</h3>
+        <p>Large mesh indices raise an error instead of quietly truncating to a narrower integer.</p>
+      </div>
+      <div class="px-card">
+        <p class="px-cardnum">[01]</p>
+        <h3>Groups preserved</h3>
+        <p>A face belonging to several tags stays in all of them, through a full read-write round trip.</p>
+      </div>
+      <div class="px-card">
+        <p class="px-cardnum">[02]</p>
+        <h3>Safe on untrusted files</h3>
+        <p>Header counts are validated before any memory is allocated for the body.</p>
+      </div>
+      <div class="px-card">
+        <p class="px-cardnum">[03]</p>
+        <h3>No compiler needed</h3>
+        <p>Pure Python fallbacks ship with the package; the Cython hot-paths are optional.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="px-section px-two">
+    <div>
+      <p class="px-secnum"><b>03</b> <span>// cli</span></p>
+      <h2 class="px-h2">$ pxios</h2>
+      <p class="px-sub">Ships with the package. Pull a catalogued model, convert it, and
+        render it through FURY without writing a script.</p>
+      <dl class="px-cmds">
+        <dt>list</dt><dd>remote catalogue, local cache, or codecs</dd>
+        <dt>fetch</dt><dd>one file, or every model for an extension</dd>
+        <dt>convert</dt><dd>format to format in a single process</dd>
+        <dt>viz</dt><dd>surface, --lines or --points</dd>
+      </dl>
+    </div>
+    <div class="px-panel">
+      <div class="px-panel-head"><span>bash &mdash; 80&times;24</span></div>
+<pre class="px-code"><span class="p">$</span> pxios fetch bunny.obj
+<span class="c">  cached -&gt; ~/.polyxios/bunny.obj  (2.9 MB)</span>
+
+<span class="p">$</span> pxios convert bunny.obj bunny.vtk
+<span class="c">  35947 vertices &middot; 69451 triangles &middot; 0.4s</span>
+
+<span class="p">$</span> pxios list --codecs
+<span class="c">  .avs .bdf .ele .f3grid .inp .meshb .msh
+  .obj .off .ply .stl .su2 .tec .vtk .vtp
+  .vtr .wkt .xml</span>
+
+<span class="p">$</span> pxios viz bunny.vtk --points<span class="px-cursor">&#9608;</span></pre>
+    </div>
+  </section>
+
+  <section class="px-section">
+    <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
+    <h2 class="px-h2">register() -&gt; ".abc"</h2>
+    <p class="px-sub">Any third-party package can teach polyxios a nineteenth format.
+      Two functions and an entry point &mdash; no fork, no pull request, no restart.</p>
+    <div class="px-grid2">
+      <div class="px-panel">
+        <div class="px-panel-head"><span>step 01 &mdash; mypackage/abc_codec.py</span></div>
+<pre class="px-code"><span class="k">from</span> polyxios._registry <span class="k">import</span> Codec
+
+<span class="k">def</span> read(path, *, lazy=<span class="b">False</span>): ...
+<span class="k">def</span> write(poly, path, **opts): ...
+
+<span class="k">def</span> register():
+    <span class="k">return</span> <span class="s">".abc"</span>, Codec(read, write)</pre>
+      </div>
+      <div class="px-panel">
+        <div class="px-panel-head"><span>step 02 &mdash; pyproject.toml</span></div>
+<pre class="px-code">[project.entry-points.<span class="s">"polyxios.codecs"</span>]
+abc = <span class="s">"mypackage.abc_codec:register"</span>
+
+<span class="c"># then, anywhere:</span>
+mesh = px.read(<span class="s">"model.abc"</span>)
+<span class="c"># picked up automatically</span></pre>
+      </div>
+    </div>
+    <p class="px-sub"><a href="plugins.html">Full plugin guide -&gt;</a></p>
+  </section>
+
+</div>
