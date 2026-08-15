@@ -1,0 +1,11 @@
+# Canonical name and address per contributor.
+#
+# git shortlog, git log and the generated credits page all honour this file, so
+# one person committing under several addresses is counted once. Add a line
+# here rather than editing the credits page when a duplicate shows up.
+#
+# Format:  Canonical Name <canonical@email>  Other Name <other@email>
+
+Serge Koudoro <skab12@gmail.com> <23106443+skoudoro@users.noreply.github.com>
+Serge Koudoro <skab12@gmail.com> skoudoro <skab12@gmail.com>
+Praneeth Shetty <praneethshetty10@gmail.com> <64432063+ganimtron-10@users.noreply.github.com>

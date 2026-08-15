@@ -1,6 +1,8 @@
 API Reference
 =============
 
+Complete reference for all public functions, types, and exceptions.
+
 .. autosummary::
    :toctree: generated
    :recursive:

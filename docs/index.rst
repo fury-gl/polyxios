@@ -1,20 +1,23 @@
-polyxios
-========
+:html_theme.sidebar_secondary.remove: true
 
-Fast, clean mesh I/O for Python.
+.. title:: polyxios - fast, clean mesh I/O for Python
+
+.. raw:: html
+   :file: _includes/homepage.html
 
 .. toctree::
+   :hidden:
    :maxdepth: 2
 
-   installation
-   usage
-   contributing
-   development
-   changelog
-   api/index
-
-Indices
--------
-
-* :ref:`genindex`
-* :ref:`modindex`
+   installation.rst <installation>
+   usage.rst <usage>
+   formats/ <formats/index>
+   lazy_loading.rst <lazy_loading>
+   transforms.rst <transforms>
+   cli.rst <cli>
+   plugins.rst <plugins>
+   api/ <api/index>
+   contributing.rst <contributing>
+   development.rst <development>
+   changelog.rst <changelog>
+   credits.rst <credits>
