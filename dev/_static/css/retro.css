@@ -1,0 +1,693 @@
+/* ==========================================================================
+   polyxios docs - retro terminal theme on pydata-sphinx-theme
+   --------------------------------------------------------------------------
+   light mode = "paper"  : warm cream stock, ink text, burnt-orange accent
+   dark  mode = "crt"    : amber phosphor on near-black, sage second accent
+
+   Everything is driven through pydata's own CSS variables, so the theme's
+   navbar switcher drives both palettes with no extra JavaScript.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap");
+
+/* --- palettes ------------------------------------------------------------ */
+
+html {
+  --px-radius: 0;
+}
+
+html[data-theme="dark"] {
+  --px-bg: #0d0c0a;
+  --px-panel: #16140f;
+  --px-panel-2: #1e1b15;
+  --px-fg: #f4e4c1;
+  --px-dim: #8f8474;
+  --px-line: rgba(244, 228, 193, 0.16);
+  --px-accent: #ffb02e;
+  --px-accent-2: #8fc46f;
+  --px-glow: 0 0 22px rgba(255, 176, 46, 0.22);
+  --px-scanline: rgba(0, 0, 0, 0.13);
+
+  --pst-color-primary: var(--px-accent);
+  --pst-color-secondary: var(--px-accent-2);
+  --pst-color-background: var(--px-bg);
+  --pst-color-on-background: var(--px-panel);
+  --pst-color-surface: var(--px-panel-2);
+  --pst-color-on-surface: var(--px-fg);
+  --pst-color-text-base: var(--px-fg);
+  --pst-color-text-muted: var(--px-dim);
+  --pst-color-border: var(--px-line);
+  --pst-color-shadow: transparent;
+  --pst-color-link: var(--px-accent);
+  --pst-color-link-hover: var(--px-accent-2);
+  --pst-color-inline-code: var(--px-accent);
+  --pst-color-inline-code-links: var(--px-accent-2);
+  --pst-color-target: rgba(255, 176, 46, 0.18);
+  --pst-color-info: var(--px-accent-2);
+  --pst-color-warning: var(--px-accent);
+}
+
+html[data-theme="light"] {
+  --px-bg: #f2e7d3;
+  --px-panel: #e9dcc3;
+  --px-panel-2: #ded0b3;
+  --px-fg: #211f1c;
+  --px-dim: #6d6455;
+  --px-line: rgba(33, 31, 28, 0.2);
+  --px-accent: #b2622d;
+  --px-accent-2: #56633f;
+  --px-glow: none;
+  --px-scanline: rgba(33, 31, 28, 0.05);
+
+  --pst-color-primary: var(--px-accent);
+  --pst-color-secondary: var(--px-accent-2);
+  --pst-color-background: var(--px-bg);
+  --pst-color-on-background: var(--px-panel);
+  --pst-color-surface: var(--px-panel-2);
+  --pst-color-on-surface: var(--px-fg);
+  --pst-color-text-base: var(--px-fg);
+  --pst-color-text-muted: var(--px-dim);
+  --pst-color-border: var(--px-line);
+  --pst-color-shadow: transparent;
+  --pst-color-link: var(--px-accent);
+  --pst-color-link-hover: var(--px-accent-2);
+  --pst-color-inline-code: var(--px-accent);
+  --pst-color-inline-code-links: var(--px-accent-2);
+  --pst-color-target: rgba(178, 98, 45, 0.16);
+  --pst-color-info: var(--px-accent-2);
+  --pst-color-warning: var(--px-accent);
+}
+
+/* --- type ---------------------------------------------------------------- */
+
+html {
+  --pst-font-family-base: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --pst-font-family-heading: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --pst-font-family-monospace: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --pst-font-size-base: 15px;
+  --pst-sidebar-font-size: 0.82rem;
+  --pst-sidebar-font-size-mobile: 0.9rem;
+}
+
+body {
+  font-family: var(--pst-font-family-base);
+  letter-spacing: -0.005em;
+}
+
+.bd-article-container h1,
+.bd-article-container h2,
+.bd-article-container h3,
+.bd-article-container h4 {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.bd-article-container h1 { font-size: 2.1rem; margin-bottom: 0.6rem; }
+.bd-article-container h2 { font-size: 1.35rem; margin-top: 2.4rem; }
+.bd-article-container h3 { font-size: 1.08rem; margin-top: 1.8rem; }
+
+/* section markers, ctxdc style */
+.bd-article-container h2::before {
+  content: "// ";
+  color: var(--px-accent);
+}
+
+.bd-article-container p,
+.bd-article-container li {
+  line-height: 1.8;
+}
+.bd-article-container p { color: var(--px-dim); }
+.bd-article-container strong { color: var(--px-fg); }
+
+/* --- kill every soft corner and shadow --------------------------------- */
+
+.bd-content .sd-card,
+.bd-content div.highlight,
+.bd-content pre,
+.bd-content table,
+.bd-content .admonition,
+.bd-content img,
+.bd-search input,
+.form-control,
+.btn,
+.sd-btn,
+.bd-sidebar-primary,
+.bd-sidebar-secondary {
+  border-radius: var(--px-radius) !important;
+  box-shadow: none !important;
+}
+
+/* --- CRT scanlines ----------------------------------------------------- */
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--px-scanline) 0px,
+    var(--px-scanline) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+/* --- chrome: navbar, announcement, sidebars ---------------------------- */
+
+.bd-header {
+  background: var(--px-bg) !important;
+  border-bottom: 1px solid var(--px-line);
+  box-shadow: none !important;
+}
+.bd-header .navbar-nav > li > a.nav-link { font-size: 0.82rem; color: var(--px-dim); }
+.bd-header .navbar-nav > li > a.nav-link:hover,
+.bd-header .navbar-nav > .active > .nav-link { color: var(--px-accent); }
+/* the boxed `<polyxios />` mark; conf.py escapes the angle brackets so the
+   browser prints them instead of parsing an unknown element */
+.bd-header .navbar-brand:hover,
+.bd-header .navbar-brand:visited:hover:hover { text-decoration: none; }
+.bd-header .navbar-brand .title,
+.bd-header .navbar-brand p {
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.94rem;
+  color: var(--px-accent);
+  text-shadow: var(--px-glow);
+  letter-spacing: -0.03em;
+  border: 1px solid var(--px-accent);
+  padding: 0.3rem 0.7rem;
+  line-height: 1.35;
+}
+.bd-header .navbar-brand:hover .title,
+.bd-header .navbar-brand:hover p {
+  background: var(--px-accent);
+  color: var(--px-bg);
+  text-shadow: none;
+}
+/* the terminal cursor that follows the mark */
+.bd-header .navbar-brand .title::after,
+.bd-header .navbar-brand p::after {
+  content: "_";
+  margin-left: 0.1em;
+  animation: px-blink 1.1s steps(1) infinite;
+}
+
+/* --- version switcher --------------------------------------------------- */
+
+.bd-header .version-switcher__button.btn {
+  border: 1px solid var(--px-line) !important;
+  background: transparent;
+  color: var(--px-dim);
+  font-family: var(--pst-font-family-monospace);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.7rem;
+}
+.bd-header .version-switcher__button.btn:hover,
+.bd-header .version-switcher__button.btn[aria-expanded="true"] {
+  border-color: var(--px-accent) !important;
+  color: var(--px-accent);
+  background: transparent;
+}
+.version-switcher__menu {
+  background: var(--px-panel);
+  border: 1px solid var(--px-line) !important;
+  padding: 0 !important;
+}
+.version-switcher__menu a.list-group-item {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--px-line);
+  color: var(--px-fg);
+  font-size: 0.76rem;
+  padding: 0.5rem 0.8rem;
+}
+.version-switcher__menu a.list-group-item:last-child { border-bottom: 0; }
+.version-switcher__menu a.list-group-item:hover { background: var(--px-panel-2); color: var(--px-accent); }
+.version-switcher__menu a.list-group-item.active,
+.version-switcher__menu a.list-group-item[aria-current="true"] {
+  color: var(--px-accent);
+  font-weight: 700;
+}
+.version-switcher__menu a.list-group-item::before { content: "> "; color: var(--px-dim); }
+
+/* the "py>=3.11" chip that rides beside the switcher */
+.px-pyversion {
+  color: var(--px-dim);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.px-pyversion::before { content: "\00b7"; margin: 0 0.6rem; color: var(--px-line); }
+
+.bd-header-version-warning {
+  background: var(--px-panel) !important;
+  border-bottom: 1px solid var(--px-accent);
+  color: var(--px-fg);
+  font-size: 0.76rem;
+}
+.bd-header-version-warning a { color: var(--px-accent); }
+
+.bd-header-announcement {
+  background: var(--px-panel) !important;
+  border-bottom: 1px solid var(--px-line);
+  color: var(--px-dim);
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+}
+.bd-header-announcement a { color: var(--px-accent); }
+
+.bd-sidebar-primary,
+.bd-sidebar-secondary {
+  background: var(--px-bg);
+  border-color: var(--px-line);
+}
+.bd-sidebar-primary .caption-text,
+.bd-sidebar-secondary .page-toc .onthispage {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.66rem;
+  color: var(--px-dim);
+}
+.bd-sidebar-secondary .page-toc .onthispage::before { content: "// "; }
+
+/* Section navigation. _templates/sidebar-nav-bs.html renders the whole toctree
+   here, so these rules have to hold up several levels deep. */
+
+nav.bd-links p.bd-links__title {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--px-dim);
+  margin-bottom: 0.9rem;
+}
+nav.bd-links p.bd-links__title::before { content: "// "; }
+
+nav.bd-links li > a {
+  color: var(--px-fg);
+  padding-left: 0.4rem;
+  border-left: 2px solid transparent;
+}
+nav.bd-links li > a:hover { color: var(--px-accent); background: transparent; }
+/* an ancestor of the open page is only dimly marked; the page itself is not */
+nav.bd-links li.current > a { color: var(--px-fg); font-weight: 700; }
+nav.bd-links a.current,
+nav.bd-links li.active > a.current {
+  color: var(--px-accent) !important;
+  border-left-color: var(--px-accent);
+  font-weight: 700;
+  background: transparent !important;
+}
+
+/* file-tree glyph in the nav, retro terminal listing */
+nav.bd-links li > a::before {
+  content: "\251C\2500 ";
+  color: var(--px-dim);
+}
+nav.bd-links li:last-child > a::before { content: "\2514\2500 "; }
+
+/* nested levels: indent under a guide rule, glyphs repeat per level */
+nav.bd-links ul ul {
+  margin-left: 0.45rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--px-line);
+}
+nav.bd-links ul ul li > a { font-size: 0.95em; }
+
+/* collapsible parents: swap the chevron icon for a terminal-style [+]/[-] */
+nav.bd-links li.has-children { position: relative; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle {
+  width: 1.7rem;
+  height: 1.7rem;
+  top: 0.05rem;
+}
+.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover { background: transparent; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle i { display: none; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle::before {
+  content: "[+]";
+  color: var(--px-dim);
+  font-size: 0.72rem;
+}
+.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover::before { color: var(--px-accent); }
+.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle::before {
+  content: "[-]";
+  color: var(--px-accent);
+}
+
+/* --- code blocks -------------------------------------------------------- */
+
+.bd-content div.highlight,
+.bd-content pre {
+  background: var(--px-panel) !important;
+  border: 1px solid var(--px-line);
+}
+.bd-content pre { font-size: 0.82rem; line-height: 1.9; }
+code.literal,
+.bd-content code {
+  background: transparent;
+  border: 0;
+  font-size: 0.86em;
+  color: var(--px-accent);
+}
+
+/* --- tables ------------------------------------------------------------- */
+
+.bd-content table {
+  border: 1px solid var(--px-line);
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+}
+.bd-content table thead th {
+  background: var(--px-panel);
+  border-bottom: 1px solid var(--px-line) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--px-dim);
+}
+.bd-content table td,
+.bd-content table th {
+  border-top: 1px solid var(--px-line);
+  padding: 0.55rem 0.85rem;
+  vertical-align: top;
+  line-height: 1.7;
+}
+.bd-content table tbody tr:nth-child(odd) { background: transparent; }
+.bd-content table.px-format-table tbody tr:hover,
+.bd-content table.px-spec-table tbody tr:hover { background: var(--px-panel-2); }
+.bd-content table.px-spec-table td:first-child { color: var(--px-dim); width: 28%; }
+.bd-content table.px-format-table td:first-child a { font-weight: 700; }
+
+/* --- format page furniture --------------------------------------------- */
+
+p.px-badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1.6rem; }
+p.px-badges code {
+  border: 1px solid var(--px-line);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--px-dim);
+}
+p.px-badges code:first-child { color: var(--px-accent); }
+p.px-badges code:nth-child(2) { color: var(--px-accent-2); }
+
+/* --- format card grid (formats/index.rst) ------------------------------- */
+
+.px-fmtgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--px-line);
+  border: 1px solid var(--px-line);
+  margin: 2rem 0;
+}
+.px-fmtcard {
+  background: var(--px-bg);
+  padding: 1.2rem 1.2rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+}
+.px-fmtcard:hover { background: var(--px-panel); }
+.bd-content .px-fmtcard p { margin: 0; }
+.bd-content .px-fmtname {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--px-fg);
+  margin-bottom: 0.7rem !important;
+}
+.px-fmtext { color: var(--px-accent); font-weight: 400; font-size: 0.84em; margin-left: 0.35rem; }
+.bd-content .px-fmtdesc {
+  font-size: 0.78rem;
+  line-height: 1.75;
+  color: var(--px-dim);
+  flex: 1;
+  margin-bottom: 1.1rem !important;
+}
+.px-fmtlinks { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: baseline; }
+.px-fmtlinks a { text-decoration: none; }
+.px-fmtread { font-size: 0.8rem; font-weight: 700; color: var(--px-accent); }
+.px-fmtspec { font-size: 0.74rem; color: var(--px-dim); }
+.px-fmtspec:hover { color: var(--px-accent-2); }
+
+@media (max-width: 767px) {
+  .px-fmtgrid { grid-template-columns: minmax(0, 1fr); }
+}
+
+p.px-speclink { margin: 1.4rem 0 2.4rem; }
+p.px-speclink a {
+  display: inline-block;
+  border: 1px solid var(--px-accent);
+  color: var(--px-accent);
+  text-decoration: none;
+  font-size: 0.8rem;
+  padding: 0.65rem 1.1rem;
+}
+p.px-speclink a:hover {
+  background: var(--px-accent);
+  color: var(--px-bg);
+  text-decoration: none;
+}
+
+/* credits page: the core team reads as a roster, not prose */
+ul.px-credits { list-style: none; padding: 0; margin: 0 0 2rem; }
+.bd-content ul.px-credits li {
+  border-left: 2px solid var(--px-accent);
+  padding: 0.5rem 0 0.5rem 0.9rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--px-fg);
+}
+.bd-content ul.px-credits li::before { content: "> "; color: var(--px-accent); }
+
+ul.px-quirks { list-style: none; padding: 0; margin: 0 0 2rem; border: 1px solid var(--px-line); }
+ul.px-quirks li {
+  border-bottom: 1px solid var(--px-line);
+  padding: 0.85rem 1rem 0.85rem 3rem;
+  position: relative;
+  font-size: 0.82rem;
+  color: var(--px-dim);
+}
+ul.px-quirks li:last-child { border-bottom: 0; }
+ul.px-quirks li::before {
+  content: "[!]";
+  position: absolute;
+  left: 1rem;
+  color: var(--px-accent);
+}
+
+.bd-content .admonition,
+.bd-content div.seealso {
+  border: 1px solid var(--px-line) !important;
+  border-left-width: 2px !important;
+  border-left-color: var(--px-accent) !important;
+  background: var(--px-panel);
+}
+.bd-content .admonition > .admonition-title {
+  background: transparent !important;
+  color: var(--px-accent);
+  text-transform: lowercase;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.bd-content .admonition > .admonition-title::before { content: "// "; }
+.bd-content .admonition > .admonition-title::after { display: none; }
+
+/* --- landing page ------------------------------------------------------- */
+
+/* The landing page is full-bleed. Two theme caps are in the way: the 60em
+   article column, and the 88rem .bd-page-width on the container. Both are
+   dropped here, so the page runs to the viewport with only its own gutter.
+
+   The article rule must be written out in full - the theme ships it as
+   `.bd-main .bd-content .bd-article-container`, so a bare
+   `.bd-article-container:has(...)` is a specificity step short and loses. */
+.bd-main .bd-content .bd-article-container:has(.px-home) {
+  max-width: none;
+  padding: 0;
+  overflow-x: visible;
+}
+.bd-main:has(.px-home) .bd-content { justify-content: stretch; }
+.bd-container__inner:has(.px-home) { max-width: none; }
+
+.px-home { max-width: none; margin: 0 auto; padding: 0 2rem; }
+.px-home a { text-decoration: none; }
+
+.px-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 3.5rem;
+  align-items: start;
+  padding: 3.5rem 0 3rem;
+}
+.px-kicker { color: var(--px-accent); font-size: 0.76rem; margin: 0 0 1.6rem; letter-spacing: 0.06em; }
+.px-title {
+  font-size: clamp(2.4rem, 4.4vw, 3.6rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  margin: 0 0 1.4rem;
+  text-shadow: var(--px-glow);
+}
+.px-lede {
+  font-size: 0.92rem;
+  line-height: 1.85;
+  color: var(--px-dim);
+  max-width: 52ch;
+  margin: 0 0 2rem;
+}
+.px-btnrow { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-bottom: 2.4rem; align-items: stretch; }
+/* The selectors below are .px-home-qualified on purpose: the generic
+   `.bd-content code` rule would otherwise repaint the command dark-on-dark and
+   make the whole pill invisible. */
+.px-home .px-install {
+  border: 1px solid var(--px-accent);
+  background: var(--px-accent);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.8rem 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.px-home .px-install .px-cmd {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--px-bg);
+}
+.px-home .px-install .px-copy {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--px-bg);
+  opacity: 0.62;
+  cursor: pointer;
+}
+.px-home .px-install .px-copy:hover,
+.px-home .px-install .px-copy.is-copied { opacity: 1; }
+
+.px-btn {
+  border: 1px solid var(--px-line);
+  color: var(--px-fg);
+  font-size: 0.82rem;
+  padding: 0.8rem 1.1rem;
+  display: inline-flex;
+  align-items: center;
+}
+.px-btn:hover { border-color: var(--px-accent); color: var(--px-accent); }
+
+.px-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--px-line);
+  border: 1px solid var(--px-line);
+}
+.px-stats > div { background: var(--px-bg); padding: 0.9rem 0.8rem; }
+.px-stats b {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--px-accent);
+  text-shadow: var(--px-glow);
+}
+.px-stats span { font-size: 0.66rem; color: var(--px-dim); letter-spacing: 0.08em; }
+
+.px-panel { border: 1px solid var(--px-line); background: var(--px-panel); }
+.px-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--px-line);
+  padding: 0.6rem 1rem;
+  font-size: 0.7rem;
+  color: var(--px-dim);
+}
+pre.px-code {
+  margin: 0;
+  padding: 1.3rem 1.2rem;
+  font-size: 0.8rem;
+  line-height: 2;
+  white-space: pre-wrap;
+  background: transparent;
+  border: 0;
+  color: var(--px-fg);
+  overflow-x: auto;
+}
+pre.px-code .k, pre.px-code .c { color: var(--px-dim); }
+pre.px-code .s { color: var(--px-accent-2); }
+pre.px-code .b, pre.px-code .p { color: var(--px-accent); }
+.px-cursor { color: var(--px-accent); animation: px-blink 1.1s steps(1) infinite; }
+@keyframes px-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
+
+.px-section { border-top: 1px solid var(--px-line); padding: 3rem 0; }
+.px-secnum { font-size: 0.76rem; margin: 0 0 0.4rem; }
+.px-secnum b { color: var(--px-accent); font-weight: 500; margin-right: 0.8rem; }
+.px-secnum span { color: var(--px-dim); }
+.px-h2 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 0.6rem; }
+.px-sub { font-size: 0.84rem; color: var(--px-dim); margin: 0 0 1.8rem; max-width: 72ch; line-height: 1.8; }
+.px-sub a { color: var(--px-accent); }
+
+.px-table { border: 1px solid var(--px-line); }
+.px-tr {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) 1.2fr 0.6fr 0.9fr 1.2fr;
+  gap: 0.9rem;
+  padding: 0.65rem 1.1rem;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--px-line);
+  color: var(--px-fg);
+}
+.px-tr:hover { background: var(--px-panel-2); color: var(--px-accent); }
+.px-th {
+  background: var(--px-panel);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.64rem;
+  color: var(--px-dim);
+}
+.px-th:hover { background: var(--px-panel); color: var(--px-dim); }
+.px-ext { color: var(--px-accent); }
+.px-ok { color: var(--px-accent-2); }
+.px-dim { color: var(--px-dim); }
+.px-tfoot { margin: 0; padding: 0.65rem 1.1rem; font-size: 0.72rem; color: var(--px-dim); }
+
+.px-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--px-line); border: 1px solid var(--px-line); }
+.px-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--px-line); border: 1px solid var(--px-line); }
+.px-grid2 .px-panel { border: 0; }
+.px-card { background: var(--px-bg); padding: 1.4rem 1.2rem; }
+.px-cardnum { color: var(--px-accent); font-size: 0.7rem; margin: 0 0 0.9rem; }
+.px-card h3 { font-size: 0.94rem; font-weight: 700; margin: 0 0 0.6rem; line-height: 1.35; }
+.px-card p { font-size: 0.78rem; line-height: 1.75; color: var(--px-dim); margin: 0; }
+
+.px-two { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 3rem; align-items: start; }
+.px-cmds { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 0.5rem 1rem; font-size: 0.8rem; margin: 0; }
+.px-cmds dt { color: var(--px-accent); font-weight: 400; }
+.px-cmds dd { color: var(--px-dim); margin: 0; }
+
+@media (max-width: 959px) {
+  .px-hero, .px-two, .px-grid2 { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+  .px-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .px-tr { grid-template-columns: minmax(0, 1.6fr) 1fr 0.6fr; }
+  .px-tr > :nth-child(n + 4) { display: none; }
+}
+
+/* --- footer & misc ------------------------------------------------------ */
+
+.bd-footer { border-top: 1px solid var(--px-line); background: var(--px-panel); }
+.bd-footer .footer-items__start, .bd-footer .footer-items__end { font-size: 0.72rem; color: var(--px-dim); }
+.prev-next-area a p.prev-next-title { color: var(--px-accent); font-weight: 500; }
+.bd-search input { background: var(--px-panel); border: 1px solid var(--px-line); }
+:focus-visible { outline: 2px solid var(--px-accent); outline-offset: 2px; }
+::selection { background: var(--px-accent); color: var(--px-bg); }
