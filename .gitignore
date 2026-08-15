@@ -71,6 +71,8 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+# generated at build time by docs/_ext/contributors.py
+docs/_includes/contributors.rst
 
 # PyBuilder
 .pybuilder/

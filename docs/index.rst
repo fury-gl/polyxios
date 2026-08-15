@@ -20,3 +20,4 @@
    contributing.rst <contributing>
    development.rst <development>
    changelog.rst <changelog>
+   credits.rst <credits>

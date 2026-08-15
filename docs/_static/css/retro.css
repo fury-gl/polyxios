@@ -453,6 +453,17 @@ p.px-speclink a:hover {
   text-decoration: none;
 }
 
+/* credits page: the core team reads as a roster, not prose */
+ul.px-credits { list-style: none; padding: 0; margin: 0 0 2rem; }
+.bd-content ul.px-credits li {
+  border-left: 2px solid var(--px-accent);
+  padding: 0.5rem 0 0.5rem 0.9rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--px-fg);
+}
+.bd-content ul.px-credits li::before { content: "> "; color: var(--px-accent); }
+
 ul.px-quirks { list-style: none; padding: 0; margin: 0 0 2rem; border: 1px solid var(--px-line); }
 ul.px-quirks li {
   border-bottom: 1px solid var(--px-line);

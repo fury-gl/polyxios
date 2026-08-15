@@ -15,7 +15,8 @@ sphinx-docs/
   _includes/formats_grid.html the twenty-five format cards on formats/index
   _static/css/retro.css       the whole theme: palettes, chrome, landing page
   _static/js/homepage.js      copy button for the hero install command
-  _static/switcher.json       version switcher index - edit on every release
+  _ext/contributors.py        credits page contributor list, from git
+  credits.rst                 core team + generated contributor list
   _templates/py-version.html  the "py>=3.11" navbar chip
   _templates/sidebar-nav-bs.html  full-tree section navigation (see below)
   _templates/navbar-nav.html      the four fixed header links
@@ -25,10 +26,19 @@ sphinx-docs/
   cli.rst                     split out of the old usage.rst
   plugins.rst                 split out of the old usage.rst
   formats/
-    index.rst                 the 18-format table + hidden toctree
-    vtk.rst vtr.rst vtp.rst obj.rst ply.rst stl.rst off.rst abaqus.rst
-    avs.rst meshb.rst dolfin.rst flac3d.rst gmsh.rst nastran.rst
-    tecplot.rst su2.rst tetgen.rst wkt.rst
+    index.rst                 the format card grid + hidden toctree
+    vtk.rst vtr.rst vtp.rst vtu.rst vts.rst vti.rst obj.rst ply.rst
+    stl.rst off.rst abaqus.rst avs.rst meshb.rst mfem.rst dolfin.rst
+    flac3d.rst gmsh.rst nastran.rst tecplot.rst su2.rst tetgen.rst
+    wkt.rst netgen.rst ugrid.rst splat.rst
+```
+
+Outside `docs/`:
+
+```
+.mailmap                      collapses duplicate committer identities
+tools/gen_switcher.py         writes switcher.json + the root redirect on gh-pages
+.github/workflows/build_docs.yml   build on PR, publish on merge and release
 ```
 
 ## Install
@@ -99,26 +109,106 @@ it to `2` expands everything but removes the toggles, which is a poor trade with
 twenty-five format pages. `collapse_navigation: False` puts every section's children
 in the DOM so the toggles work without a page load.
 
-## Version switcher
+## Credits page
 
-`conf.py` derives the switcher entry from the installed version: a dev build
-(`0.3.0.dev0`) matches `dev`, a tagged build matches its own `X.Y` series. Both
-can be overridden by environment variable:
+`credits.rst` names the core developers by hand - the list lives in `conf.py` as
+`polyxios_core_developers`, so the page and the extension agree on who is
+already credited.
+
+Everyone else in the git history is listed under "Contributors" by
+`docs/_ext/contributors.py`, which shells out to `git shortlog -sne` on
+`builder-inited` and writes `_includes/contributors.rst` (generated, gitignored).
+A merged pull request is therefore all it takes to appear - there is no list to
+edit. Bots are filtered by the `BOT_MARKERS` tuple.
+
+Duplicate identities collapse through `.mailmap` at the repository root, which
+`git shortlog` honours on its own. Add a line there rather than special-casing a
+name in the extension.
+
+A build outside a git checkout (an sdist, say) degrades to a placeholder
+paragraph and a warning rather than failing.
+
+## Version switcher and deployment
+
+### Site layout
+
+The `gh-pages` branch holds one directory per version:
+
+```
+/                 index.html (redirect), switcher.json, .nojekyll
+/dev/             built from master on every merge
+/stable/          a copy of the newest release
+/0.3/  /0.2/      built from tags v0.3.0, v0.2.0
+```
+
+`switcher.json` and the root redirect are **generated**, not tracked:
+`tools/gen_switcher.py` reads the directories actually present on `gh-pages` and
+writes both. That is deliberate - a hand-maintained index drifts and starts
+offering versions that were never deployed. There is no `switcher.json` in the
+repository for the same reason.
+
+The newest release is published twice, under `X.Y/` and under `stable/`, and the
+switcher points at `stable/` for it. That URL survives the next release, so it
+is the one worth linking to from elsewhere.
+
+Until the first release ships, `dev` is the only entry and the root redirects
+there.
+
+### Which entry a build highlights
+
+`conf.py` derives it from the installed version: a dev build (`0.3.0.dev0`)
+matches `dev`, a tagged build matches its own `X.Y` series. Two environment
+variables override that:
 
 | Variable | Purpose |
 | --- | --- |
-| `SWITCHER_VERSION` | pin the entry to highlight, e.g. `0.2` in a release job |
-| `SWITCHER_JSON_URL` | point at a different index; use `_static/switcher.json` to test locally |
+| `SWITCHER_VERSION` | pin the entry to highlight. The workflow sets this per build rather than trusting the installed version |
+| `SWITCHER_JSON_URL` | point at a different index, e.g. a locally generated one |
 
-The published index lives at `https://fury-gl.github.io/polyxios/_static/switcher.json`,
-built from `docs/_static/switcher.json`. **That URL is not live yet** - there is
-no Pages deploy in `.github/workflows/build_docs.yml`, so until one exists the
-switcher button renders but its dropdown stays empty. `check_switcher` is off so
-this never fails a `-W` build.
+`check_switcher` is off, so a build with no network access never fails a `-W`
+build on an unreachable index.
 
-On each release: add the new series to `docs/_static/switcher.json`, move
-`"preferred": true` onto it, and drop any series you stop publishing (a stale
-entry is a dead link).
+### The workflow
+
+`.github/workflows/build_docs.yml`:
+
+| Trigger | Builds | Publishes to |
+| --- | --- | --- |
+| pull request | yes, `-W --keep-going` | nothing |
+| push to master | yes | `dev/` |
+| release published | yes | `X.Y/` and `stable/` |
+| workflow_dispatch | yes | `dev/` |
+
+Pull requests never publish - they can run from forks without write access, and
+a preview would overwrite the live dev docs. The deploy job creates the
+`gh-pages` branch as an orphan on its first run, so nothing has to be seeded by
+hand.
+
+The release trigger parses `X.Y` out of the tag and fails loudly if the tag does
+not look like `vX.Y.Z`, rather than publishing to a directory named after a
+typo.
+
+### One-time setup
+
+GitHub Pages has to be pointed at the branch once, which no workflow can do for
+you:
+
+```bash
+gh api -X POST repos/fury-gl/polyxios/pages \
+  -f 'source[branch]=gh-pages' -f 'source[path]=/'
+```
+
+Or: Settings -> Pages -> Source -> Deploy from a branch -> `gh-pages` / `/`.
+
+Do this **after** the first deploy has created the branch, or the API call has
+nothing to point at.
+
+### Testing the switcher locally
+
+```bash
+mkdir -p /tmp/site/dev && python tools/gen_switcher.py /tmp/site
+cd docs && SWITCHER_JSON_URL=file:///tmp/site/switcher.json make html
+```
 
 ## Format pages - please review
 
