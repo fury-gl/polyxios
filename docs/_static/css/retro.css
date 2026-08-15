@@ -491,9 +491,11 @@ ul.px-quirks li::before {
 /* The landing page is full-bleed. Two theme caps are in the way: the 60em
    article column, and the 88rem .bd-page-width on the container. Both are
    dropped here, so the page runs to the viewport with only its own gutter.
-   The 1800px stop only bites on ultrawide displays, where an unbounded hero
-   grid would stretch past reading width. */
-.bd-article-container:has(.px-home) {
+
+   The article rule must be written out in full - the theme ships it as
+   `.bd-main .bd-content .bd-article-container`, so a bare
+   `.bd-article-container:has(...)` is a specificity step short and loses. */
+.bd-main .bd-content .bd-article-container:has(.px-home) {
   max-width: none;
   padding: 0;
   overflow-x: visible;
@@ -501,7 +503,7 @@ ul.px-quirks li::before {
 .bd-main:has(.px-home) .bd-content { justify-content: stretch; }
 .bd-container__inner:has(.px-home) { max-width: none; }
 
-.px-home { max-width: 1800px; margin: 0 auto; padding: 0 2rem; }
+.px-home { max-width: none; margin: 0 auto; padding: 0 2rem; }
 .px-home a { text-decoration: none; }
 
 .px-hero {

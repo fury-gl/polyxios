@@ -34,7 +34,7 @@ Specification at a glance
 
 .. rst-class:: px-speclink
 
-`Read the full DOLFIN / FEniCS XML specification ↗ <https://fenicsproject.org/olddocs/dolfin/1.6.0/python/programmers-reference/cpp/io/XMLFile.html>`__
+`Read the full DOLFIN / FEniCS XML specification ↗ <https://people.sc.fsu.edu/~jburkardt/data/dolfin_xml/dolfin_xml.html>`__
 
 Reading
 -------

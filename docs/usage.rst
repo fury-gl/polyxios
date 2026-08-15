@@ -33,7 +33,7 @@ Every codec's own options are listed on its page under
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the eighteen supported formats, one page each
+* :doc:`formats/index` - the twenty-five supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

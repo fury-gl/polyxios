@@ -32,7 +32,7 @@ Specification at a glance
 
 .. rst-class:: px-speclink
 
-`Read the full VTK Legacy specification ↗ <https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html>`__
+`Read the full VTK Legacy specification ↗ <https://examples.vtk.org/site/VTKFileFormats/>`__
 
 Reading
 -------

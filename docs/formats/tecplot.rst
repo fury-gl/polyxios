@@ -34,7 +34,7 @@ Specification at a glance
 
 .. rst-class:: px-speclink
 
-`Read the full Tecplot ASCII specification ↗ <https://tecplot.com/wp-content/uploads/2021/10/360-2021r2-data-format-guide.pdf>`__
+`Read the full Tecplot ASCII specification ↗ <https://tecplot.azureedge.net/products/360/current/360-data-format.pdf>`__
 
 Reading
 -------
