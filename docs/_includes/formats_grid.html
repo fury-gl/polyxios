@@ -1,0 +1,261 @@
+<!--
+  The twenty-five format cards, pulled into formats/index.rst by a raw:: html
+  directive. Hrefs are relative to formats/, i.e. sibling pages.
+  Every class is styled in _static/css/retro.css.
+
+  Adding a format: add a card here, a page under formats/, a line in the hidden
+  toctree in formats/index.rst, and a row in _includes/homepage.html.
+-->
+<div class="px-fmtgrid">
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK Legacy <span class="px-fmtext">.vtk</span></p>
+    <p class="px-fmtdesc">Serial single-dataset format with an ASCII header naming
+      POINTS, CELLS and CELL_TYPES; ASCII or binary body.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtk.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK RectilinearGrid <span class="px-fmtext">.vtr</span></p>
+    <p class="px-fmtdesc">XML VTK file for grids with independent per-axis
+      coordinate arrays; appended or inline base64 data.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtr.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK PolyData <span class="px-fmtext">.vtp</span></p>
+    <p class="px-fmtdesc">XML VTK file for points, lines, polygons and strips,
+      with named point and cell data arrays.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtp.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Wavefront OBJ <span class="px-fmtext">.obj</span></p>
+    <p class="px-fmtdesc">Line-oriented ASCII geometry: v/vn/vt records and f faces
+      with 1-based, optionally negative indices.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="obj.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/obj/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Stanford PLY <span class="px-fmtext">.ply</span></p>
+    <p class="px-fmtdesc">Self-describing element lists declared in an ASCII header,
+      followed by ASCII or packed binary property data.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="ply.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/ply/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">STL <span class="px-fmtext">.stl</span></p>
+    <p class="px-fmtdesc">Unstructured triangle soup with a normal per facet and no
+      vertex sharing; ASCII or 80-byte-header binary.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="stl.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.fabbers.com/tech/STL_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">OFF <span class="px-fmtext">.off</span></p>
+    <p class="px-fmtdesc">An OFF magic line, a counts line, then vertices and faces;
+      ST/C/N/4 prefixes add texture, colour and normals.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="off.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://segeval.cs.princeton.edu/public/off_format.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Abaqus <span class="px-fmtext">.inp</span></p>
+    <p class="px-fmtdesc">Keyword-driven input deck: *NODE and *ELEMENT carry the
+      mesh, *NSET and *ELSET the named collections.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="abaqus.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://help.3ds.com/2023/english/dssimulia_established/SIMACAEKEYRefMap/simakey-c-gen.htm">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">AVS-UCD <span class="px-fmtext">.avs</span></p>
+    <p class="px-fmtdesc">A five-integer counts line, then node records and cells
+      keyed by a shape word, then optional data sections.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="avs.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://lanl.github.io/LaGriT/pages/docs/read_avs.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Medit binary <span class="px-fmtext">.meshb</span></p>
+    <p class="px-fmtdesc">A stream of keyword-indexed fields; typed entity blocks
+      carry node indices plus a trailing reference tag.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="meshb.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">DOLFIN / FEniCS XML <span class="px-fmtext">.xml</span></p>
+    <p class="px-fmtdesc">A small XML tree whose celltype names the element; every
+      vertex and cell is explicitly indexed and 0-based.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="dolfin.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/dolfin_xml/dolfin_xml.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">FLAC3D <span class="px-fmtext">.f3grid</span></p>
+    <p class="px-fmtdesc">Keyword-led ASCII records: G gridpoints, Z zones, F faces,
+      with ZGROUP and FGROUP naming the regions.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="flac3d.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Gmsh <span class="px-fmtext">.msh</span></p>
+    <p class="px-fmtdesc">$Section blocks for format, nodes, elements and physical
+      names; v4.1 regroups them per entity, so parsing forks.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="gmsh.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://gmsh.info/doc/texinfo/gmsh.html#MSH-file-format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem</span></p>
+    <p class="px-fmtdesc">A deck of fixed-column cards in three coexisting field
+      widths; GRID defines points, C* cards define elements.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="nastran.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://pynastran-git.readthedocs.io/en/latest/quick_start/bdf_overview.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec</span></p>
+    <p class="px-fmtdesc">A VARIABLES list then ZONE records; DATAPACKING decides
+      whether values interleave per node or per column.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="tecplot.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://tecplot.azureedge.net/products/360/current/360-data-format.pdf">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">SU2 <span class="px-fmtext">.su2</span></p>
+    <p class="px-fmtdesc">Plain ASCII keyed by uppercase tokens; elements carry a VTK
+      type code, and boundaries are declared per marker.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="su2.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://su2code.github.io/docs_v7/Mesh-File/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">TetGen <span class="px-fmtext">.ele + .node</span></p>
+    <p class="px-fmtdesc">Sidecar files sharing a basename; the first index in the
+      file decides whether numbering is 0- or 1-based.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="tetgen.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://wias-berlin.de/software/tetgen/fformats.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Well-Known Text <span class="px-fmtext">.wkt</span></p>
+    <p class="px-fmtdesc">The OGC text encoding: a type keyword and parenthesised
+      coordinate lists, with EWKT adding an SRID prefix.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="wkt.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://libgeos.org/specifications/wkt/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK UnstructuredGrid <span class="px-fmtext">.vtu</span></p>
+    <p class="px-fmtdesc">XML VTK file for an arbitrary mix of cell types, with
+      connectivity, offsets and per-cell type codes.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtu.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK StructuredGrid <span class="px-fmtext">.vts</span></p>
+    <p class="px-fmtdesc">Curvilinear grid: explicit coordinates, implicit
+      connectivity, expanded to hexahedra on read.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vts.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK ImageData <span class="px-fmtext">.vti</span></p>
+    <p class="px-fmtdesc">A uniform grid stored entirely as metadata: origin,
+      spacing and extent, with no coordinate array at all.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vti.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">MFEM mesh <span class="px-fmtext">.mesh</span></p>
+    <p class="px-fmtdesc">Named sections keyed by a geometry type code; INLINE and
+      NURBS variants carry a recipe, not a mesh.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="mfem.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://mfem.org/mesh-format-v1.0/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Netgen <span class="px-fmtext">.vol</span></p>
+    <p class="px-fmtdesc">Counted sections whose leading fields differ per section;
+      bcnr / matnr indices come back as named tags.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="netgen.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/NGSolve/netgen">project &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">UGRID (AFLR) <span class="px-fmtext">.ugrid</span></p>
+    <p class="px-fmtdesc">Seven header counts and nothing else separating the
+      sections; surface IDs sit between faces and cells.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="ugrid.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.simcenter.msstate.edu/software/documentation/ugrid/ugrid.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Gaussian splat <span class="px-fmtext">.splat</span></p>
+    <p class="px-fmtdesc">Headerless 32-byte records: position, scale, colour and a
+      packed rotation quaternion. Points only, no elements.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="splat.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/antimatter15/splat">reference &#8599;</a>
+    </p>
+  </div>
+
+</div>

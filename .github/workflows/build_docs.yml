@@ -5,23 +5,59 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  release:
+    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+# One deploy at a time: two jobs pushing to gh-pages would race on the same
+# branch. A running deploy is never cancelled - a half-pushed site is worse
+# than a slow one - but redundant PR builds are.
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    outputs:
+      target: ${{ steps.target.outputs.dir }}
+      is_release: ${{ steps.target.outputs.is_release }}
+
     steps:
       - uses: actions/checkout@v7
         with:
+          # Full history: docs/_ext/contributors.py builds the credits page
+          # from `git shortlog`, and a shallow clone would truncate it.
           fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
+      - name: Decide which version directory this build is
+        id: target
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "release" ]; then
+            tag="${{ github.event.release.tag_name }}"
+            series="$(printf '%s' "${tag#v}" | cut -d. -f1,2)"
+            if ! printf '%s' "$series" | grep -Eq '^[0-9]+\.[0-9]+$'; then
+              echo "::error::tag '$tag' does not parse to an X.Y series"
+              exit 1
+            fi
+            echo "dir=$series" >> "$GITHUB_OUTPUT"
+            echo "switcher=$series" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=dev" >> "$GITHUB_OUTPUT"
+            echo "switcher=dev" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install build dependencies
         run: |
@@ -32,6 +68,10 @@ jobs:
         run: pip install --no-build-isolation -e ".[doc]"
 
       - name: Build documentation
+        env:
+          # Pins which switcher entry this build highlights, rather than
+          # letting conf.py infer it from the installed version.
+          SWITCHER_VERSION: ${{ steps.target.outputs.switcher }}
         run: |
           cd docs
           make html SPHINXOPTS="-W --keep-going"
@@ -42,3 +82,87 @@ jobs:
           name: docs-html
           path: docs/_build/html/
           retention-days: 7
+
+  deploy:
+    # Pull requests build but never publish: they can run from forks without
+    # write access, and a PR preview would overwrite the live dev docs.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: src
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: docs-html
+          path: html
+
+      - name: Check out gh-pages, creating it on first run
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads "https://github.com/${REPO}.git" gh-pages >/dev/null 2>&1; then
+            git clone --branch gh-pages --single-branch --depth 1 \
+              "https://github.com/${REPO}.git" site
+          else
+            echo "gh-pages does not exist yet, creating it"
+            git clone --depth 1 "https://github.com/${REPO}.git" site
+            cd site
+            git checkout --orphan gh-pages
+            git rm -rq --cached . || true
+            find . -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          fi
+
+      - name: Place this build under its version directory
+        env:
+          TARGET: ${{ needs.build.outputs.target }}
+          IS_RELEASE: ${{ needs.build.outputs.is_release }}
+        run: |
+          set -euo pipefail
+          rm -rf "site/${TARGET}"
+          mkdir -p "site/${TARGET}"
+          cp -a html/. "site/${TARGET}/"
+
+          # A release is also served from /stable/, which is the URL worth
+          # linking to because it survives the next release.
+          if [ "${IS_RELEASE}" = "true" ]; then
+            rm -rf site/stable
+            mkdir -p site/stable
+            cp -a html/. site/stable/
+          fi
+
+      - name: Regenerate switcher.json and the root redirect
+        run: |
+          python src/tools/gen_switcher.py site \
+            --base-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+
+      - name: Commit and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TARGET: ${{ needs.build.outputs.target }}
+        run: |
+          set -euo pipefail
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "site unchanged, nothing to push"
+            exit 0
+          fi
+          git commit -m "DOC: publish ${TARGET} from ${SHA:0:7}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" gh-pages

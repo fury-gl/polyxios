@@ -1,0 +1,22 @@
+{# Overrides the pydata component of the same name.
+
+   The stock template lists every top-level toctree entry, which overflows into a
+   "More" dropdown. The whole tree already lives in the sidebar (see
+   _templates/sidebar-nav-bs.html), so the header carries four fixed links only.
+#}
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    {%- for name, target in [
+      ("docs", "usage"),
+      ("formats", "formats/index"),
+      ("cli", "cli"),
+      ("api", "api/index"),
+    ] %}
+    {%- set section = target.split("/")[0] %}
+    {%- set active = pagename == target or pagename.startswith(section ~ "/") %}
+    <li class="nav-item{% if active %} current active{% endif %}">
+      <a class="nav-link nav-internal" href="{{ pathto(target) }}">{{ name }}</a>
+    </li>
+    {%- endfor %}
+  </ul>
+</nav>
