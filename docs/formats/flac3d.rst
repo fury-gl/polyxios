@@ -32,7 +32,7 @@ Specification at a glance
 
 .. rst-class:: px-speclink
 
-`Read the full FLAC3D specification ↗ <https://docs.itascacg.com/flac3d700/common/docproject/source/manual/gridpoints_zones/zonegroups/gridimportexport.html>`__
+`Read the full FLAC3D specification ↗ <https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html>`__
 
 Reading
 -------

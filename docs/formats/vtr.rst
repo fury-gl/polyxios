@@ -32,7 +32,7 @@ Specification at a glance
 
 .. rst-class:: px-speclink
 
-`Read the full VTK RectilinearGrid specification ↗ <https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html>`__
+`Read the full VTK RectilinearGrid specification ↗ <https://examples.vtk.org/site/VTKFileFormats/>`__
 
 Reading
 -------

@@ -12,7 +12,7 @@ sphinx-docs/
   requirements.txt            doc build deps
   index.rst                   landing page (raw HTML include + hidden toctree)
   _includes/homepage.html     the landing page markup - edit copy here
-  _includes/formats_grid.html the eighteen format cards on formats/index
+  _includes/formats_grid.html the twenty-five format cards on formats/index
   _static/css/retro.css       the whole theme: palettes, chrome, landing page
   _static/js/homepage.js      copy button for the hero install command
   _static/switcher.json       version switcher index - edit on every release
@@ -96,7 +96,7 @@ heading, so only the sidebar changes.
 `show_nav_level: 1` keeps sections with children (formats, api) collapsible -
 `retro.css` swaps pydata's chevron for a terminal-style `[+]` / `[-]`. Raising
 it to `2` expands everything but removes the toggles, which is a poor trade with
-eighteen format pages. `collapse_navigation: False` puts every section's children
+twenty-five format pages. `collapse_navigation: False` puts every section's children
 in the DOM so the toggles work without a page load.
 
 ## Version switcher
@@ -122,7 +122,7 @@ entry is a dead link).
 
 ## Format pages - please review
 
-Each of the eighteen pages follows one shape:
+Each of the twenty-five pages follows one shape:
 
 1. badges - extension, read/write, lazy support
 2. **Summary of the specification** - prose, 4-6 sentences
@@ -140,7 +140,7 @@ the quirks come from your README's format table. Two things to check:
 
 | Format | Spec link used |
 | --- | --- |
-| VTK (.vtk/.vtr/.vtp) | docs.vtk.org VTKFileFormats |
+| VTK (.vtk/.vtr/.vtp/.vtu/.vts/.vti) | examples.vtk.org VTKFileFormats |
 | OBJ | paulbourke.net/dataformats/obj |
 | PLY | paulbourke.net/dataformats/ply |
 | STL | fabbers.com/tech/STL_Format |
@@ -148,14 +148,22 @@ the quirks come from your README's format table. Two things to check:
 | Abaqus | help.3ds.com keywords reference |
 | AVS-UCD | lanl.github.io/LaGriT read_avs |
 | Medit | people.sc.fsu.edu medit |
-| DOLFIN | fenicsproject.org olddocs XMLFile |
-| FLAC3D | docs.itascacg.com grid import/export |
+| DOLFIN | people.sc.fsu.edu dolfin_xml |
+| FLAC3D | docs.itascacg.com Itasca Grid Format |
 | Gmsh | gmsh.info MSH file format |
 | Nastran | pynastran-git.readthedocs.io BDF overview |
-| Tecplot | tecplot.com data format guide (PDF) |
+| Tecplot | tecplot.azureedge.net 360-data-format (PDF) |
 | SU2 | su2code.github.io Mesh-File |
 | TetGen | wias-berlin.de tetgen fformats |
 | WKT | libgeos.org specifications/wkt |
+| MFEM | mfem.org mesh-format-v1.0 |
+| Netgen | github.com/NGSolve/netgen (project, no spec page found) |
+| UGRID | simcenter.msstate.edu ugrid |
+| Gaussian splat | github.com/antimatter15/splat (reference impl, no formal spec) |
+
+Every link above was checked with `curl -o /dev/null -w '%{http_code}' -L`.
+The Abaqus one answers 403 to curl but resolves in a browser; the rest answer 200.
+Four were dead and have been replaced: the VTK, DOLFIN, FLAC3D and Tecplot rows.
 
 ## Adding a format later
 
