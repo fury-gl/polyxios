@@ -22,8 +22,8 @@ def build_default_registry() -> dict[str, Codec]:
 
     A format known by several extensions may also expose
     ``EXTENSIONS : tuple[str, ...]``, and every entry is registered against
-    the same Codec. ``EXTENSION`` stays the canonical spelling — the one the
-    docs quote and the one a writer should prefer — and is registered first
+    the same Codec. ``EXTENSION`` stays the canonical spelling - the one the
+    docs quote and the one a writer should prefer - and is registered first
     whether or not ``EXTENSIONS`` repeats it, so a typo there cannot drop a
     format's own extension.
 

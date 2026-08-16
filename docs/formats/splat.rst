@@ -10,7 +10,7 @@ Gaussian splat
 Summary of the specification
 ----------------------------
 
-``.splat`` is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a flat array of fixed-width little-endian records, and the splat count is the file size divided by 32. Each record is three ``float32`` positions, three ``float32`` scales, four ``uint8`` colour and opacity bytes, and four ``uint8`` packed rotation quaternion components — 32 bytes exactly. The format carries a point cloud only; there is no connectivity of any kind.
+``.splat`` is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a flat array of fixed-width little-endian records, and the splat count is the file size divided by 32. Each record is three ``float32`` positions, three ``float32`` scales, four ``uint8`` colour and opacity bytes, and four ``uint8`` packed rotation quaternion components - 32 bytes exactly. The format carries a point cloud only; there is no connectivity of any kind.
 
 Specification at a glance
 -------------------------
@@ -71,4 +71,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

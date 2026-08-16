@@ -1,4 +1,4 @@
-"""Nastran .bdf bulk data codec — read + write.
+"""Nastran .bdf bulk data codec - read + write.
 
 Reads free-field (comma separated), small-field (8-column) and large-field
 (16-column) bulk data cards, including continuation lines. Writes free-field
@@ -27,7 +27,7 @@ EXTENSION: str = ".bdf"
 
 # A bulk data deck ships under several names: '.bdf' is the canonical one,
 # '.nas' is the Nastran input spelling and '.fem' is what Altair OptiStruct
-# writes. '.dat' is deliberately absent — LS-DYNA, Tecplot and plain ASCII
+# writes. '.dat' is deliberately absent - LS-DYNA, Tecplot and plain ASCII
 # tables all claim it, so binding it here would hand every '.dat' in the
 # world to this codec and foreclose the extension for the others. Read one
 # with ``read(path, fmt=".bdf")``.
@@ -124,7 +124,7 @@ _MAX_DIGITS: int = 17
 # rounds it when what falls off is fractional digits; cutting an exponent or
 # an integer digit moves the value by orders of magnitude instead. Below one,
 # an exact fixed-point spelling always truncates safely, so it is preferred
-# over the exponent form up to this many decimals — past that the field grows
+# over the exponent form up to this many decimals - past that the field grows
 # unreasonable and the exponent form is kept, with a warning.
 _MAX_FIXED_DECIMALS: int = 30
 
@@ -223,7 +223,7 @@ def _split_card_line(line: str, *, width: int | None = None) -> tuple[list[str],
     dropped; blank fields are kept, since they hold a card position.
 
     The tenth field of a line is the continuation field by definition, so a
-    free-field line is cut there whatever it holds — an unnamed marker is
+    free-field line is cut there whatever it holds - an unnamed marker is
     blank and a named one is often numeric (``+11``). Fixed-field markers
     sit past column 72, which the payload slice drops: a line reaching that
     far has its marker there, so its last payload field is data whatever it
@@ -240,7 +240,7 @@ def _split_card_line(line: str, *, width: int | None = None) -> tuple[list[str],
         Raw physical line, comments already stripped.
     width
         Field width inherited from the card being continued, used only when
-        the line's marker field is blank — a large-field continuation may
+        the line's marker field is blank - a large-field continuation may
         leave it blank, and nothing in the line itself then tells the
         16-column layout from the 8-column one. A marker of its own settles
         it: ``*`` means large field, ``+`` means small, whatever the card
@@ -357,7 +357,7 @@ def _bulk_cards(text: str) -> Iterator[list[str]]:
             else:
                 # A numeric named marker ('+11') survives _split_card_line,
                 # since nothing in that line tells it from a signed integer
-                # field. A line continuing the card settles it — Nastran
+                # field. A line continuing the card settles it - Nastran
                 # does not require the two markers to match, so the marker
                 # this line carries says nothing about it.
                 if pending:
@@ -797,7 +797,7 @@ def _free_field_real(value: float) -> str:
     """Format a float as a free-field real a solver cannot misread.
 
     The exact spelling wins whenever an eight character truncation leaves
-    it recognisable. When it does not — an exponent form below one, say —
+    it recognisable. When it does not - an exponent form below one, say -
     an exact fixed-point spelling is tried instead: it is longer, but what
     a solver cuts off it is fractional digits rather than the exponent.
 
@@ -829,7 +829,7 @@ def _card_lines(fields: list[str]) -> list[str]:
     """Render a free-field card as physical lines with continuations.
 
     A line ends at the ninth field, the tenth being the continuation field,
-    or at column 80, the width of a bulk data record — a long real reaches
+    or at column 80, the width of a bulk data record - a long real reaches
     the second bound well before the first.
 
     Parameters
@@ -889,7 +889,7 @@ def _grid_lines(
     if not large:
         texts = [_free_field_real(value) for value in xyz]
         # Free field keeps only the first eight characters of a field, so a
-        # longer one reads back exactly here but rounded in a solver — or,
+        # longer one reads back exactly here but rounded in a solver - or,
         # when even the fixed-point spelling stays out of reach, wrong.
         lost = sum(len(text) > _FREE_SIGNIFICANT for text in texts)
         misread = sum(not _survives_truncation(text) for text in texts)
@@ -1049,8 +1049,8 @@ def write(
     needing more are read rounded by a solver and a warning says so. A
     magnitude below one whose short spelling carries an exponent is written
     in fixed point instead, longer but truncating to the right magnitude
-    rather than to a stray mantissa; the few values no spelling saves —
-    very large or very small exponents — get a warning of their own.
+    rather than to a stray mantissa; the few values no spelling saves -
+    very large or very small exponents - get a warning of their own.
     ``field_format="large"`` raises the solver's budget to sixteen
     characters, which holds ten to fourteen significant digits depending on
     the sign and the exponent, but caps the written text at sixteen too:
@@ -1065,7 +1065,7 @@ def write(
 
     vertices = np.asarray(poly.vertices)
     # A GRID card carries exactly three coordinates, so a row holding fewer
-    # writes a card short of one — silently in free field, and as a bare
+    # writes a card short of one - silently in free field, and as a bare
     # IndexError in large field. An empty mesh emits no GRID at all, so its
     # shape is nobody's business.
     if vertices.size and (vertices.ndim != 2 or vertices.shape[1] != 3):

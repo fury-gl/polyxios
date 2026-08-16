@@ -211,7 +211,7 @@ SURFACE_ELEMENT_TYPES: Final[frozenset[int]] = frozenset(
         ELEMENT_TYPES["polygon"],
         ELEMENT_TYPES["pixel"],
         ELEMENT_TYPES["quad"],
-        # Quadratic surface elements — linearized to corner nodes for rendering.
+        # Quadratic surface elements - linearized to corner nodes for rendering.
         ELEMENT_TYPES["quadratic_triangle"],
         ELEMENT_TYPES["biquadratic_triangle"],
         ELEMENT_TYPES["quadratic_quad"],

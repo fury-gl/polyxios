@@ -16,7 +16,6 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
-import pydata_sphinx_theme
 from packaging.version import Version
 
 import polyxios
@@ -39,13 +38,17 @@ _is_dev = _parsed.is_devrelease or _parsed.local is not None
 # release job pin it explicitly.
 switcher_version = os.environ.get("SWITCHER_VERSION") or ("dev" if _is_dev else version)
 
+# The site's own home. Not the github.io address, which only 301s here.
+# Canonical links, the sitemap and switcher.json must all name the final URL.
+SITE_URL = os.environ.get("SITE_URL", "https://polyxios.org")
+
 # The published switcher index. It must be an absolute URL so it resolves the
 # same from every page depth. It is generated on the gh-pages branch by
 # tools/gen_switcher.py from the version directories actually deployed, so it
 # can never offer a version that does not exist. SWITCHER_JSON_URL points a
 # local build somewhere else.
 switcher_json_url = os.environ.get(
-    "SWITCHER_JSON_URL", "https://fury-gl.github.io/polyxios/switcher.json"
+    "SWITCHER_JSON_URL", f"{SITE_URL.rstrip('/')}/switcher.json"
 )
 
 extensions = [
@@ -56,7 +59,10 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.extlinks",
     "sphinx_copybutton",
+    "sphinxext.opengraph",
+    "sphinx_sitemap",
     "contributors",
+    "seo",
 ]
 
 # The credits page names these by hand; everyone else in the git history is
@@ -66,6 +72,40 @@ polyxios_core_developers = [
     "Praneeth Shetty",
     "Maharshi Gor",
 ]
+
+# -- SEO / answer engines ---------------------------------------------------
+
+TAGLINE = "Fast, clean 3D mesh and geometry file I/O for Python."
+
+# Every version of a page is published at /dev/, /stable/ and /X.Y/. Canonical
+# links point all of them at the stable copy so search engines rank one URL
+# instead of splitting between three; docs/_ext/seo.py additionally marks
+# non-stable builds noindex.
+html_baseurl = f"{SITE_URL.rstrip('/')}/stable/"
+
+# True only for the build that becomes /stable/, i.e. the newest release.
+polyxios_is_stable = os.environ.get("DOCS_IS_STABLE", "").lower() in {"1", "true", "yes"}
+polyxios_tagline = TAGLINE
+
+# sphinx-sitemap needs these two; the {version}/{lang} placeholders are unused
+# because each version is built and deployed on its own.
+sitemap_url_scheme = "{link}"
+
+# sphinxext-opengraph: social cards, and the plain <meta name="description">
+# that Sphinx does not emit on its own.
+ogp_site_url = html_baseurl
+ogp_site_name = "polyxios"
+ogp_description_length = 200
+ogp_enable_meta_description = True
+ogp_type = "website"
+
+# Social preview cards are rendered at build time (needs the [social-cards]
+# extra, which pulls matplotlib). Colours track the CRT palette in retro.css.
+ogp_social_cards = {
+    "enable": True,
+    "site_url": SITE_URL,
+    "line_color": "#ffb02e",
+}
 
 extlinks = {
     "ghpull": ("https://github.com/fury-gl/polyxios/pull/%s", "PR #%s"),
@@ -91,21 +131,15 @@ templates_path = ["_templates"]
 html_css_files = ["css/retro.css"]
 html_js_files = ["js/homepage.js"]
 
-# Pygments: the retro palettes are tuned against these two. pydata renamed the
-# options from "pygment_*" to "pygments_*" in 0.16, and either spelling warns on
-# the version that does not own it.
-_pygments_prefix = (
-    "pygments" if Version(pydata_sphinx_theme.__version__) >= Version("0.16") else "pygment"
-)
-
 html_theme_options = {
-    f"{_pygments_prefix}_light_style": "friendly",
-    f"{_pygments_prefix}_dark_style": "native",
+    # The retro palettes are tuned against these two.
+    "pygments_light_style": "friendly",
+    "pygments_dark_style": "native",
     # Escaped: pydata drops the logo text into the template unescaped, so a raw
     # "<polyxios />" is parsed as an unknown HTML element and renders nothing.
     "logo": {"text": "&lt;polyxios /&gt;"},
     "announcement": (
-        "// fast, clean mesh I/O for Python &mdash; one dependency instead of twenty-five"
+        "// fast, clean mesh I/O for Python - one dependency instead of twenty-five"
     ),
     "github_url": "https://github.com/fury-gl/polyxios",
     "icon_links": [

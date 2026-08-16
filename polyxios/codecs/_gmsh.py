@@ -1,4 +1,4 @@
-"""Gmsh .msh ASCII codec — read (v2.2 and v4.1) + write (v2.2)."""
+"""Gmsh .msh ASCII codec - read (v2.2 and v4.1) + write (v2.2)."""
 
 from pathlib import Path
 from typing import Any
@@ -403,7 +403,7 @@ def _bulk_parse_nodes_v2(
     A single bulk parse beats a per-line split, but it only sees a flat stream
     of numbers: a record with a missing or extra field shifts every later value
     into the wrong column, which would corrupt the mesh silently. The result is
-    therefore only returned once the alignment is confirmed — first by the
+    therefore only returned once the alignment is confirmed - first by the
     common case of tags running 1..n, then by re-reading the leading field of
     every record and requiring it to match the column the bulk parse produced.
     """
@@ -729,7 +729,7 @@ def _resolve_nodes(
     if not raw:
         return np.empty(0, dtype=np.int32)
     if index is None:
-        # Tags are exactly 1..n, so the row is the tag minus one — but a tag
+        # Tags are exactly 1..n, so the row is the tag minus one - but a tag
         # outside that span would silently index the wrong vertex.
         try:
             resolved = np.array(raw, dtype=np.int64) - 1
@@ -772,7 +772,7 @@ def _physical_name_tags(
 
     records: list[tuple[int, int, str]] = []
     for ln in body:
-        # "dim tag "name"" — the name is quoted and may contain spaces.
+        # "dim tag "name"" - the name is quoted and may contain spaces.
         head, sep, quoted = ln.partition('"')
         if not sep:
             continue

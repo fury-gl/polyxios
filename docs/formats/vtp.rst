@@ -10,7 +10,7 @@ VTK PolyData
 Summary of the specification
 ----------------------------
 
-``.vtp`` is the VTK XML format for surface and curve geometry. A ``<Piece>`` declares its point and cell counts as attributes, then carries ``<Points>`` plus up to four cell containers — ``<Verts>``, ``<Lines>``, ``<Strips>`` and ``<Polys>`` — each expressed as a ``connectivity`` array and an ``offsets`` array rather than the legacy size-prefixed lists. Attributes travel in ``<PointData>`` and ``<CellData>`` with the same inline, base64 or appended storage choices as the other XML formats.
+``.vtp`` is the VTK XML format for surface and curve geometry. A ``<Piece>`` declares its point and cell counts as attributes, then carries ``<Points>`` plus up to four cell containers - ``<Verts>``, ``<Lines>``, ``<Strips>`` and ``<Polys>`` - each expressed as a ``connectivity`` array and an ``offsets`` array rather than the legacy size-prefixed lists. Attributes travel in ``<PointData>`` and ``<CellData>`` with the same inline, base64 or appended storage choices as the other XML formats.
 
 Specification at a glance
 -------------------------
@@ -64,4 +64,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

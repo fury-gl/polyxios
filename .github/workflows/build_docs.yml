@@ -53,10 +53,13 @@ jobs:
             echo "dir=$series" >> "$GITHUB_OUTPUT"
             echo "switcher=$series" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
+            # Only this build becomes /stable/, so only it may be indexed.
+            echo "is_stable=true" >> "$GITHUB_OUTPUT"
           else
             echo "dir=dev" >> "$GITHUB_OUTPUT"
             echo "switcher=dev" >> "$GITHUB_OUTPUT"
             echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "is_stable=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install build dependencies
@@ -72,6 +75,9 @@ jobs:
           # Pins which switcher entry this build highlights, rather than
           # letting conf.py infer it from the installed version.
           SWITCHER_VERSION: ${{ steps.target.outputs.switcher }}
+          # Everything that is not the stable copy is built noindex, so the
+          # duplicate pages at /dev/ and /X.Y/ do not compete with /stable/.
+          DOCS_IS_STABLE: ${{ steps.target.outputs.is_stable }}
         run: |
           cd docs
           make html SPHINXOPTS="-W --keep-going"
@@ -144,9 +150,12 @@ jobs:
           fi
 
       - name: Regenerate switcher.json and the root redirect
-        run: |
-          python src/tools/gen_switcher.py site \
-            --base-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+        env:
+          # The custom domain, not the github.io address, which only 301s here.
+          # Canonical links, the sitemap and switcher.json must name the final
+          # URL. Keep in step with SITE_URL in docs/conf.py.
+          SITE_URL: https://polyxios.org
+        run: python src/tools/gen_switcher.py site --base-url "$SITE_URL"
 
       - name: Commit and push
         env:

@@ -1,4 +1,4 @@
-"""AVS-UCD .avs ASCII codec — read + write."""
+"""AVS-UCD .avs ASCII codec - read + write."""
 
 from pathlib import Path
 from typing import Any
@@ -82,7 +82,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
     if len(data_lines) < 1 + n_nodes + n_elems:
         raise CodecError(
-            f".avs: file truncated — expected {1 + n_nodes + n_elems} data lines,"
+            f".avs: file truncated - expected {1 + n_nodes + n_elems} data lines,"
             f" got {len(data_lines)}."
         )
 

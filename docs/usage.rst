@@ -1,6 +1,10 @@
 Usage
 =====
 
+.. meta::
+   :description: Read and write 3D meshes in Python with polyxios.read() and polyxios.write(). Covers basic I/O, format detection by extension, and format-specific write options.
+
+
 Basic I/O
 ---------
 

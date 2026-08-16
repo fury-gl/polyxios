@@ -145,7 +145,7 @@ creates a GitHub Release, and publishes to PyPI via Trusted Publishing.
 
        spin test
 
-2. Update :doc:`changelog` — fill in the ``upcoming`` section with the
+2. Update :doc:`changelog` - fill in the ``upcoming`` section with the
    changes for this release (the release date is stamped automatically).
 
 3. Run the release command::
@@ -184,7 +184,7 @@ creates a GitHub Release, and publishes to PyPI via Trusted Publishing.
 
 **Test the release workflow without publishing to PyPI:**
 
-Push a tag whose name contains ``test`` — the CI will build wheels and
+Push a tag whose name contains ``test`` - the CI will build wheels and
 create a GitHub Release but skip the PyPI upload::
 
     git tag v0.2.0-test

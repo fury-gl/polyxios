@@ -10,7 +10,7 @@ AVS-UCD
 Summary of the specification
 ----------------------------
 
-AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data values. Node records follow — an id and three coordinates each — then one line per cell giving its id, material id, a cell type keyword (``tri``, ``quad``, ``tet``, ``hex``, ``prism``, ``pyr``, ``line``, ``pt``) and its node ids. Optional data sections at the end declare component counts and labels before the per-node or per-cell values.
+AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data values. Node records follow - an id and three coordinates each - then one line per cell giving its id, material id, a cell type keyword (``tri``, ``quad``, ``tet``, ``hex``, ``prism``, ``pyr``, ``line``, ``pt``) and its node ids. Optional data sections at the end declare component counts and labels before the per-node or per-cell values.
 
 Specification at a glance
 -------------------------
@@ -65,4 +65,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

@@ -1,4 +1,34 @@
 <!--
+  Structured data. Search engines use it for rich results; answer engines use it
+  to state what the package is without parsing the prose. Keep the counts in
+  step with the cards on formats/index and the stats row below.
+-->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "polyxios",
+  "description": "polyxios reads and writes 25 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "url": "https://fury-gl.github.io/polyxios/stable/",
+  "codeRepository": "https://github.com/fury-gl/polyxios",
+  "programmingLanguage": "Python",
+  "runtimePlatform": "Python 3.11+",
+  "license": "https://github.com/fury-gl/polyxios/blob/master/LICENSE",
+  "applicationCategory": "DeveloperApplication",
+  "keywords": [
+    "3D mesh file format", "mesh I/O", "Python", "VTK", "Wavefront OBJ",
+    "Stanford PLY", "STL", "Gmsh", "Abaqus", "Nastran", "finite element mesh",
+    "memory-mapped mesh reading", "computational geometry"
+  ],
+  "author": {
+    "@type": "Organization",
+    "name": "polyxios contributors",
+    "url": "https://github.com/fury-gl/polyxios"
+  }
+}
+</script>
+
+<!--
   Landing page markup, pulled into index.rst by a raw:: html directive.
   Every class is styled in _static/css/retro.css - edit copy here, look there.
 -->
@@ -11,13 +41,23 @@
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all twenty-five &mdash; and raises instead of quietly corrupting
+        writes all twenty-five - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
         <span class="px-install">
           <code class="px-cmd">$ pip install polyxios</code>
-          <button type="button" class="px-copy" aria-label="Copy install command">copy</button>
+          <button type="button" class="px-copy" aria-label="Copy install command" title="Copy install command">
+            <svg class="px-copy-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="1"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg class="px-copy-done" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </button>
         </span>
         <a class="px-btn" href="usage.html">docs() -&gt;</a>
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
@@ -31,7 +71,7 @@
     </div>
 
     <div class="px-panel">
-      <div class="px-panel-head"><span>read_write.py</span><span>&mdash; &#9633; &times;</span></div>
+      <div class="px-panel-head"><span>read_write.py</span><span>- &#9633; &times;</span></div>
 <pre class="px-code"><span class="k">import</span> polyxios <span class="k">as</span> px
 
 mesh = px.read(<span class="s">"brain.vtk"</span>)
@@ -123,7 +163,7 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
       </dl>
     </div>
     <div class="px-panel">
-      <div class="px-panel-head"><span>bash &mdash; 80&times;24</span></div>
+      <div class="px-panel-head"><span>bash - 80&times;24</span></div>
 <pre class="px-code"><span class="p">$</span> pxios fetch bunny.obj
 <span class="c">  cached -&gt; ~/.polyxios/bunny.obj  (2.9 MB)</span>
 
@@ -143,10 +183,10 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
     <p class="px-sub">Any third-party package can teach polyxios a nineteenth format.
-      Two functions and an entry point &mdash; no fork, no pull request, no restart.</p>
+      Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
-        <div class="px-panel-head"><span>step 01 &mdash; mypackage/abc_codec.py</span></div>
+        <div class="px-panel-head"><span>step 01 - mypackage/abc_codec.py</span></div>
 <pre class="px-code"><span class="k">from</span> polyxios._registry <span class="k">import</span> Codec
 
 <span class="k">def</span> read(path, *, lazy=<span class="b">False</span>): ...
@@ -156,7 +196,7 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
     <span class="k">return</span> <span class="s">".abc"</span>, Codec(read, write)</pre>
       </div>
       <div class="px-panel">
-        <div class="px-panel-head"><span>step 02 &mdash; pyproject.toml</span></div>
+        <div class="px-panel-head"><span>step 02 - pyproject.toml</span></div>
 <pre class="px-code">[project.entry-points.<span class="s">"polyxios.codecs"</span>]
 abc = <span class="s">"mypackage.abc_codec:register"</span>
 

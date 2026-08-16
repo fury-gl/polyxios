@@ -10,7 +10,7 @@ VTK UnstructuredGrid
 Summary of the specification
 ----------------------------
 
-``.vtu`` is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A ``<VTKFile type="UnstructuredGrid">`` root holds an ``<UnstructuredGrid>`` with one or more ``<Piece>`` elements, each declaring ``NumberOfPoints`` and ``NumberOfCells``. A piece carries ``<Points>`` with a three-component coordinate ``DataArray``, and ``<Cells>`` with three named arrays — ``connectivity``, ``offsets`` and ``types`` — where ``types`` holds one VTK cell type code per cell. ``<PointData>`` and ``<CellData>`` hold named attribute arrays. Every ``DataArray`` is inline ASCII, inline base64, or a reference into a single appended binary blob, optionally zlib-compressed.
+``.vtu`` is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A ``<VTKFile type="UnstructuredGrid">`` root holds an ``<UnstructuredGrid>`` with one or more ``<Piece>`` elements, each declaring ``NumberOfPoints`` and ``NumberOfCells``. A piece carries ``<Points>`` with a three-component coordinate ``DataArray``, and ``<Cells>`` with three named arrays - ``connectivity``, ``offsets`` and ``types`` - where ``types`` holds one VTK cell type code per cell. ``<PointData>`` and ``<CellData>`` hold named attribute arrays. Every ``DataArray`` is inline ASCII, inline base64, or a reference into a single appended binary blob, optionally zlib-compressed.
 
 Specification at a glance
 -------------------------
@@ -76,5 +76,5 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
-   :doc:`vtp` — the XML PolyData sibling.
+   :doc:`index` - the full format table.
+   :doc:`vtp` - the XML PolyData sibling.

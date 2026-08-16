@@ -460,7 +460,7 @@ def _read_compressed_3dgs(path: Path, header: dict, header_end_offset: int) -> P
 
     - A ``chunk`` element: one record per group of 256 vertices holding the
       bounding-box ranges needed to dequantise the packed vertex data.
-    - A ``vertex`` element: four ``uint32`` per Gaussian —
+    - A ``vertex`` element: four ``uint32`` per Gaussian -
       ``packed_position``, ``packed_rotation``, ``packed_scale``,
       ``packed_color``.  Each is a 4-byte little-endian integer whose bits
       are sliced into 8-bit normalised components.

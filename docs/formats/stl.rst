@@ -10,7 +10,7 @@ STL
 Summary of the specification
 ----------------------------
 
-STL describes a solid as an unordered set of triangles — a triangle soup with no vertex sharing and no topology. Each facet carries its own normal and its three corner points. The ASCII flavour spells this out with ``solid`` / ``facet normal`` / ``outer loop`` / ``vertex`` keywords; the binary flavour is an 80-byte free-text header, a uint32 triangle count, then a fixed 50-byte record per facet (twelve float32 values plus a two-byte attribute field).
+STL describes a solid as an unordered set of triangles - a triangle soup with no vertex sharing and no topology. Each facet carries its own normal and its three corner points. The ASCII flavour spells this out with ``solid`` / ``facet normal`` / ``outer loop`` / ``vertex`` keywords; the binary flavour is an 80-byte free-text header, a uint32 triangle count, then a fixed 50-byte record per facet (twelve float32 values plus a two-byte attribute field).
 
 Specification at a glance
 -------------------------
@@ -28,7 +28,7 @@ Specification at a glance
    * - byte order
      - little-endian
    * - topology
-     - none — vertices are repeated per triangle
+     - none - vertices are repeated per triangle
 
 .. rst-class:: px-speclink
 
@@ -77,10 +77,10 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- Vertices are deduplicated on read so the mesh has shared topology — except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.
+- Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.
 - Facet normals are read but not trusted for orientation; they are kept as element attributes.
 - The declared triangle count is validated against the real file size before memory is allocated.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.
