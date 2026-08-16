@@ -7,7 +7,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta property="og:title" content="TetGen" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/tetgen.html" />
+<meta property="og:site_name" content="polyxios" />
+<meta property="og:description" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta property="og:image:width" content="1146" />
+<meta property="og:image:height" content="600" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_tetgen_df6de378.png" />
+<meta property="og:image:alt" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta name="description" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta name="twitter:card" content="summary_large_image" />
 
+    <meta name="robots" content="noindex, follow" />
     <title>TetGen &#8212; polyxios</title>
   
   
@@ -32,7 +44,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=2dbab66b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=01cf4d0a" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -40,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=d327d8a4"></script>
+    <script src="../_static/documentation_options.js?v=3aab55fa"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -48,13 +60,14 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'formats/tetgen';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
-        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://fury-gl.github.io/polyxios/switcher.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
         DOCUMENTATION_OPTIONS.theme_switcher_version_match = 'dev';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
-    <script src="../_static/js/homepage.js?v=e885241b"></script>
+    <script src="../_static/js/homepage.js?v=0de8ffed"></script>
+    <link rel="canonical" href="https://polyxios.org/stable/formats/tetgen.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Well-Known Text" href="wkt.html" />
@@ -62,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3" />
-    <meta name="docbuild:last-update" content="2026-08-15"/>
+    <meta name="docbuild:last-update" content="2026-08-16"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -107,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python &mdash; one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
 </aside>
 
   
@@ -527,7 +540,7 @@
 <p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.ele</span> <span class="pre">+</span> <span class="pre">.node</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>TetGen splits a mesh across sidecar files that share a basename. <code class="docutils literal notranslate"><span class="pre">.node</span></code> starts with a counts line — number of points, dimension, number of attributes, boundary-marker flag — then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. <code class="docutils literal notranslate"><span class="pre">.ele</span></code> starts with its own counts line — number of tetrahedra, nodes per tetrahedron, region-attribute flag — then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.</p>
+<p>TetGen splits a mesh across sidecar files that share a basename. <code class="docutils literal notranslate"><span class="pre">.node</span></code> starts with a counts line - number of points, dimension, number of attributes, boundary-marker flag - then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. <code class="docutils literal notranslate"><span class="pre">.ele</span></code> starts with its own counts line - number of tetrahedra, nodes per tetrahedron, region-attribute flag - then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -580,13 +593,13 @@
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>Pass either path — <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.ele&quot;)</span></code> or <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.node&quot;)</span></code> — and the paired file is located by basename.</p></li>
+<li><p>Pass either path - <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.ele&quot;)</span></code> or <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.node&quot;)</span></code> - and the paired file is located by basename.</p></li>
 <li><p>Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept.</p></li>
 <li><p>Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> — the full format table.</p>
+<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
 </section>
@@ -700,7 +713,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-15.
+  Last updated on 2026-08-16.
   <br/>
 </p></div>
       

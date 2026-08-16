@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# /dev/ and the older X.Y directories are duplicates of /stable/.
+# They are excluded with per-page noindex and canonical tags, not
+# here, so crawlers can still fetch them and read those tags.
+
+Sitemap: https://polyxios.org/sitemap.xml

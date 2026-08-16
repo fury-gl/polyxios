@@ -7,7 +7,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta property="og:title" content="Development Guide" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://polyxios.org/stable/development.html" />
+<meta property="og:site_name" content="polyxios" />
+<meta property="og:description" content="polyxios uses spin to manage the development workflow. All common tasks - building, testing, linting, and documentation - are available as spin sub-commands. Getting started: 1. Fork and clone the ..." />
+<meta property="og:image:width" content="1146" />
+<meta property="og:image:height" content="600" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_development_68b2619f.png" />
+<meta property="og:image:alt" content="polyxios uses spin to manage the development workflow. All common tasks - building, testing, linting, and documentation - are available as spin sub-commands. Getting started: 1. Fork and clone the ..." />
+<meta name="description" content="polyxios uses spin to manage the development workflow. All common tasks - building, testing, linting, and documentation - are available as spin sub-commands. Getting started: 1. Fork and clone the ..." />
+<meta name="twitter:card" content="summary_large_image" />
 
+    <meta name="robots" content="noindex, follow" />
     <title>Development Guide &#8212; polyxios</title>
   
   
@@ -32,7 +44,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=2dbab66b" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=01cf4d0a" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -40,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=d327d8a4"></script>
+    <script src="_static/documentation_options.js?v=3aab55fa"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -48,13 +60,14 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'development';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
-        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://fury-gl.github.io/polyxios/switcher.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
         DOCUMENTATION_OPTIONS.theme_switcher_version_match = 'dev';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
-    <script src="_static/js/homepage.js?v=e885241b"></script>
+    <script src="_static/js/homepage.js?v=0de8ffed"></script>
+    <link rel="canonical" href="https://polyxios.org/stable/development.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Changelog" href="changelog.html" />
@@ -62,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3" />
-    <meta name="docbuild:last-update" content="2026-08-15"/>
+    <meta name="docbuild:last-update" content="2026-08-16"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -107,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python &mdash; one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
 </aside>
 
   
@@ -671,7 +684,7 @@ named <code class="docutils literal notranslate"><span class="pre">pypi</span></
 </pre></div>
 </div>
 </li>
-<li><p>Update <a class="reference internal" href="changelog.html"><span class="doc">Changelog</span></a> — fill in the <code class="docutils literal notranslate"><span class="pre">upcoming</span></code> section with the
+<li><p>Update <a class="reference internal" href="changelog.html"><span class="doc">Changelog</span></a> - fill in the <code class="docutils literal notranslate"><span class="pre">upcoming</span></code> section with the
 changes for this release (the release date is stamped automatically).</p></li>
 <li><p>Run the release command:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">spin</span> <span class="n">release</span> <span class="mf">0.2.0</span>
@@ -707,7 +720,7 @@ spin release 0.2.0 --dry-run              # print all steps without executing
 </pre></div>
 </div>
 <p><strong>Test the release workflow without publishing to PyPI:</strong></p>
-<p>Push a tag whose name contains <code class="docutils literal notranslate"><span class="pre">test</span></code> — the CI will build wheels and
+<p>Push a tag whose name contains <code class="docutils literal notranslate"><span class="pre">test</span></code> - the CI will build wheels and
 create a GitHub Release but skip the PyPI upload:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">tag</span> <span class="n">v0</span><span class="mf">.2.0</span><span class="o">-</span><span class="n">test</span>
 <span class="n">git</span> <span class="n">push</span> <span class="n">upstream</span> <span class="n">v0</span><span class="mf">.2.0</span><span class="o">-</span><span class="n">test</span>
@@ -834,7 +847,7 @@ create a GitHub Release but skip the PyPI upload:</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-15.
+  Last updated on 2026-08-16.
   <br/>
 </p></div>
       

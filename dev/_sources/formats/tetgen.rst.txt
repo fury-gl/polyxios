@@ -10,7 +10,7 @@ TetGen
 Summary of the specification
 ----------------------------
 
-TetGen splits a mesh across sidecar files that share a basename. ``.node`` starts with a counts line — number of points, dimension, number of attributes, boundary-marker flag — then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. ``.ele`` starts with its own counts line — number of tetrahedra, nodes per tetrahedron, region-attribute flag — then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.
+TetGen splits a mesh across sidecar files that share a basename. ``.node`` starts with a counts line - number of points, dimension, number of attributes, boundary-marker flag - then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. ``.ele`` starts with its own counts line - number of tetrahedra, nodes per tetrahedron, region-attribute flag - then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.
 
 Specification at a glance
 -------------------------
@@ -61,10 +61,10 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- Pass either path — ``px.read("bar.ele")`` or ``px.read("bar.node")`` — and the paired file is located by basename.
+- Pass either path - ``px.read("bar.ele")`` or ``px.read("bar.node")`` - and the paired file is located by basename.
 - Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept.
 - Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

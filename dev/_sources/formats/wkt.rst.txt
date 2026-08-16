@@ -61,8 +61,8 @@ Quirks worth knowing
 
 - 2D geometry is padded to z = 0 so the vertex array is always (n, 3).
 - Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
-- An EWKT ``SRID=`` prefix is parsed and then dropped — polyxios carries no coordinate reference system.
+- An EWKT ``SRID=`` prefix is parsed and then dropped - polyxios carries no coordinate reference system.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

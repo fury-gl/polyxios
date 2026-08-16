@@ -1,6 +1,10 @@
 Contributing
 ============
 
+.. meta::
+   :description: How to contribute to polyxios: set up a development checkout, run the test suite, and open a pull request.
+
+
 Commit message convention
 --------------------------
 

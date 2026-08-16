@@ -1,0 +1,3340 @@
+# polyxios
+
+> Fast, clean 3D mesh and geometry file I/O for Python.
+
+## polyxios - fast, clean mesh I/O for Python
+
+Source: https://polyxios.org/stable/index.html
+
+<!--
+  Structured data. Search engines use it for rich results; answer engines use it
+  to state what the package is without parsing the prose. Keep the counts in
+  step with the cards on formats/index and the stats row below.
+-->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "polyxios",
+  "description": "polyxios reads and writes 25 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "url": "https://fury-gl.github.io/polyxios/stable/",
+  "codeRepository": "https://github.com/fury-gl/polyxios",
+  "programmingLanguage": "Python",
+  "runtimePlatform": "Python 3.11+",
+  "license": "https://github.com/fury-gl/polyxios/blob/master/LICENSE",
+  "applicationCategory": "DeveloperApplication",
+  "keywords": [
+    "3D mesh file format", "mesh I/O", "Python", "VTK", "Wavefront OBJ",
+    "Stanford PLY", "STL", "Gmsh", "Abaqus", "Nastran", "finite element mesh",
+    "memory-mapped mesh reading", "computational geometry"
+  ],
+  "author": {
+    "@type": "Organization",
+    "name": "polyxios contributors",
+    "url": "https://github.com/fury-gl/polyxios"
+  }
+}
+</script>
+
+<!--
+  Landing page markup, pulled into index.rst by a raw:: html directive.
+  Every class is styled in _static/css/retro.css - edit copy here, look there.
+-->
+<div class="px-home">
+
+  <section class="px-hero">
+    <div class="px-hero-copy">
+      <p class="px-kicker">// read_anything()</p>
+      <h1 class="px-title">ONE LINE IN.<br>ANY MESH OUT.</h1>
+      <p class="px-lede">
+        Reading 3D meshes in Python normally means installing one library per
+        format. polyxios is a single small, maintained package that reads and
+        writes all twenty-five - and raises instead of quietly corrupting
+        your data.
+      </p>
+      <div class="px-btnrow">
+        <span class="px-install">
+          <code class="px-cmd">$ pip install polyxios</code>
+          <button type="button" class="px-copy" aria-label="Copy install command" title="Copy install command">
+            <svg class="px-copy-idle" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="1"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <svg class="px-copy-done" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </button>
+        </span>
+        <a class="px-btn" href="usage.html">docs() -&gt;</a>
+        <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
+      </div>
+      <div class="px-stats">
+        <div><b>25</b><span>formats</span></div>
+        <div><b>1</b><span>dependency</span></div>
+        <div><b>0</b><span>silent truncations</span></div>
+        <div><b>mmap</b><span>lazy reads</span></div>
+      </div>
+    </div>
+
+    <div class="px-panel">
+      <div class="px-panel-head"><span>read_write.py</span><span>- &#9633; &times;</span></div>
+<pre class="px-code"><span class="k">import</span> polyxios <span class="k">as</span> px
+
+mesh = px.read(<span class="s">"brain.vtk"</span>)
+mesh.vertices.shape        <span class="c"># (n, 3)</span>
+<span class="k">len</span>(mesh.element_types)     <span class="c"># 2</span>
+
+px.write(mesh, <span class="s">"brain.ply"</span>)
+px.write(mesh, <span class="s">"brain.stl"</span>, binary=<span class="b">True</span>)
+
+<span class="c"># gigabytes? memory-map it</span>
+mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)<span class="px-cursor">&#9608;</span></pre>
+    </div>
+  </section>
+
+  <section class="px-section">
+    <p class="px-secnum"><b>01</b> <span>// formats</span></p>
+    <h2 class="px-h2">supported_extensions()</h2>
+    <p class="px-sub">Every format carries its own page: what the specification says,
+      what polyxios does with it, and a link to the authoritative document.</p>
+    <div class="px-table">
+      <div class="px-tr px-th"><span>format</span><span>ext</span><span>read</span><span>write</span><span>lazy</span></div>
+      <a class="px-tr" href="formats/vtk.html"><span>VTK Legacy</span><span class="px-ext">.vtk</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/vtr.html"><span>VTK RectilinearGrid</span><span class="px-ext">.vtr</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vtp.html"><span>VTK PolyData</span><span class="px-ext">.vtp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/obj.html"><span>Wavefront OBJ</span><span class="px-ext">.obj</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/ply.html"><span>Stanford PLY</span><span class="px-ext">.ply</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/stl.html"><span>STL</span><span class="px-ext">.stl</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/off.html"><span>OFF</span><span class="px-ext">.off</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/abaqus.html"><span>Abaqus</span><span class="px-ext">.inp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/avs.html"><span>AVS-UCD</span><span class="px-ext">.avs</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/meshb.html"><span>Medit binary</span><span class="px-ext">.meshb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/tetgen.html"><span>TetGen</span><span class="px-ext">.ele + .node</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/wkt.html"><span>Well-Known Text</span><span class="px-ext">.wkt</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vtu.html"><span>VTK UnstructuredGrid</span><span class="px-ext">.vtu</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vts.html"><span>VTK StructuredGrid</span><span class="px-ext">.vts</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vti.html"><span>VTK ImageData</span><span class="px-ext">.vti</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/mfem.html"><span>MFEM mesh</span><span class="px-ext">.mesh</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/netgen.html"><span>Netgen</span><span class="px-ext">.vol</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 25 codecs, 34 extensions</p>
+    </div>
+  </section>
+
+  <section class="px-section">
+    <p class="px-secnum"><b>02</b> <span>// guarantees</span></p>
+    <h2 class="px-h2">assert not corrupted</h2>
+    <div class="px-grid4">
+      <div class="px-card">
+        <p class="px-cardnum">[00]</p>
+        <h3>No silent corruption</h3>
+        <p>Large mesh indices raise an error instead of quietly truncating to a narrower integer.</p>
+      </div>
+      <div class="px-card">
+        <p class="px-cardnum">[01]</p>
+        <h3>Groups preserved</h3>
+        <p>A face belonging to several tags stays in all of them, through a full read-write round trip.</p>
+      </div>
+      <div class="px-card">
+        <p class="px-cardnum">[02]</p>
+        <h3>Safe on untrusted files</h3>
+        <p>Header counts are validated before any memory is allocated for the body.</p>
+      </div>
+      <div class="px-card">
+        <p class="px-cardnum">[03]</p>
+        <h3>No compiler needed</h3>
+        <p>Pure Python fallbacks ship with the package; the Cython hot-paths are optional.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="px-section px-two">
+    <div>
+      <p class="px-secnum"><b>03</b> <span>// cli</span></p>
+      <h2 class="px-h2">$ pxios</h2>
+      <p class="px-sub">Ships with the package. Pull a catalogued model, convert it, and
+        render it through FURY without writing a script.</p>
+      <dl class="px-cmds">
+        <dt>list</dt><dd>remote catalogue, local cache, or codecs</dd>
+        <dt>fetch</dt><dd>one file, or every model for an extension</dd>
+        <dt>convert</dt><dd>format to format in a single process</dd>
+        <dt>viz</dt><dd>surface, --lines or --points</dd>
+      </dl>
+    </div>
+    <div class="px-panel">
+      <div class="px-panel-head"><span>bash - 80&times;24</span></div>
+<pre class="px-code"><span class="p">$</span> pxios fetch bunny.obj
+<span class="c">  cached -&gt; ~/.polyxios/bunny.obj  (2.9 MB)</span>
+
+<span class="p">$</span> pxios convert bunny.obj bunny.vtk
+<span class="c">  35947 vertices &middot; 69451 triangles &middot; 0.4s</span>
+
+<span class="p">$</span> pxios list --codecs
+<span class="c">  .avs .bdf .ele .f3grid .inp .meshb .msh
+  .obj .off .ply .stl .su2 .tec .vtk .vtp
+  .vtr .wkt .xml</span>
+
+<span class="p">$</span> pxios viz bunny.vtk --points<span class="px-cursor">&#9608;</span></pre>
+    </div>
+  </section>
+
+  <section class="px-section">
+    <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
+    <h2 class="px-h2">register() -&gt; ".abc"</h2>
+    <p class="px-sub">Any third-party package can teach polyxios a nineteenth format.
+      Two functions and an entry point - no fork, no pull request, no restart.</p>
+    <div class="px-grid2">
+      <div class="px-panel">
+        <div class="px-panel-head"><span>step 01 - mypackage/abc_codec.py</span></div>
+<pre class="px-code"><span class="k">from</span> polyxios._registry <span class="k">import</span> Codec
+
+<span class="k">def</span> read(path, *, lazy=<span class="b">False</span>): ...
+<span class="k">def</span> write(poly, path, **opts): ...
+
+<span class="k">def</span> register():
+    <span class="k">return</span> <span class="s">".abc"</span>, Codec(read, write)</pre>
+      </div>
+      <div class="px-panel">
+        <div class="px-panel-head"><span>step 02 - pyproject.toml</span></div>
+<pre class="px-code">[project.entry-points.<span class="s">"polyxios.codecs"</span>]
+abc = <span class="s">"mypackage.abc_codec:register"</span>
+
+<span class="c"># then, anywhere:</span>
+mesh = px.read(<span class="s">"model.abc"</span>)
+<span class="c"># picked up automatically</span></pre>
+      </div>
+    </div>
+    <p class="px-sub"><a href="plugins.html">Full plugin guide -&gt;</a></p>
+  </section>
+
+</div>
+
+## Installation
+
+Source: https://polyxios.org/stable/installation.html
+
+Installation
+
+pip (recommended)
+
+pip install polyxios
+
+Development install
+
+Clone the repo, then use spin
+to manage the build:
+
+pip install spin
+spin setup       # first-time: upstream remote + build deps (libomp on macOS)
+spin install     # compiled install
+spin install -e  # editable install - source changes reflected immediately
+
+Dependencies
+
+Python >= 3.11
+
+NumPy >= 1.24
+
+Optional:
+
+Cython >= 3.0 (compiled hot-paths; pure Python fallbacks included)
+
+## Usage
+
+Source: https://polyxios.org/stable/usage.html
+
+Usage
+
+Basic I/O
+
+import polyxios as px
+
+# Read any supported format
+mesh = px.read("brain.vtk")
+
+# Inspect
+print(mesh.vertices.shape)      # (n_verts, 3)
+print(len(mesh.element_types))  # number of elements
+
+# Write to a different format
+px.write(mesh, "brain.ply")
+px.write(mesh, "brain.vtp")
+
+Format-specific options
+
+px.write(mesh, "brain.vtk", binary=True)
+px.write(mesh, "brain.ply", binary=True, endian="little")
+
+Every codec’s own options are listed on its page under
+formats/index.
+
+Where to go next
+
+formats/index - the twenty-five supported formats, one page each
+
+lazy_loading - reading files larger than RAM
+
+transforms - filtering, cleaning and merging meshes
+
+cli - the pxios command line
+
+plugins - teaching polyxios a new format
+
+## Supported formats
+
+Source: https://polyxios.org/stable/formats/index.html
+
+Supported formats
+
+polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
+extension, so polyxios.read() picks the right reader from the filename - pass
+fmt= to override it.
+
+Every page below summarises the format’s specification, notes where polyxios extends or
+deviates from it, and links to the authoritative document.
+
+<!--
+  The twenty-five format cards, pulled into formats/index.rst by a raw:: html
+  directive. Hrefs are relative to formats/, i.e. sibling pages.
+  Every class is styled in _static/css/retro.css.
+
+  Adding a format: add a card here, a page under formats/, a line in the hidden
+  toctree in formats/index.rst, and a row in _includes/homepage.html.
+-->
+<div class="px-fmtgrid">
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK Legacy <span class="px-fmtext">.vtk</span></p>
+    <p class="px-fmtdesc">Serial single-dataset format with an ASCII header naming
+      POINTS, CELLS and CELL_TYPES; ASCII or binary body.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtk.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK RectilinearGrid <span class="px-fmtext">.vtr</span></p>
+    <p class="px-fmtdesc">XML VTK file for grids with independent per-axis
+      coordinate arrays; appended or inline base64 data.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtr.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK PolyData <span class="px-fmtext">.vtp</span></p>
+    <p class="px-fmtdesc">XML VTK file for points, lines, polygons and strips,
+      with named point and cell data arrays.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtp.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Wavefront OBJ <span class="px-fmtext">.obj</span></p>
+    <p class="px-fmtdesc">Line-oriented ASCII geometry: v/vn/vt records and f faces
+      with 1-based, optionally negative indices.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="obj.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/obj/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Stanford PLY <span class="px-fmtext">.ply</span></p>
+    <p class="px-fmtdesc">Self-describing element lists declared in an ASCII header,
+      followed by ASCII or packed binary property data.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="ply.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/ply/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">STL <span class="px-fmtext">.stl</span></p>
+    <p class="px-fmtdesc">Unstructured triangle soup with a normal per facet and no
+      vertex sharing; ASCII or 80-byte-header binary.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="stl.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.fabbers.com/tech/STL_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">OFF <span class="px-fmtext">.off</span></p>
+    <p class="px-fmtdesc">An OFF magic line, a counts line, then vertices and faces;
+      ST/C/N/4 prefixes add texture, colour and normals.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="off.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://segeval.cs.princeton.edu/public/off_format.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Abaqus <span class="px-fmtext">.inp</span></p>
+    <p class="px-fmtdesc">Keyword-driven input deck: *NODE and *ELEMENT carry the
+      mesh, *NSET and *ELSET the named collections.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="abaqus.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://help.3ds.com/2023/english/dssimulia_established/SIMACAEKEYRefMap/simakey-c-gen.htm">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">AVS-UCD <span class="px-fmtext">.avs</span></p>
+    <p class="px-fmtdesc">A five-integer counts line, then node records and cells
+      keyed by a shape word, then optional data sections.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="avs.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://lanl.github.io/LaGriT/pages/docs/read_avs.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Medit binary <span class="px-fmtext">.meshb</span></p>
+    <p class="px-fmtdesc">A stream of keyword-indexed fields; typed entity blocks
+      carry node indices plus a trailing reference tag.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="meshb.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">DOLFIN / FEniCS XML <span class="px-fmtext">.xml</span></p>
+    <p class="px-fmtdesc">A small XML tree whose celltype names the element; every
+      vertex and cell is explicitly indexed and 0-based.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="dolfin.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/dolfin_xml/dolfin_xml.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">FLAC3D <span class="px-fmtext">.f3grid</span></p>
+    <p class="px-fmtdesc">Keyword-led ASCII records: G gridpoints, Z zones, F faces,
+      with ZGROUP and FGROUP naming the regions.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="flac3d.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Gmsh <span class="px-fmtext">.msh</span></p>
+    <p class="px-fmtdesc">$Section blocks for format, nodes, elements and physical
+      names; v4.1 regroups them per entity, so parsing forks.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="gmsh.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://gmsh.info/doc/texinfo/gmsh.html#MSH-file-format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem</span></p>
+    <p class="px-fmtdesc">A deck of fixed-column cards in three coexisting field
+      widths; GRID defines points, C* cards define elements.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="nastran.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://pynastran-git.readthedocs.io/en/latest/quick_start/bdf_overview.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec</span></p>
+    <p class="px-fmtdesc">A VARIABLES list then ZONE records; DATAPACKING decides
+      whether values interleave per node or per column.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="tecplot.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://tecplot.azureedge.net/products/360/current/360-data-format.pdf">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">SU2 <span class="px-fmtext">.su2</span></p>
+    <p class="px-fmtdesc">Plain ASCII keyed by uppercase tokens; elements carry a VTK
+      type code, and boundaries are declared per marker.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="su2.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://su2code.github.io/docs_v7/Mesh-File/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">TetGen <span class="px-fmtext">.ele + .node</span></p>
+    <p class="px-fmtdesc">Sidecar files sharing a basename; the first index in the
+      file decides whether numbering is 0- or 1-based.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="tetgen.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://wias-berlin.de/software/tetgen/fformats.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Well-Known Text <span class="px-fmtext">.wkt</span></p>
+    <p class="px-fmtdesc">The OGC text encoding: a type keyword and parenthesised
+      coordinate lists, with EWKT adding an SRID prefix.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="wkt.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://libgeos.org/specifications/wkt/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK UnstructuredGrid <span class="px-fmtext">.vtu</span></p>
+    <p class="px-fmtdesc">XML VTK file for an arbitrary mix of cell types, with
+      connectivity, offsets and per-cell type codes.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtu.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK StructuredGrid <span class="px-fmtext">.vts</span></p>
+    <p class="px-fmtdesc">Curvilinear grid: explicit coordinates, implicit
+      connectivity, expanded to hexahedra on read.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vts.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK ImageData <span class="px-fmtext">.vti</span></p>
+    <p class="px-fmtdesc">A uniform grid stored entirely as metadata: origin,
+      spacing and extent, with no coordinate array at all.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vti.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">MFEM mesh <span class="px-fmtext">.mesh</span></p>
+    <p class="px-fmtdesc">Named sections keyed by a geometry type code; INLINE and
+      NURBS variants carry a recipe, not a mesh.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="mfem.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://mfem.org/mesh-format-v1.0/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Netgen <span class="px-fmtext">.vol</span></p>
+    <p class="px-fmtdesc">Counted sections whose leading fields differ per section;
+      bcnr / matnr indices come back as named tags.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="netgen.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/NGSolve/netgen">project &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">UGRID (AFLR) <span class="px-fmtext">.ugrid</span></p>
+    <p class="px-fmtdesc">Seven header counts and nothing else separating the
+      sections; surface IDs sit between faces and cells.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="ugrid.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.simcenter.msstate.edu/software/documentation/ugrid/ugrid.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Gaussian splat <span class="px-fmtext">.splat</span></p>
+    <p class="px-fmtdesc">Headerless 32-byte records: position, scale, colour and a
+      packed rotation quaternion. Points only, no elements.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="splat.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/antimatter15/splat">reference &#8599;</a>
+    </p>
+  </div>
+
+</div>
+
+
+Parallel and multi-block meta-files
+
+.vtm, .pvtu, .pvts, .pvti, .pvtp and .pvtr are registered too,
+but they hold no geometry - only references to sub-files. Reading one raises
+UnsupportedFormatError with a pointer to
+examples/read_parallel_vtk.py, rather than failing with a parse error further in.
+Writing them is not supported.
+
+## VTK Legacy
+
+Source: https://polyxios.org/stable/formats/vtk.html
+
+VTK Legacy
+
+.vtk read + write lazy: binary only
+
+Summary of the specification
+
+The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data mode, and a DATASET keyword naming the geometry type. What follows depends on that type: an unstructured grid lists POINTS, then CELLS as connectivity lists prefixed by their point count, then a parallel CELL_TYPES array of integer type codes. Point and cell attributes arrive afterwards in POINT_DATA / CELL_DATA sections as named SCALARS, VECTORS or FIELD arrays. In BINARY mode the arrays are raw big-endian values packed straight after their declaration line.
+
+Specification at a glance
+
+
+
+
+
+banner
+
+# vtk DataFile Version x.y
+
+data mode
+
+ASCII or BINARY (binary payload is big-endian)
+
+dataset types
+
+STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID
+
+connectivity
+
+CELLS <n> <size> followed by CELL_TYPES <n> integer codes
+
+attributes
+
+POINT_DATA / CELL_DATA with SCALARS, VECTORS, NORMALS, FIELD
+
+Read the full VTK Legacy specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.vtk")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Binary bodies can be memory-mapped instead of loaded:
+
+mesh = px.read("big.vtk", lazy=True)
+
+Writing
+
+px.write(mesh, "out.vtk")
+
+Format-specific options:
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+binary
+
+False
+
+Write a BINARY body instead of ASCII.
+
+Quirks worth knowing
+
+Binary files can be memory-mapped with lazy=True; ASCII files must be parsed end to end before any value is available.
+
+Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
+
+Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.
+
+index - the full format table.
+
+## VTK RectilinearGrid
+
+Source: https://polyxios.org/stable/formats/vtr.html
+
+VTK RectilinearGrid
+
+.vtr read + write eager
+
+Summary of the specification
+
+.vtr is one of the VTK XML serial formats. A <VTKFile type="RectilinearGrid"> root wraps a piece whose extent is declared as six integer indices, and whose geometry is three independent coordinate arrays - one per axis - rather than an explicit point list. Data arrays live in <PointData> and <CellData> and may be stored inline as ASCII, inline as base64, or appended as a single raw block referenced by byte offset, optionally zlib-compressed.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”RectilinearGrid” version=”1.0” byte_order=”…”>
+
+geometry
+
+<Coordinates> with three <DataArray>, one per axis
+
+extent
+
+WholeExtent / Extent as six integers: x0 x1 y0 y1 z0 z1
+
+storage
+
+format=”ascii” | “binary” (base64) | “appended” with offsets
+
+compression
+
+optional vtkZLibDataCompressor header
+
+Read the full VTK RectilinearGrid specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.vtr")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.vtr")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
+
+Appended and base64 payloads are decoded eagerly - the XML container has no seekable layout for mmap, so lazy=True has no effect.
+
+index - the full format table.
+
+## VTK PolyData
+
+Source: https://polyxios.org/stable/formats/vtp.html
+
+VTK PolyData
+
+.vtp read + write eager
+
+Summary of the specification
+
+.vtp is the VTK XML format for surface and curve geometry. A <Piece> declares its point and cell counts as attributes, then carries <Points> plus up to four cell containers - <Verts>, <Lines>, <Strips> and <Polys> - each expressed as a connectivity array and an offsets array rather than the legacy size-prefixed lists. Attributes travel in <PointData> and <CellData> with the same inline, base64 or appended storage choices as the other XML formats.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”PolyData”>
+
+cell containers
+
+Verts, Lines, Strips, Polys
+
+connectivity
+
+paired connectivity + offsets DataArrays (0-based)
+
+storage
+
+ascii, base64 binary, or appended raw block
+
+attributes
+
+PointData / CellData, one named DataArray each
+
+Read the full VTK PolyData specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.vtp")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.vtp")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
+
+Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
+
+index - the full format table.
+
+## Wavefront OBJ
+
+Source: https://polyxios.org/stable/formats/obj.html
+
+Wavefront OBJ
+
+.obj read + write eager
+
+Summary of the specification
+
+OBJ is a line-oriented ASCII format where each line is a keyword followed by whitespace-separated values: v for a geometric vertex, vn for a normal, vt for a texture coordinate, and f for a face. Face vertices are given as v, v/vt, v//vn or v/vt/vn triples, indices are 1-based, and a negative index counts backwards from the most recently declared vertex. Faces may have any number of vertices, and material and grouping keywords (usemtl, g, o, s) may appear anywhere.
+
+Specification at a glance
+
+
+
+
+
+records
+
+v, vn, vt, f, l, p, g, o, usemtl, mtllib
+
+indexing
+
+1-based; negative values are relative to the current vertex count
+
+face syntax
+
+v | v/vt | v//vn | v/vt/vn
+
+polygons
+
+arbitrary vertex count per face
+
+companion file
+
+materials in a separate .mtl referenced by mtllib
+
+Read the full Wavefront OBJ specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.obj")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.obj")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Negative (relative) indices are resolved against the vertex count at the point the face appears, not the final count.
+
+Faces with more than four vertices are kept as polygons rather than being silently triangulated.
+
+Material and group keywords are read as element tags; .mtl files are not parsed.
+
+index - the full format table.
+
+## Stanford PLY
+
+Source: https://polyxios.org/stable/formats/ply.html
+
+Stanford PLY
+
+.ply read + write lazy: binary only
+
+Summary of the specification
+
+PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ASCII header along with its property names and scalar types. The body that follows is either ASCII text or a packed binary block in the byte order the header names. Because the header is self-describing, PLY can carry arbitrary per-vertex and per-face attributes: colours, normals, confidence, intensity.
+
+Specification at a glance
+
+
+
+
+
+magic / header
+
+ply, then format ascii | binary_little_endian | binary_big_endian 1.0
+
+structure
+
+element <name> <count> declarations, each followed by its property lines
+
+scalar types
+
+char uchar short ushort int uint float double, plus list <count-type> <item-type>
+
+faces
+
+property list uchar int vertex_indices - 0-based, arbitrary polygon size
+
+comments
+
+comment lines anywhere in the header; obj_info for producer metadata
+
+published by
+
+Greg Turk, Stanford University
+
+Read the full Stanford PLY specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.ply")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Binary bodies can be memory-mapped instead of loaded:
+
+mesh = px.read("big.ply", lazy=True)
+
+Writing
+
+px.write(mesh, "out.ply")
+
+Format-specific options:
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+binary
+
+False
+
+Write a packed binary body instead of ASCII.
+
+endian
+
+"little"
+
+Byte order of the binary body; “big” emits binary_big_endian.
+
+Quirks worth knowing
+
+Vertex properties beyond x/y/z - colour, normals, confidence, intensity - are preserved as named vertex attributes rather than dropped.
+
+Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.
+
+Index widths are checked against the declared vertex count, so a mesh too large for the header’s list type raises instead of truncating.
+
+index - the full format table.
+
+## STL
+
+Source: https://polyxios.org/stable/formats/stl.html
+
+STL
+
+.stl read + write lazy: binary only
+
+Summary of the specification
+
+STL describes a solid as an unordered set of triangles - a triangle soup with no vertex sharing and no topology. Each facet carries its own normal and its three corner points. The ASCII flavour spells this out with solid / facet normal / outer loop / vertex keywords; the binary flavour is an 80-byte free-text header, a uint32 triangle count, then a fixed 50-byte record per facet (twelve float32 values plus a two-byte attribute field).
+
+Specification at a glance
+
+
+
+
+
+ascii form
+
+solid <name> … facet normal / outer loop / vertex x3 / endloop / endfacet
+
+binary form
+
+80-byte header, uint32 count, then 50 bytes per facet
+
+binary record
+
+3 float32 normal + 9 float32 vertices + uint16 attribute byte count
+
+byte order
+
+little-endian
+
+topology
+
+none - vertices are repeated per triangle
+
+Read the full STL specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.stl")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Binary bodies can be memory-mapped instead of loaded:
+
+mesh = px.read("big.stl", lazy=True)
+
+Writing
+
+px.write(mesh, "out.stl")
+
+Format-specific options:
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+binary
+
+False
+
+Write the 50-byte-per-facet binary form instead of ASCII.
+
+Quirks worth knowing
+
+Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.
+
+Facet normals are read but not trusted for orientation; they are kept as element attributes.
+
+The declared triangle count is validated against the real file size before memory is allocated.
+
+index - the full format table.
+
+## OFF
+
+Source: https://polyxios.org/stable/formats/off.html
+
+OFF
+
+.off read + write eager
+
+Summary of the specification
+
+The Object File Format opens with an OFF magic line, optionally prefixed by variant letters, then a counts line giving the number of vertices, faces and edges (the edge count is conventionally ignored). Vertex coordinates follow one per line, then one line per face: a vertex count followed by that many 0-based indices, optionally trailed by per-face colour components. The ST, C, N and 4 prefixes declare that vertices additionally carry texture coordinates, colour, normals or a fourth homogeneous component, in that fixed order.
+
+Specification at a glance
+
+
+
+
+
+magic
+
+[ST][C][N][4][n]OFF, optionally followed by BINARY
+
+counts line
+
+nvertices nfaces nedges (edges ignored)
+
+faces
+
+<k> i0 i1 … ik-1, 0-based, optional trailing colour
+
+variants
+
+ST = texture coords, C = colour, N = normals, 4 = homogeneous
+
+binary form
+
+big-endian, IEEE floats and 32-bit ints
+
+Read the full OFF specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.off")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.off")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+ASCII and big-endian binary OFF are both read; writing emits ASCII.
+
+ST / C / N variant data is mapped onto vertex and face attributes instead of being discarded.
+
+The edge count on the counts line is ignored, as the format intends - no error is raised when it disagrees with the face list.
+
+index - the full format table.
+
+## Abaqus
+
+Source: https://polyxios.org/stable/formats/abaqus.html
+
+Abaqus
+
+.inp read + write eager
+
+Summary of the specification
+
+An Abaqus input deck is a keyword-driven text file. Lines beginning with * introduce a keyword with comma-separated parameters; the data lines that follow belong to it until the next keyword. A mesh needs only two: *NODE, listing an id and its coordinates per line, and *ELEMENT, TYPE=..., listing an element id and its node ids. Named collections are declared with *NSET and *ELSET, and ** starts a comment.
+
+Specification at a glance
+
+
+
+
+
+keywords
+
+*NODE, *ELEMENT, *NSET, *ELSET, *PART, *INCLUDE
+
+node line
+
+id, x, y, z
+
+element line
+
+id, n1, n2, … (count implied by TYPE)
+
+element types
+
+C3D4, C3D8, CPS3, S4R, … mapped to polyxios element types
+
+comments
+
+lines starting with **; keywords are case-insensitive
+
+Read the full Abaqus specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.inp")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.inp")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index and the original ids are kept as vertex tags.
+
+*NSET and *ELSET names become vertex and element tags, and an entity in several sets stays in all of them.
+
+Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors.
+
+index - the full format table.
+
+## AVS-UCD
+
+Source: https://polyxios.org/stable/formats/avs.html
+
+AVS-UCD
+
+.avs read + write eager
+
+Summary of the specification
+
+AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data values. Node records follow - an id and three coordinates each - then one line per cell giving its id, material id, a cell type keyword (tri, quad, tet, hex, prism, pyr, line, pt) and its node ids. Optional data sections at the end declare component counts and labels before the per-node or per-cell values.
+
+Specification at a glance
+
+
+
+
+
+counts line
+
+nnodes ncells ndata_node ndata_cell ndata_model
+
+node line
+
+id x y z
+
+cell line
+
+id mat_id type n1 n2 …
+
+cell types
+
+pt line tri quad tet pyr prism hex
+
+data sections
+
+component counts, then labelled value blocks
+
+Read the full AVS-UCD specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.avs")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.avs")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+The per-cell material id is preserved as an element tag, so material groups survive a round trip.
+
+Node and cell data sections are read into named vertex and element attributes.
+
+1-based node ids are remapped to 0-based indices; the originals are kept as vertex tags.
+
+index - the full format table.
+
+## Medit binary
+
+Source: https://polyxios.org/stable/formats/meshb.html
+
+Medit binary
+
+.meshb read + write lazy: binary only
+
+Summary of the specification
+
+.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, the byte position of the next field, then that field’s data. Codes identify the version and dimension first, then typed entity blocks - Vertices, Edges, Triangles, Quadrilaterals, Tetrahedra, Hexahedra - each a count followed by fixed-width records of node indices plus a trailing reference (tag) integer. The version code fixes whether floats are 32- or 64-bit.
+
+Specification at a glance
+
+
+
+
+
+layout
+
+keyword code, next-field offset, then the field payload
+
+header codes
+
+MeshVersionFormatted, Dimension
+
+entity blocks
+
+Vertices, Edges, Triangles, Quadrilaterals, Tetrahedra, Hexahedra
+
+record shape
+
+node indices (1-based) + one reference integer
+
+float width
+
+set by the version code: 32-bit or 64-bit
+
+ascii sibling
+
+.mesh - the same keywords in text form
+
+Read the full Medit binary specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.meshb")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Binary bodies can be memory-mapped instead of loaded:
+
+mesh = px.read("big.meshb", lazy=True)
+
+Writing
+
+px.write(mesh, "out.meshb")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+The trailing reference integer on each entity becomes an element tag, which is how Medit files carry surface and region labels.
+
+Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.
+
+Binary bodies can be memory-mapped with lazy=True.
+
+index - the full format table.
+
+## DOLFIN / FEniCS XML
+
+Source: https://polyxios.org/stable/formats/dolfin.html
+
+DOLFIN / FEniCS XML
+
+.xml read + write eager
+
+Summary of the specification
+
+The legacy DOLFIN mesh format is a small XML tree: a <dolfin> root containing a <mesh> whose celltype attribute names the element (interval, triangle, tetrahedron) and whose dim gives the geometric dimension. Inside, <vertices> and <cells> declare their sizes and hold one <vertex> or one <triangle> element per entity, each with an explicit index and its coordinates or node references. Everything is indexed, 0-based and explicit.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<dolfin xmlns:dolfin=”…”>
+
+mesh element
+
+<mesh celltype=”triangle” dim=”2”>
+
+vertices
+
+<vertices size=”n”> with <vertex index x y z>
+
+cells
+
+<cells size=”n”> with <triangle index v0 v1 v2> etc.
+
+homogeneity
+
+one cell type per file
+
+status
+
+superseded by XDMF in modern FEniCS
+
+Read the full DOLFIN / FEniCS XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.xml")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.xml")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+The format holds a single cell type per file; writing a mixed mesh raises rather than dropping the elements that do not fit.
+
+2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+
+Mesh function and mesh value collection blocks are read as attributes where present.
+
+index - the full format table.
+
+## FLAC3D
+
+Source: https://polyxios.org/stable/formats/flac3d.html
+
+FLAC3D
+
+.f3grid read + write eager
+
+Summary of the specification
+
+.f3grid is Itasca’s ASCII grid exchange file. Records are keyword-led: G (or GRIDPOINT) lines declare a gridpoint id and its coordinates, Z lines declare a zone with a shape keyword (B8, W6, P5, T4) and its gridpoint ids, and F lines declare surface faces. ZGROUP and FGROUP records name a group and list the zone or face ids that belong to it, which is how regions and boundaries are carried.
+
+Specification at a glance
+
+
+
+
+
+gridpoints
+
+G <id> <x> <y> <z>
+
+zones
+
+Z <shape> <id> <gp ids…> - B8 hex, W6 wedge, P5 pyramid, T4 tet
+
+faces
+
+F <shape> <id> <gp ids…>
+
+groups
+
+ZGROUP / FGROUP <name> followed by member ids
+
+comments
+
+lines starting with *
+
+Read the full FLAC3D specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.f3grid")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.f3grid")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Both zones and faces are read, so a file’s volume mesh and its boundary surface arrive as separate element groups.
+
+ZGROUP and FGROUP names become element tags; a zone in several groups stays in all of them.
+
+Gridpoint ids are sparse in practice and are remapped to a dense 0-based index on read.
+
+index - the full format table.
+
+## Gmsh
+
+Source: https://polyxios.org/stable/formats/gmsh.html
+
+Gmsh
+
+.msh read + write (v2) eager
+
+Summary of the specification
+
+A Gmsh .msh file is a sequence of $Section / $EndSection blocks. $MeshFormat states the version, whether the file is ASCII or binary, and the size of a float. $Nodes lists node tags with coordinates, and $Elements lists elements with an integer type code and their node tags. $PhysicalNames maps physical group ids to names. Version 4.1 restructures nodes and elements into per-entity blocks with a leading count line, which is why the two revisions must be parsed differently.
+
+Specification at a glance
+
+
+
+
+
+sections
+
+$MeshFormat, $PhysicalNames, $Nodes, $Elements, $Periodic
+
+v2 nodes
+
+tag x y z, one per line
+
+v4.1 nodes
+
+entity blocks: numBlocks, then per-block tags and coordinates
+
+element codes
+
+integer type ids (1 = 2-node line, 2 = triangle, 4 = tetrahedron, …)
+
+groups
+
+$PhysicalNames: dimension, tag, “name”
+
+Read the full Gmsh specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.msh")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.msh")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer still understands.
+
+Physical group names become element tags, so named boundaries and volumes survive the read.
+
+Node tags need not be contiguous; they are remapped to dense indices and kept as vertex tags.
+
+index - the full format table.
+
+## Nastran
+
+Source: https://polyxios.org/stable/formats/nastran.html
+
+Nastran
+
+.bdf .nas .fem read + write eager
+
+Summary of the specification
+
+A Nastran bulk data file is a deck of fixed-column cards. Each card starts with a name in the first field and continues across eight further fields. Three field widths coexist: small field (8 columns), large field (16 columns, signalled by a * on the card name), and free field (comma-separated). GRID cards define points; CTRIA3, CQUAD4, CTETRA, CHEXA and friends define elements by referencing grid ids and a property id, and continuation lines carry any fields that overflow the first card.
+
+Specification at a glance
+
+
+
+
+
+field widths
+
+small (8 col), large (16 col, name*), free (comma-separated)
+
+points
+
+GRID  id  cp  x1  x2  x3
+
+elements
+
+CTRIA3, CQUAD4, CTETRA, CHEXA, CPENTA, CBAR …
+
+grouping
+
+property id (PID) on each element card
+
+continuation
+
+/ * continuation markers on overflowing cards
+
+other suffixes
+
+.dat is read via fmt=”.bdf”
+
+Read the full Nastran specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.bdf")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.bdf")
+
+Format-specific options:
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+large_field_grid
+
+False
+
+Emit GRID cards in large (16-column) field form for full float precision.
+
+Quirks worth knowing
+
+All three field widths are read; writing emits free field, with large-field GRID cards on request.
+
+.dat decks are recognised when the codec is named explicitly: px.read("model.dat", fmt=".bdf").
+
+Property ids become element tags, so the deck’s grouping is preserved.
+
+index - the full format table.
+
+## Tecplot ASCII
+
+Source: https://polyxios.org/stable/formats/tecplot.html
+
+Tecplot ASCII
+
+.tec read + write eager
+
+Summary of the specification
+
+A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-element zone declares its node and element counts (N=, E=), its element shape (ZONETYPE=FETRIANGLE, FEQUADRILATERAL, FETETRAHEDRON, FEBRICK) and its data packing. DATAPACKING=POINT interleaves all variables per node; DATAPACKING=BLOCK writes each variable’s full column in turn. The connectivity list follows the nodal data.
+
+Specification at a glance
+
+
+
+
+
+header
+
+TITLE = “…” then VARIABLES = “X” “Y” “Z” …
+
+zone record
+
+ZONE T=”name”, N=…, E=…, ZONETYPE=…, DATAPACKING=…
+
+zone types
+
+FETRIANGLE, FEQUADRILATERAL, FETETRAHEDRON, FEBRICK
+
+packing
+
+POINT (per node) or BLOCK (per variable)
+
+connectivity
+
+1-based node indices, one element per line
+
+other suffixes
+
+.dat is read via fmt=”.tec”
+
+Read the full Tecplot ASCII specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.tec")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.tec")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.
+
+Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
+
+.dat files are recognised when the codec is named explicitly: px.read("flow.dat", fmt=".tec").
+
+index - the full format table.
+
+## SU2
+
+Source: https://polyxios.org/stable/formats/su2.html
+
+SU2
+
+.su2 read + write eager
+
+Summary of the specification
+
+The SU2 native mesh is plain ASCII, keyed by uppercase tokens on their own lines. NDIME= gives the dimension, NELEM= precedes the volume element list - one line per element: a VTK element type code, its node indices, then the element index - and NPOIN= precedes the coordinates. Boundaries are declared per marker: NMARK= counts them, then each MARKER_TAG= names one and MARKER_ELEMS= lists its surface elements in the same code-then-nodes form.
+
+Specification at a glance
+
+
+
+
+
+dimension
+
+NDIME= 2 or 3
+
+elements
+
+NELEM= then <vtk_type> <nodes…> <index>
+
+type codes
+
+3 line, 5 triangle, 9 quad, 10 tetra, 12 hexa, 13 prism, 14 pyramid
+
+points
+
+NPOIN= then coordinates, one point per line
+
+boundaries
+
+NMARK=, MARKER_TAG=<name>, MARKER_ELEMS=<n>
+
+Read the full SU2 specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.su2")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.su2")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Boundary marker names become element tags, so named inlets, outlets and walls survive a round trip.
+
+2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+
+The trailing per-element index is read but not trusted for ordering; elements keep file order.
+
+index - the full format table.
+
+## TetGen
+
+Source: https://polyxios.org/stable/formats/tetgen.html
+
+TetGen
+
+.ele + .node read + write eager
+
+Summary of the specification
+
+TetGen splits a mesh across sidecar files that share a basename. .node starts with a counts line - number of points, dimension, number of attributes, boundary-marker flag - then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. .ele starts with its own counts line - number of tetrahedra, nodes per tetrahedron, region-attribute flag - then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.
+
+Specification at a glance
+
+
+
+
+
+.node header
+
+npoints dim nattrs boundary_marker_flag
+
+.node line
+
+index x y z [attrs…] [marker]
+
+.ele header
+
+ntetrahedra nodes_per_tet region_attr_flag
+
+.ele line
+
+index n1 n2 n3 n4 [region]
+
+index base
+
+0 or 1, inferred from the first index
+
+companions
+
+.face, .edge, .neigh use the same convention
+
+Read the full TetGen specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.ele")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.ele")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+Pass either path - px.read("bar.ele") or px.read("bar.node") - and the paired file is located by basename.
+
+Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept.
+
+Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
+
+index - the full format table.
+
+## Well-Known Text
+
+Source: https://polyxios.org/stable/formats/wkt.html
+
+Well-Known Text
+
+.wkt read + write eager
+
+Summary of the specification
+
+WKT is the OGC text encoding for vector geometry: a type keyword followed by parenthesised coordinate lists. POLYGON takes one or more rings, the first being the exterior boundary and the rest holes; MULTIPOLYGON nests one level deeper; TRIANGLE, POLYHEDRALSURFACE and TIN describe surfaces directly. Coordinates are whitespace-separated within a tuple and comma-separated between tuples. The EWKT extension prefixes a spatial reference as SRID=4326;, and Z / M suffixes declare extra ordinates.
+
+Specification at a glance
+
+
+
+
+
+geometry types
+
+POINT, LINESTRING, POLYGON, MULTI*, TRIANGLE, TIN, POLYHEDRALSURFACE
+
+polygon rings
+
+first ring exterior, subsequent rings are holes
+
+coordinates
+
+x y [z [m]], space-separated in a tuple, comma-separated between
+
+dimensions
+
+Z / M / ZM suffixes on the type keyword
+
+EWKT
+
+optional SRID=<n>; prefix
+
+Read the full Well-Known Text specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.wkt")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.wkt")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+2D geometry is padded to z = 0 so the vertex array is always (n, 3).
+
+Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
+
+An EWKT SRID= prefix is parsed and then dropped - polyxios carries no coordinate reference system.
+
+index - the full format table.
+
+## MFEM mesh
+
+Source: https://polyxios.org/stable/formats/mfem.html
+
+MFEM mesh
+
+.mesh read + write eager
+
+Summary of the specification
+
+An MFEM mesh file opens with a MFEM mesh v1.0 version line and is then a sequence of named sections, each a keyword on its own line followed by a count and that many records. dimension fixes whether coordinates are written with two or three components. elements lists one element per line as an attribute, a geometry type code and its 0-based node indices; the codes run 0 point, 1 segment, 2 triangle, 3 quadrilateral, 4 tetrahedron, 5 hexahedron, 6 wedge, 7 pyramid. boundary uses the same record shape for the boundary elements, and vertices gives a count, a dimension and then one coordinate line per vertex. The format also has INLINE and NURBS variants that carry a parametric recipe rather than an explicit mesh.
+
+Specification at a glance
+
+
+
+
+
+header
+
+MFEM mesh v1.0
+
+sections
+
+dimension, elements, boundary, vertices
+
+element record
+
+<attribute> <geometry code> <node indices>
+
+geometry codes
+
+0 point, 1 segment, 2 triangle, 3 quad, 4 tet, 5 hex, 6 wedge, 7 pyramid
+
+indices
+
+0-based
+
+variants
+
+INLINE (parametric recipe), NURBS (spline patches)
+
+Read the full MFEM mesh specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("beam.mesh")
+mesh.vertices          # (n, 3)
+mesh.element_types     # element groups found in the file
+
+Writing
+
+px.write(mesh, "out.mesh")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+INLINE and NURBS meshes raise UnsupportedFormatError; they store a recipe rather than an explicit mesh.
+
+The written dimension is inferred from the data: a mesh whose z column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.
+
+Coordinates are written with .10g, which does not name a float64 exactly - a round trip differs in the last few digits.
+
+An element whose type code has no polyxios equivalent falls back to triangle on write.
+
+index - the full format table.
+
+## Netgen
+
+Source: https://polyxios.org/stable/formats/netgen.html
+
+Netgen
+
+.vol read + write eager
+
+Summary of the specification
+
+A Netgen .vol file opens with the word mesh3d and is then a sequence of named sections, each one a keyword line, a count line, and that many records. The leading fields differ per section and are what say which element an index belongs to: a surface element spells surfnr bcnr domin domout np before its nodes, while a volume element spells matnr np, so the node list starts at a different column in each. np is stated per record rather than fixed per section, because one section holds every element of its dimension whatever its order - a six-node triangle can sit next to a three-node one. The …gi and …uv spellings of the element sections carry extra geometry or parameter values after the nodes. materials, bcnames, cd2names and cd3names map the numeric indices back to names, and the file closes with endmesh.
+
+Specification at a glance
+
+
+
+
+
+header
+
+mesh3d, then dimension and geomtype
+
+sections
+
+points, edgesegments, surfaceelements, volumeelements, plus …gi / …uv spellings
+
+surface record
+
+surfnr bcnr domin domout np <nodes>
+
+volume record
+
+matnr np <nodes>
+
+indices
+
+1-based
+
+name sections
+
+materials, bcnames, cd2names, cd3names
+
+terminator
+
+endmesh
+
+Netgen / NGSolve project ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("cube.vol")
+mesh.element_tags      # bcnr / matnr indices, by name where the file names them
+
+Writing
+
+px.write(mesh, "out.vol")
+px.write(mesh, "out.vol", float_fmt=".17g")   # bit-exact coordinates
+
+
+
+
+
+option
+
+meaning
+
+float_fmt
+
+ASCII coordinate format specifier. Defaults to .10g, which does not name a float64 exactly; pass .17g for a bit-exact round trip, at the cost of file size.
+
+Quirks worth knowing
+
+Elements are written section by section in the order the format fixes - faces, cells, edges, then point elements - so an element’s index changes unless the mesh already lay in that order.
+
+Node references are 1-based in the file, 0-based in the PolyData; every type whose node order differs from polyxios’s is permuted both ways.
+
+Index 0 means “unset” and is dropped rather than becoming a tag. A bc_<n>-style tag name keeps its number, unless that number is negative or past int64, which the format cannot spell.
+
+A tag holding elements of more than one dimension is written into each dimension’s section, and comes back split one tag per dimension, because the sections number their indices independently.
+
+Sections polyxios has no home for - identifications, face_colours, the singular_* family - are stepped over, with a warning when one is not empty.
+
+lazy=True warns and loads eagerly; the format is ASCII.
+
+index - the full format table.
+
+## UGRID (AFLR)
+
+Source: https://polyxios.org/stable/formats/ugrid.html
+
+UGRID (AFLR)
+
+.ugrid read + write eager
+
+Summary of the specification
+
+A UGRID file opens with one header line of seven counts - nodes, triangles, quads, tetrahedra, pyramids, prisms, hexahedra - and then lists every section back to back, whitespace-separated. Nothing in the body says which section it belongs to, so the header counts are the only thing separating them and each has to be walked in the fixed order. The surface IDs in particular sit between the boundary faces and the volume cells rather than at the end of the file: reading them anywhere else shifts every volume element that follows. Node references are 1-based. The same format has binary variants spelled by an infix suffix - mesh.b8.ugrid, mesh.lb8.ugrid, mesh.r8.ugrid.
+
+Specification at a glance
+
+
+
+
+
+header
+
+n_nodes n_tri n_quad n_tet n_pyramid n_prism n_hex
+
+body order
+
+coordinates, tri, quad, tri IDs, quad IDs, tet, pyramid, prism, hex
+
+indices
+
+1-based
+
+surface IDs
+
+one per boundary face, 0 means unmarked
+
+binary variants
+
+.b8.ugrid, .lb8.ugrid, .r8.ugrid (not handled here)
+
+Read the full UGRID specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("wing.ugrid")
+mesh.element_tags      # boundary_<id>, one per distinct non-zero surface ID
+
+Writing
+
+px.write(mesh, "out.ugrid")
+px.write(mesh, "out.ugrid", float_fmt=".17g")   # bit-exact coordinates
+
+
+
+
+
+option
+
+meaning
+
+float_fmt
+
+ASCII coordinate format specifier. Defaults to .10g; pass .17g for a bit-exact round trip.
+
+Quirks worth knowing
+
+Binary variants are refused rather than parsed as text - by name where the name carries the infix, and by the NUL in the opening record where it does not.
+
+Elements are written in the order the format fixes - triangles, quads, tetrahedra, pyramids, prisms, hexahedra - so an element’s index changes unless the mesh already lay in that order.
+
+The pyramid section is permuted in both directions; prisms (wedge) and hexahedra already match polyxios’s node order and are read as they lie.
+
+boundary_<n> tag names keep their number. boundary_0 and any other name are numbered from 1 instead, because ID 0 is the format’s word for unmarked.
+
+Two tag names that would spell one ID would come back fused, so the later one is renumbered with a warning.
+
+lazy=True warns and loads eagerly; the ASCII flavour has no seekable structure.
+
+index - the full format table.
+
+## Gaussian splat
+
+Source: https://polyxios.org/stable/formats/splat.html
+
+Gaussian splat
+
+.splat read + write eager
+
+Summary of the specification
+
+.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a flat array of fixed-width little-endian records, and the splat count is the file size divided by 32. Each record is three float32 positions, three float32 scales, four uint8 colour and opacity bytes, and four uint8 packed rotation quaternion components - 32 bytes exactly. The format carries a point cloud only; there is no connectivity of any kind.
+
+Specification at a glance
+
+
+
+
+
+header
+
+none; count = file size / 32
+
+record size
+
+32 bytes, little-endian
+
+position
+
+x, y, z as float32
+
+scale
+
+scale_0, scale_1, scale_2 as float32
+
+colour
+
+color_r, color_g, color_b, opacity as uint8
+
+rotation
+
+rot_0..rot_3 as uint8, packed quaternion
+
+connectivity
+
+none
+
+Reference implementation ↗
+
+Reading
+
+import polyxios as px
+
+cloud = px.read("scene.splat")
+cloud.vertices               # (n, 3)
+cloud.vertex_attrs["opacity"]
+len(cloud.element_types)     # 0 - the format carries no elements
+
+Writing
+
+px.write(cloud, "out.splat")
+
+This codec takes no format-specific options.
+
+Quirks worth knowing
+
+The eleven non-positional fields are read into and written from vertex_attrs under their record names: scale_0..2, color_r/g/b, opacity, rot_0..3.
+
+A missing vertex_attrs entry is written as zeros rather than raising, so a plain point cloud can be written out as a .splat.
+
+element_types is always empty. Anything expecting faces will find none.
+
+lazy=True is ignored; the file is a flat binary array with no seekable structure to defer.
+
+index - the full format table.
+
+## VTK UnstructuredGrid
+
+Source: https://polyxios.org/stable/formats/vtu.html
+
+VTK UnstructuredGrid
+
+.vtu read + write eager
+
+Summary of the specification
+
+.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A <VTKFile type="UnstructuredGrid"> root holds an <UnstructuredGrid> with one or more <Piece> elements, each declaring NumberOfPoints and NumberOfCells. A piece carries <Points> with a three-component coordinate DataArray, and <Cells> with three named arrays - connectivity, offsets and types - where types holds one VTK cell type code per cell. <PointData> and <CellData> hold named attribute arrays. Every DataArray is inline ASCII, inline base64, or a reference into a single appended binary blob, optionally zlib-compressed.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”UnstructuredGrid”>
+
+pieces
+
+one or more <Piece NumberOfPoints= NumberOfCells=>
+
+cells
+
+connectivity, offsets and types DataArrays
+
+cell types
+
+one VTK type code per cell
+
+encodings
+
+ascii, base64, appended (raw or base64), optionally zlib-compressed
+
+indices
+
+0-based
+
+Read the full VTK XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("grid.vtu")
+mesh.element_types     # mixed cell types, mapped from the VTK codes
+
+Writing
+
+px.write(mesh, "out.vtu")                 # base64 payloads (default)
+px.write(mesh, "out.vtu", binary=False)   # inline ASCII
+
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII, which is larger but diffable.
+
+Quirks worth knowing
+
+Multiple <Piece> elements are concatenated into one PolyData, with each piece’s connectivity shifted by the running vertex count.
+
+VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.
+
+lazy=True raises LazyReadError; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
+
+Header counts are validated against the file size before any array is allocated.
+
+index - the full format table.
+vtp - the XML PolyData sibling.
+
+## VTK StructuredGrid
+
+Source: https://polyxios.org/stable/formats/vts.html
+
+VTK StructuredGrid
+
+.vts read + write eager
+
+Summary of the specification
+
+.vts is the XML serial form of a VTK StructuredGrid: a curvilinear grid with an explicit coordinate per node but implicit connectivity. A <VTKFile type="StructuredGrid"> root holds a <StructuredGrid> whose WholeExtent gives the index range on each axis as i0 i1 j0 j1 k0 k1. Each <Piece> restates its own Extent and carries a <Points> DataArray listing every node’s coordinates in i-fastest order. There is no connectivity array: the cells are the hexahedra implied by the extent. <PointData> and <CellData> hold named attribute arrays, encoded the same way as any other VTK XML file.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”StructuredGrid”>
+
+extent
+
+WholeExtent=”i0 i1 j0 j1 k0 k1”
+
+points
+
+explicit coordinates, i-fastest ordering
+
+connectivity
+
+implicit; cells follow from the extent
+
+encodings
+
+ascii, base64, appended (raw or base64), optionally zlib-compressed
+
+Read the full VTK XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("curvilinear.vts")
+mesh.element_types     # hexahedra expanded from the extent
+
+Writing
+
+px.write(mesh, "out.vts")                 # base64 payloads (default)
+px.write(mesh, "out.vts", binary=False)   # inline ASCII
+
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII.
+
+Quirks worth knowing
+
+The implicit grid is expanded to explicit hexahedral connectivity on read, so the resulting PolyData carries real elements rather than an extent.
+
+That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.
+
+lazy=True raises LazyReadError.
+
+Header counts are validated against the file size before any array is allocated.
+
+index - the full format table.
+vtr - the axis-aligned rectilinear sibling.
+
+## VTK ImageData
+
+Source: https://polyxios.org/stable/formats/vti.html
+
+VTK ImageData
+
+.vti read + write eager
+
+Summary of the specification
+
+.vti is the XML serial form of a VTK ImageData: a uniform grid stored entirely as metadata. A <VTKFile type="ImageData"> root holds an <ImageData> carrying WholeExtent, Origin and Spacing - the index range on each axis, the coordinate of the first node, and the constant step between nodes. There are no coordinates in the file at all; every node position follows from origin + index * spacing, and the cells are the hexahedra implied by the extent. Only <PointData> and <CellData> arrays carry actual payload, encoded like any other VTK XML file.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”ImageData”>
+
+extent
+
+WholeExtent=”i0 i1 j0 j1 k0 k1”
+
+geometry
+
+Origin + Spacing; no coordinate array
+
+connectivity
+
+implicit; cells follow from the extent
+
+encodings
+
+ascii, base64, appended (raw or base64), optionally zlib-compressed
+
+Read the full VTK XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("volume.vti")
+mesh.vertices          # materialised from origin + index * spacing
+
+Writing
+
+px.write(mesh, "out.vti")                 # base64 payloads (default)
+px.write(mesh, "out.vti", binary=False)   # inline ASCII
+
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII.
+
+Quirks worth knowing
+
+Both the coordinates and the connectivity are materialised on read. A file of a few hundred bytes can expand to a large in-memory mesh, because the extent is all it takes to describe one.
+
+Origin defaults to 0 0 0 and Spacing to 1 1 1 when the attributes are absent.
+
+A <Piece> may restate a sub-extent of WholeExtent; the piece’s own extent is what gets expanded.
+
+lazy=True raises LazyReadError.
+
+index - the full format table.
+vts - the curvilinear structured sibling.
+
+## Lazy loading
+
+Source: https://polyxios.org/stable/lazy_loading.html
+
+Lazy loading
+
+For large meshes (gigabytes of binary data), pass lazy=True. polyxios
+memory-maps the file and only loads the pages you actually touch - the rest
+stays on disk until needed.
+
+# File is opened but data is not loaded into RAM yet
+mesh = px.read("huge_brain.vtk", lazy=True)
+
+# Only the vertices are pulled from disk here
+first_vertex = mesh.vertices[0]
+
+# Element connectivity is still on disk until you access it
+
+Lazy loading is supported for binary .vtk, .ply, .stl and
+.meshb files. ASCII formats load eagerly (the whole file must be parsed to
+extract values). Binary STL lazy mode skips vertex deduplication - vertices are
+returned as-is (3 per triangle), avoiding the extra pass over the data.
+
+formats/index - the per-format table records which formats support
+lazy loading.
+
+## Transforms
+
+Source: https://polyxios.org/stable/transforms.html
+
+Transforms
+
+from polyxios.transforms import (
+    pipeline,
+    merge,
+    filter_element_type,
+    remove_orphan_vertices,
+)
+
+# Compose transforms into a single function
+clean = pipeline(
+    filter_element_type(keep="triangle"),
+    remove_orphan_vertices,
+)
+result = clean(mesh)
+
+# Merge two meshes into one
+combined = merge(mesh_a, mesh_b)
+
+## Command line interface (pxios)
+
+Source: https://polyxios.org/stable/cli.html
+
+Command line interface (pxios)
+
+polyxios comes with a command-line interface pxios to quickly fetch, list,
+convert, and visualize 3D models.
+
+--verbose can be given on either side of the subcommand (e.g.
+pxios --verbose fetch bunny.obj or pxios fetch bunny.obj --verbose) to
+print debug logs and full tracebacks when a command fails.
+
+Subcommands
+
+pxios list: Lists all available remote or cached files, or registered
+formats. The three listing modes below are mutually exclusive.
+
+--local: Lists locally cached files (can filter by optional
+extension argument, e.g. pxios list obj --local).
+
+--extensions / --formats: Lists all formats and extensions
+available in the remote catalog.
+
+--codecs: Lists all formats supported by polyxios codecs.
+
+pxios fetch <filename|extension>: Downloads and caches a single model
+file (e.g., bunny.obj) or every model catalogued for an extension
+(e.g., obj or .obj).
+
+pxios convert <input_file> <output_file>: Converts a model file from
+one format to another directly in a single process.
+
+pxios viz <filename>: Visualizes a local or cached model file using the
+FURY library.
+
+--lines: Render line elements using actor.line instead of
+rendering as a surface/point cloud.
+
+--points: Render strictly as a point cloud.
+
+Example commands
+
+# List all fetchable remote models
+pxios list
+
+# Fetch a single model
+pxios fetch bunny.obj
+
+# Fetch every model catalogued for an extension
+pxios fetch vtk
+
+# Convert a mesh file
+pxios convert bunny.obj bunny.vtk
+
+# Visualize a model
+pxios viz bunny.obj
+
+## Plugin system
+
+Source: https://polyxios.org/stable/plugins.html
+
+Plugin system
+
+Any third-party package can teach polyxios to read and write a new format - no
+fork required, no pull request needed.
+
+Step 1 - write a codec
+
+Two functions, nothing more:
+
+# mypackage/abc_codec.py
+from polyxios._registry import Codec
+from polyxios._types import PolyData
+
+def read(path, *, lazy=False) -> PolyData:
+    ...
+
+def write(poly: PolyData, path, **opts) -> None:
+    ...
+
+def register():
+    return ".abc", Codec(read, write)
+
+Step 2 - declare an entry point
+
+In your pyproject.toml:
+
+[project.entry-points."polyxios.codecs"]
+abc = "mypackage.abc_codec:register"
+
+After pip install mypackage, polyxios picks up .abc automatically - no
+configuration, no restart needed:
+
+mesh = px.read("model.abc")   # works out of the box
+
+Extensions are resolved in lower case, so register ".abc" rather than
+".ABC" - a key the resolver cannot reach is worse than none.
+
+## API Reference
+
+Source: https://polyxios.org/stable/api/index.html
+
+API Reference
+
+Complete reference for all public functions, types, and exceptions.
+
+
+
+
+
+
+
+polyxios
+
+
+
+polyxios.transforms
+
+
+
+polyxios.validate(poly)
+
+Check structural integrity of a PolyData.
+
+polyxios.exceptions
+
+## polyxios
+
+Source: https://polyxios.org/stable/api/generated/polyxios.html
+
+polyxios
+
+
+
+!! processed by numpydoc !!
+
+Functions
+
+
+
+
+
+
+
+read(path, *[, fmt, lazy, registry])
+
+Read a mesh file and return a PolyData.
+
+supported_extensions(*[, registry])
+
+List the file extensions the registry can read and write.
+
+write(poly, path, *[, fmt, registry])
+
+Write a PolyData to a mesh file.
+
+Modules
+
+
+
+
+
+
+
+version
+
+Version info for the installed polyxios package.
+
+codecs
+
+
+
+exceptions
+
+
+
+transforms
+
+
+
+validate(poly)
+
+Check structural integrity of a PolyData.
+
+fetcher
+
+
+
+cli
+
+
+
+helper
+
+## polyxios.version
+
+Source: https://polyxios.org/stable/api/generated/polyxios.version.html
+
+polyxios.version
+
+
+
+Version info for the installed polyxios package.
+
+!! processed by numpydoc !!
+
+## polyxios.codecs
+
+Source: https://polyxios.org/stable/api/generated/polyxios.codecs.html
+
+polyxios.codecs
+
+
+
+!! processed by numpydoc !!
+
+## polyxios.exceptions
+
+Source: https://polyxios.org/stable/api/generated/polyxios.exceptions.html
+
+polyxios.exceptions
+
+
+
+!! processed by numpydoc !!
+
+Exceptions
+
+
+
+
+
+
+
+CodecError
+
+Raised for codec-level read/write errors.
+
+FetcherError
+
+Raised when asset resolution or retrieval fails.
+
+IndexOverflowError(codec, max_allowed, ...)
+
+Raised when connectivity.max() exceeds a codec's MAX_CONNECTIVITY_INDEX at write time.
+
+LazyReadError
+
+Raised when lazy=True is requested for a format that does not support it.
+
+PolyxiosError
+
+Base exception for all polyxios errors.
+
+UnknownElementTypeError(fmt, type_code)
+
+Raised when a file contains an element type code not in _element_types.py.
+
+UnsupportedFormatError
+
+Raised when no codec is registered for a file format.
+
+ValidationError
+
+Raised when a PolyData fails structural validation.
+
+## polyxios.transforms
+
+Source: https://polyxios.org/stable/api/generated/polyxios.transforms.html
+
+polyxios.transforms
+
+
+
+!! processed by numpydoc !!
+
+Functions
+
+
+
+
+
+
+
+extract_surface(poly)
+
+Return the boundary surface of a volumetric PolyData.
+
+filter_element_type(poly, *, keep)
+
+Return a new PolyData containing only elements of the specified type(s).
+
+merge(*polys)
+
+Merge multiple PolyData into one by concatenating vertices and elements.
+
+pipeline(*fns)
+
+Left-to-right function composition for PolyData transforms.
+
+reindex(poly)
+
+Return a new PolyData with compact vertex indices (removes orphans).
+
+remove_orphan_vertices(poly)
+
+Return a new PolyData with unreferenced vertices removed and indices remapped.
+
+triangulate(poly)
+
+Return a new PolyData with all surface elements converted to triangles.
+
+vertex_colors(poly)
+
+Extract per-vertex RGB colors from the first eligible vertex attribute.
+
+## polyxios.validate
+
+Source: https://polyxios.org/stable/api/generated/polyxios.validate.html
+
+polyxios.validate
+
+
+
+polyxios.validate(poly: PolyData) -> PolyData
+
+Check structural integrity of a PolyData. Raise ValidationError on any violation.
+
+Parameters
+
+poly
+
+PolyData to validate.
+
+Returns
+
+PolyData
+
+The input unchanged if valid (allows use in pipelines).
+
+Raises
+
+ValidationError
+
+On dtype mismatch, shape mismatch, out-of-bounds indices, or attribute
+length mismatches.
+
+!! processed by numpydoc !!
+
+## polyxios.fetcher
+
+Source: https://polyxios.org/stable/api/generated/polyxios.fetcher.html
+
+polyxios.fetcher
+
+
+
+!! processed by numpydoc !!
+
+Functions
+
+
+
+
+
+
+
+fetch(filename[, overwrite, package])
+
+Resolve, download, and track local path for any Polyxios test asset.
+
+fetch_by_extension(ext[, overwrite])
+
+Discover and download all remote assets matching a specific file extension.
+
+get_cached_files(ext)
+
+List the already downloaded assets for an extension, without any network.
+
+get_fetchable_files()
+
+Return a dictionary of all fetchable packages and their available files.
+
+get_package_name(ext)
+
+Resolve a file extension to its corresponding package name.
+
+## polyxios.cli
+
+Source: https://polyxios.org/stable/api/generated/polyxios.cli.html
+
+polyxios.cli
+
+
+
+!! processed by numpydoc !!
+
+Functions
+
+
+
+
+
+
+
+cmd_convert(args)
+
+Convert a model file from one format to another and log performance.
+
+cmd_fetch(args)
+
+Fetch and cache a model file from the remote data repository.
+
+cmd_list(args)
+
+List all available remote or cached files grouped by package.
+
+cmd_viz(args)
+
+Visualize a 3D model using the FURY renderer library.
+
+main()
+
+Main CLI entry point for pxios.
+
+## polyxios.helper
+
+Source: https://polyxios.org/stable/api/generated/polyxios.helper.html
+
+polyxios.helper
+
+
+
+!! processed by numpydoc !!
+
+Functions
+
+
+
+
+
+
+
+read_multiblock_vtp(path)
+
+Load a vtkMultiBlockDataSet .vtp index file and merge its components.
+
+read_polydata(filename)
+
+Read a PolyData object from the given file, resolving fetches and VTP index files.
+
+resolve_path(filename)
+
+Resolve a filename to a local path, fetching it from the catalog if needed.
+
+visualize_mesh(polydata, *[, lines, points])
+
+Visualize a PolyData mesh using FURY.
+
+## Contributing
+
+Source: https://polyxios.org/stable/contributing.html
+
+Contributing
+
+Commit message convention
+
+Every commit subject line must start with one of these prefixes followed by
+a space:
+
+
+
+
+
+Prefix
+
+Meaning
+
+BF:
+
+Bug fix
+
+RF:
+
+Refactoring
+
+NF:
+
+New feature
+
+BW:
+
+Addresses backward-compatibility
+
+OPT:
+
+Optimization
+
+CI:
+
+Continuous integration
+
+MNT:
+
+Maintenance (release prep, dependency bumps, etc.)
+
+DOC:
+
+Documentation
+
+TEST:
+
+Adding or changing tests
+
+STYLE:
+
+Whitespace / formatting - no logic change
+
+WIP:
+
+Work in progress, not ready to merge
+
+Additional rules:
+
+Subject line: minimum 15 characters, maximum 78 characters.
+
+No trailing period on the subject line.
+
+Second line, if present, must be blank.
+
+To reference an issue add Issue #XXXX to the PR description.
+
+To close an issue add Closes #XXXX to the PR description.
+
+Examples:
+
+NF: add VTK v5.1 reader support
+BF: fix int32 overflow in PLY binary writer
+TEST: add roundtrip tests for OBJ multi-group tags
+DOC: document lazy loading behaviour for binary VTK
+
+The commit message hook runs automatically via pre-commit. Install it
+once with:
+
+pip install pre-commit
+pre-commit install --hook-type commit-msg
+
+## Development Guide
+
+Source: https://polyxios.org/stable/development.html
+
+Development Guide
+
+polyxios uses spin to manage
+the development workflow. All common tasks - building, testing, linting, and
+documentation - are available as spin sub-commands.
+
+Getting started
+
+1. Fork and clone the repository, then run the one-time setup:
+
+pip install spin
+spin setup
+
+spin setup does three things:
+
+Adds the upstream remote (https://github.com/fury-gl/polyxios.git)
+if it is not already present.
+
+Installs the dev dependencies (meson-python, Cython, numpy,
+meson, ninja, mypy, pre-commit).
+
+On macOS, installs libomp via Homebrew so the OpenMP hot-paths in
+_core.pyx compile correctly.
+
+2. Install polyxios with Cython extensions compiled:
+
+spin install       # regular install
+spin install -e    # editable install - source changes are reflected immediately
+
+Building
+
+To invoke Meson/ninja directly (useful when iterating on .pyx files):
+
+spin build
+
+Testing
+
+Run the full test suite:
+
+spin test
+
+Run only tests that match a name pattern (passed to pytest -k):
+
+spin test -k vtk
+spin test -k "roundtrip and binary"
+
+Pass any extra argument directly to pytest:
+
+spin test -- --tb=short -x
+
+Linting
+
+Check code style, imports, and spelling:
+
+spin lint
+
+Auto-fix issues where possible:
+
+spin lint --fix
+
+This runs three tools in sequence:
+
+
+
+
+
+Tool
+
+What it checks
+
+ruff check
+
+PEP 8, unused imports, common bug patterns
+
+ruff format
+
+Code formatting (replaces Black)
+
+codespell
+
+Spelling mistakes in source and docs
+
+Documentation
+
+Build the HTML docs:
+
+spin docs
+
+Remove the previous build first (useful after restructuring):
+
+spin docs --clean
+
+Build and immediately open the result in the browser:
+
+spin docs --open
+
+The built docs land in docs/_build/html/.
+
+Cleaning up
+
+Remove build artifacts, __pycache__, .pytest_cache, and *.egg-info:
+
+spin clean
+
+Commit message convention
+
+See contributing for the full commit prefix table and rules enforced
+by the pre-commit hook.
+
+Pre-commit hooks
+
+Install the hooks once (they run automatically on every commit):
+
+pip install pre-commit
+pre-commit install
+pre-commit install --hook-type commit-msg
+
+To run all hooks manually against the whole codebase:
+
+pre-commit run --all-files
+
+Making a release
+
+Releases are published automatically when a version tag is pushed to
+upstream.  The GitHub Actions release workflow builds platform wheels,
+creates a GitHub Release, and publishes to PyPI via Trusted Publishing.
+
+One-time setup (do once per repository):
+
+On PyPI, configure Trusted Publishing for
+polyxios:
+
+Publisher: GitHub Actions
+
+Repository: fury-gl/polyxios
+
+Workflow: release.yml
+
+Environment: pypi
+
+In the GitHub repository settings, create a deployment environment
+named pypi (optional but recommended for approval gates).
+
+Cutting a release:
+
+Make sure all tests pass on master:
+
+spin test
+
+Update changelog - fill in the upcoming section with the
+changes for this release (the release date is stamped automatically).
+
+Run the release command:
+
+spin release 0.2.0
+
+This single command:
+
+Sets version = "0.2.0" in pyproject.toml
+
+Stamps today’s date in CHANGES.rst (replaces upcoming)
+
+Commits MNT: release 0.2.0
+
+Creates and pushes tag v0.2.0 to upstream
+
+Bumps pyproject.toml to 0.3.0.dev0
+
+Prepends a new 0.3.0 (upcoming) section to CHANGES.rst
+
+Commits MNT: back to dev, start 0.3.0.dev0 and pushes
+
+The tag push triggers CI, which builds wheels for Linux / macOS /
+Windows and publishes to PyPI.
+
+The GitHub stats step queries the public API, which is rate-limited to
+60 requests/hour unauthenticated.  Set the GITHUB_TOKEN environment
+variable to raise the limit:
+
+export GITHUB_TOKEN=ghp_...
+spin release 0.2.0
+
+Options:
+
+spin release 0.2.0                        # default: next dev = 0.3.0.dev0
+spin release 0.2.0 --next 0.2.1.dev0      # override next dev version
+spin release 0.2.0 --remote origin        # push to a different remote
+spin release 0.2.0 --no-stats             # skip GitHub stats in changelog
+spin release 0.2.0 --dry-run              # print all steps without executing
+
+Test the release workflow without publishing to PyPI:
+
+Push a tag whose name contains test - the CI will build wheels and
+create a GitHub Release but skip the PyPI upload:
+
+git tag v0.2.0-test
+git push upstream v0.2.0-test
+
+Delete the test tag afterwards:
+
+git push upstream :v0.2.0-test
+git tag -d v0.2.0-test
+
+## Changelog
+
+Source: https://polyxios.org/stable/changelog.html
+
+Changelog
+
+../CHANGES.rst:5: (INFO/1) Duplicate implicit target name: “changelog”.
+
+
+
+0.3.0 (upcoming)
+
+New features
+
+pxios command line interface with fetch, list, convert and
+viz subcommands. Visualization requires the optional viz extra
+(pip install polyxios[viz]).
+
+polyxios.read_polydata and polyxios.visualize_mesh helpers, plus
+polyxios.supported_extensions to introspect the codec registry.
+
+Changes
+
+../CHANGES.rst:22: (INFO/1) Duplicate implicit target name: “changes”.
+
+The fetcher now resolves assets through a remote models.json catalog and
+downloads files individually, instead of pinned per-format release zips.
+Downloads are checksum-verified and the result is cached across runs; set
+POLYXIOS_MODELS_URL to pin the catalog to an immutable URL.
+
+
+
+0.2.0 (2026-06-25)
+
+First public release of polyxios.
+
+New features
+
+../CHANGES.rst:37: (INFO/1) Duplicate implicit target name: “new features”.
+
+Plugin-based codec registry via Python entry points - third-party packages
+can register mesh formats without patching polyxios.
+
+VTK legacy (.vtk) and XML (.vtu, .vtp) reader/writer with
+ASCII and binary (raw + appended) encoding.
+
+VTR appended format support.
+
+MFEM mesh codec (.mesh).
+
+MEDIT mesh codec (.mesh).
+
+polyxios convert and polyxios visualize-mesh CLI commands.
+
+Lazy / memory-mapped loading for binary formats (read(..., lazy=True)).
+
+polyxios.__version__ exposes the full version string including the git
+commit hash for development builds (e.g. 0.1.0.dev0+git20260623.101006a).
+
+GitHub stats for 2026/05/26 - 2026/06/25 (tag: None)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 4 authors contributed 47 commits.
+
+Maharshi Gor
+
+Praneeth Shetty
+
+Serge Koudoro
+
+skoudoro
+
+We closed a total of 12 issues, 12 pull requests and 0 regular issues.
+
+Pull Requests (12):
+
+PR #12: NF: add MFEM mesh codec (.mesh)
+
+PR #9: NF: Handle the other vtk formats
+
+PR #11: MNT: update pre-commit hooks
+
+PR #10: BF/NF: fix PLY binary reader + add SPLAT codec and compressed 3DGS support
+
+PR #8: BF: handling VTK files improvements
+
+PR #4: Fix: vtk codec to read ascii polydata and support v1.0
+
+PR #7: CI: Avoid cron job on fork
+
+PR #6: MNT: update pre-commit hooks
+
+PR #3: NF: Adding Data Fetcher
+
+PR #5: MNT: update pre-commit hooks
+
+PR #2: DOC: Replace arrow and em-dashes with dash
+
+PR #1: NF: initial framework from polyxios
+
+Issues (0):
+
+## Credits
+
+Source: https://polyxios.org/stable/credits.html
+
+Credits
+
+/home/runner/work/polyxios/polyxios/docs/credits.rst:4: (INFO/1) Duplicate implicit target name: “credits”.
+
+polyxios is developed in the open under the FURY umbrella.
+Every codec, test and page in these docs came from someone’s spare evening.
+
+Core developers
+
+Serge Koudoro
+
+Praneeth Shetty
+
+Maharshi Gor
+
+Contributors
+
+Everyone who has contributed so far is listed above. This section
+fills itself in from the git history as new people land commits.
+
+Getting your name here
+
+Land a commit. The list above is regenerated from the git history on every
+documentation build, so a merged pull request is all it takes - there is no
+separate file to edit.
+
+If you have committed under more than one address and appear twice, add a line
+to .mailmap at the repository root and both entries collapse into one.
+
+contributing has the setup instructions and the pull request checklist.
+
+Citing polyxios
+
+polyxios has no paper yet. Cite the repository and the release you used:
+
+polyxios contributors. polyxios: fast, clean mesh I/O for Python.
+https://github.com/fury-gl/polyxios
+
+contributing - how to set up a development checkout and open a pull
+request.

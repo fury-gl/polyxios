@@ -63,9 +63,9 @@ Quirks worth knowing
 
 - INLINE and NURBS meshes raise :class:`~polyxios.exceptions.UnsupportedFormatError`; they store a recipe rather than an explicit mesh.
 - The written ``dimension`` is inferred from the data: a mesh whose ``z`` column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.
-- Coordinates are written with ``.10g``, which does not name a float64 exactly — a round trip differs in the last few digits.
+- Coordinates are written with ``.10g``, which does not name a float64 exactly - a round trip differs in the last few digits.
 - An element whose type code has no polyxios equivalent falls back to ``triangle`` on write.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

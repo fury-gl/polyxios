@@ -10,7 +10,7 @@ SU2
 Summary of the specification
 ----------------------------
 
-The SU2 native mesh is plain ASCII, keyed by uppercase tokens on their own lines. ``NDIME=`` gives the dimension, ``NELEM=`` precedes the volume element list — one line per element: a VTK element type code, its node indices, then the element index — and ``NPOIN=`` precedes the coordinates. Boundaries are declared per marker: ``NMARK=`` counts them, then each ``MARKER_TAG=`` names one and ``MARKER_ELEMS=`` lists its surface elements in the same code-then-nodes form.
+The SU2 native mesh is plain ASCII, keyed by uppercase tokens on their own lines. ``NDIME=`` gives the dimension, ``NELEM=`` precedes the volume element list - one line per element: a VTK element type code, its node indices, then the element index - and ``NPOIN=`` precedes the coordinates. Boundaries are declared per marker: ``NMARK=`` counts them, then each ``MARKER_TAG=`` names one and ``MARKER_ELEMS=`` lists its surface elements in the same code-then-nodes form.
 
 Specification at a glance
 -------------------------
@@ -65,4 +65,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

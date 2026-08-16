@@ -1,6 +1,10 @@
 Command line interface (pxios)
 ==============================
 
+.. meta::
+   :description: The pxios command line: list, fetch, convert and visualize 3D mesh files without writing a script. Ships with the polyxios package.
+
+
 polyxios comes with a command-line interface ``pxios`` to quickly fetch, list,
 convert, and visualize 3D models.
 

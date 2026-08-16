@@ -318,25 +318,53 @@ nav.bd-links ul ul {
 }
 nav.bd-links ul ul li > a { font-size: 0.95em; }
 
-/* collapsible parents: swap the chevron icon for a terminal-style [+]/[-] */
+/* Collapsible parents: a terminal-style [+] / [-] instead of the theme's
+   chevron.
+
+   Written against two different markups on purpose. pydata <= 0.15 emits
+   `input.toctree-checkbox` + `label.toctree-toggle`; 0.16 and later emit
+   `<details><summary><span class="toctree-toggle">`. Matching the bare
+   `.toctree-toggle` class covers both.
+
+   The glyph goes on `.toctree-toggle::before` and every child is hidden,
+   rather than restyling the inner `<i>`: Font Awesome's JS build replaces that
+   `<i>` with an `<svg>` at runtime, so an `i` selector matches nothing by the
+   time the icon is on screen - which is what left a chevron sitting on top of
+   the [+]. */
 nav.bd-links li.has-children { position: relative; }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle {
-  width: 1.7rem;
+
+.bd-sidebar-primary nav.bd-links .toctree-toggle {
+  width: 2rem;
   height: 1.7rem;
   top: 0.05rem;
-}
-.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover { background: transparent; }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle i { display: none; }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle::before {
-  content: "[+]";
   color: var(--px-dim);
+  font-family: var(--pst-font-family-monospace);
   font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1;
 }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover::before { color: var(--px-accent); }
-.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle::before {
-  content: "[-]";
+.bd-sidebar-primary nav.bd-links .toctree-toggle:hover { background: transparent; color: var(--px-accent); }
+/* the icon element itself, whether it is still an <i> or an injected <svg> */
+.bd-sidebar-primary nav.bd-links .toctree-toggle > * { display: none !important; }
+.bd-sidebar-primary nav.bd-links .toctree-toggle::before { content: "[+]"; }
+
+/* open: <details open> on 0.16+, a checked checkbox on 0.15 */
+.bd-sidebar-primary nav.bd-links details[open] > summary .toctree-toggle,
+.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle {
   color: var(--px-accent);
 }
+.bd-sidebar-primary nav.bd-links details[open] > summary .toctree-toggle::before,
+.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle::before {
+  content: "[-]";
+}
+
+/* no native disclosure triangle next to ours */
+.bd-sidebar-primary nav.bd-links summary { list-style: none; }
+.bd-sidebar-primary nav.bd-links summary::-webkit-details-marker { display: none; }
+.bd-sidebar-primary nav.bd-links summary::marker { content: ""; }
+
+/* keep a long title from sliding under the absolutely positioned toggle */
+nav.bd-links li.has-children > a { padding-right: 2.2rem; }
 
 /* --- code blocks -------------------------------------------------------- */
 
@@ -562,20 +590,29 @@ ul.px-quirks li::before {
   font-weight: 700;
   color: var(--px-bg);
 }
+/* Icon button, not a text one: it reads at a glance and does not compete with
+   the command for width on a narrow screen. */
 .px-home .px-install .px-copy {
   background: transparent;
   border: 0;
   padding: 0;
-  font-family: inherit;
-  font-size: 0.72rem;
-  font-weight: 400;
-  letter-spacing: 0.04em;
+  margin: 0;
   color: var(--px-bg);
-  opacity: 0.62;
+  opacity: 0.6;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  /* comfortably past the 24px minimum touch target */
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  justify-content: center;
 }
 .px-home .px-install .px-copy:hover,
 .px-home .px-install .px-copy.is-copied { opacity: 1; }
+.px-home .px-install .px-copy svg { width: 1rem; height: 1rem; display: block; }
+.px-home .px-install .px-copy .px-copy-done,
+.px-home .px-install .px-copy.is-copied .px-copy-idle { display: none; }
+.px-home .px-install .px-copy.is-copied .px-copy-done { display: block; }
 
 .px-btn {
   border: 1px solid var(--px-line);
@@ -607,13 +644,40 @@ ul.px-quirks li::before {
 .px-panel { border: 1px solid var(--px-line); background: var(--px-panel); }
 .px-panel-head {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  /* The title stays left and everything after it packs right. space-between
+     would strand the window controls in the middle once the copy button is
+     injected as a third child. */
+  justify-content: flex-start;
   gap: 1rem;
   border-bottom: 1px solid var(--px-line);
   padding: 0.6rem 1rem;
   font-size: 0.7rem;
   color: var(--px-dim);
 }
+.px-panel-head > :first-child { margin-right: auto; }
+
+/* Injected by homepage.js, one per code panel, so the button only exists where
+   it can actually work. */
+.px-panel-head .px-copy-panel {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: var(--px-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+}
+.px-panel-head .px-copy-panel:hover { color: var(--px-accent); }
+.px-panel-head .px-copy-panel.is-copied { color: var(--px-accent-2); }
+.px-panel-head .px-copy-panel svg { width: 0.85rem; height: 0.85rem; display: block; }
+.px-panel-head .px-copy-panel .px-copy-done,
+.px-panel-head .px-copy-panel.is-copied .px-copy-idle { display: none; }
+.px-panel-head .px-copy-panel.is-copied .px-copy-done { display: block; }
 pre.px-code {
   margin: 0;
   padding: 1.3rem 1.2rem;
@@ -676,11 +740,54 @@ pre.px-code .b, pre.px-code .p { color: var(--px-accent); }
 .px-cmds dt { color: var(--px-accent); font-weight: 400; }
 .px-cmds dd { color: var(--px-dim); margin: 0; }
 
+/* --- narrow screens ------------------------------------------------------ */
+
 @media (max-width: 959px) {
   .px-hero, .px-two, .px-grid2 { grid-template-columns: minmax(0, 1fr); gap: 2rem; }
   .px-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .px-tr { grid-template-columns: minmax(0, 1.6fr) 1fr 0.6fr; }
-  .px-tr > :nth-child(n + 4) { display: none; }
+
+  /* The codec table scrolls sideways rather than dropping its write and lazy
+     columns. Hiding them made the read column look like the whole answer. */
+  .px-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .px-tr,
+  .px-tfoot { min-width: 40rem; }
+}
+
+@media (max-width: 767px) {
+  .px-home { padding: 0 1.1rem; }
+
+  /* Four stat cells across a phone leaves each about 20 characters wide, so
+     every label wraps and the row reads as a block of noise. */
+  .px-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .px-stats > div { padding: 1rem; }
+
+  .px-section { padding: 2.2rem 0; }
+  .px-hero { padding: 2.2rem 0 2rem; }
+
+  /* Let the install pill and the buttons each take a full row instead of
+     wrapping mid-word. */
+  .px-btnrow { gap: 0.6rem; }
+  .px-home .px-install { width: 100%; justify-content: space-between; }
+  .px-btn { width: 100%; justify-content: center; }
+
+  /* Sphinx emits bare <table> elements with no scroll wrapper, and the theme's
+     `overflow: auto` does nothing against `display: table`. */
+  .bd-content table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 479px) {
+  .px-stats,
+  .px-grid4 { grid-template-columns: minmax(0, 1fr); }
+  .px-fmtlinks { gap: 0.9rem; }
 }
 
 /* --- footer & misc ------------------------------------------------------ */

@@ -1,6 +1,10 @@
 Lazy loading
 ============
 
+.. meta::
+   :description: Read mesh files larger than RAM in Python. polyxios memory-maps binary VTK, PLY, STL and Medit files with lazy=True, so vertex and face arrays are paged in on demand.
+
+
 For large meshes (gigabytes of binary data), pass ``lazy=True``. polyxios
 memory-maps the file and only loads the pages you actually touch - the rest
 stays on disk until needed.

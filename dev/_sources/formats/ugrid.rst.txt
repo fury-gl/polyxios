@@ -10,7 +10,7 @@ UGRID (AFLR)
 Summary of the specification
 ----------------------------
 
-A UGRID file opens with one header line of seven counts — nodes, triangles, quads, tetrahedra, pyramids, prisms, hexahedra — and then lists every section back to back, whitespace-separated. Nothing in the body says which section it belongs to, so the header counts are the only thing separating them and each has to be walked in the fixed order. The surface IDs in particular sit *between* the boundary faces and the volume cells rather than at the end of the file: reading them anywhere else shifts every volume element that follows. Node references are 1-based. The same format has binary variants spelled by an infix suffix — ``mesh.b8.ugrid``, ``mesh.lb8.ugrid``, ``mesh.r8.ugrid``.
+A UGRID file opens with one header line of seven counts - nodes, triangles, quads, tetrahedra, pyramids, prisms, hexahedra - and then lists every section back to back, whitespace-separated. Nothing in the body says which section it belongs to, so the header counts are the only thing separating them and each has to be walked in the fixed order. The surface IDs in particular sit *between* the boundary faces and the volume cells rather than at the end of the file: reading them anywhere else shifts every volume element that follows. Node references are 1-based. The same format has binary variants spelled by an infix suffix - ``mesh.b8.ugrid``, ``mesh.lb8.ugrid``, ``mesh.r8.ugrid``.
 
 Specification at a glance
 -------------------------
@@ -67,8 +67,8 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- Binary variants are refused rather than parsed as text — by name where the name carries the infix, and by the NUL in the opening record where it does not.
-- Elements are written in the order the format fixes — triangles, quads, tetrahedra, pyramids, prisms, hexahedra — so an element's index changes unless the mesh already lay in that order.
+- Binary variants are refused rather than parsed as text - by name where the name carries the infix, and by the NUL in the opening record where it does not.
+- Elements are written in the order the format fixes - triangles, quads, tetrahedra, pyramids, prisms, hexahedra - so an element's index changes unless the mesh already lay in that order.
 - The pyramid section is permuted in both directions; prisms (``wedge``) and hexahedra already match polyxios's node order and are read as they lie.
 - ``boundary_<n>`` tag names keep their number. ``boundary_0`` and any other name are numbered from 1 instead, because ID 0 is the format's word for unmarked.
 - Two tag names that would spell one ID would come back fused, so the later one is renumbered with a warning.
@@ -76,4 +76,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

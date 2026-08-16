@@ -61,8 +61,8 @@ Quirks worth knowing
 
 - ASCII and big-endian binary OFF are both read; writing emits ASCII.
 - ``ST`` / ``C`` / ``N`` variant data is mapped onto vertex and face attributes instead of being discarded.
-- The edge count on the counts line is ignored, as the format intends — no error is raised when it disagrees with the face list.
+- The edge count on the counts line is ignored, as the format intends - no error is raised when it disagrees with the face list.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.
