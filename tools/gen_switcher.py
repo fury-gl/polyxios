@@ -17,7 +17,7 @@ Usage
 -----
 ::
 
-    python tools/gen_switcher.py <site-root> --base-url https://fury-gl.github.io/polyxios
+    python tools/gen_switcher.py <site-root> --base-url https://polyxios.org
 """
 
 import argparse
@@ -248,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("root", type=Path, help="site root (gh-pages checkout)")
     parser.add_argument(
         "--base-url",
-        default="https://fury-gl.github.io/polyxios",
+        default="https://polyxios.org",
         help="site root URL, without a trailing slash",
     )
     args = parser.parse_args(argv)

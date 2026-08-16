@@ -110,6 +110,29 @@ it to `2` expands everything but removes the toggles, which is a poor trade with
 twenty-five format pages. `collapse_navigation: False` puts every section's children
 in the DOM so the toggles work without a page load.
 
+## Theme version
+
+`pydata-sphinx-theme` is pinned to `>=0.20,<0.21` in both `pyproject.toml` and
+`docs/requirements.txt`. The pin is not cosmetic: 0.16 replaced the sidebar
+toggle markup, from `input.toctree-checkbox` + `label.toctree-toggle` to
+`<details><summary><span class="toctree-toggle">`. `retro.css` styles that
+toggle, so an unpinned theme means CI and a local checkout can render the
+sidebar differently.
+
+`retro.css` matches the bare `.toctree-toggle` class and handles both open-state
+markups, so it survives either version - but bump the pin deliberately and
+re-check the overrides when you do.
+
+One related trap: the glyph goes on `.toctree-toggle::before` with every child
+hidden, rather than on the inner `<i>`. Font Awesome's JS build swaps that `<i>`
+for an `<svg>` at runtime, so an `i` selector matches nothing by the time the
+icon is on screen.
+
+Everything is served from **polyxios.org**. The `fury-gl.github.io/polyxios`
+address only 301s there, so `SITE_URL` in `conf.py`, the `--base-url` in the
+deploy workflow and `tools/gen_switcher.py` all name the custom domain - a
+canonical link must be the final URL, not a redirect source.
+
 ## Credits page
 
 `credits.rst` names the core developers by hand - the list lives in `conf.py` as

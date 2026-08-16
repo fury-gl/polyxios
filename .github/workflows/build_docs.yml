@@ -150,9 +150,12 @@ jobs:
           fi
 
       - name: Regenerate switcher.json and the root redirect
-        run: |
-          python src/tools/gen_switcher.py site \
-            --base-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+        env:
+          # The custom domain, not the github.io address, which only 301s here.
+          # Canonical links, the sitemap and switcher.json must name the final
+          # URL. Keep in step with SITE_URL in docs/conf.py.
+          SITE_URL: https://polyxios.org
+        run: python src/tools/gen_switcher.py site --base-url "$SITE_URL"
 
       - name: Commit and push
         env:

@@ -25,7 +25,10 @@ doc = [
     "sphinx",
     "numpydoc",
     "sphinx-gallery",
-    "pydata-sphinx-theme",
+    # Pinned to a minor series: 0.16 replaced the sidebar toggle markup
+    # (checkbox+label -> details/summary), which _static/css/retro.css
+    # targets. Bump deliberately and re-check the theme overrides.
+    "pydata-sphinx-theme>=0.20,<0.21",
     "sphinx-design",
     "sphinx-copybutton",
     "sphinxext-opengraph[social-cards]",
