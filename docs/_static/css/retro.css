@@ -318,25 +318,41 @@ nav.bd-links ul ul {
 }
 nav.bd-links ul ul li > a { font-size: 0.95em; }
 
-/* collapsible parents: swap the chevron icon for a terminal-style [+]/[-] */
+/* Collapsible parents: a terminal-style [+] / [-] instead of the theme's
+   chevron. The glyph is swapped on the icon element itself rather than hiding
+   it and drawing a second one on the label - two boxes inside a 1.7rem
+   absolutely positioned label collide, which is what put a [+] and a chevron
+   on top of each other. */
 nav.bd-links li.has-children { position: relative; }
 .bd-sidebar-primary nav.bd-links label.toctree-toggle {
-  width: 1.7rem;
+  width: 2rem;
   height: 1.7rem;
   top: 0.05rem;
 }
 .bd-sidebar-primary nav.bd-links label.toctree-toggle:hover { background: transparent; }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle i { display: none; }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle::before {
-  content: "[+]";
-  color: var(--px-dim);
+.bd-sidebar-primary nav.bd-links label.toctree-toggle i {
+  font-family: var(--pst-font-family-monospace);
+  font-style: normal;
   font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--px-dim);
+  /* the theme flips the chevron 180deg when open, which would stand "[-]"
+     on its head */
+  transform: none !important;
 }
-.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover::before { color: var(--px-accent); }
-.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle::before {
-  content: "[-]";
+.bd-sidebar-primary nav.bd-links label.toctree-toggle i::before { content: "[+]"; }
+.bd-sidebar-primary nav.bd-links label.toctree-toggle:hover i,
+.bd-sidebar-primary nav.bd-links label.toctree-toggle i:hover { color: var(--px-accent); }
+.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle i {
   color: var(--px-accent);
 }
+.bd-sidebar-primary nav.bd-links .toctree-checkbox:checked ~ label.toctree-toggle i::before {
+  content: "[-]";
+}
+
+/* keep a long title from sliding under the absolutely positioned toggle */
+nav.bd-links li.has-children > a { padding-right: 2.2rem; }
 
 /* --- code blocks -------------------------------------------------------- */
 
