@@ -17,7 +17,7 @@ Usage
 -----
 ::
 
-    python tools/gen_switcher.py <site-root> --base-url https://fury-gl.github.io/polyxios
+    python tools/gen_switcher.py <site-root> --base-url https://polyxios.org
 """
 
 import argparse
@@ -163,6 +163,74 @@ def render_redirect(target: str) -> str:
 """
 
 
+def render_robots(base_url: str) -> str:
+    """Return a robots.txt that allows everything and points at the sitemap.
+
+    Deliberately no ``Disallow`` for ``/dev/`` or the older series. Those copies
+    are kept out of the index by a ``noindex`` tag and a canonical link pointing
+    at ``/stable/`` - and a crawler that is disallowed never fetches the page,
+    so it never sees either one. Blocking here would strand the duplicates in
+    whatever state they were last indexed in.
+
+    Parameters
+    ----------
+    base_url
+        Site root URL, without a trailing slash.
+
+    Returns
+    -------
+    str
+        A complete robots.txt.
+    """
+    return "\n".join(
+        [
+            "User-agent: *",
+            "Allow: /",
+            "",
+            "# /dev/ and the older X.Y directories are duplicates of /stable/.",
+            "# They are excluded with per-page noindex and canonical tags, not",
+            "# here, so crawlers can still fetch them and read those tags.",
+            "",
+            f"Sitemap: {base_url}/sitemap.xml",
+            "",
+        ]
+    )
+
+
+def hoist_site_files(root: Path, series: list[str], has_dev: bool) -> list[str]:
+    """Copy the version-level sitemap and llms files up to the site root.
+
+    Sphinx writes sitemap.xml, llms.txt and llms-full.txt inside whichever
+    version directory it built. Crawlers and answer engines look for them at the
+    root, so the canonical version's copies are lifted there.
+
+    Parameters
+    ----------
+    root
+        The site root.
+    series
+        Release series names, newest first.
+    has_dev
+        Whether a dev build is published.
+
+    Returns
+    -------
+    list of str
+        Names of the files copied.
+    """
+    source = root / STABLE_DIR if series else (root / DEV_DIR if has_dev else None)
+    if source is None or not source.is_dir():
+        return []
+
+    copied = []
+    for name in ("sitemap.xml", "llms.txt", "llms-full.txt"):
+        candidate = source / name
+        if candidate.is_file():
+            (root / name).write_bytes(candidate.read_bytes())
+            copied.append(name)
+    return copied
+
+
 def main(argv: list[str] | None = None) -> int:
     """Write ``switcher.json``, ``index.html`` and ``.nojekyll`` into the site root.
 
@@ -180,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("root", type=Path, help="site root (gh-pages checkout)")
     parser.add_argument(
         "--base-url",
-        default="https://fury-gl.github.io/polyxios",
+        default="https://polyxios.org",
         help="site root URL, without a trailing slash",
     )
     args = parser.parse_args(argv)
@@ -200,11 +268,15 @@ def main(argv: list[str] | None = None) -> int:
     (root / "index.html").write_text(
         render_redirect(redirect_target(series, has_dev)), encoding="utf-8"
     )
+    (root / "robots.txt").write_text(render_robots(base_url), encoding="utf-8")
     # Without this, Pages runs Jekyll and drops every _static/ directory.
     (root / ".nojekyll").touch()
 
+    copied = hoist_site_files(root, series, has_dev)
+
     print(f"versions: dev={has_dev} releases={series or 'none'}")
     print(f"root redirects to {redirect_target(series, has_dev)}")
+    print(f"hoisted to root: {', '.join(copied) or 'nothing'}")
     return 0
 
 

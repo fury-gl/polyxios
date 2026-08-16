@@ -10,7 +10,7 @@ Medit binary
 Summary of the specification
 ----------------------------
 
-``.meshb`` is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, the byte position of the next field, then that field's data. Codes identify the version and dimension first, then typed entity blocks — ``Vertices``, ``Edges``, ``Triangles``, ``Quadrilaterals``, ``Tetrahedra``, ``Hexahedra`` — each a count followed by fixed-width records of node indices plus a trailing reference (tag) integer. The version code fixes whether floats are 32- or 64-bit.
+``.meshb`` is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, the byte position of the next field, then that field's data. Codes identify the version and dimension first, then typed entity blocks - ``Vertices``, ``Edges``, ``Triangles``, ``Quadrilaterals``, ``Tetrahedra``, ``Hexahedra`` - each a count followed by fixed-width records of node indices plus a trailing reference (tag) integer. The version code fixes whether floats are 32- or 64-bit.
 
 Specification at a glance
 -------------------------
@@ -30,7 +30,7 @@ Specification at a glance
    * - float width
      - set by the version code: 32-bit or 64-bit
    * - ascii sibling
-     - .mesh — the same keywords in text form
+     - .mesh - the same keywords in text form
 
 .. rst-class:: px-speclink
 
@@ -73,4 +73,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

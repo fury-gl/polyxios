@@ -93,7 +93,7 @@ first_vertex = mesh.vertices[0]
 
 Lazy loading is supported for binary `.vtk`, `.ply`, and `.stl` files. ASCII
 formats load eagerly (the whole file must be parsed to extract values). Binary
-STL lazy mode skips vertex deduplication — vertices are returned as-is (3 per
+STL lazy mode skips vertex deduplication - vertices are returned as-is (3 per
 triangle), avoiding the extra pass over the data.
 
 ---

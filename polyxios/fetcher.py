@@ -332,8 +332,8 @@ def _download_to(url: str, temp_path: str, filename: str) -> None:
     -----
     The asset host closes a connection mid-transfer often enough to redden an
     otherwise green CI run, and a dropped socket says nothing about whether
-    the asset is fetchable. A status code that describes the request itself —
-    a 404, a 403 — is not retried, because repeating it cannot change it.
+    the asset is fetchable. A status code that describes the request itself -
+    a 404, a 403 - is not retried, because repeating it cannot change it.
     """
     for attempt in range(_DOWNLOAD_ATTEMPTS):
         last_attempt = attempt == _DOWNLOAD_ATTEMPTS - 1

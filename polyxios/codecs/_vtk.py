@@ -1586,7 +1586,7 @@ def _read_field_data(path: Path) -> PolyData:
             except ValueError:
                 i += 1
                 continue
-            # skip string arrays — skip exactly n_tuples data lines
+            # skip string arrays - skip exactly n_tuples data lines
             if vtk_dt.lower() == "string":
                 skipped = 0
                 while skipped < n_tuples and i < n_lines:

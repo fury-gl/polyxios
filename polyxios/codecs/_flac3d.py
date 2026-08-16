@@ -1,4 +1,4 @@
-"""FLAC3D .f3grid ASCII codec — read + write."""
+"""FLAC3D .f3grid ASCII codec - read + write."""
 
 from pathlib import Path
 from typing import Any
@@ -468,7 +468,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             try:
                 member_ids = [int(tok) for tok in parts]
             except ValueError:
-                # Not a member list — the block ended at the previous line.
+                # Not a member list - the block ended at the previous line.
                 current_group = None
             else:
                 block_groups[current_kind][current_group].extend(member_ids)
@@ -761,7 +761,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         )
     if skipped:
         warnings.warn(
-            f".f3grid write: {skipped} element(s) skipped (unsupported type — only"
+            f".f3grid write: {skipped} element(s) skipped (unsupported type - only"
             " tetra/pyramid/wedge/hexahedron/triangle/quad written).",
             stacklevel=2,
         )
