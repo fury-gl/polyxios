@@ -1,4 +1,4 @@
-"""SU2 mesh codec (ASCII) — read + write.
+"""SU2 mesh codec (ASCII) - read + write.
 
 An SU2 mesh is split in two. ``NELEM`` holds the cells that fill the domain,
 and every ``MARKER_TAG`` block holds the cells one dimension below them that
@@ -191,7 +191,7 @@ def _read_cells(
     for k in range(count):
         if i >= len(records):
             raise CodecError(
-                f".su2: file truncated — {what} declares {count} element(s), found {k}."
+                f".su2: file truncated - {what} declares {count} element(s), found {k}."
             )
         no, line = records[i]
         opened = _key_of(line)
@@ -212,7 +212,7 @@ def _read_cells(
             raise CodecError(f".su2: unsupported element type {vtk_type} on line {no}.")
         if len(parts) - 1 < n_nodes:
             # SU2 closes an element line with an optional element index, so a
-            # line may be longer than the type needs — never shorter.
+            # line may be longer than the type needs - never shorter.
             raise CodecError(
                 f".su2: element line {no} carries {len(parts) - 1} node(s),"
                 f" expected {n_nodes} for type {vtk_type}."
@@ -220,7 +220,7 @@ def _read_cells(
         if len(parts) - 1 > n_nodes + 1:
             # One trailing token is the element index SU2 allows; more than
             # that means the tokens being dropped are not an index, and the
-            # likeliest reason is a type code that understates the element —
+            # likeliest reason is a type code that understates the element -
             # a quad spelled 5 reads as a triangle with a node quietly gone.
             if not overlong:
                 first_overlong = no
@@ -290,7 +290,7 @@ def _read_points(
     for k in range(count):
         if i >= len(records):
             raise CodecError(
-                f".su2: file truncated — NPOIN declares {count} node(s), found {k}."
+                f".su2: file truncated - NPOIN declares {count} node(s), found {k}."
             )
         no, line = records[i]
         opened = _key_of(line)
@@ -458,7 +458,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     declares, which are not read. A file that declares ``NZONE`` above one is
     read down to its first zone, an element line carrying more tokens than its
     type needs plus an index has the rest ignored, and ``NMARK= 0`` beside
-    ``MARKER_TAG`` blocks is believed — each with a warning. So is a node line
+    ``MARKER_TAG`` blocks is believed - each with a warning. So is a node line
     carrying more values than ``NDIME`` plus an index.
     """
     if lazy:
@@ -512,13 +512,13 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
     # A file that reads no marker is worth a word only if it holds one, and
     # both ways of reaching that state count zero of them. The search starts
-    # past NMARK — at 0 when there is none, since ``mark_idx`` is -1 there —
+    # past NMARK - at 0 when there is none, since ``mark_idx`` is -1 there -
     # so a file that does declare its markers never pays for the scan.
     if n_marks == 0 and _find_key(records, "MARKER_TAG", start=mark_idx + 1) >= 0:
         if mark_idx >= 0:
             # NMARK= 0 next to MARKER_TAG blocks is the file contradicting
-            # itself. The count is still believed — it is the record SU2 reads
-            # — but going quiet here would drop the boundary without a word.
+            # itself. The count is still believed - it is the record SU2 reads
+            # - but going quiet here would drop the boundary without a word.
             warnings.warn(
                 ".su2: the file declares NMARK= 0 but holds MARKER_TAG blocks;"
                 " the declared count was believed and the markers were not read.",
@@ -603,8 +603,8 @@ def _element_nodes(poly: PolyData, index: int, name: str, n_verts: int) -> list[
     Raises
     ------
     CodecError
-        If the element's node count does not match its type — SU2 records no
-        width, so a wrong one silently steals the next element's nodes — or a
+        If the element's node count does not match its type - SU2 records no
+        width, so a wrong one silently steals the next element's nodes - or a
         reference falls outside the vertex array.
     """
     start, end = int(poly.offsets[index]), int(poly.offsets[index + 1])
@@ -810,14 +810,14 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     nowhere to go and is dropped with a warning, as are the volume members of a
     tag that names both and an element of a type SU2 cannot spell.
     A tag naming one element twice marks it once, a tag naming no element at
-    all is dropped, and tag members outside the element array are dropped —
+    all is dropped, and tag members outside the element array are dropped -
     each with a warning of its own. Boundary elements no tag claims are
     gathered into a marker named ``unnamed``, and whitespace or ``%`` in a
     marker name becomes ``_`` since SU2 gives the name a line of its own.
 
     ``NDIME`` follows the mesh: 3 for volume cells or a mesh with a z extent,
-    2 otherwise. A mesh whose highest elements sit below that — a curved
-    surface, a mesh of lines — is written whole and reads back whole here, but
+    2 otherwise. A mesh whose highest elements sit below that - a curved
+    surface, a mesh of lines - is written whole and reads back whole here, but
     SU2 fills an ``NDIME``-dimensional domain with cells of that dimension and
     will refuse the file, so it is warned about.
 

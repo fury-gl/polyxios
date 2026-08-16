@@ -1,4 +1,4 @@
-"""Tecplot ASCII codec (finite-element zone) — read + write.
+"""Tecplot ASCII codec (finite-element zone) - read + write.
 
 Reads a single finite-element zone under either POINT or BLOCK packing, in
 both the classic ``F=FEPOINT, ET=TRIANGLE`` spelling and the modern
@@ -7,7 +7,7 @@ coordinates travel as ``vertex_attrs``. Zones are written back under POINT
 packing.
 
 Registered for ``.tec``. Tecplot's other common spelling, ``.dat``, is
-deliberately not claimed — LS-DYNA, Nastran and plain ASCII tables all use it
+deliberately not claimed - LS-DYNA, Nastran and plain ASCII tables all use it
 too, so a file named that way reads through ``read(path, fmt=".tec")``.
 """
 
@@ -61,8 +61,8 @@ _BLOCK_PACKING: frozenset[str] = frozenset({"FEBLOCK", "BLOCK"})
 _KV_RE = re.compile(r"([A-Za-z_]+)\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s,]+)")
 
 # Lines that open a new record rather than continue the ZONE header. The word
-# boundary is what keeps a ``ZONETYPE=FETRIANGLE`` continuation line — the
-# spelling Tecplot itself writes, one key per line — from reading as a new ZONE.
+# boundary is what keeps a ``ZONETYPE=FETRIANGLE`` continuation line - the
+# spelling Tecplot itself writes, one key per line - from reading as a new ZONE.
 _SECTION_RE = re.compile(
     r"(?:ZONE|TITLE|VARIABLES|TEXT|GEOMETRY|CUSTOMLABELS|DATASETAUXDATA)\b"
 )
@@ -103,7 +103,7 @@ def _safe_variable_name(name: str) -> str:
 
     Tecplot has no escape inside a quoted name: a double quote closes the
     string early and splits one variable into two, and a line break splits the
-    ``VARIABLES`` record itself — a name holding ``"\\nZONE"`` would open a
+    ``VARIABLES`` record itself - a name holding ``"\\nZONE"`` would open a
     second zone header. Both are folded into characters a header can carry.
     """
     folded = name.replace('"', "'")
@@ -342,7 +342,7 @@ def _read_point(
         _raise_short(cut, len(records), n_nodes + n_elems, "node and element lines")
     if len(records) > n_nodes + n_elems:
         # The counts the header declares are what the reader trusts, so the
-        # tail is dropped — but a zone holding more than it declares is
+        # tail is dropped - but a zone holding more than it declares is
         # already inconsistent, and reading it silently hides that.
         warnings.warn(
             f".tec: zone holds {len(records) - n_nodes - n_elems} record(s) past"
@@ -414,7 +414,7 @@ def _read_block(
         _raise_short(cut, len(tokens), n_values + n_conn, "values")
     if len(tokens) > n_values + n_conn:
         # The counts the header declares are what the reader trusts, so the
-        # tail is dropped — but a zone holding more than it declares is
+        # tail is dropped - but a zone holding more than it declares is
         # already inconsistent, and reading it silently hides that.
         warnings.warn(
             f".tec: zone holds {len(tokens) - n_values - n_conn} value(s) past"
@@ -436,10 +436,10 @@ def _raise_short(cut: bool, got: int, want: int, unit: str) -> None:
     """Report a zone that ran out of data, naming the reason when it is known."""
     if cut:
         raise CodecError(
-            f".tec: a new record starts inside the zone's data — got {got} {unit},"
+            f".tec: a new record starts inside the zone's data - got {got} {unit},"
             f" the declared N=/E= counts need {want}."
         )
-    raise CodecError(f".tec: file truncated — expected {want} {unit}, got {got}.")
+    raise CodecError(f".tec: file truncated - expected {want} {unit}, got {got}.")
 
 
 def _reject_unsupported_zone(hdr: dict[str, str], zone_hdr: str) -> None:
@@ -555,7 +555,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
     # 'utf-8-sig' so a byte-order mark left by a Windows pre-processor does not
     # glue itself to the first keyword and hide the header. errors="replace"
-    # keeps a file written in some other 8-bit encoding inside a CodecError —
+    # keeps a file written in some other 8-bit encoding inside a CodecError -
     # its numbers are ASCII either way, and only a title or comment is hurt.
     lines = Path(path).read_text(encoding="utf-8-sig", errors="replace").splitlines()
 
@@ -687,9 +687,9 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     Raises
     ------
     CodecError
-        If no supported element type is found — which a mesh carrying no
+        If no supported element type is found - which a mesh carrying no
         elements at all also is, since an FE zone has no cells to hold its
-        nodes — or an element's node count does not match its type, or an
+        nodes - or an element's node count does not match its type, or an
         element references a vertex that does not exist.
 
     Notes
@@ -786,7 +786,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         nodes = [int(poly.connectivity[s + j]) for j in range(e - s)]
         for nid in nodes:
             # A reference past the vertex array would be written as a node
-            # number the zone never declares — a file no reader can load.
+            # number the zone never declares - a file no reader can load.
             if not 0 <= nid < n_verts:
                 raise CodecError(
                     f".tec: element {ei} references vertex {nid},"

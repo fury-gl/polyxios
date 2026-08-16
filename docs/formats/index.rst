@@ -8,7 +8,7 @@ Supported formats
 
 
 polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
-extension, so :func:`polyxios.read` picks the right reader from the filename — pass
+extension, so :func:`polyxios.read` picks the right reader from the filename - pass
 ``fmt=`` to override it.
 
 Every page below summarises the format's specification, notes where polyxios extends or
@@ -21,7 +21,7 @@ Parallel and multi-block meta-files
 -----------------------------------
 
 ``.vtm``, ``.pvtu``, ``.pvts``, ``.pvti``, ``.pvtp`` and ``.pvtr`` are registered too,
-but they hold no geometry — only references to sub-files. Reading one raises
+but they hold no geometry - only references to sub-files. Reading one raises
 :class:`~polyxios.exceptions.UnsupportedFormatError` with a pointer to
 ``examples/read_parallel_vtk.py``, rather than failing with a parse error further in.
 Writing them is not supported.

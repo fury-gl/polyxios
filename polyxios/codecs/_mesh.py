@@ -285,7 +285,7 @@ def _inline_build(
                     ets.append(ELEMENT_TYPES["hexahedron"])
 
                 elif mtype == "tet":
-                    # 6 tets per hex — MFEM ordering (alternating by ix+iy+iz parity)
+                    # 6 tets per hex - MFEM ordering (alternating by ix+iy+iz parity)
                     if (ix + iy + iz) % 2 == 0:
                         tets = [
                             [v0, v1, v3, v4],
@@ -317,7 +317,7 @@ def _inline_build(
                     ets.append(ELEMENT_TYPES["wedge"])
 
                 elif mtype == "pyramid":
-                    # 6 pyramids per hex sharing the centre point — MFEM style
+                    # 6 pyramids per hex sharing the centre point - MFEM style
                     cx, cy, cz = (
                         verts[v0, 0] + 0.5 * (sx / nx),
                         verts[v0, 1] + 0.5 * (sy / ny),
@@ -364,7 +364,7 @@ def _read_nurbs(path: Path, header: str, tokens: list[str], file_size: int) -> P
     NURBS meshes use B-spline basis functions to map a parametric domain onto
     physical space.  The file stores **control points** (not actual mesh nodes)
     together with knot vectors and weights.  Evaluating real vertex positions
-    requires computing NURBS basis functions at quadrature points — this is
+    requires computing NURBS basis functions at quadrature points - this is
     non-trivial and depends on the polynomial order and knot structure.
 
     What we return
@@ -449,7 +449,7 @@ def _read_nurbs(path: Path, header: str, tokens: list[str], file_size: int) -> P
     warnings.warn(
         f"'{path.name}' is an MFEM NURBS mesh (header: '{header}'). "
         "NURBS meshes store B-spline control points, not actual mesh vertices. "
-        "The 'vertices' in the returned PolyData are CONTROL POINTS — they define "
+        "The 'vertices' in the returned PolyData are CONTROL POINTS - they define "
         "the geometry mathematically but are NOT physical mesh nodes. "
         "Rendering this mesh directly will produce incorrect results. "
         f"Control points: {len(vertices)}, elements: {len(types_list)}, "
@@ -485,8 +485,8 @@ def _read_nc(path: Path, header: str, tokens: list[str], file_size: int) -> Poly
 
         rank  attr  geom  ref_type  node0  node1  ...
 
-    * ``rank == -1``: non-leaf (refined) element — skipped.
-    * ``rank >= 0``: leaf element — actual mesh cell with real vertex indices.
+    * ``rank == -1``: non-leaf (refined) element - skipped.
+    * ``rank >= 0``: leaf element - actual mesh cell with real vertex indices.
 
     Vertex positions are reconstructed from two sections:
 

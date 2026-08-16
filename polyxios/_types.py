@@ -99,7 +99,7 @@ class PolyData:
         Returns
         -------
         list of numpy.ndarray or None
-            Each array has shape (n_pts,) int32 — vertex indices for one
+            Each array has shape (n_pts,) int32 - vertex indices for one
             connected line or poly_line element. Returns None when no
             line/poly_line elements exist.
 

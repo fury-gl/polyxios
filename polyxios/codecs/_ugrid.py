@@ -1,4 +1,4 @@
-"""UGRID mesh codec (AFLR ASCII ``.ugrid``) — read + write.
+"""UGRID mesh codec (AFLR ASCII ``.ugrid``) - read + write.
 
 A UGRID file opens with one header line of seven counts and then lists every
 section back to back, whitespace-separated::
@@ -25,8 +25,8 @@ Node references are 1-based. Prism and hexahedron node order matches polyxios's
 both directions.
 
 Only the ASCII flavour is handled here. The same format has binary variants
-spelled by an infix suffix — ``mesh.b8.ugrid``, ``mesh.lb8.ugrid``,
-``mesh.r8.ugrid`` — which this codec refuses rather than parsing as text: by
+spelled by an infix suffix - ``mesh.b8.ugrid``, ``mesh.lb8.ugrid``,
+``mesh.r8.ugrid`` - which this codec refuses rather than parsing as text: by
 name where the name carries the infix, and by the NUL in the opening record
 where it does not.
 """
@@ -107,7 +107,7 @@ def _natural_key(name: str) -> tuple[tuple[int, Any], ...]:
     """Return a sort key ordering embedded numbers by value, not by spelling.
 
     Tag names are what fix the order surface IDs are handed out in, and the
-    names reading gives back are numbered — ``boundary_1``, ``boundary_2``, ….
+    names reading gives back are numbered - ``boundary_1``, ``boundary_2``, ….
     Plain lexicographic order puts ``boundary_10`` between ``boundary_1`` and
     ``boundary_2``, which would hand an unnumbered tag an ID out of turn.
     """
@@ -197,7 +197,7 @@ def _body(tokens: list[str], needed: int) -> np.ndarray:
     available = len(tokens) - 7
     if available < needed:
         raise CodecError(
-            f".ugrid: file truncated — the header declares {needed} body"
+            f".ugrid: file truncated - the header declares {needed} body"
             f" value(s), found {available}."
         )
     if available > needed:
@@ -289,7 +289,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     ]
 
     # Each section is capped on its own, so only their sum can walk past the
-    # caps — which is what keeps the offsets array and its dtype honest.
+    # caps - which is what keeps the offsets array and its dtype honest.
     total_conn = sum(count * width for count, (_name, width) in zip(counts, _SECTIONS))
     if total_conn > MAX_SAFE_CONN:
         raise CodecError(
@@ -417,7 +417,7 @@ def _group_elements(poly: PolyData) -> tuple[dict[str, np.ndarray], np.ndarray]:
     ------
     CodecError
         If the offsets array does not close over the elements, or an element's
-        node count does not match its type — the format records no per-element
+        node count does not match its type - the format records no per-element
         width, so a wrong one silently steals the next element's nodes.
     """
     types = np.asarray(poly.element_types)
@@ -464,7 +464,7 @@ def _surface_ids(poly: PolyData, surface: np.ndarray) -> np.ndarray:
     A UGRID face carries a single ID, so a face in two tags keeps the first
     that claims it in name order. ``boundary_<n>`` recovers the number reading
     gave it; any other name is numbered from 1 upward so the tag still travels.
-    A face no tag claims takes the first ID no tag is using — 1 on a mesh with
+    A face no tag claims takes the first ID no tag is using - 1 on a mesh with
     no tags at all, which is what a UGRID file carrying no boundary information
     holds. Writing 0 there would leave a file solvers reject, and reusing a
     number a tag already holds would fuse two boundary patches into one.
@@ -516,8 +516,8 @@ def _surface_ids(poly: PolyData, surface: np.ndarray) -> np.ndarray:
         if fresh.size == 0:
             continue
         if value in used:
-            # Two names spelling the same ID — ``boundary_3`` and
-            # ``boundary_03`` — would land on one another and come back as a
+            # Two names spelling the same ID - ``boundary_3`` and
+            # ``boundary_03`` - would land on one another and come back as a
             # single fused patch. The later one is renumbered instead, since a
             # tag under a different number still tells the two apart.
             collided += 1
@@ -622,8 +622,8 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
     Notes
     -----
-    Elements are written section by section in the order the format fixes —
-    triangles, quads, tetrahedra, pyramids, prisms, hexahedra — so an element's
+    Elements are written section by section in the order the format fixes -
+    triangles, quads, tetrahedra, pyramids, prisms, hexahedra - so an element's
     index changes unless the mesh already lay in that order. Node references
     are written 1-based, and the pyramid section is permuted out of polyxios's
     node order into UGRID's.
@@ -637,7 +637,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     with a warning. Tag members that are not boundary faces, or that fall
     outside the element array, are dropped with a warning, and a tag left with
     no face to write takes no ID at all. A boundary face no tag claims is
-    written with the first ID no tag is using — 1 on a mesh carrying no tags —
+    written with the first ID no tag is using - 1 on a mesh carrying no tags -
     and reads back tagged with it.
 
     The format carries no fields, so ``vertex_attrs``, ``element_attrs``,
@@ -652,7 +652,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     if vertices.ndim != 2 or vertices.shape[1] != 3:
         # The coordinates are written a row at a time, so an array of any other
         # width would put rows of that width on disk under a header counting
-        # threes — a file that only fails on the way back in.
+        # threes - a file that only fails on the way back in.
         raise CodecError(
             f".ugrid: vertices have shape {vertices.shape}, expected (n, 3)."
         )

@@ -74,5 +74,5 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
-   :doc:`vtr` — the axis-aligned rectilinear sibling.
+   :doc:`index` - the full format table.
+   :doc:`vtr` - the axis-aligned rectilinear sibling.

@@ -1,4 +1,4 @@
-"""Medit .meshb binary codec (GmFlib format) — read + write."""
+"""Medit .meshb binary codec (GmFlib format) - read + write."""
 
 import mmap
 from pathlib import Path
@@ -13,7 +13,7 @@ from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".meshb"
 
-# GmFlib keyword codes — decoded sections
+# GmFlib keyword codes - decoded sections
 _KW_VERSION = 1
 _KW_DIMENSION = 3
 _KW_VERTICES = 4
@@ -22,7 +22,7 @@ _KW_QUADRILATERALS = 7
 _KW_TETRAHEDRA = 8
 _KW_HEXAHEDRA = 10
 
-# GmFlib keyword codes — scanned (record size known) but not decoded
+# GmFlib keyword codes - scanned (record size known) but not decoded
 _KW_EDGES = 5  # 2 node indices + ref
 _KW_PRISMS = 9  # 6 node indices + ref
 _KW_NORMALS = 60  # dim floats, no ref (size is dim-dependent)
@@ -84,7 +84,7 @@ def read(*, path: Path | str, lazy: bool = False) -> PolyData:
     -------
     PolyData
         Parsed mesh. Vertices have shape ``(n, dim)`` where ``dim`` is the mesh
-        dimension (2 or 3) stored in the file — no zero-padding to 3 columns.
+        dimension (2 or 3) stored in the file - no zero-padding to 3 columns.
         Elements are returned grouped by type in the fixed order triangles →
         quads → tetrahedra → hexahedra, regardless of the order they appear in
         the file. vertex_attrs["ref"] and element_attrs["ref"] are populated
@@ -174,7 +174,7 @@ def write(*, poly: PolyData, path: Path | str) -> None:
             buf["ref"] = vref
         fh.write(buf.tobytes())
 
-        # Element sections — vectorised gather per type
+        # Element sections - vectorised gather per type
         refs_attr = poly.element_attrs.get("ref")
         for kw, idx in groups.items():
             _, n_nodes = _KW_TO_ELEM[kw]
@@ -312,7 +312,7 @@ def _decode(mm: mmap.mmap) -> PolyData:
         if vrefs.any():
             vertex_attrs["ref"] = vrefs
 
-    # --- Elements — all numpy, no Python list accumulation ---
+    # --- Elements - all numpy, no Python list accumulation ---
     conn_parts: list[np.ndarray] = []
     types_parts: list[np.ndarray] = []
     refs_arr_parts: list[np.ndarray] = []

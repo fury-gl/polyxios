@@ -8,7 +8,7 @@ EXTENSION: str = ".pvtp"
 
 
 def read(path: Path | str, *, lazy: bool = False) -> PolyData:
-    """Raise UnsupportedFormatError — .pvtp is a parallel/multi-block meta-file.
+    """Raise UnsupportedFormatError - .pvtp is a parallel/multi-block meta-file.
 
     Parameters
     ----------
@@ -30,7 +30,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
 
 def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
-    """Raise NotImplementedError — writing .pvtp files is not supported.
+    """Raise NotImplementedError - writing .pvtp files is not supported.
 
     Parameters
     ----------

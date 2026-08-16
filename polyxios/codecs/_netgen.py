@@ -1,4 +1,4 @@
-"""Netgen mesh codec (ASCII ``.vol``) — read + write.
+"""Netgen mesh codec (ASCII ``.vol``) - read + write.
 
 A ``.vol`` file opens with the word ``mesh3d`` and is then a sequence of named
 sections, each one a keyword line, a count line, and that many records::
@@ -30,25 +30,25 @@ belongs to: a surface element spells ``surfnr bcnr domin domout np`` before its
 nodes and a volume element spells ``matnr np``, so the node list starts at
 column 5 in one and column 2 in the other. ``np`` is read per record rather
 than assumed, since one section holds every element of its dimension whatever
-its order — a section of triangles may hold a six-node one next to a three-node
+its order - a section of triangles may hold a six-node one next to a three-node
 one.
 
 The ``…gi``/``…uv`` spellings of the element sections carry extra geometry or
 parameter values *after* the nodes. Records are parsed a line at a time so those
 trailing values fall off the end of the record instead of shifting the one
 behind them, and each record is cut down to its nodes and its index before
-anything is turned into a number — the tail is floating point in both spellings
+anything is turned into a number - the tail is floating point in both spellings
 and reading it as an integer would refuse the whole file.
 
 Netgen numbers nodes from 1 and orders them differently from polyxios (and
 VTK): a tetrahedron's second and third nodes are swapped, and the volume types
 turn the other way around their axis. Every type whose order differs is
-permuted in both directions — a cell read without the permutation is inside
+permuted in both directions - a cell read without the permutation is inside
 out, which is still four valid nodes and so goes unnoticed until a solver
 reports a negative Jacobian.
 
-Each element carries one integer index — ``bcnr`` on a face, ``matnr`` on a
-volume cell — which becomes an ``element_tags`` entry. The optional
+Each element carries one integer index - ``bcnr`` on a face, ``matnr`` on a
+volume cell - which becomes an ``element_tags`` entry. The optional
 ``materials``/``bcnames``/``cd2names``/``cd3names`` sections name those indices,
 and the names are what the tags are called when they are there. One name over
 several indices of a codimension is how the format spells a single boundary
@@ -226,7 +226,7 @@ def _natural_key(name: str) -> tuple[tuple[int, Any], ...]:
     """Return a sort key ordering embedded numbers by value, not by spelling.
 
     Tag names fix the order indices are handed out in, and the names reading
-    gives back are numbered — ``bc_1``, ``bc_2``, …. Plain lexicographic order
+    gives back are numbered - ``bc_1``, ``bc_2``, …. Plain lexicographic order
     puts ``bc_10`` between ``bc_1`` and ``bc_2``, which would hand an unnumbered
     tag an index out of turn.
     """
@@ -287,7 +287,7 @@ def _is_count(line: str) -> bool:
 
     What tells a section keyword apart from a stray column header: a section is
     followed by its count, a header by whatever comes next. A count is a plain
-    run of digits, so a signed or otherwise decorated number is a header — a
+    run of digits, so a signed or otherwise decorated number is a header - a
     negative one is not a record count any section could declare.
     """
     return line.isdigit()
@@ -333,7 +333,7 @@ def _records(
     stop = pos + count * per_record
     if stop > len(lines):
         raise CodecError(
-            f".vol: file truncated — the {what} section declares {count} record(s),"
+            f".vol: file truncated - the {what} section declares {count} record(s),"
             f" found {(len(lines) - pos) // per_record}."
         )
     return lines[pos:stop], stop
@@ -389,7 +389,7 @@ def _read_cells(
     # carries its geometry values behind the nodes, so a first record that stops
     # at the nodes and is followed by a line of a different width is the head and
     # tail of one record rather than two records. The second line has to be
-    # numbers for that to hold — a section declaring a single bare record is
+    # numbers for that to hold - a section declaring a single bare record is
     # followed by the keyword line of the next section, which is the same shape
     # as a tail and would take that whole section with it.
     per_record = 1
@@ -411,7 +411,7 @@ def _read_cells(
     # Grouped by width before any parsing: every record of one width shares a
     # type, so the whole group converts in one numpy call rather than one per
     # element. Each record is cut down to its nodes and its index as it is
-    # grouped — the …gi/…uv spellings carry a tail of geometry and parameter
+    # grouped - the …gi/…uv spellings carry a tail of geometry and parameter
     # values that is not read, and carrying it into the array would cost the
     # mesh over again in memory.
     groups: dict[int, list[list[str]]] = {}
@@ -510,7 +510,7 @@ def _skip_section(lines: list[str], pos: int, keyword: str) -> tuple[int, int]:
         # The odd one out: its count is how many values follow on a single line,
         # not how many lines follow. Counting lines here would swallow whatever
         # section comes next. A count of zero is the same trap the other way
-        # round — Netgen writes no values at all, only the empty line the blank
+        # round - Netgen writes no values at all, only the empty line the blank
         # stripping has already dropped, so the line behind the count is the
         # keyword of the next section and stepping over it would take that whole
         # section with it.
@@ -541,8 +541,8 @@ def _element_tags(
     """Fold the per-element indices into named element tags.
 
     Index 0 is Netgen's word for unset and is dropped. Indices are numbered per
-    dimension — a ``bcnr`` of 1 on a face and a ``matnr`` of 1 on a cell are two
-    different things — so the grouping is per (dimension, index) pair.
+    dimension - a ``bcnr`` of 1 on a face and a ``matnr`` of 1 on a cell are two
+    different things - so the grouping is per (dimension, index) pair.
 
     A names section naming two indices of one codimension alike is Netgen's way
     of spelling one boundary carried by several surfaces, so those merge into a
@@ -621,8 +621,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     Notes
     -----
     Node references are 1-based in the file and 0-based in the PolyData, and
-    every type whose node order differs from polyxios's — tetrahedra, pyramids,
-    wedges, hexahedra and their quadratic forms — is permuted on the way in.
+    every type whose node order differs from polyxios's - tetrahedra, pyramids,
+    wedges, hexahedra and their quadratic forms - is permuted on the way in.
 
     Each element's index (``bcnr`` on a face, ``matnr`` on a cell) becomes an
     ``element_tags`` entry, named by the ``materials``/``bcnames``/``cd2names``/
@@ -631,8 +631,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     indices of one codimension named alike merge into a single tag; two
     codimensions named alike stay apart under a ``_cd<n>``-suffixed name.
 
-    Sections holding data polyxios has no home for — ``identifications``,
-    ``face_colours``, the ``singular_*`` family — are stepped over, with a
+    Sections holding data polyxios has no home for - ``identifications``,
+    ``face_colours``, the ``singular_*`` family - are stepped over, with a
     warning when one is not empty, since what it held is dropped. A section this
     codec does not know is stepped over as a counted block with a warning too,
     and a line no count follows is taken for a column header and ignored.
@@ -709,7 +709,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             two_line_edges = True
         elif pos < len(lines) and _is_count(lines[pos]):
             # Every Netgen section is a count and that many records, so one this
-            # codec has never heard of can still be stepped over — quietly would
+            # codec has never heard of can still be stepped over - quietly would
             # be worse, since whatever it held is being dropped.
             warnings.warn(
                 f".vol: unknown section {lines[pos - 1]!r}; skipped.", stacklevel=2
@@ -802,7 +802,7 @@ def _group_elements(poly: PolyData) -> tuple[dict[str, np.ndarray], np.ndarray]:
     ------
     CodecError
         If the offsets array does not close over the elements, or an element's
-        node count does not match its type — the node count is written into the
+        node count does not match its type - the node count is written into the
         record, so a wrong one puts a file on disk that reads back as some other
         mesh.
     """
@@ -819,7 +819,7 @@ def _group_elements(poly: PolyData) -> tuple[dict[str, np.ndarray], np.ndarray]:
     # Which type codes the mesh carries, read off in one pass so the scan below
     # only walks the array for the types that are in it: a mesh of one type
     # would otherwise be swept once per type the format spells. Only when the
-    # array is the uint8 the PolyData contract asks for — a wider dtype is
+    # array is the uint8 the PolyData contract asks for - a wider dtype is
     # scanned type by type as before rather than folded into 256 slots, where a
     # code past the end would land on some other type's.
     present: np.ndarray | None = None
@@ -869,7 +869,7 @@ def _indices_for(
     number reading gave them; any other name is numbered from 1 upward so the
     tag still travels, and its name is written into the matching names section
     so it comes back spelled the way it went in. An element no tag claims takes
-    the first index no tag is using — 1 on a mesh with no tags at all, which is
+    the first index no tag is using - 1 on a mesh with no tags at all, which is
     what a ``.vol`` carrying no boundary information holds. Index 0 is Netgen's
     word for unset, so nothing is written with it.
 
@@ -919,7 +919,7 @@ def _indices_for(
         if fresh.size == 0:
             continue
         if value in used:
-            # Two names spelling one index — ``bc_3`` and ``bc_03`` — would come
+            # Two names spelling one index - ``bc_3`` and ``bc_03`` - would come
             # back as a single fused patch. The later is renumbered instead.
             collided += 1
             value = 0
@@ -954,7 +954,7 @@ def _indices_for(
             stacklevel=3,
         )
     # The index is the tag's own number, so a large one is written as it stands
-    # rather than renumbered — that is what lets a numbered tag come back under
+    # rather than renumbered - that is what lets a numbered tag come back under
     # the name it went in with. It is not written quietly, though: Netgen sizes
     # its per-dimension tables off the largest index it reads, so the file costs
     # it an entry for every number below that one. (The surface number beside it
@@ -1116,27 +1116,27 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
     Notes
     -----
-    Elements are written section by section in the order the format fixes —
-    faces, cells, edges, then point elements — so an element's index changes
+    Elements are written section by section in the order the format fixes -
+    faces, cells, edges, then point elements - so an element's index changes
     unless the mesh already lay in that order. Node references are written
     1-based, and every type whose node order differs from polyxios's is permuted
     into Netgen's.
 
     Elements of a type the format cannot spell are skipped with a warning.
     ``element_tags`` fold into one index per element, numbered independently per
-    dimension: a ``bc_<n>``-style name keeps its number — unless that number is
+    dimension: a ``bc_<n>``-style name keeps its number - unless that number is
     negative or past ``int64``, neither of which the format spells, in which case
-    it takes a fresh one and only the number changes — and any other name is
+    it takes a fresh one and only the number changes - and any other name is
     numbered from 1 upward and written into the matching ``materials``/
     ``bcnames``/``cd2names``/``cd3names`` section so it comes back by name. An
     element in two tags keeps the first that claims it in name order, and one no
-    tag claims takes the first index no tag is using — 1 on a mesh carrying no
-    tags — and reads back tagged with it. A tag holding elements of more than one
+    tag claims takes the first index no tag is using - 1 on a mesh carrying no
+    tags - and reads back tagged with it. A tag holding elements of more than one
     dimension is written into each of them, and comes back split one tag per
     dimension, since the two sections number their indices apart.
 
     Coordinates go out under ``float_fmt``, ``.10g`` by default, which is not
-    enough digits to name a float64 exactly — a coordinate read back differs in
+    enough digits to name a float64 exactly - a coordinate read back differs in
     the last few. Pass ``float_fmt='.17g'`` for a bit-exact round trip, at the
     cost of a larger file.
 
@@ -1150,7 +1150,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     if vertices.ndim != 2 or vertices.shape[1] != 3:
         # The coordinates are written a row at a time, so an array of any other
         # width would put rows of that width on disk under a header counting
-        # threes — a file that only fails on the way back in.
+        # threes - a file that only fails on the way back in.
         raise CodecError(
             f".vol: vertices have shape {vertices.shape}, expected (n, 3)."
         )
@@ -1168,7 +1168,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
             groups[name] for name in _TYPE_BY_DIM[dim].values() if name in groups
         ]
         # Only the surface section spells a surface number, so the other three
-        # dimensions never build the array — it is as long as the whole mesh.
+        # dimensions never build the array - it is as long as the whole mesh.
         surface_of: np.ndarray | None = None
         # Folded even when the dimension is empty: nothing is written for it,
         # and the indices the other dimensions hand out are unaffected.
