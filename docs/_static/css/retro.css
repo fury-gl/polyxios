@@ -644,13 +644,40 @@ ul.px-quirks li::before {
 .px-panel { border: 1px solid var(--px-line); background: var(--px-panel); }
 .px-panel-head {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  /* The title stays left and everything after it packs right. space-between
+     would strand the window controls in the middle once the copy button is
+     injected as a third child. */
+  justify-content: flex-start;
   gap: 1rem;
   border-bottom: 1px solid var(--px-line);
   padding: 0.6rem 1rem;
   font-size: 0.7rem;
   color: var(--px-dim);
 }
+.px-panel-head > :first-child { margin-right: auto; }
+
+/* Injected by homepage.js, one per code panel, so the button only exists where
+   it can actually work. */
+.px-panel-head .px-copy-panel {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: var(--px-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+}
+.px-panel-head .px-copy-panel:hover { color: var(--px-accent); }
+.px-panel-head .px-copy-panel.is-copied { color: var(--px-accent-2); }
+.px-panel-head .px-copy-panel svg { width: 0.85rem; height: 0.85rem; display: block; }
+.px-panel-head .px-copy-panel .px-copy-done,
+.px-panel-head .px-copy-panel.is-copied .px-copy-idle { display: none; }
+.px-panel-head .px-copy-panel.is-copied .px-copy-done { display: block; }
 pre.px-code {
   margin: 0;
   padding: 1.3rem 1.2rem;
