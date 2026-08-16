@@ -3,6 +3,10 @@
 Credits
 =======
 
+.. meta::
+   :description: The people who build polyxios: core developers and every contributor in the git history.
+
+
 polyxios is developed in the open under the `FURY <https://fury.gl>`__ umbrella.
 Every codec, test and page in these docs came from someone's spare evening.
 

@@ -28,6 +28,8 @@ doc = [
     "pydata-sphinx-theme",
     "sphinx-design",
     "sphinx-copybutton",
+    "sphinxext-opengraph[social-cards]",
+    "sphinx-sitemap",
 ]
 viz = [
     "fury>=2",

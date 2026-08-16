@@ -3,6 +3,10 @@
 Supported formats
 =================
 
+.. meta::
+   :description: The twenty-five 3D mesh and geometry formats polyxios reads and writes, across thirty-four extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, UGRID and more, one reference page each.
+
+
 polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
 extension, so :func:`polyxios.read` picks the right reader from the filename — pass
 ``fmt=`` to override it.

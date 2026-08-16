@@ -16,6 +16,7 @@ sphinx-docs/
   _static/css/retro.css       the whole theme: palettes, chrome, landing page
   _static/js/homepage.js      copy button for the hero install command
   _ext/contributors.py        credits page contributor list, from git
+  _ext/seo.py                 canonical/noindex tags + llms.txt generation
   credits.rst                 core team + generated contributor list
   _templates/py-version.html  the "py>=3.11" navbar chip
   _templates/sidebar-nav-bs.html  full-tree section navigation (see below)
@@ -209,6 +210,73 @@ nothing to point at.
 mkdir -p /tmp/site/dev && python tools/gen_switcher.py /tmp/site
 cd docs && SWITCHER_JSON_URL=file:///tmp/site/switcher.json make html
 ```
+
+## SEO and answer engines
+
+### The duplicate-content problem this site has
+
+Publishing `/dev/`, `/stable/` and `/0.3/` means three near-identical copies of
+every page. Left alone, search engines treat them as duplicates and split the
+ranking between them. Three things keep that under control:
+
+* `html_baseurl` in `conf.py` is `<site>/stable/`, so **every** build emits a
+  canonical link pointing at the stable copy.
+* `docs/_ext/seo.py` adds `<meta name="robots" content="noindex, follow">` to
+  every build that is not stable. `DOCS_IS_STABLE=true` is set by the workflow
+  on release builds only.
+* `robots.txt` deliberately **allows** everything. A disallowed page is never
+  fetched, so the crawler would never see the noindex or the canonical tag -
+  blocking there strands the duplicates in whatever state they were last
+  indexed in.
+
+### Per-page descriptions
+
+Sphinx emits no `<meta name="description">` on its own. The main pages carry a
+hand-written one:
+
+```rst
+.. meta::
+   :description: One or two sentences, roughly 150-160 characters.
+```
+
+The twenty-five format pages deliberately have none - `sphinxext-opengraph`
+derives theirs from the "Summary of the specification" paragraph, which is
+already the right text. Write one by hand only when the derived text is poor.
+
+Note that `.. meta::` writes straight into the page's `metatags` string and
+never reaches the page context's `meta` dict, which is why `seo.py` reads the
+description back out of the rendered tag to mirror it into `og:description`.
+Without that the landing page gets none, since it is a raw HTML include with no
+prose for opengraph to find.
+
+There is no `<meta name="keywords">` anywhere and none should be added. Google
+has ignored it since 2009 and Bing treats it as a spam signal. The keyword
+surface that does count is the `<title>`, the description, the headings, and the
+JSON-LD `keywords` array on the landing page.
+
+### Social cards
+
+`sphinxext-opengraph` renders a preview PNG per page at build time, which is why
+the doc extra is `sphinxext-opengraph[social-cards]` - it pulls matplotlib. Drop
+the extra and set `ogp_social_cards = {"enable": False}` together, or the build
+warns on every page.
+
+### llms.txt
+
+`seo.py` writes two files into the build output, following the llmstxt.org
+convention:
+
+* `llms.txt` - one line per page, title plus a trimmed lead paragraph, in
+  toctree order. Autosummary stubs under `api/generated/` are left out.
+* `llms-full.txt` - the full prose of every page in one file.
+
+`tools/gen_switcher.py` lifts both, plus `sitemap.xml`, from the canonical
+version directory up to the site root, because that is where crawlers and answer
+engines look for them.
+
+The summaries live on `app.env` and are purged per document rather than reset
+per build. An incremental build only re-reads what changed, so a wholesale reset
+would write an `llms.txt` containing only those pages.
 
 ## Format pages - please review
 

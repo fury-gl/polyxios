@@ -56,7 +56,10 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.extlinks",
     "sphinx_copybutton",
+    "sphinxext.opengraph",
+    "sphinx_sitemap",
     "contributors",
+    "seo",
 ]
 
 # The credits page names these by hand; everyone else in the git history is
@@ -66,6 +69,41 @@ polyxios_core_developers = [
     "Praneeth Shetty",
     "Maharshi Gor",
 ]
+
+# -- SEO / answer engines ---------------------------------------------------
+
+TAGLINE = "Fast, clean 3D mesh and geometry file I/O for Python."
+
+# Every version of a page is published at /dev/, /stable/ and /X.Y/. Canonical
+# links point all of them at the stable copy so search engines rank one URL
+# instead of splitting between three; docs/_ext/seo.py additionally marks
+# non-stable builds noindex. SITE_URL overrides the host for a fork.
+SITE_URL = os.environ.get("SITE_URL", "https://fury-gl.github.io/polyxios")
+html_baseurl = f"{SITE_URL.rstrip('/')}/stable/"
+
+# True only for the build that becomes /stable/, i.e. the newest release.
+polyxios_is_stable = os.environ.get("DOCS_IS_STABLE", "").lower() in {"1", "true", "yes"}
+polyxios_tagline = TAGLINE
+
+# sphinx-sitemap needs these two; the {version}/{lang} placeholders are unused
+# because each version is built and deployed on its own.
+sitemap_url_scheme = "{link}"
+
+# sphinxext-opengraph: social cards, and the plain <meta name="description">
+# that Sphinx does not emit on its own.
+ogp_site_url = html_baseurl
+ogp_site_name = "polyxios"
+ogp_description_length = 200
+ogp_enable_meta_description = True
+ogp_type = "website"
+
+# Social preview cards are rendered at build time (needs the [social-cards]
+# extra, which pulls matplotlib). Colours track the CRT palette in retro.css.
+ogp_social_cards = {
+    "enable": True,
+    "site_url": SITE_URL,
+    "line_color": "#ffb02e",
+}
 
 extlinks = {
     "ghpull": ("https://github.com/fury-gl/polyxios/pull/%s", "PR #%s"),
