@@ -1,5 +1,5 @@
 sphinx>=7.2
-pydata-sphinx-theme>=0.15
+pydata-sphinx-theme>=0.20,<0.21
 numpydoc>=1.6
 sphinx-copybutton>=0.5
 sphinxext-opengraph[social-cards]>=0.9

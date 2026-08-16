@@ -16,7 +16,6 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
-import pydata_sphinx_theme
 from packaging.version import Version
 
 import polyxios
@@ -39,13 +38,17 @@ _is_dev = _parsed.is_devrelease or _parsed.local is not None
 # release job pin it explicitly.
 switcher_version = os.environ.get("SWITCHER_VERSION") or ("dev" if _is_dev else version)
 
+# The site's own home. Not the github.io address, which only 301s here.
+# Canonical links, the sitemap and switcher.json must all name the final URL.
+SITE_URL = os.environ.get("SITE_URL", "https://polyxios.org")
+
 # The published switcher index. It must be an absolute URL so it resolves the
 # same from every page depth. It is generated on the gh-pages branch by
 # tools/gen_switcher.py from the version directories actually deployed, so it
 # can never offer a version that does not exist. SWITCHER_JSON_URL points a
 # local build somewhere else.
 switcher_json_url = os.environ.get(
-    "SWITCHER_JSON_URL", "https://fury-gl.github.io/polyxios/switcher.json"
+    "SWITCHER_JSON_URL", f"{SITE_URL.rstrip('/')}/switcher.json"
 )
 
 extensions = [
@@ -77,8 +80,7 @@ TAGLINE = "Fast, clean 3D mesh and geometry file I/O for Python."
 # Every version of a page is published at /dev/, /stable/ and /X.Y/. Canonical
 # links point all of them at the stable copy so search engines rank one URL
 # instead of splitting between three; docs/_ext/seo.py additionally marks
-# non-stable builds noindex. SITE_URL overrides the host for a fork.
-SITE_URL = os.environ.get("SITE_URL", "https://fury-gl.github.io/polyxios")
+# non-stable builds noindex.
 html_baseurl = f"{SITE_URL.rstrip('/')}/stable/"
 
 # True only for the build that becomes /stable/, i.e. the newest release.
@@ -129,16 +131,10 @@ templates_path = ["_templates"]
 html_css_files = ["css/retro.css"]
 html_js_files = ["js/homepage.js"]
 
-# Pygments: the retro palettes are tuned against these two. pydata renamed the
-# options from "pygment_*" to "pygments_*" in 0.16, and either spelling warns on
-# the version that does not own it.
-_pygments_prefix = (
-    "pygments" if Version(pydata_sphinx_theme.__version__) >= Version("0.16") else "pygment"
-)
-
 html_theme_options = {
-    f"{_pygments_prefix}_light_style": "friendly",
-    f"{_pygments_prefix}_dark_style": "native",
+    # The retro palettes are tuned against these two.
+    "pygments_light_style": "friendly",
+    "pygments_dark_style": "native",
     # Escaped: pydata drops the logo text into the template unescaped, so a raw
     # "<polyxios />" is parsed as an unknown HTML element and renders nothing.
     "logo": {"text": "&lt;polyxios /&gt;"},
