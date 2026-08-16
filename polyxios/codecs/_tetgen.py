@@ -1,4 +1,4 @@
-"""TetGen mesh codec (ASCII ``.node`` + ``.ele`` pair) — read + write.
+"""TetGen mesh codec (ASCII ``.node`` + ``.ele`` pair) - read + write.
 
 A TetGen mesh is split across two files that share a stem: ``.node`` holds the
 coordinates and ``.ele`` holds the tetrahedra that index them. Neither is
@@ -9,7 +9,7 @@ Both files open with a header line and then list one fixed-width record per
 row, each row opening with the item's own number. That number is data, not a
 position: TetGen's ``-z`` switch renumbers from zero, a ``.node`` written by
 hand may skip a number, and the two files number independently. So the row
-numbers of the ``.node`` file — not the ``.ele`` file's — are what element node
+numbers of the ``.node`` file - not the ``.ele`` file's - are what element node
 references are resolved against.
 
 The two headers are::
@@ -73,7 +73,7 @@ def _natural_key(name: str) -> tuple[tuple[int, Any], ...]:
     """Return a sort key ordering embedded numbers by value, not by spelling.
 
     Names are what fix the column order of a written file, and the names
-    reading hands back are numbered — ``attr_0``, ``attr_1``, …. Plain
+    reading hands back are numbered - ``attr_0``, ``attr_1``, …. Plain
     lexicographic order puts ``attr_10`` between ``attr_1`` and ``attr_2``, so
     a mesh with ten or more attributes would come back with its columns
     shuffled. Splitting on digit runs keeps every other name where sorting
@@ -237,7 +237,7 @@ def _records(
     needed = n_rows * n_cols
     if available < needed:
         raise CodecError(
-            f".tetgen: {where} truncated — {n_rows} {what} of {n_cols} column(s)"
+            f".tetgen: {where} truncated - {n_rows} {what} of {n_cols} column(s)"
             f" need {needed} value(s), found {available}."
         )
     if available > needed:
@@ -306,7 +306,7 @@ def _resolve_ids(refs: np.ndarray, ids: np.ndarray, n_pts: int) -> np.ndarray:
     """Map ``.ele`` node references onto rows of the ``.node`` file.
 
     TetGen numbers from 0 or from 1 depending on the switch it ran under, and
-    the number is the file's own — a hand-written ``.node`` may skip one. The
+    the number is the file's own - a hand-written ``.node`` may skip one. The
     contiguous case is the overwhelming one and is a subtraction; anything else
     goes through a sorted lookup rather than being assumed away.
 
@@ -405,7 +405,7 @@ def _read_ele(path: Path) -> tuple[np.ndarray, int, dict[str, np.ndarray]]:
         )
 
     # Attributes start after the element number and every node the header
-    # declares — 5 for a linear tet but 11 for a quadratic one. Fixing the
+    # declares - 5 for a linear tet but 11 for a quadratic one. Fixing the
     # offset at 5 would read a mid-edge node number as the region and never
     # fail, since those columns exist either way.
     first_attr = 1 + n_nodes
@@ -452,8 +452,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     1, or with gaps resolves the same way; the ``.ele`` file's element numbers
     are never used to shift them. A 2-D ``.node`` file is padded to ``z=0``.
 
-    Node attributes become ``vertex_attrs`` named ``attr_<k>`` — TetGen gives
-    them no names — and element attributes become ``element_attrs``, named
+    Node attributes become ``vertex_attrs`` named ``attr_<k>`` - TetGen gives
+    them no names - and element attributes become ``element_attrs``, named
     ``region`` when the file declares one and ``region_<k>`` when it declares
     several. Each distinct non-zero boundary marker becomes a ``vertex_tags``
     entry named ``boundary_<marker>``; marker 0 means unmarked and is dropped.
@@ -530,7 +530,7 @@ def _tetra_elements(poly: PolyData) -> np.ndarray:
     Raises
     ------
     CodecError
-        If a tetrahedron does not carry exactly four nodes — TetGen records no
+        If a tetrahedron does not carry exactly four nodes - TetGen records no
         per-element width, so a wrong one would read back as a different mesh.
     """
     types = np.asarray(poly.element_types)
@@ -632,8 +632,8 @@ def _boundary_markers(poly: PolyData) -> np.ndarray:
 def _node_attrs(poly: PolyData) -> list[np.ndarray]:
     """Return the vertex attributes a ``.node`` file can carry, in name order.
 
-    A node attribute is one number per node, so a multi-component array — a
-    normal, a colour — has no column to go in and is left out with a word.
+    A node attribute is one number per node, so a multi-component array - a
+    normal, a colour - has no column to go in and is left out with a word.
 
     No more columns are written than reading admits. Going past that cap would
     put a ``.node`` on disk that this codec refuses on the way back in, which
@@ -672,8 +672,8 @@ def _region_column(poly: PolyData, keep: np.ndarray) -> np.ndarray | None:
     """Return the per-element region attribute, or None when there is none.
 
     A ``.ele`` file carries one attribute per element in practice, so the one
-    named ``region`` — or ``region_0``, which is what reading a multi-attribute
-    file leaves behind — is the one written, and the rest are named as lost.
+    named ``region`` - or ``region_0``, which is what reading a multi-attribute
+    file leaves behind - is the one written, and the rest are named as lost.
     A mesh from another format names its one attribute whatever that format
     called it, ``material`` or ``zone``; dropping it for want of the spelling
     this codec reads back would lose the only per-element field the file can
@@ -784,7 +784,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     survive the trip unshifted.
 
     Non-tetrahedral elements have no place in a ``.ele`` file and are skipped
-    with a warning. ``vertex_tags`` fold into one boundary marker per node —
+    with a warning. ``vertex_tags`` fold into one boundary marker per node -
     a ``boundary_<n>`` name keeps its number, ``boundary_0`` and any other
     name are numbered from 1 instead, since marker 0 is TetGen's word for
     unmarked, and a vertex in two tags keeps the first that claims it in name
@@ -794,7 +794,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     than ``attr_1``. Anything wider than one column per vertex is skipped with
     a warning, as is anything past the column cap reading admits, so the pair
     that lands on disk is always one this codec reads back. One scalar
-    ``element_attrs`` entry becomes the element attribute — ``region`` when the
+    ``element_attrs`` entry becomes the element attribute - ``region`` when the
     mesh has it, else the first name, warned about because it reads back as
     ``region``. ``element_tags`` and ``global_attrs`` have nowhere to go and
     are not written.

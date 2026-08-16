@@ -1,4 +1,4 @@
-"""DOLFIN/FEniCS XML .xml codec — read + write."""
+"""DOLFIN/FEniCS XML .xml codec - read + write."""
 
 from pathlib import Path
 import warnings
@@ -195,7 +195,7 @@ def write(
     if skipped:
         warnings.warn(
             f".xml write: {skipped} element(s) skipped (unsupported type or"
-            f" mixed type — only '{celltype_name}' written).",
+            f" mixed type - only '{celltype_name}' written).",
             stacklevel=2,
         )
 

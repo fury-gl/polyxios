@@ -10,7 +10,7 @@ VTK RectilinearGrid
 Summary of the specification
 ----------------------------
 
-``.vtr`` is one of the VTK XML serial formats. A ``<VTKFile type="RectilinearGrid">`` root wraps a piece whose extent is declared as six integer indices, and whose geometry is three independent coordinate arrays — one per axis — rather than an explicit point list. Data arrays live in ``<PointData>`` and ``<CellData>`` and may be stored inline as ASCII, inline as base64, or appended as a single raw block referenced by byte offset, optionally zlib-compressed.
+``.vtr`` is one of the VTK XML serial formats. A ``<VTKFile type="RectilinearGrid">`` root wraps a piece whose extent is declared as six integer indices, and whose geometry is three independent coordinate arrays - one per axis - rather than an explicit point list. Data arrays live in ``<PointData>`` and ``<CellData>`` and may be stored inline as ASCII, inline as base64, or appended as a single raw block referenced by byte offset, optionally zlib-compressed.
 
 Specification at a glance
 -------------------------
@@ -60,8 +60,8 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
-- Appended and base64 payloads are decoded eagerly — the XML container has no seekable layout for mmap, so ``lazy=True`` has no effect.
+- Appended and base64 payloads are decoded eagerly - the XML container has no seekable layout for mmap, so ``lazy=True`` has no effect.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

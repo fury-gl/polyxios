@@ -36,7 +36,7 @@ First public release of **polyxios**.
 New features
 ~~~~~~~~~~~~
 
-- Plugin-based codec registry via Python entry points — third-party packages
+- Plugin-based codec registry via Python entry points - third-party packages
   can register mesh formats without patching polyxios.
 - VTK legacy (``.vtk``) and XML (``.vtu``, ``.vtp``) reader/writer with
   ASCII and binary (raw + appended) encoding.

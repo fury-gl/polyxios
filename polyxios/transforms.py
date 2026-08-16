@@ -82,8 +82,8 @@ def remove_orphan_vertices(poly: PolyData) -> PolyData:
 def _fill_like(ref: np.ndarray, length: int) -> np.ndarray:
     """Build a placeholder block matching a reference attribute's channels.
 
-    An attribute is not always one number per vertex or element — normals,
-    colours and texture coordinates are (n, k) — so the placeholder has to
+    An attribute is not always one number per vertex or element - normals,
+    colours and texture coordinates are (n, k) - so the placeholder has to
     keep the reference's trailing shape or the concatenation has nothing to
     line up against.
     """
@@ -513,7 +513,7 @@ def extract_surface(poly: PolyData) -> PolyData:
 
     A boundary face is one shared by exactly one element. Surface elements
     already present in the mesh (triangle, quad, polygon, etc.) are ignored
-    during extraction — only 3D volumetric elements contribute.
+    during extraction - only 3D volumetric elements contribute.
 
     Parameters
     ----------

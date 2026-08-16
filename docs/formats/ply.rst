@@ -10,7 +10,7 @@ Stanford PLY
 Summary of the specification
 ----------------------------
 
-PLY — the Stanford Triangle Format — stores a mesh as a list of named elements, typically ``vertex`` and ``face``, each declared in an ASCII header along with its property names and scalar types. The body that follows is either ASCII text or a packed binary block in the byte order the header names. Because the header is self-describing, PLY can carry arbitrary per-vertex and per-face attributes: colours, normals, confidence, intensity.
+PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically ``vertex`` and ``face``, each declared in an ASCII header along with its property names and scalar types. The body that follows is either ASCII text or a packed binary block in the byte order the header names. Because the header is self-describing, PLY can carry arbitrary per-vertex and per-face attributes: colours, normals, confidence, intensity.
 
 Specification at a glance
 -------------------------
@@ -26,7 +26,7 @@ Specification at a glance
    * - scalar types
      - char uchar short ushort int uint float double, plus list <count-type> <item-type>
    * - faces
-     - property list uchar int vertex_indices — 0-based, arbitrary polygon size
+     - property list uchar int vertex_indices - 0-based, arbitrary polygon size
    * - comments
      - comment lines anywhere in the header; obj_info for producer metadata
    * - published by
@@ -82,10 +82,10 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- Vertex properties beyond x/y/z — colour, normals, confidence, intensity — are preserved as named vertex attributes rather than dropped.
+- Vertex properties beyond x/y/z - colour, normals, confidence, intensity - are preserved as named vertex attributes rather than dropped.
 - Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.
 - Index widths are checked against the declared vertex count, so a mesh too large for the header's list type raises instead of truncating.
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

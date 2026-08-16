@@ -15,12 +15,15 @@ document.addEventListener("DOMContentLoaded", function () {
       event.preventDefault();
       var text = command.textContent.replace(/^\s*\$\s*/, "");
 
+      // The button holds two icons; CSS shows one at a time off this class.
+      // aria-label carries the state change for screen readers, since the
+      // swapped-in checkmark is aria-hidden.
       var done = function () {
-        button.textContent = "copied";
         button.classList.add("is-copied");
+        button.setAttribute("aria-label", "Copied");
         window.setTimeout(function () {
-          button.textContent = "copy";
           button.classList.remove("is-copied");
+          button.setAttribute("aria-label", "Copy install command");
         }, 1600);
       };
 

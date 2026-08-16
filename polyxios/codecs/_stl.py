@@ -1,4 +1,4 @@
-"""STL (Stereolithography) codec — binary and ASCII, read + write."""
+"""STL (Stereolithography) codec - binary and ASCII, read + write."""
 
 import mmap
 from pathlib import Path
@@ -75,7 +75,7 @@ def read(
             element_types=np.array([], dtype=np.uint8),
         )
 
-    # vertices shape: (n_tris, 3, 3) — [tri, corner, xyz]
+    # vertices shape: (n_tris, 3, 3) - [tri, corner, xyz]
     if merge_vertices:
         flat = vertices.reshape(-1, 3)
         unique_verts, inv = _unique_rows_stable(flat)
@@ -127,7 +127,7 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
 
     verts = poly.vertices
 
-    # Vectorised gather — validate each triangle has exactly 3 connectivity slots
+    # Vectorised gather - validate each triangle has exactly 3 connectivity slots
     sizes = poly.offsets[tri_indices + 1] - poly.offsets[tri_indices]
     if np.any(sizes != 3):
         raise CodecError("PolyData triangle element with connectivity != 3 vertices.")
@@ -152,10 +152,10 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
 def _read_binary_lazy(path: Path) -> PolyData:
     """Read a binary STL without vertex deduplication.
 
-    Skips merge_vertices step — useful for large files where deduplication
+    Skips merge_vertices step - useful for large files where deduplication
     overhead is significant. Data is eagerly copied; file is closed on return.
 
-    Normals are the values stored in the STL file (may be all-zero — the STL
+    Normals are the values stored in the STL file (may be all-zero - the STL
     spec allows writers to omit them). Callers requiring unit normals should
     recompute from vertices.
     """
@@ -206,7 +206,7 @@ def _is_ascii(raw: bytes, *, file_size: int | None = None) -> bool:
         Raw bytes (may be a partial peek for lazy reads).
     file_size
         Actual file size in bytes. When provided, used instead of len(raw) for
-        binary-size validation — required when raw is a partial read.
+        binary-size validation - required when raw is a partial read.
     """
     # Binary STL has an 80-byte header then a 4-byte triangle count.
     # ASCII STL starts with 'solid'. Some binary files also start with 'solid',

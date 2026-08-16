@@ -10,7 +10,7 @@ VTK Legacy
 Summary of the specification
 ----------------------------
 
-The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble — version banner, title, ``ASCII`` or ``BINARY`` data mode, and a ``DATASET`` keyword naming the geometry type. What follows depends on that type: an unstructured grid lists ``POINTS``, then ``CELLS`` as connectivity lists prefixed by their point count, then a parallel ``CELL_TYPES`` array of integer type codes. Point and cell attributes arrive afterwards in ``POINT_DATA`` / ``CELL_DATA`` sections as named ``SCALARS``, ``VECTORS`` or ``FIELD`` arrays. In ``BINARY`` mode the arrays are raw big-endian values packed straight after their declaration line.
+The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ``ASCII`` or ``BINARY`` data mode, and a ``DATASET`` keyword naming the geometry type. What follows depends on that type: an unstructured grid lists ``POINTS``, then ``CELLS`` as connectivity lists prefixed by their point count, then a parallel ``CELL_TYPES`` array of integer type codes. Point and cell attributes arrive afterwards in ``POINT_DATA`` / ``CELL_DATA`` sections as named ``SCALARS``, ``VECTORS`` or ``FIELD`` arrays. In ``BINARY`` mode the arrays are raw big-endian values packed straight after their declaration line.
 
 Specification at a glance
 -------------------------
@@ -83,4 +83,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

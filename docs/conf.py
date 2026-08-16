@@ -143,7 +143,7 @@ html_theme_options = {
     # "<polyxios />" is parsed as an unknown HTML element and renders nothing.
     "logo": {"text": "&lt;polyxios /&gt;"},
     "announcement": (
-        "// fast, clean mesh I/O for Python &mdash; one dependency instead of twenty-five"
+        "// fast, clean mesh I/O for Python - one dependency instead of twenty-five"
     ),
     "github_url": "https://github.com/fury-gl/polyxios",
     "icon_links": [

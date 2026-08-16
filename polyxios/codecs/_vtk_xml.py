@@ -5,7 +5,7 @@ For appended data:
 - encoding="base64"→ offsets are CHARACTER offsets from after the '_' marker.
   Each data block (header and each compressed sub-block) is independently
   base64-encoded with its own padding, so Python's b64decode must NOT be
-  applied to the whole text at once — it stops at the first '==' it sees.
+  applied to the whole text at once - it stops at the first '==' it sees.
 """
 
 import base64
@@ -65,11 +65,11 @@ def parse_xml(
     tuple
         ``(root, appended, header_type, big_endian, compressed, is_base64)``
 
-        * *appended* — raw base64 text (bytes) when ``is_base64=True``, or raw
+        * *appended* - raw base64 text (bytes) when ``is_base64=True``, or raw
           binary bytes when ``is_base64=False``, or ``None`` for inline-only files.
-        * *header_type* — ``"UInt32"`` or ``"UInt64"``.
-        * *compressed* — ``True`` when a vtkZLibDataCompressor is declared.
-        * *is_base64* — ``True`` when the appended section uses base64 encoding.
+        * *header_type* - ``"UInt32"`` or ``"UInt64"``.
+        * *compressed* - ``True`` when a vtkZLibDataCompressor is declared.
+        * *is_base64* - ``True`` when the appended section uses base64 encoding.
     """
     raw = path.read_bytes()
 
@@ -264,7 +264,7 @@ def decode_da(
         Raw base64 text (when ``is_base64=True``) or raw binary bytes
         (when ``is_base64=False``), or None for inline-only files.
     header_type
-        ``"UInt32"`` or ``"UInt64"`` — governs block-header size.
+        ``"UInt32"`` or ``"UInt64"`` - governs block-header size.
     compressed
         True when vtkZLibDataCompressor is active.
     is_base64

@@ -10,7 +10,7 @@ VTK ImageData
 Summary of the specification
 ----------------------------
 
-``.vti`` is the XML serial form of a VTK ImageData: a uniform grid stored entirely as metadata. A ``<VTKFile type="ImageData">`` root holds an ``<ImageData>`` carrying ``WholeExtent``, ``Origin`` and ``Spacing`` — the index range on each axis, the coordinate of the first node, and the constant step between nodes. There are no coordinates in the file at all; every node position follows from ``origin + index * spacing``, and the cells are the hexahedra implied by the extent. Only ``<PointData>`` and ``<CellData>`` arrays carry actual payload, encoded like any other VTK XML file.
+``.vti`` is the XML serial form of a VTK ImageData: a uniform grid stored entirely as metadata. A ``<VTKFile type="ImageData">`` root holds an ``<ImageData>`` carrying ``WholeExtent``, ``Origin`` and ``Spacing`` - the index range on each axis, the coordinate of the first node, and the constant step between nodes. There are no coordinates in the file at all; every node position follows from ``origin + index * spacing``, and the cells are the hexahedra implied by the extent. Only ``<PointData>`` and ``<CellData>`` arrays carry actual payload, encoded like any other VTK XML file.
 
 Specification at a glance
 -------------------------
@@ -74,5 +74,5 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
-   :doc:`vts` — the curvilinear structured sibling.
+   :doc:`index` - the full format table.
+   :doc:`vts` - the curvilinear structured sibling.

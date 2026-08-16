@@ -22,7 +22,7 @@ Specification at a glance
    * - gridpoints
      - G <id> <x> <y> <z>
    * - zones
-     - Z <shape> <id> <gp ids...> — B8 hex, W6 wedge, P5 pyramid, T4 tet
+     - Z <shape> <id> <gp ids...> - B8 hex, W6 wedge, P5 pyramid, T4 tet
    * - faces
      - F <shape> <id> <gp ids...>
    * - groups
@@ -65,4 +65,4 @@ Quirks worth knowing
 
 .. seealso::
 
-   :doc:`index` — the full format table.
+   :doc:`index` - the full format table.

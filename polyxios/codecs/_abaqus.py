@@ -1,4 +1,4 @@
-"""Abaqus .inp ASCII codec — read + write."""
+"""Abaqus .inp ASCII codec - read + write."""
 
 from pathlib import Path
 import warnings

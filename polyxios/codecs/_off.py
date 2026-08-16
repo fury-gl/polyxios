@@ -1,4 +1,4 @@
-"""OFF (Object File Format) codec — ASCII and binary read + write."""
+"""OFF (Object File Format) codec - ASCII and binary read + write."""
 
 from collections.abc import Iterator
 import io
@@ -36,7 +36,7 @@ _MIN_FACE_SIZE: int = 3
 # trade file size for the full float64 round trip.
 _DEFAULT_FLOAT_FMT: str = ".10g"
 
-# Binary OFF is 32-bit big-endian throughout — "Binary data comprise 32-bit
+# Binary OFF is 32-bit big-endian throughout - "Binary data comprise 32-bit
 # integers and 32-bit IEEE-format floats, both in big-endian format".
 _INT_BE: np.dtype = np.dtype(">i4")
 _FLOAT_BE: np.dtype = np.dtype(">f4")
@@ -169,8 +169,8 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
     Notes
     -----
-    OFF stores polygonal surfaces only. Elements of any other type — lines and
-    volume cells among them — are skipped with a warning, one per type. Every
+    OFF stores polygonal surfaces only. Elements of any other type - lines and
+    volume cells among them - are skipped with a warning, one per type. Every
     vertex is written whether or not a surviving face references it, so vertex
     indices are preserved across a round trip.
 
@@ -338,7 +338,7 @@ def _read_ascii(text: str, layout: _Layout) -> PolyData:
     available = text.count("\n") + 1
     if n_verts + n_faces > available:
         raise CodecError(
-            f".off: file truncated — expected {n_verts + n_faces} vertex and"
+            f".off: file truncated - expected {n_verts + n_faces} vertex and"
             f" face lines, file holds at most {available}."
         )
 
@@ -423,7 +423,7 @@ def _parse_ascii_vertices(
 
     if seen != n_verts:
         raise CodecError(
-            f".off: file truncated — expected {n_verts} vertex lines, got {seen}."
+            f".off: file truncated - expected {n_verts} vertex lines, got {seen}."
         )
 
     attrs: dict[str, np.ndarray] = {}
@@ -487,7 +487,7 @@ def _parse_ascii_faces(
 
     if seen != n_faces:
         raise CodecError(
-            f".off: file truncated — expected {n_faces} face lines, got {seen}."
+            f".off: file truncated - expected {n_faces} face lines, got {seen}."
         )
 
     attrs, color_fmt = _ascii_face_color_attrs(color_tokens, n_faces)
@@ -529,8 +529,8 @@ def _face_color_attrs(
     """Lay per-face colour channels out as one array.
 
     A colorspec is nothing, one colormap index, or three or four RGB[A]
-    channels. A file that mixes those spellings — including one that colours
-    only some of its faces — cannot be laid out as one array, so the colours
+    channels. A file that mixes those spellings - including one that colours
+    only some of its faces - cannot be laid out as one array, so the colours
     are dropped with a warning and the geometry is kept.
     """
     if not values:
@@ -613,7 +613,7 @@ def _read_binary(buf: bytes, layout: _Layout) -> PolyData:
     types_list: list[int] = []
     face_colors: list[list[float]] = []
 
-    # Faces are variable length, so they are walked one at a time — but the
+    # Faces are variable length, so they are walked one at a time - but the
     # walk reads out of one view of the tail rather than slicing a fresh
     # buffer per field. The float view aliases the same words, which is what
     # lets a colour be read without re-interpreting the whole block.
@@ -711,7 +711,7 @@ def _take(
     end = pos + count * _WORD
     if end > len(buf):
         raise CodecError(
-            f".off: binary data truncated — needed {count} {what} at byte"
+            f".off: binary data truncated - needed {count} {what} at byte"
             f" {pos}, only {len(buf) - pos} bytes remain."
         )
     return np.frombuffer(buf, dtype=dtype, count=count, offset=pos), end
@@ -751,7 +751,7 @@ def _face_cell(poly: PolyData, i: int, n_verts: int) -> list[int]:
     s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
     cell = [int(v) for v in poly.connectivity[s:e]]
     # An index the file's own vertex block cannot reach makes the OFF
-    # unreadable — including by this codec's reader — so refuse to write it.
+    # unreadable - including by this codec's reader - so refuse to write it.
     for v in cell:
         if not 0 <= v < n_verts:
             raise CodecError(
@@ -872,7 +872,7 @@ def _color_tokens(channels: np.ndarray, as_bytes: bool, float_fmt: str) -> list[
         scaled = np.clip(np.rint(np.asarray(channels) * _BYTE_SCALE), 0, _BYTE_SCALE)
         return [str(int(c)) for c in scaled]
     # A 0..1 channel that lands on a whole number formats as "1", which any
-    # reader — this one included — has to take for the 0..255 spelling. Keep
+    # reader - this one included - has to take for the 0..255 spelling. Keep
     # the point so the scale survives the round trip.
     return [
         f"{token}.0" if _is_int_token(token) else token
