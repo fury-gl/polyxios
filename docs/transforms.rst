@@ -1,6 +1,10 @@
 Transforms
 ==========
 
+.. meta::
+   :description: Filter, clean and merge meshes in polyxios: drop degenerate elements, weld duplicate vertices, extract surfaces and combine datasets.
+
+
 .. code-block:: python
 
     from polyxios.transforms import (
