@@ -26,6 +26,17 @@ def _tri_mesh():
     )
 
 
+def _write_curved(poly, path: Path) -> None:
+    """Write a 3-D surface mesh, absorbing the warning that SU2 will refuse it.
+
+    Every surface mesh with a z extent is written with that warning - see
+    ``test_a_curved_surface_reports_that_su2_will_refuse_it`` - so tests that
+    are not about the warning still have to account for it.
+    """
+    with pytest.warns(UserWarning, match="highest elements are 2-D"):
+        write(poly, path)
+
+
 def _tet_with_boundary():
     """One tetra plus its four faces, two of them tagged."""
     return make_polydata(
@@ -71,7 +82,7 @@ def test_roundtrip_tetra(tmp_path: Path) -> None:
 def test_roundtrip_triangles(tmp_path: Path) -> None:
     poly = _tri_mesh()
     path = tmp_path / "t.su2"
-    write(poly, path)
+    _write_curved(poly, path)
     back = read(path)
     assert len(back.element_types) == 4
     np.testing.assert_allclose(back.vertices, poly.vertices)
@@ -80,7 +91,7 @@ def test_roundtrip_triangles(tmp_path: Path) -> None:
 
 def test_file_has_the_declared_sections(tmp_path: Path) -> None:
     path = tmp_path / "t.su2"
-    write(_tri_mesh(), path)
+    _write_curved(_tri_mesh(), path)
     text = path.read_text()
     assert "NDIME=" in text
     assert "NELEM= 4" in text
@@ -393,8 +404,10 @@ def test_write_rejects_an_out_of_range_vertex(tmp_path: Path) -> None:
         offsets=np.array([0, 3], dtype=np.int32),
         element_types=np.array([ELEMENT_TYPES["triangle"]], dtype=np.uint8),
     )
-    with pytest.raises(CodecError, match="references vertex 9"):
-        write(poly, tmp_path / "t.su2")
+    # The dimension warning is emitted before the elements are validated.
+    with pytest.warns(UserWarning, match="highest elements are 2-D"):
+        with pytest.raises(CodecError, match="references vertex 9"):
+            write(poly, tmp_path / "t.su2")
 
 
 def test_write_rejects_a_wrong_node_count(tmp_path: Path) -> None:
@@ -404,8 +417,9 @@ def test_write_rejects_a_wrong_node_count(tmp_path: Path) -> None:
         offsets=np.array([0, 4], dtype=np.int32),
         element_types=np.array([ELEMENT_TYPES["triangle"]], dtype=np.uint8),
     )
-    with pytest.raises(CodecError, match="expected 3"):
-        write(poly, tmp_path / "t.su2")
+    with pytest.warns(UserWarning, match="highest elements are 2-D"):
+        with pytest.raises(CodecError, match="expected 3"):
+            write(poly, tmp_path / "t.su2")
 
 
 def test_write_warns_on_unknown_options(tmp_path: Path) -> None:
