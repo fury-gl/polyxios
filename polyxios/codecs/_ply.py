@@ -301,14 +301,14 @@ def _read_binary(
 def _read_binary_lazy(
     path: Path, header: dict, header_end_offset: int, little_endian: bool
 ) -> PolyData:
-    # mmap stays open; arrays reference its pages (OS lazy-loads on access)
-    fh = open(path, "rb")
-    mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+    # The mapping outlives the descriptor: mmap keeps the file alive on its own,
+    # so closing fh here leaks nothing while the arrays still reference the
+    # mapped pages, which the OS loads on demand.
+    with open(path, "rb") as fh:
+        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
     mv = memoryview(mm)
     poly = _decode_binary(mv, header, header_end_offset, little_endian)
-    # mm and fh left open; pages loaded on demand
-    # Note: in CPython, mm will be GC'd eventually. For long-lived lazy arrays,
-    # callers should access data promptly or convert arrays.
+    # mm is kept alive by the arrays that view it, and unmapped once they go.
     return poly
 
 

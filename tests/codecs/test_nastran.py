@@ -558,8 +558,11 @@ def test_write_precision_is_exact(tmp_path) -> None:
     """Coordinates round-trip bit-for-bit."""
     verts, poly = _precision_mesh()
     tmp = tmp_path / "prec.bdf"
-    with pytest.warns(UserWarning, match="more than 8 characters"):
-        write(poly, tmp)
+    # 1e-17 and -9.87e300 have no free-field spelling at all, which is a
+    # second warning on top of the one about width.
+    with pytest.warns(UserWarning, match="no free-field spelling"):
+        with pytest.warns(UserWarning, match="more than 8 characters"):
+            write(poly, tmp)
     np.testing.assert_array_equal(read(tmp).vertices, verts)
 
 
@@ -1220,8 +1223,9 @@ def test_write_warns_when_no_free_field_spelling_survives(tmp_path) -> None:
     """A huge exponent has no fixed-point spelling worth writing."""
     verts = np.array([[-9.87654321e300, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
     poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
-    with pytest.warns(UserWarning, match="reads a different magnitude"):
-        write(poly, tmp_path / "huge.bdf")
+    with pytest.warns(UserWarning, match="need more than 8 characters"):
+        with pytest.warns(UserWarning, match="reads a different magnitude"):
+            write(poly, tmp_path / "huge.bdf")
 
 
 def test_free_field_cards_stay_within_eighty_columns(tmp_path) -> None:

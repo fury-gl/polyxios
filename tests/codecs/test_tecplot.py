@@ -415,8 +415,10 @@ def test_record_inside_zone_data_raises(tmp_path: Path) -> None:
         "0 0 0\n1 0 0\n0 1 0\n"
         "ZONE N=3, E=1, F=FEPOINT, ET=TRIANGLE\n0 0 1\n1 0 1\n0 1 1\n1 2 3\n",
     )
-    with pytest.raises(CodecError, match="new record starts inside"):
-        read(path)
+    # The second ZONE is seen, and warned about, before its data is read.
+    with pytest.warns(UserWarning, match="more than one zone"):
+        with pytest.raises(CodecError, match="new record starts inside"):
+            read(path)
 
 
 def test_extra_zone_warns_and_reads_the_first(tmp_path: Path) -> None:
