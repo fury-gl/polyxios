@@ -485,7 +485,7 @@ def fetch(filename: str, overwrite: bool = False, *, package: str | None = None)
         The absolute local path to the fetched file.
 
     Raises
-    -------
+    ------
     FetcherError
         If filename is invalid or is not found in the package.
     """
