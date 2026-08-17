@@ -58,6 +58,11 @@ package = "polyxios"
 [tool.pytest.ini_options]
 addopts = "--durations=10 -v"
 testpaths = ["tests"]
+# A warning the suite does not account for is a bug in the test or the code it
+# covers, so it fails the run. Codecs warn a lot by design; every one of those
+# belongs inside a `pytest.warns`, and nesting two catches a call that warns
+# twice.
+filterwarnings = ["error"]
 markers = [
     "network: downloads assets from the remote data catalog (deselect with -m 'not network')",
 ]

@@ -78,9 +78,9 @@ jobs:
           # Everything that is not the stable copy is built noindex, so the
           # duplicate pages at /dev/ and /X.Y/ do not compete with /stable/.
           DOCS_IS_STABLE: ${{ steps.target.outputs.is_stable }}
-        run: |
-          cd docs
-          make html SPHINXOPTS="-W --keep-going"
+        # The Makefile already builds with -W --keep-going, so this matches a
+        # local `make html` exactly.
+        run: make -C docs html
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v7

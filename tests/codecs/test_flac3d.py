@@ -333,8 +333,9 @@ def test_no_recognised_zones_warns(tmp_path: Path) -> None:
         "ZONE  UNKNOWNTYPE  1  1  2\n",
         encoding="ascii",
     )
-    with pytest.warns(UserWarning, match="no recognised ZONE"):
-        poly = read(f)
+    with pytest.warns(UserWarning, match=r"unknown zone type\(s\) skipped"):
+        with pytest.warns(UserWarning, match="no recognised ZONE"):
+            poly = read(f)
     assert len(poly.element_types) == 0
 
 
@@ -672,8 +673,9 @@ def test_write_tag_with_no_written_record_warns(tmp_path: Path) -> None:
         [("line", np.array([[0, 1]]))],
         element_tags={"Edge": np.array([0], dtype=np.int32)},
     )
-    with pytest.warns(UserWarning, match="element tag"):
-        write(poly, tmp_path / "line.f3grid")
+    with pytest.warns(UserWarning, match=r"element\(s\) skipped"):
+        with pytest.warns(UserWarning, match="element tag"):
+            write(poly, tmp_path / "line.f3grid")
 
 
 def test_group_referencing_unknown_zone_warns(tmp_path: Path) -> None:
@@ -958,8 +960,10 @@ def test_partly_dropped_tag_members_warn(tmp_path: Path) -> None:
         element_tags={"Mixed": np.array([0, 1, 99], dtype=np.int32)},
     )
     out = tmp_path / "partial.f3grid"
-    with pytest.warns(UserWarning, match="tag member"):
-        write(poly, out)
+    # The line element is unwritable, which is warned about on its own.
+    with pytest.warns(UserWarning, match=r"element\(s\) skipped"):
+        with pytest.warns(UserWarning, match="tag member"):
+            write(poly, out)
     np.testing.assert_array_equal(read(out).element_tags["Mixed"], [0])
 
 

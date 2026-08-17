@@ -13,6 +13,7 @@ button on the landing page's install command.
 
 import os
 import sys
+import warnings
 from importlib import metadata
 from pathlib import Path
 
@@ -114,6 +115,17 @@ extlinks = {
 
 autosummary_generate = True
 numpydoc_show_class_members = False
+
+# numpydoc reports a malformed docstring - a mis-counted section underline, an
+# unknown section name - through warnings.warn rather than the Sphinx logger,
+# so sphinx-build -W never sees it and a broken docstring ships silently.
+# Every one of those messages names where it came from, which is what the
+# pattern keys on. Raising them makes -W's promise hold for docstrings too.
+warnings.filterwarnings(
+    "error",
+    message=r"(?s).*in the docstring of ",
+    category=UserWarning,
+)
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),

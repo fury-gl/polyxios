@@ -130,7 +130,7 @@ def test_stale_cached_file_is_redownloaded(home, monkeypatch) -> None:
     monkeypatch.setattr(urllib.request, "urlopen", _mock_urlopen(new_payload))
 
     path = fetch("bunny.obj")
-    assert open(path, "rb").read() == new_payload
+    assert Path(path).read_bytes() == new_payload
 
 
 def test_safe_extract_zip_rejects_traversal(home) -> None:
@@ -256,7 +256,7 @@ def test_missing_companion_refetches_only_the_archive(home, monkeypatch) -> None
     path = fetch("dataset.vtp")
 
     assert requested == ["https://example.com/dataset.zip"]
-    assert open(path, "rb").read() == payload
+    assert Path(path).read_bytes() == payload
     assert (vtp_dir / "dataset" / "piece_0.vtp").read_text() == "piece"
 
     # A second call finds the extraction flag and stays off the network.
