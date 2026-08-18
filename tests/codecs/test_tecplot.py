@@ -100,6 +100,37 @@ def test_plt_is_registered_but_neither_read_nor_written(tmp_path: Path) -> None:
         api_read(path)
 
 
+def test_a_file_shorter_than_the_magic_is_not_mistaken_for_binary(
+    tmp_path: Path,
+) -> None:
+    """The magic is read on its own, so a short file must not trip on it."""
+    path = tmp_path / "stub.tec"
+    path.write_bytes(b"#!T")
+    with pytest.raises(CodecError, match="no ZONE header|ZONE"):
+        api_read(path)
+
+
+def test_a_binary_plt_is_rejected_without_being_loaded(tmp_path: Path) -> None:
+    """Rejecting a gigabyte of binary must not cost a gigabyte of memory."""
+    import tracemalloc
+
+    size = 16 * 1024 * 1024
+    path = tmp_path / "big.plt"
+    path.write_bytes(b"#!TDV112" + b"\x00" * size)
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(CodecError, match="binary Tecplot"):
+            api_read(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    # The first five bytes settle it; anything near the file's size means the
+    # body was slurped before the check.
+    assert peak < size // 4
+
+
 @pytest.mark.parametrize(
     "head",
     [
@@ -108,6 +139,9 @@ def test_plt_is_registered_but_neither_read_nor_written(tmp_path: Path) -> None:
         b"ZONE N=3, E=1\n",
         b"# a comment first\nZONE N=3\n",
         b"#!TDV112",
+        # An unquoted title is not a verdict either way; the line under it is.
+        b'TITLE = mesh\nVARIABLES = "X" "Y"\n',
+        b"TITLE = mesh\nZONE N=3, E=1, F=FEPOINT, ET=TRIANGLE\n",
     ],
 )
 def test_sniff_accepts_a_tecplot_header(head: bytes) -> None:
@@ -119,8 +153,12 @@ def test_sniff_accepts_a_tecplot_header(head: bytes) -> None:
     [
         b"",
         b"$ nastran banner\nGRID,1,,0.,0.,0.\n",
-        # A Nastran case-control title is unquoted; a Tecplot one never is.
+        # A Nastran case-control title is unquoted, so what follows it decides:
+        # case control below an unquoted title is a deck, not a Tecplot header.
         b"TITLE = my model\nCEND\n",
+        b"TITLE = my model\nSUBTITLE = load case 1\nCEND\n",
+        # A title and nothing under it settles nothing, so it stays ambiguous.
+        b"TITLE = my model\n",
         b"# x y z\n0.0 0.0 0.0\n",
         b"*KEYWORD\n",
     ],

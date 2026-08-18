@@ -65,7 +65,8 @@ Quirks worth knowing
 - Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
 - ``.dat`` is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
   inside the file: a ``.dat`` opening with ``TITLE = "``, ``VARIABLES =``, ``ZONE``, ``FILETYPE =``
-  or ``DATASETAUXDATA`` lands here. ``px.read("flow.dat", fmt=".tec")`` still forces the issue,
+  or ``DATASETAUXDATA`` lands here. An unquoted ``TITLE =`` decides nothing - Nastran case
+  control spells its title the same way - so the line under it settles the question. ``px.read("flow.dat", fmt=".tec")`` still forces the issue,
   and writing to ``.dat`` needs ``fmt=".tec"`` because an output file has no content to inspect.
 - Binary Tecplot (``.plt``) is registered so it fails with a clear message rather than not
   resolving at all; only the ASCII flavour is parsed.

@@ -1278,6 +1278,8 @@ def test_property_id_tags_cover_every_element(tmp_path) -> None:
         b"GRID*   1\n",
         b"$ a banner\n$ and more of it\nGRID,1,,0.,0.,0.\n",
         b"SOL 101\nCEND\n",
+        # A solution name is as legal as a solution number.
+        b"SOL SESTATIC\nCEND\n",
         b"NASTRAN SYSTEM(151)=1\n",
         b"BEGIN BULK\n",
     ],
@@ -1295,6 +1297,9 @@ def test_sniff_accepts_a_deck(head: bytes) -> None:
         # A table headed with the word GRID is not a GRID card: the delimiter
         # after the keyword is what tells them apart.
         b"GRID POINTS OF THE MODEL\n1 0.0 0.0 0.0\n",
+        # A SOL card takes a solution number, never a float: a numeric
+        # table whose first row opens with the word is not a deck.
+        b"SOL 1.0 2.0\n3.0 4.0 5.0\n",
         b"*KEYWORD\n",
     ],
 )
