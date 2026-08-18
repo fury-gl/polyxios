@@ -8,7 +8,7 @@ import pytest
 from polyxios import make_polydata, read as api_read, write as api_write
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
-from polyxios.codecs._tecplot import read, write
+from polyxios.codecs._tecplot import read, sniff, write
 from polyxios.exceptions import CodecError, UnsupportedFormatError
 
 _VERTS = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
@@ -74,18 +74,97 @@ def test_registered_for_tec_extension(tmp_path: Path) -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_dat_stays_unclaimed_and_reads_through_the_fmt_override(
+def test_dat_is_recognised_by_content_and_by_the_fmt_override(
     tmp_path: Path,
 ) -> None:
-    """'.dat' is shared with LS-DYNA and Nastran, so it resolves to no codec."""
+    """'.dat' is shared with LS-DYNA and Nastran, so it resolves by sniffing."""
     poly = _tri_mesh()
     path = tmp_path / "mesh.dat"
+    # The extension is shared, so a writer cannot be picked from it.
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        api_write(poly, path)
     api_write(poly, path, fmt=".tec")
-    with pytest.raises(UnsupportedFormatError, match=r"\.dat"):
-        api_read(path)
+    np.testing.assert_array_equal(api_read(path).connectivity, poly.connectivity)
     np.testing.assert_array_equal(
         api_read(path, fmt=".tec").connectivity, poly.connectivity
     )
+
+
+def test_plt_is_registered_but_neither_read_nor_written(tmp_path: Path) -> None:
+    """Binary Tecplot resolves here only so the error names the format."""
+    path = tmp_path / "mesh.plt"
+    with pytest.raises(CodecError, match="binary Tecplot"):
+        api_write(_tri_mesh(), path)
+    path.write_bytes(b"#!TDV112" + b"\x00" * 16)
+    with pytest.raises(CodecError, match="binary Tecplot"):
+        api_read(path)
+
+
+def test_a_file_shorter_than_the_magic_is_not_mistaken_for_binary(
+    tmp_path: Path,
+) -> None:
+    """The magic is read on its own, so a short file must not trip on it."""
+    path = tmp_path / "stub.tec"
+    path.write_bytes(b"#!T")
+    with pytest.raises(CodecError, match="no ZONE header|ZONE"):
+        api_read(path)
+
+
+def test_a_binary_plt_is_rejected_without_being_loaded(tmp_path: Path) -> None:
+    """Rejecting a gigabyte of binary must not cost a gigabyte of memory."""
+    import tracemalloc
+
+    size = 16 * 1024 * 1024
+    path = tmp_path / "big.plt"
+    path.write_bytes(b"#!TDV112" + b"\x00" * size)
+
+    tracemalloc.start()
+    try:
+        with pytest.raises(CodecError, match="binary Tecplot"):
+            api_read(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    # The first five bytes settle it; anything near the file's size means the
+    # body was slurped before the check.
+    assert peak < size // 4
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b'TITLE = "x"\n',
+        b'VARIABLES = "X" "Y"\n',
+        b"ZONE N=3, E=1\n",
+        b"# a comment first\nZONE N=3\n",
+        b"#!TDV112",
+        # An unquoted title is not a verdict either way; the line under it is.
+        b'TITLE = mesh\nVARIABLES = "X" "Y"\n',
+        b"TITLE = mesh\nZONE N=3, E=1, F=FEPOINT, ET=TRIANGLE\n",
+    ],
+)
+def test_sniff_accepts_a_tecplot_header(head: bytes) -> None:
+    assert sniff(head) is True
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b"",
+        b"$ nastran banner\nGRID,1,,0.,0.,0.\n",
+        # A Nastran case-control title is unquoted, so what follows it decides:
+        # case control below an unquoted title is a deck, not a Tecplot header.
+        b"TITLE = my model\nCEND\n",
+        b"TITLE = my model\nSUBTITLE = load case 1\nCEND\n",
+        # A title and nothing under it settles nothing, so it stays ambiguous.
+        b"TITLE = my model\n",
+        b"# x y z\n0.0 0.0 0.0\n",
+        b"*KEYWORD\n",
+    ],
+)
+def test_sniff_rejects_what_is_not_tecplot(head: bytes) -> None:
+    assert sniff(head) is False
 
 
 def test_file_has_zone_header(tmp_path: Path) -> None:
