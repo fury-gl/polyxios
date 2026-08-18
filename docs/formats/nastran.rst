@@ -5,7 +5,7 @@ Nastran
 
 .. rst-class:: px-badges
 
-``.bdf .nas .fem`` ``read + write`` ``eager``
+``.bdf .nas .fem .dat`` ``read + write`` ``eager``
 
 Summary of the specification
 ----------------------------
@@ -30,7 +30,7 @@ Specification at a glance
    * - continuation
      - + / * continuation markers on overflowing cards
    * - other suffixes
-     - .dat is read via fmt=".bdf"
+     - .dat resolves by content (GRID / CEND / BEGIN BULK / SOL)
 
 .. rst-class:: px-speclink
 
@@ -74,7 +74,12 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - All three field widths are read; writing emits free field, with large-field ``GRID`` cards on request.
-- ``.dat`` decks are recognised when the codec is named explicitly: ``px.read("model.dat", fmt=".bdf")``.
+- ``.dat`` is shared with Tecplot, LS-DYNA and plain ASCII tables, so it is resolved by looking
+  inside the file: a ``$`` comment banner is stepped over and a ``GRID`` card, ``CEND``,
+  ``BEGIN BULK``, ``NASTRAN`` or a ``SOL`` naming a solution number or name lands the deck
+  here - a numeric table whose first row happens to read ``SOL 1.0 2.0`` does not.
+  ``px.read("model.dat", fmt=".bdf")`` still forces the issue, and writing to ``.dat`` needs
+  ``fmt=".bdf"`` because an output file has no content to inspect.
 - Property ids become element tags, so the deck's grouping is preserved.
 
 .. seealso::

@@ -115,13 +115,17 @@ triangle), avoiding the extra pass over the data.
 | DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
 | Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
-| Nastran | `.bdf` `.nas` `.fem` | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request; `.dat` via `fmt=".bdf"` |
-| Tecplot ASCII | `.tec` | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; `.dat` via `fmt=".tec"` |
+| Nastran | `.bdf` `.nas` `.fem` `.dat`* | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request |
+| Tecplot ASCII | `.tec` `.dat`* | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; binary `.plt` is recognised but not read |
 | SU2 | `.su2` | ✓ | ✓ | ASCII, VTK element codes, boundary markers → element tags |
 | TetGen | `.ele`+`.node` | ✓ | ✓ | paired files, 1-/0-based indices, boundary markers → vertex tags, region attrs |
 | UGRID (AFLR) | `.ugrid` | ✓ | ✓ | ASCII, tri/quad surface + tet/pyramid/prism/hex volume, boundary tags → element tags |
 | Netgen | `.vol` | ✓ | ✓ | ASCII, points/edges/faces/cells incl. quadratic, `bcnr`/`matnr` + names → element tags |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
+
+\* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
+in the Tecplot codec, a bulk data card in the Nastran one, and anything else reports both
+candidates. Writing to `.dat` needs an explicit `fmt=`.
 
 **20 formats supported** - more coming via the plugin system.
 

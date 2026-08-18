@@ -188,10 +188,18 @@ def cmd_list(args) -> int:
     if args.codecs:
         logger.info("File formats supported by polyxios codecs:")
 
-        all_exts = [ext.lstrip(".") for ext in polyxios.supported_extensions()]
         pkg_to_exts = {}
-        for ext_name in all_exts:
-            pkg = fetcher._EXT_TO_PACKAGE.get(ext_name, ext_name)
+        for ext in polyxios.supported_extensions():
+            ext_name = ext.lstrip(".")
+            # An extension several formats share resolves to a dispatcher that
+            # knows its candidates; grouping it under one of them would claim
+            # an ownership no codec has. Everything else groups by package.
+            candidates = getattr(polyxios._REGISTRY.get(ext), "candidates", ())
+            pkg = (
+                "/".join(candidates)
+                if candidates
+                else fetcher._EXT_TO_PACKAGE.get(ext_name, ext_name)
+            )
             pkg_to_exts.setdefault(pkg, []).append(f".{ext_name}")
 
         for pkg, exts in sorted(pkg_to_exts.items()):

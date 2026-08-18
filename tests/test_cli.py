@@ -389,6 +389,24 @@ def test_cli_list_codecs(temp_polyxios_home, monkeypatch, capsys):
     assert "abaqus (.inp)" in captured.out
 
 
+def test_cli_list_codecs_names_a_shared_extension_honestly(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """'.dat' resolves by content, so it cannot be listed under one format."""
+    monkeypatch.setattr(sys, "argv", ["pxios", "list", "--codecs"])
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+
+    captured = capsys.readouterr()
+    # Binary Tecplot groups with the codec that reports it, not on its own.
+    assert "tecplot (.plt, .tec)" in captured.out
+    assert "tecplot/nastran (.dat)" in captured.out
+    assert "plt (.plt)" not in captured.out
+    assert "dat (.dat)" not in captured.out
+
+
 def test_cli_list_modes_are_mutually_exclusive(temp_polyxios_home, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["pxios", "list", "--local", "--codecs"])
     with pytest.raises(SystemExit) as excinfo:

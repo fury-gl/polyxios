@@ -53,6 +53,14 @@ _EXT_TO_PACKAGE: dict[str, str] = {
     "vol": "netgen",
     "f3grid": "flac3d",
     "tec": "tecplot",
+    # Binary Tecplot: registered to the same codec so the error names the
+    # format, so it groups with '.tec' rather than posing as its own.
+    "plt": "tecplot",
+    # '.dat' is deliberately absent: a value here becomes a cache directory
+    # under POLYXIOS_HOME and a key into the catalog's 'formats', so it has
+    # to be one real package name. The extension belongs to no single format,
+    # so it falls through to itself; naming the competing formats is a
+    # listing concern and lives in the CLI.
     "meshb": "medit",
     "xml": "dolfin",
     "msh": "gmsh",
