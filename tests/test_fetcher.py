@@ -15,6 +15,7 @@ import pytest
 from polyxios import fetcher
 from polyxios.exceptions import FetcherError
 from polyxios.fetcher import (
+    _EXT_TO_PACKAGE,
     _safe_extract_zip,
     fetch,
     get_cached_files,
@@ -67,6 +68,17 @@ def test_get_package_name_builtin_map(home) -> None:
     assert get_package_name("xml") == "dolfin"
     assert get_package_name(".meshb") == "medit"
     assert get_package_name("obj") == "obj"
+
+
+def test_a_package_name_is_never_a_path(home) -> None:
+    """It becomes a directory under POLYXIOS_HOME and a catalog key, so a
+    separator in it would nest the cache and match no format."""
+    for ext, package in _EXT_TO_PACKAGE.items():
+        assert os.sep not in package, f"{ext} maps to a path, not a package"
+        assert "/" not in package and "\\" not in package
+        assert package not in ("", ".", "..")
+    # '.dat' is shared by several formats, so it names no package of its own.
+    assert get_package_name("dat") == "dat"
 
 
 def test_get_package_name_prefers_catalog(home) -> None:

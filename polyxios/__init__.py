@@ -10,7 +10,16 @@ _REGISTRY: dict[str, Codec] = build_default_registry()
 
 
 def supported_extensions(*, registry: dict | None = None) -> list[str]:
-    """List the file extensions the registry can read and write.
+    """List the file extensions the registry resolves.
+
+    Almost every one of them both reads and writes. Three kinds do not, and
+    are listed all the same because resolving to a message that names the
+    problem beats resolving to nothing:
+
+    - an extension several formats share, such as ``.dat``, reads by content
+      and needs ``fmt=`` to write;
+    - ``.plt`` resolves only to the error saying binary Tecplot is not read;
+    - the ParaView meta-file extensions read but raise on write.
 
     Parameters
     ----------
