@@ -27,6 +27,7 @@ import pytest
 import polyxios
 from polyxios import make_polydata
 from polyxios._types import PolyData
+from polyxios.exceptions import CodecError, UnsupportedFormatError
 
 # ---------------------------------------------------------------------------
 # Canonical meshes
@@ -436,10 +437,20 @@ CAPABILITIES: dict[str, Cap] = {
 # Same codec under another name; tests/test_registry.py covers the aliasing.
 _ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node"})
 
-# Registered so the error names the format, never to be written.
-_NOT_WRITABLE: frozenset[str] = frozenset(
-    {".pvti", ".pvtp", ".pvtr", ".pvts", ".pvtu", ".vtm", ".plt", ".dat"}
-)
+# Registered so the error names the format, never to be written. Each is
+# asserted below, so an entry cannot be parked here to escape the matrix.
+_NOT_WRITABLE: dict[str, type[Exception]] = {
+    ".pvti": NotImplementedError,
+    ".pvtp": NotImplementedError,
+    ".pvtr": NotImplementedError,
+    ".pvts": NotImplementedError,
+    ".pvtu": NotImplementedError,
+    ".vtm": NotImplementedError,
+    # Binary Tecplot: the ASCII writer refuses rather than mislabel its output.
+    ".plt": CodecError,
+    # Shared with Nastran and others: an output file has nothing to sniff.
+    ".dat": UnsupportedFormatError,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -530,7 +541,7 @@ def test_surviving_attribute_values_are_unchanged(tmp_path, ext: str) -> None:
 
 def test_every_extension_is_accounted_for() -> None:
     """A new codec cannot land without declaring its round-trip behaviour."""
-    declared = frozenset(CAPABILITIES) | _ALIASES | _NOT_WRITABLE
+    declared = frozenset(CAPABILITIES) | _ALIASES | frozenset(_NOT_WRITABLE)
     assert declared == frozenset(polyxios.supported_extensions())
 
 
@@ -552,12 +563,11 @@ def test_every_lossy_entry_explains_itself() -> None:
         assert not lossy or cap.note, f"{ext} loses data without saying why"
 
 
-def test_a_meta_file_extension_refuses_to_be_written(tmp_path) -> None:
+@pytest.mark.parametrize("ext", sorted(_NOT_WRITABLE))
+def test_an_unwritable_extension_refuses_to_be_written(tmp_path, ext: str) -> None:
     """The formats excluded from the matrix are excluded for a stated reason."""
-    poly = _surface()
-    for ext in (".pvtu", ".pvtp", ".pvtr", ".pvts", ".pvti", ".vtm"):
-        with pytest.raises(NotImplementedError):
-            polyxios.write(poly, tmp_path / f"mesh{ext}")
+    with pytest.raises(_NOT_WRITABLE[ext]):
+        polyxios.write(_surface(), tmp_path / f"mesh{ext}")
 
 
 # ---------------------------------------------------------------------------
@@ -604,8 +614,6 @@ def test_a_structured_reader_keeps_a_vector_attribute_2d(tmp_path, ext: str) -> 
 def test_a_structured_writer_rejects_an_unstructured_mesh(tmp_path, ext: str) -> None:
     """Today .vts writes a file its own reader cannot parse; .vti and .vtr
     invent a grid. Either way the caller learns nothing at write time."""
-    from polyxios.exceptions import CodecError
-
     with pytest.raises(CodecError):
         polyxios.write(_mixed(), tmp_path / f"mesh{ext}")
 
