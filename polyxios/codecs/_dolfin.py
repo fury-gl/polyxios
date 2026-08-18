@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
-from polyxios._io import Source
+from polyxios._io import Source, open_read, open_write
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -55,7 +55,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         )
 
     try:
-        tree = ET.parse(path)
+        # Parsed from a handle rather than the path itself, so a buffer and a
+        # gzip stream reach the parser the same way a plain file does.
+        with open_read(path) as fh:
+            tree = ET.parse(fh)
     except ET.ParseError as exc:
         raise CodecError(f".xml: XML parse error: {exc}") from exc
 
@@ -227,4 +230,5 @@ def write(
 
     ET.indent(root)
     tree = ET.ElementTree(root)
-    tree.write(path, encoding="utf-8", xml_declaration=True)
+    with open_write(path) as fh:
+        tree.write(fh, encoding="utf-8", xml_declaration=True)

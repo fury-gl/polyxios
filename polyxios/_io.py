@@ -14,6 +14,7 @@ Two rules hold everywhere:
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import gzip
 import io
 import mmap
 import os
@@ -28,9 +29,25 @@ from polyxios.exceptions import CodecError, LazyReadError
 # qualifies - so the alias documents the intent rather than gating on a type.
 Source = str | os.PathLike[str] | IO[Any]
 
+# A gzip member opens with these two bytes. Reading them is what decides
+# whether a source is decompressed on the way in; the file name is only
+# consulted on the way out, where there is no content to look at yet.
+_GZIP_MAGIC: bytes = b"\x1f\x8b"
+
+# Suffixes that mean "the format is the one before me". Stripped when a
+# format is inferred, so 'mesh.vol.gz' resolves to the .vol codec.
+GZIP_SUFFIXES: tuple[str, ...] = (".gz", ".gzip")
+
+# Deflate level for the files polyxios compresses. 9 costs several times the
+# CPU of 6 for a per cent or two of size on mesh text, which is the wrong
+# trade for a file measured in hundreds of megabytes.
+_GZIP_LEVEL: int = 6
+
 __all__ = [
+    "GZIP_SUFFIXES",
     "Source",
     "is_buffer",
+    "is_gzip",
     "map_read",
     "open_block",
     "open_read",
@@ -167,6 +184,75 @@ def _is_text_handle(handle: Any) -> bool:
     return False
 
 
+def _peek(src: Source, n: int) -> bytes:
+    """Return the first ``n`` bytes of a source without consuming them.
+
+    Parameters
+    ----------
+    src
+        Path or open binary file object.
+    n
+        How many bytes to look at.
+
+    Returns
+    -------
+    bytes
+        The opening bytes, or an empty result when the source is a stream
+        that can neither peek nor seek back - nothing has been consumed
+        either way.
+    """
+    if not is_buffer(src):
+        try:
+            with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
+                return bytes(fh.read(n))
+        except OSError:
+            # Not this function's error to report: the codec is about to
+            # open the same path and will raise the real one.
+            return b""
+
+    peek = getattr(src, "peek", None)
+    if callable(peek):
+        try:
+            return bytes(peek(n))[:n]
+        except Exception:
+            return b""
+
+    if not getattr(src, "seekable", lambda: False)():
+        return b""
+    here = src.tell()  # type: ignore[union-attr]
+    try:
+        return bytes(src.read(n))  # type: ignore[union-attr]
+    finally:
+        src.seek(here)  # type: ignore[union-attr]
+
+
+def is_gzip(src: Source) -> bool:
+    """Say whether a source holds gzip-compressed data.
+
+    The answer comes from the content, not the name: a ``.vol`` file gzipped
+    by a well-meaning pipeline reads the same as a ``.vol.gz``, and a file
+    named ``.gz`` that is not compressed is not treated as though it were.
+
+    Parameters
+    ----------
+    src
+        Path or open binary file object.
+
+    Returns
+    -------
+    bool
+        True when the source opens with the gzip magic.
+    """
+    if is_buffer(src) and _is_text_handle(src):
+        return False
+    return _peek(src, 2) == _GZIP_MAGIC
+
+
+def _writes_gzip(dst: Source) -> bool:
+    """Say whether a destination's name asks for gzip compression."""
+    return source_suffix(dst) in GZIP_SUFFIXES
+
+
 @contextmanager
 def open_read(src: Source) -> Iterator[IO[bytes]]:
     """Yield a binary handle for reading a source.
@@ -179,8 +265,9 @@ def open_read(src: Source) -> Iterator[IO[bytes]]:
     Yields
     ------
     IO[bytes]
-        The handle to read from. A handle the caller owns is yielded as it
-        is and left open; a path is closed on the way out.
+        The handle to read from, decompressed when the source opens with the
+        gzip magic. A handle the caller owns is yielded as it is and left
+        open; a path is closed on the way out.
 
     Raises
     ------
@@ -189,7 +276,11 @@ def open_read(src: Source) -> Iterator[IO[bytes]]:
     """
     if not is_buffer(src):
         with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
-            yield fh
+            if is_gzip(src):
+                with gzip.GzipFile(fileobj=fh, mode="rb") as gz:
+                    yield gz  # type: ignore[misc]
+            else:
+                yield fh
         return
 
     if _is_text_handle(src):
@@ -197,6 +288,14 @@ def open_read(src: Source) -> Iterator[IO[bytes]]:
             f"'{source_name(src)}' is open in text mode; mesh files are read "
             f"as bytes. Open it with mode='rb'."
         )
+
+    if is_gzip(src):
+        # Closing the wrapper flushes it without closing what it wraps, so
+        # the caller's handle survives the decompression.
+        with gzip.GzipFile(fileobj=src, mode="rb") as gz:  # type: ignore[arg-type]
+            yield gz  # type: ignore[misc]
+        return
+
     yield src  # type: ignore[misc]
 
 
@@ -213,9 +312,10 @@ def open_write(dst: Source) -> Iterator[IO[bytes]]:
     Yields
     ------
     IO[bytes]
-        The handle to write to. A handle the caller owns is yielded as it
-        is and left open, so a caller can keep writing after polyxios is
-        done; a path is closed on the way out.
+        The handle to write to, compressed when the destination is named
+        ``.gz``. A handle the caller owns is yielded as it is and left open,
+        so a caller can keep writing after polyxios is done; a path is
+        closed on the way out.
 
     Raises
     ------
@@ -224,7 +324,11 @@ def open_write(dst: Source) -> Iterator[IO[bytes]]:
     """
     if not is_buffer(dst):
         with open(os.fspath(dst), "wb") as fh:  # type: ignore[arg-type]
-            yield fh
+            if _writes_gzip(dst):
+                with _gzip_writer(fh) as gz:
+                    yield gz
+            else:
+                yield fh
         return
 
     if _is_text_handle(dst):
@@ -232,7 +336,28 @@ def open_write(dst: Source) -> Iterator[IO[bytes]]:
             f"'{source_name(dst)}' is open in text mode; mesh files are "
             f"written as bytes. Open it with mode='wb'."
         )
+
+    if _writes_gzip(dst):
+        with _gzip_writer(dst) as gz:  # type: ignore[arg-type]
+            yield gz
+        return
+
     yield dst  # type: ignore[misc]
+
+
+@contextmanager
+def _gzip_writer(fh: IO[bytes]) -> Iterator[IO[bytes]]:
+    """Wrap a handle in a gzip member with a reproducible header.
+
+    The name and the timestamp gzip would otherwise embed are what make two
+    identical meshes compress to two different files; both are pinned so the
+    output depends on the mesh alone.
+    """
+    gz = gzip.GzipFile(
+        filename="", mode="wb", compresslevel=_GZIP_LEVEL, fileobj=fh, mtime=0
+    )
+    with gz:
+        yield gz  # type: ignore[misc]
 
 
 def read_bytes(src: Source) -> bytes:
@@ -308,6 +433,42 @@ def write_text(dst: Source, text: str, *, encoding: str = "utf-8") -> None:
     write_bytes(dst, text.encode(encoding))
 
 
+def _gzip_size(src: Source) -> int:
+    """Return what a gzip source decompresses to, from its ISIZE trailer.
+
+    gzip records the uncompressed size modulo 2**32 in the last four bytes.
+    Past 4 GiB that wraps, and a wrapped value would understate the file - so
+    the compressed size wins whenever it is the larger of the two. The number
+    is only ever used as an upper bound on what a header may claim, where
+    overstating is harmless and understating rejects a valid file.
+    """
+    if not is_buffer(src):
+        compressed = os.stat(os.fspath(src)).st_size  # type: ignore[arg-type]
+        with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
+            if compressed < 4:
+                return compressed
+            fh.seek(-4, os.SEEK_END)
+            trailer = fh.read(4)
+        return max(int.from_bytes(trailer, "little"), compressed)
+
+    if not getattr(src, "seekable", lambda: False)():
+        raise CodecError(
+            f"'{source_name(src)}' is a compressed stream that cannot seek, "
+            f"and this format needs the file's size before it can parse it. "
+            f"Read the stream into io.BytesIO first, or pass a path."
+        )
+    here = src.tell()  # type: ignore[union-attr]
+    try:
+        compressed = int(src.seek(0, os.SEEK_END))  # type: ignore[union-attr]
+        if compressed < 4:
+            return compressed
+        src.seek(-4, os.SEEK_END)  # type: ignore[union-attr]
+        trailer = bytes(src.read(4))  # type: ignore[union-attr]
+    finally:
+        src.seek(here)  # type: ignore[union-attr]
+    return max(int.from_bytes(trailer, "little"), compressed)
+
+
 def source_size(src: Source) -> int:
     """Return the total size of a source in bytes.
 
@@ -322,12 +483,17 @@ def source_size(src: Source) -> int:
     int
         Size of the file for a path; for a handle, the number of bytes it
         holds in total, counted from its start and not from where it stands.
+        A gzip source reports the size of what it decompresses to, which is
+        the number a codec is checking a header against.
 
     Raises
     ------
     CodecError
         If the source is a file object that cannot seek.
     """
+    if is_gzip(src):
+        return _gzip_size(src)
+
     if not is_buffer(src):
         return os.stat(os.fspath(src)).st_size  # type: ignore[arg-type]
 
@@ -373,7 +539,7 @@ def open_text(
         yield src
         return
 
-    if not is_buffer(src):
+    if not is_buffer(src) and not is_gzip(src):
         with open(os.fspath(src), encoding=encoding, errors=errors) as fh:  # type: ignore[arg-type]
             yield fh
         return
@@ -383,8 +549,9 @@ def open_text(
         try:
             yield wrapper
         finally:
-            # Closing the wrapper would close the caller's handle with it,
-            # and the caller may still want to read past what we consumed.
+            # Closing the wrapper would close the handle underneath it - the
+            # caller's own, or the decompressor open_read is holding for the
+            # length of the `with` - so it is detached instead.
             wrapper.flush()
             wrapper.detach()
 
@@ -421,7 +588,7 @@ def open_block(
     LazyReadError
         If ``require_map`` is set and the source cannot be mapped.
     """
-    if require_map or not is_buffer(src):
+    if require_map or (not is_buffer(src) and not is_gzip(src)):
         mm = map_read(src, fmt=fmt)
         try:
             yield mm
@@ -462,6 +629,13 @@ def map_read(src: Source, *, fmt: str) -> mmap.mmap:
     CodecError
         If the mapping itself fails.
     """
+    if is_gzip(src):
+        raise LazyReadError(
+            f"{fmt}: '{source_name(src)}' is gzip-compressed, and a mapping "
+            f"would hand back the compressed bytes. Read it eagerly "
+            f"(lazy=False), or decompress it first."
+        )
+
     if not is_buffer(src):
         with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
             return _map_handle(fh, src, fmt=fmt)

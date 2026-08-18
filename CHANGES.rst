@@ -23,6 +23,13 @@ New features
 - Lazy reads over a file object work when the handle is backed by a real
   file - mmap needs a descriptor - and raise ``LazyReadError`` naming the
   reason for an in-memory buffer.
+- gzip is now transparent for every format: a file opening with the gzip
+  magic is decompressed on the way in, whatever it is named, and a
+  destination named ``.gz`` is compressed on the way out. ``.vol.gz`` is
+  read as Netgen rather than refused, ``.gz`` names the compression rather
+  than the format when a codec is chosen, and the compressed output is
+  byte-reproducible (no timestamp, no embedded name). Lazy reads still
+  need an uncompressed file and say so.
 - Extensions several unrelated formats share are now resolved by looking
   inside the file. A codec declares ``SNIFF_EXTENSIONS``, a
   ``sniff(head) -> bool`` test and a ``SNIFF_PRIORITY``; the contested

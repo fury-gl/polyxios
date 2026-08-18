@@ -54,8 +54,8 @@ and the names are what the tags are called when they are there. One name over
 several indices of a codimension is how the format spells a single boundary
 carried by several surfaces, so those indices come back as one tag.
 
-Only the plain-text flavour is handled here; ``.vol.gz`` is a gzip stream and is
-refused rather than parsed as text.
+``.vol.gz`` needs nothing special here: gzip is unwrapped by the IO layer, so
+the parser only ever sees plain text.
 """
 
 from collections.abc import Iterable
@@ -246,14 +246,6 @@ def _read_lines(path: Source) -> list[str]:
         raw = read_bytes(path)
     except OSError as exc:
         raise CodecError(f".vol: cannot read '{source_name(path)}': {exc}") from exc
-    if raw[:2] == b"\x1f\x8b":
-        # A .vol.gz opens with the gzip magic. Decoded as text it becomes a
-        # first line of mojibake, and the error naming it would be about a
-        # missing 'mesh3d' rather than about the compression.
-        raise CodecError(
-            f".vol: '{source_name(path)}' is gzip-compressed; only plain-text .vol files"
-            " are supported. Decompress it first."
-        )
     text = raw.decode("utf-8-sig", errors="replace")
     out: list[str] = []
     for raw_line in text.splitlines():
@@ -613,8 +605,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     CodecError
-        On a gzip-compressed file, a file not opening with ``mesh3d``, a missing
-        ``points`` section, a negative or absurd count, a truncated section, a
+        On a file not opening with ``mesh3d``, a missing ``points`` section, a negative or absurd count, a truncated section, a
         non-numeric coordinate or node reference, a record too short for the
         nodes it declares, or a node reference outside the point array.
 
