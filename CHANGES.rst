@@ -104,6 +104,28 @@ Bug fixes
   data. A handle from ``open()`` never came up short, so no codec guarded
   against it. Nothing is read past what was asked for, so a handle the caller
   shares still ends up where the codec's reading left it.
+- OBJ face indices are resolved the way the format defines them: a negative
+  index counts back from what has been declared so far, and an index naming
+  a record the file does not have raises ``CodecError`` naming the line
+  instead of wrapping around into a different vertex.
+- OBJ ``vt`` records are read. They are indexed per face corner, so a file
+  may hold more of them than it holds vertices; each corner assigns to its
+  vertex, a vertex given two different values keeps the last and warns, and
+  records nothing indexes are kept only when there is one per vertex.
+  ``vt`` and ``vn`` are written back, so texture coordinates and normals
+  survive a round trip.
+- OBJ writes a bare ``g`` before a face that belongs to no group, so it no
+  longer inherits the group of the face above it, and a bare ``g`` on read
+  clears the active groups rather than inventing a ``default`` tag.
+- An OBJ file whose ``vn`` or ``vt`` records cannot be lined up with its
+  vertices now leaves the attribute out. The fold that gives up returned
+  None, and only the ``vt`` path checked for it, so ``vertex_attrs`` could
+  hand back a None where an array belongs and the writer raised
+  ``TypeError`` on it.
+- OBJ writes a number where a vertex has no record. A vertex no face names
+  carries NaN out of the reader, and ``vt nan nan`` is not a record another
+  reader takes; the row nothing indexes is written as zero. A ``vt`` array
+  narrower than two columns is padded rather than indexed past its end.
 
 Tests
 ~~~~~
