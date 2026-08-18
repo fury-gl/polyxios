@@ -1,0 +1,19 @@
+polyxios.transforms
+===================
+
+.. automodule:: polyxios.transforms
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      extract_surface
+      filter_element_type
+      merge
+      pipeline
+      reindex
+      remove_orphan_vertices
+      triangulate
+      vertex_colors
+   

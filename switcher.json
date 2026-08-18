@@ -2,7 +2,12 @@
   {
     "name": "dev",
     "version": "dev",
-    "url": "https://polyxios.org/dev/",
+    "url": "https://polyxios.org/dev/"
+  },
+  {
+    "name": "0.2 (stable)",
+    "version": "0.2",
+    "url": "https://polyxios.org/stable/",
     "preferred": true
   }
 ]

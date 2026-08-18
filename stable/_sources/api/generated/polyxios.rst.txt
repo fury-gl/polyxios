@@ -1,0 +1,25 @@
+﻿polyxios
+========
+
+.. automodule:: polyxios
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      read
+      write
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   version
+   codecs
+   exceptions
+   transforms
+   validate
+   fetcher
