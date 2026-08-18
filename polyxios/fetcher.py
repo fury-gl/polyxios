@@ -53,6 +53,12 @@ _EXT_TO_PACKAGE: dict[str, str] = {
     "vol": "netgen",
     "f3grid": "flac3d",
     "tec": "tecplot",
+    # Binary Tecplot: registered to the same codec so the error names the
+    # format, so it groups with '.tec' rather than posing as its own.
+    "plt": "tecplot",
+    # '.dat' belongs to no one format - it resolves by content - so naming a
+    # single package for it would be a lie. The shared spelling is the name.
+    "dat": "tecplot/nastran",
     "meshb": "medit",
     "xml": "dolfin",
     "msh": "gmsh",
