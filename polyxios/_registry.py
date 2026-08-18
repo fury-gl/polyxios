@@ -19,11 +19,17 @@ class Codec(NamedTuple):
         Optional content test, ``sniff(head: bytes) -> bool``, answering
         whether the opening bytes of a file look like this format. Only a
         codec competing for an extension another format also uses needs one.
+    candidates
+        Empty for a codec that is one format. Populated only on the
+        dispatcher a contested extension resolves to, naming the formats
+        competing for it in the order their ``sniff`` is tried, so a caller
+        can report the ambiguity without hard-coding the candidate list.
     """
 
     read: Callable
     write: Callable
     sniff: Callable | None = None
+    candidates: tuple[str, ...] = ()
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
@@ -47,25 +53,42 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
     -------
     Codec
         A codec whose ``read`` delegates to the first candidate that
-        recognises the file, and whose ``write`` always raises - an output
-        file has no content to sniff yet.
+        recognises the file, whose ``write`` always raises - an output file
+        has no content to sniff yet - and whose ``candidates`` names the
+        competitors.
     """
-    labels = [label for label, _ in entries]
+    labels = tuple(label for label, _ in entries)
     named = ", ".join(labels)
+    # One competitor is still a contested extension - the other formats using
+    # it simply have no codec here - so the wording has to stop claiming a
+    # plurality the list does not show.
+    if len(labels) > 1:
+        shared = f"'{ext}' is used by several formats ({named})"
+        no_match = "the file's content matches none of them"
+    else:
+        shared = f"'{ext}' is shared between formats, of which only {named} reads here"
+        no_match = f"the file's content does not look like {named}"
 
     def read(path: Path | str, *, lazy: bool = False) -> object:
-        try:
-            with open(path, "rb") as fh:
-                head = fh.read(_SNIFF_BYTES)
-        except OSError as exc:
-            raise UnsupportedFormatError(
-                f"Cannot identify '{ext}' file '{Path(path).name}': {exc}"
-            ) from exc
+        # A file that cannot be opened is not an ambiguous file: let the OS
+        # error through, so a missing or unreadable path raises the same
+        # thing here as it does under an extension one codec owns.
+        with open(path, "rb") as fh:
+            head = fh.read(_SNIFF_BYTES)
 
+        # A full buffer means the read stopped mid-line, and half a line
+        # answers a sniffer's question by accident either way; drop it. A
+        # window holding no newline at all is left alone - there is nothing
+        # to drop back to, and the sniffers anchor at the start regardless.
+        if len(head) == _SNIFF_BYTES and b"\n" in head:
+            head = head.rsplit(b"\n", 1)[0]
+
+        broken: list[str] = []
         for label, codec in entries:
             try:
                 matched = bool(codec.sniff(head))
             except Exception as exc:  # a broken sniffer must not mask the rest
+                broken.append(f"{label} ({exc})")
                 warnings.warn(
                     f"{label} sniffer raised on '{Path(path).name}': {exc}",
                     stacklevel=2,
@@ -74,20 +97,29 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
             if matched:
                 return codec.read(path=path, lazy=lazy)
 
-        raise UnsupportedFormatError(
-            f"'{Path(path).name}': '{ext}' is used by several formats "
-            f"({named}) and the file's content matches none of them. "
-            f"Pass fmt= to choose one explicitly."
-        )
+        # A sniffer that raised never answered, so reporting that the content
+        # matched nothing would state a verdict no one reached; say what
+        # actually happened, and name the failures either way.
+        if len(broken) == len(entries):
+            detail = f"no sniffer could answer, each one raising: {'; '.join(broken)}"
+        else:
+            detail = no_match
+
+        parts = [f"'{Path(path).name}': {shared} and {detail}."]
+        if broken and len(broken) != len(entries):
+            noun = "sniffer" if len(broken) == 1 else "sniffers"
+            parts.append(f"The {noun} {'; '.join(broken)} raised instead of answering.")
+        parts.append("Pass fmt= to choose one explicitly.")
+
+        raise UnsupportedFormatError(" ".join(parts))
 
     def write(poly: object, path: Path | str, **opts: object) -> None:
         raise UnsupportedFormatError(
-            f"'{ext}' is used by several formats ({named}), so a writer "
-            f"cannot be chosen from the extension alone. "
-            f"Pass fmt= to choose one explicitly."
+            f"{shared}, so a writer cannot be chosen from the extension "
+            f"alone. Pass fmt= to choose one explicitly."
         )
 
-    return Codec(read, write, None)
+    return Codec(read, write, None, labels)
 
 
 def build_default_registry() -> dict[str, Codec]:
@@ -117,7 +149,12 @@ def build_default_registry() -> dict[str, Codec]:
     outright through ``EXTENSION``/``EXTENSIONS`` is never contested.
 
     Also loads third-party codecs declared under the ``polyxios.codecs``
-    entry-point group; those stay one extension per entry point.
+    entry-point group; those stay one extension per entry point, and they are
+    registered last. A built-in codec owning an extension keeps it against a
+    built-in sniffer competing for it, but an entry point naming the same
+    extension replaces whatever holds it, dispatcher included: installing a
+    codec for ``.dat`` is a deliberate claim by the person installing it, and
+    it should win over polyxios' own guess at the file's content.
 
     Returns
     -------

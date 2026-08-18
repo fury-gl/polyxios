@@ -45,8 +45,13 @@ SNIFF_PRIORITY: int = 50
 # the executive and case-control keywords cover a deck whose geometry sits
 # behind BEGIN BULK. A GRID card must be followed by its integer id, which is
 # what keeps a table headed 'GRID POINTS OF THE MODEL' out of this codec.
+# SOL takes a solution number or a solution name, never a float, so the
+# lookahead is what keeps a numeric table whose first row reads 'SOL 1.0 2.0'
+# out of this codec; a deck spelling 'SOL STATIC' still carries CEND or
+# BEGIN BULK further down the window.
 _SNIFF_RE: re.Pattern[str] = re.compile(
-    r"(GRID\*?[\s,]+\d|CEND\b|BEGIN\s+BULK\b|SOL\s|NASTRAN\s)",
+    r"(GRID\*?[\s,]+\d|CEND\b|BEGIN\s+BULK\b"
+    r"|SOL\s+(?:\d+(?![\d.])|[A-Z])|NASTRAN\s)",
     re.IGNORECASE,
 )
 
