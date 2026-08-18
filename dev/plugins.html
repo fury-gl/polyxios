@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=e4520155"></script>
+    <script src="_static/documentation_options.js?v=11d5392c"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3" />
-    <meta name="docbuild:last-update" content="2026-08-17"/>
+    <meta name="docbuild:last-update" content="2026-08-18"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -550,20 +550,20 @@ fork required, no pull request needed.</p>
     <span class="o">...</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">():</span>
-    <span class="k">return</span> <span class="s2">&quot;.abc&quot;</span><span class="p">,</span> <span class="n">Codec</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">".abc"</span><span class="p">,</span> <span class="n">Codec</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
 <section id="step-2-declare-an-entry-point">
 <h2>Step 2 - declare an entry point<a class="headerlink" href="#step-2-declare-an-entry-point" title="Link to this heading">#</a></h2>
 <p>In your <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>:</p>
-<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[project.entry-points.</span><span class="s2">&quot;polyxios.codecs&quot;</span><span class="k">]</span>
-<span class="n">abc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mypackage.abc_codec:register&quot;</span>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[project.entry-points.</span><span class="s2">"polyxios.codecs"</span><span class="k">]</span>
+<span class="n">abc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"mypackage.abc_codec:register"</span>
 </pre></div>
 </div>
 <p>After <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">mypackage</span></code>, polyxios picks up <code class="docutils literal notranslate"><span class="pre">.abc</span></code> automatically - no
 configuration, no restart needed:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">&quot;model.abc&quot;</span><span class="p">)</span>   <span class="c1"># works out of the box</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.abc"</span><span class="p">)</span>   <span class="c1"># works out of the box</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -680,7 +680,7 @@ configuration, no restart needed:</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-17.
+  Last updated on 2026-08-18.
   <br/>
 </p></div>
       

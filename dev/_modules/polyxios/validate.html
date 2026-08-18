@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=e4520155"></script>
+    <script src="../../_static/documentation_options.js?v=11d5392c"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.3" />
-    <meta name="docbuild:last-update" content="2026-08-17"/>
+    <meta name="docbuild:last-update" content="2026-08-18"/>
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -457,7 +457,7 @@
 <div class="viewcode-block" id="validate">
 <a class="viewcode-back" href="../../api/generated/polyxios.validate.html#polyxios.validate">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="n">poly</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PolyData</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check structural integrity of a PolyData. Raise ValidationError on any violation.</span>
+<span class="w">    </span><span class="sd">"""Check structural integrity of a PolyData. Raise ValidationError on any violation.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -474,63 +474,63 @@
 <span class="sd">    ValidationError</span>
 <span class="sd">        On dtype mismatch, shape mismatch, out-of-bounds indices, or attribute</span>
 <span class="sd">        length mismatches.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;vertices must be shape (n, 3), got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"vertices must be shape (n, 3), got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;vertices must be float64, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"vertices must be float64, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="n">n_verts</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">n_elems</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;element_types must be uint8, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"element_types must be uint8, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;element_types must be 1-D&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">"element_types must be 1-D"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;offsets must be 1-D&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">"offsets must be 1-D"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">n_elems</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;offsets length must be n_elements+1=</span><span class="si">{</span><span class="n">n_elems</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">, &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"offsets length must be n_elements+1=</span><span class="si">{</span><span class="n">n_elems</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">, "</span>
+            <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;offsets must be int32 or int64, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"offsets must be int32 or int64, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">&quot;connectivity must be 1-D&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s2">"connectivity must be 1-D"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;connectivity must be int32 or int64, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"connectivity must be int32 or int64, got </span><span class="si">{</span><span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">n_elems</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">max_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
         <span class="k">if</span> <span class="n">max_idx</span> <span class="o">&gt;=</span> <span class="n">n_verts</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;connectivity contains index </span><span class="si">{</span><span class="n">max_idx</span><span class="si">}</span><span class="s2"> but n_verts=</span><span class="si">{</span><span class="n">n_verts</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"connectivity contains index </span><span class="si">{</span><span class="n">max_idx</span><span class="si">}</span><span class="s2"> but n_verts=</span><span class="si">{</span><span class="n">n_verts</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
         <span class="n">min_idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
         <span class="k">if</span> <span class="n">min_idx</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;connectivity contains negative index </span><span class="si">{</span><span class="n">min_idx</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"connectivity contains negative index </span><span class="si">{</span><span class="n">min_idx</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span> <span class="o">!=</span> <span class="n">n_verts</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;vertex_attrs[&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;] length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="si">}</span><span class="s2"> != n_verts </span><span class="si">{</span><span class="n">n_verts</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"vertex_attrs['</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">'] length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="si">}</span><span class="s2"> != n_verts </span><span class="si">{</span><span class="n">n_verts</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
 
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span> <span class="o">!=</span> <span class="n">n_elems</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;element_attrs[&#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;] length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="si">}</span><span class="s2"> != n_elements </span><span class="si">{</span><span class="n">n_elems</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"element_attrs['</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">'] length </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="si">}</span><span class="s2"> != n_elements </span><span class="si">{</span><span class="n">n_elems</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">poly</span></div>
@@ -545,7 +545,7 @@
     <span class="o">*</span><span class="p">,</span>
     <span class="n">compressed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate header counts against file size before any array allocation.</span>
+<span class="w">    </span><span class="sd">"""Validate header counts against file size before any array allocation.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -565,21 +565,21 @@
 <span class="sd">    ------</span>
 <span class="sd">    ValidationError</span>
 <span class="sd">        If declared counts exceed hard caps or are implausible given file size.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">declared_n_verts</span> <span class="o">&gt;</span> <span class="n">MAX_SAFE_VERTICES</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_VERTICES=&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">MAX_SAFE_VERTICES</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file.&quot;</span>
+            <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_VERTICES="</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_SAFE_VERTICES</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file."</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">declared_n_elems</span> <span class="o">&gt;</span> <span class="n">MAX_SAFE_ELEMENTS</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;declared_n_elems=</span><span class="si">{</span><span class="n">declared_n_elems</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_ELEMENTS=&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">MAX_SAFE_ELEMENTS</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file.&quot;</span>
+            <span class="sa">f</span><span class="s2">"declared_n_elems=</span><span class="si">{</span><span class="n">declared_n_elems</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_ELEMENTS="</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_SAFE_ELEMENTS</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file."</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">declared_conn_size</span> <span class="o">&gt;</span> <span class="n">MAX_SAFE_CONN</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;declared_conn_size=</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_CONN=&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">MAX_SAFE_CONN</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file.&quot;</span>
+            <span class="sa">f</span><span class="s2">"declared_conn_size=</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_CONN="</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_SAFE_CONN</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file."</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">compressed</span><span class="p">:</span>
@@ -588,16 +588,16 @@
     <span class="c1"># coords require 3 * 8 bytes per vertex; allow 4× slack for headers/ASCII overhead</span>
     <span class="k">if</span> <span class="n">declared_n_verts</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">&gt;</span> <span class="n">file_size_bytes</span> <span class="o">*</span> <span class="mi">4</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> implies &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">24</span><span class="si">}</span><span class="s2"> bytes of vertex data but &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;file_size_bytes=</span><span class="si">{</span><span class="n">file_size_bytes</span><span class="si">}</span><span class="s2">. Possible corrupt file.&quot;</span>
+            <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> implies "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">24</span><span class="si">}</span><span class="s2"> bytes of vertex data but "</span>
+            <span class="sa">f</span><span class="s2">"file_size_bytes=</span><span class="si">{</span><span class="n">file_size_bytes</span><span class="si">}</span><span class="s2">. Possible corrupt file."</span>
         <span class="p">)</span>
     <span class="c1"># connectivity requires 4 bytes per index; allow 4× slack</span>
     <span class="k">if</span> <span class="n">declared_conn_size</span> <span class="o">*</span> <span class="mi">4</span> <span class="o">&gt;</span> <span class="n">file_size_bytes</span> <span class="o">*</span> <span class="mi">4</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;declared_conn_size=</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="si">}</span><span class="s2"> implies &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">4</span><span class="si">}</span><span class="s2"> bytes of index data but &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;file_size_bytes=</span><span class="si">{</span><span class="n">file_size_bytes</span><span class="si">}</span><span class="s2">. Possible corrupt file.&quot;</span>
+            <span class="sa">f</span><span class="s2">"declared_conn_size=</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="si">}</span><span class="s2"> implies "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">4</span><span class="si">}</span><span class="s2"> bytes of index data but "</span>
+            <span class="sa">f</span><span class="s2">"file_size_bytes=</span><span class="si">{</span><span class="n">file_size_bytes</span><span class="si">}</span><span class="s2">. Possible corrupt file."</span>
         <span class="p">)</span>
 </pre></div>
 
@@ -653,7 +653,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-17.
+  Last updated on 2026-08-18.
   <br/>
 </p></div>
       
