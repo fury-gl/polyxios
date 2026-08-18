@@ -126,7 +126,30 @@ Issues (0):
 0.4.0 (upcoming)
 ----------------
 
-(No entries yet.)
+New features
+~~~~~~~~~~~~
+
+- Extensions several unrelated formats share are now resolved by looking
+  inside the file. A codec declares ``SNIFF_EXTENSIONS``, a
+  ``sniff(head) -> bool`` test and a ``SNIFF_PRIORITY``; the contested
+  extension resolves to a dispatcher that delegates to the first codec
+  recognising the opening bytes, and names the candidates when none does.
+  Writing to such an extension raises, an output file having no content to
+  inspect.
+- ``.dat`` is the first user of this: a Tecplot header resolves to the
+  Tecplot codec, a bulk data card to the Nastran one. It no longer needs
+  ``fmt=``, which still works for the cases sniffing cannot settle.
+- ``.plt`` is registered to the Tecplot codec so a binary Tecplot file is
+  told what is wrong instead of resolving nowhere. Reading it is not
+  supported.
+
+Tests
+~~~~~
+
+- A cross-codec round-trip matrix (``tests/test_roundtrip.py``) writes and
+  re-reads five canonical meshes through every writable codec, checked
+  against a table declaring exactly what each format keeps. A new codec
+  cannot join the registry without an entry.
 
 .. _changes_0.2.0:
 
