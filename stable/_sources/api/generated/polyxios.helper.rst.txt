@@ -1,0 +1,15 @@
+polyxios.helper
+===============
+
+.. automodule:: polyxios.helper
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      read_multiblock_vtp
+      read_polydata
+      resolve_path
+      visualize_mesh
+   

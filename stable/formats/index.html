@@ -1,0 +1,929 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" data-theme="dark">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="The twenty-five 3D mesh and geometry formats polyxios reads and writes, across thirty-four extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, UGRID and more, one reference page each." name="description" />
+<meta property="og:title" content="Supported formats" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
+<meta property="og:site_name" content="polyxios" />
+<meta property="og:description" content="polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by extension, so polyxios.read() picks the right reader from the filename - pass fmt= to override it. Every page ..." />
+<meta property="og:image:width" content="1146" />
+<meta property="og:image:height" content="600" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_2ba1135c.png" />
+<meta property="og:image:alt" content="polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by extension, so polyxios.read() picks the right reader from the filename - pass fmt= to override it. Every page ..." />
+<meta name="twitter:card" content="summary_large_image" />
+
+    <title>Supported formats &#8212; polyxios</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "dark";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=01cf4d0a" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=e259d695"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=5a050afe"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/index';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.3';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            true;
+        </script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../_static/js/homepage.js?v=0de8ffed"></script>
+    <link rel="canonical" href="https://polyxios.org/stable/formats/index.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="VTK Legacy" href="vtk.html" />
+    <link rel="prev" title="Usage" href="../usage.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.3" />
+    <meta name="docbuild:last-update" content="2026-08-18"/>
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="dark">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+<aside class="bd-header-announcement" aria-label="Announcement">
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+</aside>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">&lt;polyxios /&gt;</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../usage.html">docs</a>
+    </li>
+    <li class="nav-item current active">
+      <a class="nav-link nav-internal" href="#">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+        <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.11</span></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../usage.html">docs</a>
+    </li>
+    <li class="nav-item current active">
+      <a class="nav-link nav-internal" href="#">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+        
+          <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.11</span></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">docs/</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">installation.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">usage.rst</a></li>
+<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="vtk.html">VTK Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtr.html">VTK RectilinearGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
+<li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
+<li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../transforms.html">transforms.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">cli.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../plugins.html">plugins.rst</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">api/</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../api/generated/polyxios.html">polyxios</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.version.html">polyxios.version</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.codecs.html">polyxios.codecs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.cli.html">polyxios.cli</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">contributing.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development.html">development.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">changelog.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../credits.html">credits.rst</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Supported formats</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="supported-formats">
+<span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
+<p>polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
+extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
+<code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
+<p>Every page below summarises the format’s specification, notes where polyxios extends or
+deviates from it, and links to the authoritative document.</p>
+<!--
+  The twenty-five format cards, pulled into formats/index.rst by a raw:: html
+  directive. Hrefs are relative to formats/, i.e. sibling pages.
+  Every class is styled in _static/css/retro.css.
+
+  Adding a format: add a card here, a page under formats/, a line in the hidden
+  toctree in formats/index.rst, and a row in _includes/homepage.html.
+-->
+<div class="px-fmtgrid">
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK Legacy <span class="px-fmtext">.vtk</span></p>
+    <p class="px-fmtdesc">Serial single-dataset format with an ASCII header naming
+      POINTS, CELLS and CELL_TYPES; ASCII or binary body.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtk.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK RectilinearGrid <span class="px-fmtext">.vtr</span></p>
+    <p class="px-fmtdesc">XML VTK file for grids with independent per-axis
+      coordinate arrays; appended or inline base64 data.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtr.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK PolyData <span class="px-fmtext">.vtp</span></p>
+    <p class="px-fmtdesc">XML VTK file for points, lines, polygons and strips,
+      with named point and cell data arrays.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtp.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Wavefront OBJ <span class="px-fmtext">.obj</span></p>
+    <p class="px-fmtdesc">Line-oriented ASCII geometry: v/vn/vt records and f faces
+      with 1-based, optionally negative indices.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="obj.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/obj/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Stanford PLY <span class="px-fmtext">.ply</span></p>
+    <p class="px-fmtdesc">Self-describing element lists declared in an ASCII header,
+      followed by ASCII or packed binary property data.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="ply.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/ply/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">STL <span class="px-fmtext">.stl</span></p>
+    <p class="px-fmtdesc">Unstructured triangle soup with a normal per facet and no
+      vertex sharing; ASCII or 80-byte-header binary.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="stl.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.fabbers.com/tech/STL_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">OFF <span class="px-fmtext">.off</span></p>
+    <p class="px-fmtdesc">An OFF magic line, a counts line, then vertices and faces;
+      ST/C/N/4 prefixes add texture, colour and normals.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="off.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://segeval.cs.princeton.edu/public/off_format.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Abaqus <span class="px-fmtext">.inp</span></p>
+    <p class="px-fmtdesc">Keyword-driven input deck: *NODE and *ELEMENT carry the
+      mesh, *NSET and *ELSET the named collections.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="abaqus.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://help.3ds.com/2023/english/dssimulia_established/SIMACAEKEYRefMap/simakey-c-gen.htm">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">AVS-UCD <span class="px-fmtext">.avs</span></p>
+    <p class="px-fmtdesc">A five-integer counts line, then node records and cells
+      keyed by a shape word, then optional data sections.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="avs.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://lanl.github.io/LaGriT/pages/docs/read_avs.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Medit binary <span class="px-fmtext">.meshb</span></p>
+    <p class="px-fmtdesc">A stream of keyword-indexed fields; typed entity blocks
+      carry node indices plus a trailing reference tag.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="meshb.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">DOLFIN / FEniCS XML <span class="px-fmtext">.xml</span></p>
+    <p class="px-fmtdesc">A small XML tree whose celltype names the element; every
+      vertex and cell is explicitly indexed and 0-based.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="dolfin.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/dolfin_xml/dolfin_xml.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">FLAC3D <span class="px-fmtext">.f3grid</span></p>
+    <p class="px-fmtdesc">Keyword-led ASCII records: G gridpoints, Z zones, F faces,
+      with ZGROUP and FGROUP naming the regions.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="flac3d.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Gmsh <span class="px-fmtext">.msh</span></p>
+    <p class="px-fmtdesc">$Section blocks for format, nodes, elements and physical
+      names; v4.1 regroups them per entity, so parsing forks.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="gmsh.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://gmsh.info/doc/texinfo/gmsh.html#MSH-file-format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem</span></p>
+    <p class="px-fmtdesc">A deck of fixed-column cards in three coexisting field
+      widths; GRID defines points, C* cards define elements.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="nastran.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://pynastran-git.readthedocs.io/en/latest/quick_start/bdf_overview.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec</span></p>
+    <p class="px-fmtdesc">A VARIABLES list then ZONE records; DATAPACKING decides
+      whether values interleave per node or per column.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="tecplot.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://tecplot.azureedge.net/products/360/current/360-data-format.pdf">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">SU2 <span class="px-fmtext">.su2</span></p>
+    <p class="px-fmtdesc">Plain ASCII keyed by uppercase tokens; elements carry a VTK
+      type code, and boundaries are declared per marker.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="su2.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://su2code.github.io/docs_v7/Mesh-File/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">TetGen <span class="px-fmtext">.ele + .node</span></p>
+    <p class="px-fmtdesc">Sidecar files sharing a basename; the first index in the
+      file decides whether numbering is 0- or 1-based.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="tetgen.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://wias-berlin.de/software/tetgen/fformats.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Well-Known Text <span class="px-fmtext">.wkt</span></p>
+    <p class="px-fmtdesc">The OGC text encoding: a type keyword and parenthesised
+      coordinate lists, with EWKT adding an SRID prefix.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="wkt.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://libgeos.org/specifications/wkt/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK UnstructuredGrid <span class="px-fmtext">.vtu</span></p>
+    <p class="px-fmtdesc">XML VTK file for an arbitrary mix of cell types, with
+      connectivity, offsets and per-cell type codes.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtu.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK StructuredGrid <span class="px-fmtext">.vts</span></p>
+    <p class="px-fmtdesc">Curvilinear grid: explicit coordinates, implicit
+      connectivity, expanded to hexahedra on read.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vts.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">VTK ImageData <span class="px-fmtext">.vti</span></p>
+    <p class="px-fmtdesc">A uniform grid stored entirely as metadata: origin,
+      spacing and extent, with no coordinate array at all.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vti.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">MFEM mesh <span class="px-fmtext">.mesh</span></p>
+    <p class="px-fmtdesc">Named sections keyed by a geometry type code; INLINE and
+      NURBS variants carry a recipe, not a mesh.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="mfem.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://mfem.org/mesh-format-v1.0/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Netgen <span class="px-fmtext">.vol</span></p>
+    <p class="px-fmtdesc">Counted sections whose leading fields differ per section;
+      bcnr / matnr indices come back as named tags.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="netgen.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/NGSolve/netgen">project &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">UGRID (AFLR) <span class="px-fmtext">.ugrid</span></p>
+    <p class="px-fmtdesc">Seven header counts and nothing else separating the
+      sections; surface IDs sit between faces and cells.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="ugrid.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.simcenter.msstate.edu/software/documentation/ugrid/ugrid.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Gaussian splat <span class="px-fmtext">.splat</span></p>
+    <p class="px-fmtdesc">Headerless 32-byte records: position, scale, colour and a
+      packed rotation quaternion. Points only, no elements.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="splat.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/antimatter15/splat">reference &#8599;</a>
+    </p>
+  </div>
+
+</div>
+<section id="parallel-and-multi-block-meta-files">
+<h2>Parallel and multi-block meta-files<a class="headerlink" href="#parallel-and-multi-block-meta-files" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">.vtm</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> are registered too,
+but they hold no geometry - only references to sub-files. Reading one raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> with a pointer to
+<code class="docutils literal notranslate"><span class="pre">examples/read_parallel_vtk.py</span></code>, rather than failing with a parse error further in.
+Writing them is not supported.</p>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../usage.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Usage</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="vtk.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">VTK Legacy</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parallel-and-multi-block-meta-files">Parallel and multi-block meta-files</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/index.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, polyxios contributors.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on 2026-08-18.
+  <br/>
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
