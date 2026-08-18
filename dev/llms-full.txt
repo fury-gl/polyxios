@@ -114,8 +114,8 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
       <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/tetgen.html"><span>TetGen</span><span class="px-ext">.ele + .node</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/wkt.html"><span>Well-Known Text</span><span class="px-ext">.wkt</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -179,9 +179,9 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
 <span class="c">  35947 vertices &middot; 69451 triangles &middot; 0.4s</span>
 
 <span class="p">$</span> pxios list --codecs
-<span class="c">  .avs .bdf .ele .f3grid .inp .meshb .msh
-  .obj .off .ply .stl .su2 .tec .vtk .vtp
-  .vtr .wkt .xml</span>
+<span class="c">  .avs .bdf .dat .ele .f3grid .inp .meshb
+  .msh .obj .off .plt .ply .stl .su2 .tec
+  .vtk .vtp .vtr .wkt .xml</span>
 
 <span class="p">$</span> pxios viz bunny.vtk --points<span class="px-cursor">&#9608;</span></pre>
     </div>
@@ -443,7 +443,7 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
-    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem</span></p>
+    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem .dat</span></p>
     <p class="px-fmtdesc">A deck of fixed-column cards in three coexisting field
       widths; GRID defines points, C* cards define elements.</p>
     <p class="px-fmtlinks">
@@ -453,7 +453,7 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
-    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec</span></p>
+    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec .dat</span></p>
     <p class="px-fmtdesc">A VARIABLES list then ZONE records; DATAPACKING decides
       whether values interleave per node or per column.</p>
     <p class="px-fmtlinks">
@@ -1495,7 +1495,7 @@ Source: https://polyxios.org/stable/formats/nastran.html
 
 Nastran
 
-.bdf .nas .fem read + write eager
+.bdf .nas .fem .dat read + write eager
 
 Summary of the specification
 
@@ -1529,7 +1529,7 @@ continuation
 
 other suffixes
 
-.dat is read via fmt=”.bdf”
+.dat resolves by content (GRID / CEND / BEGIN BULK / SOL)
 
 Read the full Nastran specification ↗
 
@@ -1569,7 +1569,12 @@ Quirks worth knowing
 
 All three field widths are read; writing emits free field, with large-field GRID cards on request.
 
-.dat decks are recognised when the codec is named explicitly: px.read("model.dat", fmt=".bdf").
+.dat is shared with Tecplot, LS-DYNA and plain ASCII tables, so it is resolved by looking
+inside the file: a $ comment banner is stepped over and a GRID card, CEND,
+BEGIN BULK, NASTRAN or a SOL naming a solution number or name lands the deck
+here - a numeric table whose first row happens to read SOL 1.0 2.0 does not.
+px.read("model.dat", fmt=".bdf") still forces the issue, and writing to .dat needs
+fmt=".bdf" because an output file has no content to inspect.
 
 Property ids become element tags, so the deck’s grouping is preserved.
 
@@ -1581,7 +1586,7 @@ Source: https://polyxios.org/stable/formats/tecplot.html
 
 Tecplot ASCII
 
-.tec read + write eager
+.tec .dat read + write eager
 
 Summary of the specification
 
@@ -1615,7 +1620,7 @@ connectivity
 
 other suffixes
 
-.dat is read via fmt=”.tec”
+.dat resolves by content; .plt is binary and not read
 
 Read the full Tecplot ASCII specification ↗
 
@@ -1639,7 +1644,14 @@ Both POINT and BLOCK packing are read; finite-element zones are supported, order
 
 Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
 
-.dat files are recognised when the codec is named explicitly: px.read("flow.dat", fmt=".tec").
+.dat is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
+inside the file: a .dat opening with TITLE = ", VARIABLES =, ZONE, FILETYPE =
+or DATASETAUXDATA lands here. An unquoted TITLE = decides nothing - Nastran case
+control spells its title the same way - so the line under it settles the question. px.read("flow.dat", fmt=".tec") still forces the issue,
+and writing to .dat needs fmt=".tec" because an output file has no content to inspect.
+
+Binary Tecplot (.plt) is registered so it fails with a clear message rather than not
+resolving at all; only the ASCII flavour is parsed.
 
 index - the full format table.
 
@@ -2587,7 +2599,7 @@ Read a mesh file and return a PolyData.
 
 supported_extensions(*[, registry])
 
-List the file extensions the registry can read and write.
+List the file extensions the registry resolves.
 
 write(poly, path, *[, fmt, registry])
 
@@ -3201,12 +3213,43 @@ Changelog
 
 
 
+0.4.0 (upcoming)
+
+New features
+
+Extensions several unrelated formats share are now resolved by looking
+inside the file. A codec declares SNIFF_EXTENSIONS, a
+sniff(head) -> bool test and a SNIFF_PRIORITY; the contested
+extension resolves to a dispatcher that delegates to the first codec
+recognising the opening bytes, and names the candidates when none does.
+Writing to such an extension raises, an output file having no content to
+inspect.
+
+.dat is the first user of this: a Tecplot header resolves to the
+Tecplot codec, a bulk data card to the Nastran one. It no longer needs
+fmt=, which still works for the cases sniffing cannot settle.
+
+.plt is registered to the Tecplot codec so a binary Tecplot file is
+told what is wrong instead of resolving nowhere. Reading it is not
+supported.
+
+Tests
+
+A cross-codec round-trip matrix (tests/test_roundtrip.py) writes and
+re-reads five canonical meshes through every writable codec, checked
+against a table declaring exactly what each format keeps. A new codec
+cannot join the registry without an entry.
+
+
+
 0.3.0 (2026-08-18)
 
 Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.
 
 New features
+
+../CHANGES.rst:46: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -3254,7 +3297,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:47: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:77: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -3367,19 +3410,13 @@ Issues (0):
 
 
 
-0.4.0 (upcoming)
-
-(No entries yet.)
-
-
-
 0.2.0 (2026-06-25)
 
 First public release of polyxios.
 
 New features
 
-../CHANGES.rst:139: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:162: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

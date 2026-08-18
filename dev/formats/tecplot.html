@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/tecplot.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".tec read + write eager Summary of the specification: A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-elemen..." />
+<meta property="og:description" content=".tec .dat read + write eager Summary of the specification: A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-e..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_tecplot_045d9284.png" />
-<meta property="og:image:alt" content=".tec read + write eager Summary of the specification: A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-elemen..." />
-<meta name="description" content=".tec read + write eager Summary of the specification: A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-elemen..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_tecplot_f6d1592d.png" />
+<meta property="og:image:alt" content=".tec .dat read + write eager Summary of the specification: A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-e..." />
+<meta name="description" content=".tec .dat read + write eager Summary of the specification: A Tecplot ASCII data file opens with an optional TITLE and a VARIABLES list naming every column, then one or more ZONE records. A finite-e..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=2c32ce0b"></script>
+    <script src="../_static/documentation_options.js?v=4af3ee2f"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -537,7 +537,7 @@
                   
   <section id="tecplot-ascii">
 <span id="format-tecplot"></span><h1>Tecplot ASCII<a class="headerlink" href="#tecplot-ascii" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.tec</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.tec</span> <span class="pre">.dat</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p>A Tecplot ASCII data file opens with an optional <code class="docutils literal notranslate"><span class="pre">TITLE</span></code> and a <code class="docutils literal notranslate"><span class="pre">VARIABLES</span></code> list naming every column, then one or more <code class="docutils literal notranslate"><span class="pre">ZONE</span></code> records. A finite-element zone declares its node and element counts (<code class="docutils literal notranslate"><span class="pre">N=</span></code>, <code class="docutils literal notranslate"><span class="pre">E=</span></code>), its element shape (<code class="docutils literal notranslate"><span class="pre">ZONETYPE=FETRIANGLE</span></code>, <code class="docutils literal notranslate"><span class="pre">FEQUADRILATERAL</span></code>, <code class="docutils literal notranslate"><span class="pre">FETETRAHEDRON</span></code>, <code class="docutils literal notranslate"><span class="pre">FEBRICK</span></code>) and its data packing. <code class="docutils literal notranslate"><span class="pre">DATAPACKING=POINT</span></code> interleaves all variables per node; <code class="docutils literal notranslate"><span class="pre">DATAPACKING=BLOCK</span></code> writes each variable’s full column in turn. The connectivity list follows the nodal data.</p>
@@ -566,7 +566,7 @@
 <td><p>1-based node indices, one element per line</p></td>
 </tr>
 <tr class="row-even"><td><p>other suffixes</p></td>
-<td><p>.dat is read via fmt=”.tec”</p></td>
+<td><p>.dat resolves by content; .plt is binary and not read</p></td>
 </tr>
 </tbody>
 </table>
@@ -595,7 +595,13 @@
 <ul class="px-quirks simple">
 <li><p>Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.</p></li>
 <li><p>Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> files are recognised when the codec is named explicitly: <code class="docutils literal notranslate"><span class="pre">px.read(&quot;flow.dat&quot;,</span> <span class="pre">fmt=&quot;.tec&quot;)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
+inside the file: a <code class="docutils literal notranslate"><span class="pre">.dat</span></code> opening with <code class="docutils literal notranslate"><span class="pre">TITLE</span> <span class="pre">=</span> <span class="pre">&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">VARIABLES</span> <span class="pre">=</span></code>, <code class="docutils literal notranslate"><span class="pre">ZONE</span></code>, <code class="docutils literal notranslate"><span class="pre">FILETYPE</span> <span class="pre">=</span></code>
+or <code class="docutils literal notranslate"><span class="pre">DATASETAUXDATA</span></code> lands here. An unquoted <code class="docutils literal notranslate"><span class="pre">TITLE</span> <span class="pre">=</span></code> decides nothing - Nastran case
+control spells its title the same way - so the line under it settles the question. <code class="docutils literal notranslate"><span class="pre">px.read(&quot;flow.dat&quot;,</span> <span class="pre">fmt=&quot;.tec&quot;)</span></code> still forces the issue,
+and writing to <code class="docutils literal notranslate"><span class="pre">.dat</span></code> needs <code class="docutils literal notranslate"><span class="pre">fmt=&quot;.tec&quot;</span></code> because an output file has no content to inspect.</p></li>
+<li><p>Binary Tecplot (<code class="docutils literal notranslate"><span class="pre">.plt</span></code>) is registered so it fails with a clear message rather than not
+resolving at all; only the ASCII flavour is parsed.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

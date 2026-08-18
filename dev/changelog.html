@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.3.0 (2026-08-18): Fifteen new mesh formats, a real command line interface and a versioned documentation site. New features: Fifteen new codecs, taking the registry from 16 to 34 recognised extens..." />
+<meta property="og:description" content="0.4.0 (upcoming): New features: Extensions several unrelated formats share are now resolved by looking inside the file. A codec declares SNIFF_EXTENSIONS, a sniff(head) -&gt; bool test and a SNIFF_..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_bd5241eb.png" />
-<meta property="og:image:alt" content="0.3.0 (2026-08-18): Fifteen new mesh formats, a real command line interface and a versioned documentation site. New features: Fifteen new codecs, taking the registry from 16 to 34 recognised extens..." />
-<meta name="description" content="0.3.0 (2026-08-18): Fifteen new mesh formats, a real command line interface and a versioned documentation site. New features: Fifteen new codecs, taking the registry from 16 to 34 recognised extens..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_542913f4.png" />
+<meta property="og:image:alt" content="0.4.0 (upcoming): New features: Extensions several unrelated formats share are now resolved by looking inside the file. A codec declares SNIFF_EXTENSIONS, a sniff(head) -&gt; bool test and a SNIFF_..." />
+<meta name="description" content="0.4.0 (upcoming): New features: Extensions several unrelated formats share are now resolved by looking inside the file. A codec declares SNIFF_EXTENSIONS, a sniff(head) -&gt; bool test and a SNIFF_..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=2c32ce0b"></script>
+    <script src="_static/documentation_options.js?v=4af3ee2f"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -534,12 +534,42 @@
                   
   <section id="changes">
 <span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
+<section id="upcoming">
+<span id="changes-0-4-0"></span><h2>0.4.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<section id="new-features">
+<h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Extensions several unrelated formats share are now resolved by looking
+inside the file. A codec declares <code class="docutils literal notranslate"><span class="pre">SNIFF_EXTENSIONS</span></code>, a
+<code class="docutils literal notranslate"><span class="pre">sniff(head)</span> <span class="pre">-&gt;</span> <span class="pre">bool</span></code> test and a <code class="docutils literal notranslate"><span class="pre">SNIFF_PRIORITY</span></code>; the contested
+extension resolves to a dispatcher that delegates to the first codec
+recognising the opening bytes, and names the candidates when none does.
+Writing to such an extension raises, an output file having no content to
+inspect.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> is the first user of this: a Tecplot header resolves to the
+Tecplot codec, a bulk data card to the Nastran one. It no longer needs
+<code class="docutils literal notranslate"><span class="pre">fmt=</span></code>, which still works for the cases sniffing cannot settle.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.plt</span></code> is registered to the Tecplot codec so a binary Tecplot file is
+told what is wrong instead of resolving nowhere. Reading it is not
+supported.</p></li>
+</ul>
+</section>
+<section id="tests">
+<h3>Tests<a class="headerlink" href="#tests" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>A cross-codec round-trip matrix (<code class="docutils literal notranslate"><span class="pre">tests/test_roundtrip.py</span></code>) writes and
+re-reads five canonical meshes through every writable codec, checked
+against a table declaring exactly what each format keeps. A new codec
+cannot join the registry without an entry.</p></li>
+</ul>
+</section>
+</section>
 <section id="changes-0-3-0">
 <span id="id2"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
 <p>Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.</p>
-<section id="new-features">
-<h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
+<section id="id3">
+<h3>New features<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:</p>
@@ -571,8 +601,8 @@ free, small and large field formats.</p></li>
 a credits page generated from the git history, and a page per format.</p></li>
 </ul>
 </section>
-<section id="id3">
-<h3>Changes<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
+<section id="id4">
+<h3>Changes<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -645,15 +675,11 @@ multiblock partial loading and visualization colours.</p></li>
 <p>Issues (0):</p>
 </section>
 </section>
-<section id="upcoming">
-<span id="changes-0-4-0"></span><h2>0.4.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
-<p>(No entries yet.)</p>
-</section>
 <section id="changes-0-2-0">
-<span id="id4"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id5"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id5">
-<h3>New features<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
+<section id="id6">
+<h3>New features<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -744,15 +770,19 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.4.0 (upcoming)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Changes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.4.0 (upcoming)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">New features</a></li>
 </ul>
 </li>
 </ul>

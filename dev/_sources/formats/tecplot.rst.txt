@@ -5,7 +5,7 @@ Tecplot ASCII
 
 .. rst-class:: px-badges
 
-``.tec`` ``read + write`` ``eager``
+``.tec .dat`` ``read + write`` ``eager``
 
 Summary of the specification
 ----------------------------
@@ -30,7 +30,7 @@ Specification at a glance
    * - connectivity
      - 1-based node indices, one element per line
    * - other suffixes
-     - .dat is read via fmt=".tec"
+     - .dat resolves by content; .plt is binary and not read
 
 .. rst-class:: px-speclink
 
@@ -63,7 +63,13 @@ Quirks worth knowing
 
 - Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.
 - Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
-- ``.dat`` files are recognised when the codec is named explicitly: ``px.read("flow.dat", fmt=".tec")``.
+- ``.dat`` is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
+  inside the file: a ``.dat`` opening with ``TITLE = "``, ``VARIABLES =``, ``ZONE``, ``FILETYPE =``
+  or ``DATASETAUXDATA`` lands here. An unquoted ``TITLE =`` decides nothing - Nastran case
+  control spells its title the same way - so the line under it settles the question. ``px.read("flow.dat", fmt=".tec")`` still forces the issue,
+  and writing to ``.dat`` needs ``fmt=".tec"`` because an output file has no content to inspect.
+- Binary Tecplot (``.plt``) is registered so it fails with a clear message rather than not
+  resolving at all; only the ASCII flavour is parsed.
 
 .. seealso::
 
