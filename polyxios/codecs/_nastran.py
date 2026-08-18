@@ -4,9 +4,10 @@ Reads free-field (comma separated), small-field (8-column) and large-field
 (16-column) bulk data cards, including continuation lines. Writes free-field
 cards, or large-field ``GRID*`` cards on request.
 
-Registered for ``.bdf``, ``.nas`` and ``.fem``. A deck named ``.dat`` reads
-through ``read(path, fmt=".bdf")``; see ``EXTENSIONS`` for why that one is
-not claimed outright.
+Registered for ``.bdf``, ``.nas`` and ``.fem``. A deck named ``.dat`` is
+resolved through the registry's sniff hook - see ``SNIFF_EXTENSIONS`` - since
+that extension belongs to no one format; ``read(path, fmt=".bdf")`` still
+forces the issue.
 """
 
 import bisect
@@ -27,11 +28,27 @@ EXTENSION: str = ".bdf"
 
 # A bulk data deck ships under several names: '.bdf' is the canonical one,
 # '.nas' is the Nastran input spelling and '.fem' is what Altair OptiStruct
-# writes. '.dat' is deliberately absent - LS-DYNA, Tecplot and plain ASCII
-# tables all claim it, so binding it here would hand every '.dat' in the
-# world to this codec and foreclose the extension for the others. Read one
-# with ``read(path, fmt=".bdf")``.
+# writes. '.dat' is deliberately absent here - LS-DYNA, Tecplot and plain
+# ASCII tables all claim it, so binding it outright would hand every '.dat'
+# in the world to this codec and foreclose the extension for the others. It
+# is competed for by content instead; see SNIFF_EXTENSIONS.
 EXTENSIONS: tuple[str, ...] = (".bdf", ".nas", ".fem")
+
+SNIFF_EXTENSIONS: tuple[str, ...] = (".dat",)
+# Behind Tecplot's: a Tecplot file is known by its very first line, while a
+# deck's first real card may sit under a long banner of '$' comments, so the
+# narrower test should have its say first.
+SNIFF_PRIORITY: int = 50
+
+# Statements that open a deck and belong to no other format sharing '.dat'.
+# GRID is the bulk-data workhorse ('GRID*' being its large-field spelling);
+# the executive and case-control keywords cover a deck whose geometry sits
+# behind BEGIN BULK. A GRID card must be followed by its integer id, which is
+# what keeps a table headed 'GRID POINTS OF THE MODEL' out of this codec.
+_SNIFF_RE: re.Pattern[str] = re.compile(
+    r"(GRID\*?[\s,]+\d|CEND\b|BEGIN\s+BULK\b|SOL\s|NASTRAN\s)",
+    re.IGNORECASE,
+)
 
 # Bulk data is ASCII, but comments and INCLUDE paths written by a
 # pre-processor need not be, and a stray byte there must not sink the read.
@@ -495,6 +512,37 @@ def _to_int(value: str, *, ctx: str) -> int:
     return number
 
 
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like a Nastran deck.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes, as handed over by the registry.
+
+    Returns
+    -------
+    bool
+        True when a bulk data or executive statement appears before the end
+        of the sniffed window.
+
+    Notes
+    -----
+    Used to resolve ``.dat``, which several unrelated formats share. ``$``
+    comment lines and blanks are stepped over, since a deck often opens with
+    a banner of them; a file that is nothing but comments answers False, the
+    ambiguity being more useful to the caller than a wrong guess.
+    """
+    text = head.decode(_READ_ENCODING, errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("$"):
+            continue
+        if _SNIFF_RE.match(stripped):
+            return True
+    return False
+
+
 def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     """Parse a Nastran .bdf file.
 
@@ -506,8 +554,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     ----------
     path
         Path to the bulk data file (``.bdf``, ``.nas`` or ``.fem``). A deck
-        named ``.dat`` needs ``polyxios.read(path, fmt=".bdf")``, that
-        extension being too widely shared to bind to one codec.
+        named ``.dat`` is recognised by its content; ``fmt=".bdf"`` forces
+        the issue when the content is not recognisable.
     lazy
         Ignored (ASCII format; always loads eagerly).
 
