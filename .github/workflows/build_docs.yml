@@ -3,11 +3,21 @@ name: Build Docs
 on:
   push:
     branches: [master]
+    # Releases publish /X.Y/ and /stable/ from the tag itself. The `release`
+    # event below never fires for us: release.yml creates the GitHub release
+    # with GITHUB_TOKEN, and GitHub refuses to start new workflow runs from
+    # events raised by that token. The tag push is the trigger that works.
+    tags: ['v[0-9]*']
   pull_request:
     branches: [master]
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish as a release version (blank = build dev)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -31,6 +41,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # A manual run naming a tag builds that tag, not the branch it was
+          # dispatched from; every other event already points at the right ref.
+          ref: ${{ inputs.tag || github.ref }}
           # Full history: docs/_ext/contributors.py builds the credits page
           # from `git shortlog`, and a shallow clone would truncate it.
           fetch-depth: 0
@@ -41,19 +54,28 @@ jobs:
 
       - name: Decide which version directory this build is
         id: target
+        env:
+          # A tag reaches us three ways: the release event, a tag push, or a
+          # manual run with the tag typed in. Anything else is a dev build.
+          RELEASE_TAG: >-
+            ${{ github.event.release.tag_name
+                || inputs.tag
+                || (github.ref_type == 'tag' && github.ref_name)
+                || '' }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "release" ]; then
-            tag="${{ github.event.release.tag_name }}"
-            series="$(printf '%s' "${tag#v}" | cut -d. -f1,2)"
+          if [ -n "${RELEASE_TAG}" ]; then
+            series="$(printf '%s' "${RELEASE_TAG#v}" | cut -d. -f1,2)"
             if ! printf '%s' "$series" | grep -Eq '^[0-9]+\.[0-9]+$'; then
-              echo "::error::tag '$tag' does not parse to an X.Y series"
+              echo "::error::tag '${RELEASE_TAG}' does not parse to an X.Y series"
               exit 1
             fi
             echo "dir=$series" >> "$GITHUB_OUTPUT"
             echo "switcher=$series" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             # Only this build becomes /stable/, so only it may be indexed.
+            # Backfilling an old tag therefore overwrites /stable/ with that
+            # older copy - re-run the newest tag afterwards to put it back.
             echo "is_stable=true" >> "$GITHUB_OUTPUT"
           else
             echo "dir=dev" >> "$GITHUB_OUTPUT"
@@ -96,6 +118,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # `spin release` pushes master and the tag in one go, so two runs reach
+    # this job at once. The workflow-level group keys on the ref and would let
+    # them both through; this one is global, so they queue instead of racing
+    # to push gh-pages.
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
 
     permissions:
       contents: write
