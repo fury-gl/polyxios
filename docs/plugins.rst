@@ -49,3 +49,32 @@ configuration, no restart needed:
 
    Extensions are resolved in lower case, so register ``".abc"`` rather than
    ``".ABC"`` - a key the resolver cannot reach is worse than none.
+
+Reading a path or a buffer
+--------------------------
+
+``path`` is whatever the caller passed ``read()`` or ``write()``: a path, or
+an open file object. Opening it yourself would refuse the second, so use the
+helpers in :mod:`polyxios._io`, which take either:
+
+.. code-block:: python
+
+    from polyxios._io import read_text, write_text
+
+    def read(path, *, lazy=False) -> PolyData:
+        text = read_text(path, encoding="utf-8", errors="replace")
+        ...
+
+    def write(poly: PolyData, path, **opts) -> None:
+        write_text(path, "\n".join(lines), encoding="utf-8")
+
+``read_bytes`` / ``write_bytes`` are the binary pair, ``open_read`` /
+``open_write`` yield a binary handle for a codec that streams, ``open_text``
+yields one to iterate line by line, and ``open_block`` gives a binary parser
+the whole file at once - mapped for a path, read into memory for a buffer.
+``source_name`` and ``source_suffix`` are what an error message should quote,
+since a buffer has no ``Path`` to ask.
+
+A codec that genuinely needs a file on disk - a format split across sibling
+files, say - calls ``require_path(path, fmt=..., reason=...)``, which returns
+a ``Path`` or refuses the buffer with a message naming why.

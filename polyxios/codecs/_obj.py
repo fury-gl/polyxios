@@ -1,15 +1,14 @@
-from pathlib import Path
-
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import Source, open_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import LazyReadError
 
 EXTENSION: str = ".obj"
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an OBJ file and return a PolyData.
 
     Parameters
@@ -32,8 +31,6 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     if lazy:
         raise LazyReadError("OBJ format does not support lazy reads (ASCII only).")
 
-    path = Path(path)
-
     vertices: list[list[float]] = []
     normals: list[list[float]] = []
     texcoords: list[list[float]] = []
@@ -51,7 +48,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     object_name: str | None = None
     current_material = ""
 
-    with open(path, encoding="utf-8", errors="replace") as fh:
+    with open_text(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -165,7 +162,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: object) -> None:
+def write(poly: PolyData, path: Source, **opts: object) -> None:
     """Serialise PolyData to an OBJ file.
 
     Parameters
@@ -177,7 +174,6 @@ def write(poly: PolyData, path: Path | str, **opts: object) -> None:
     **opts
         Unused; accepted for API uniformity.
     """
-    path = Path(path)
     lines: list[str] = []
 
     lines.append("# Written by polyxios")
@@ -237,7 +233,7 @@ def write(poly: PolyData, path: Path | str, **opts: object) -> None:
             face_str = " ".join(str(int(vi) + 1) for vi in face_verts)
         lines.append(f"f {face_str}")
 
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text(path, "\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _parse_face(tokens: list[str]) -> tuple[list[int], list[int | None]]:

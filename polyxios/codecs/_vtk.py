@@ -1,5 +1,4 @@
 import mmap
-from pathlib import Path
 from typing import Any
 import warnings
 
@@ -10,6 +9,15 @@ from polyxios._element_types import (
     ELEMENT_TYPES_INV,
     POLYXIOS_TO_VTK,
     VTK_TO_POLYXIOS,
+)
+from polyxios._io import (
+    Source,
+    open_block,
+    open_read,
+    open_write,
+    read_bytes,
+    source_name,
+    source_size,
 )
 from polyxios._types import PolyData
 from polyxios.exceptions import (
@@ -50,7 +58,7 @@ _VTK_DTYPE_MAP: dict[str, str] = {
 }
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK legacy file (UNSTRUCTURED_GRID or POLYDATA) and return a PolyData.
 
     Parameters
@@ -75,10 +83,10 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     UnknownElementTypeError
         If the file contains a VTK cell type not in _element_types.VTK_TO_POLYXIOS.
     """
-    path = Path(path)
-    file_size = path.stat().st_size
+    file_size = source_size(path)
 
-    with open(path, "rb") as fh:
+    with open_read(path) as fh:
+        start = fh.tell()
         header_line = fh.readline().decode("ascii", errors="replace").strip()
         fh.readline()  # title line (unused)
         # VTK v1.0 files can have blank lines between the title and BINARY/ASCII marker.
@@ -95,6 +103,10 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             )
             if dataset_line:
                 break
+        # Every reader below starts from the top of the file, so the handle
+        # goes back to where the header sniff found it.
+        if fh.seekable():
+            fh.seek(start)
 
     is_binary = data_type == "BINARY"
     version = _parse_vtk_version(header_line)
@@ -138,7 +150,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a VTK legacy unstructured grid file.
 
     Parameters
@@ -158,7 +170,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     IndexOverflowError
         If connectivity.max() > MAX_CONNECTIVITY_INDEX for the chosen version.
     """
-    path = Path(path)
     binary: bool = bool(opts.get("binary", False))
     vtk_version: str = str(opts.get("vtk_version", "4.2"))
 
@@ -173,7 +184,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
 
-    with open(path, "wb") as fh:
+    with open_write(path) as fh:
         # ASCII header
         fh.write(f"# vtk DataFile Version {vtk_version}\n".encode())
         fh.write(b"Written by polyxios\n")
@@ -350,7 +361,7 @@ def _write_bin_i32(arr: np.ndarray, fh: object) -> None:
     fh.write(arr.astype(np.dtype(">i4")).tobytes())  # type: ignore[union-attr]
 
 
-def _read_polydata_ascii(path: Path, file_size: int) -> PolyData:
+def _read_polydata_ascii(path: Source, file_size: int) -> PolyData:
     """Read a VTK legacy ASCII POLYDATA file and convert to PolyData.
 
     POLYDATA uses named topology sections (POLYGONS, LINES, VERTICES,
@@ -370,8 +381,7 @@ def _read_polydata_ascii(path: Path, file_size: int) -> PolyData:
     TRIANGLE_STRIPS:
         always      -> triangle_strip (code 6)
     """
-    with open(path, "rb") as fh:
-        content = fh.read().decode("ascii", errors="replace")
+    content = read_bytes(path).decode("ascii", errors="replace")
 
     lines = content.splitlines()
     # Skip lines until we find POINTS (header may have blank lines / extra lines)
@@ -484,17 +494,15 @@ def _read_polydata_ascii(path: Path, file_size: int) -> PolyData:
     )
 
 
-def _read_polydata_binary(path: Path, file_size: int) -> PolyData:
+def _read_polydata_binary(path: Source, file_size: int) -> PolyData:
     """Read a VTK legacy binary POLYDATA file."""
-    with open(path, "rb") as fh:
-        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+    with open_block(path, fmt=".vtk") as mm:
         mv = memoryview(mm)
         pos = 0
         for _ in range(4):
             pos = mm.find(b"\n", pos) + 1
         poly = _parse_binary_polydata_body(mm, mv, pos, file_size)
         del mv
-        mm.close()
     return poly
 
 
@@ -606,9 +614,8 @@ def _parse_binary_polydata_body(
     )
 
 
-def _read_ascii(path: Path, file_size: int, version: str) -> PolyData:
-    with open(path, "rb") as fh:
-        content = fh.read().decode("ascii", errors="replace")
+def _read_ascii(path: Source, file_size: int, version: str) -> PolyData:
+    content = read_bytes(path).decode("ascii", errors="replace")
 
     lines = content.splitlines()
     # Skip the 4-line header
@@ -814,10 +821,12 @@ def _parse_vtk_data_attrs(
     return i, attrs
 
 
-def _read_binary(path: Path, file_size: int, version: str, *, lazy: bool) -> PolyData:
+def _read_binary(path: Source, file_size: int, version: str, *, lazy: bool) -> PolyData:
     """Read binary VTK file, using mmap (lazy) or direct reads."""
-    with open(path, "rb") as fh:
-        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+    # A lazy read hands back arrays that view the block, so it has to be a
+    # mapping: reading a file object into memory would answer the call with
+    # the copy the caller asked not to make.
+    with open_block(path, fmt=".vtk", require_map=lazy) as mm:
         mv = memoryview(mm)
 
         # Skip 4 ASCII header lines to reach the data sections
@@ -826,10 +835,9 @@ def _read_binary(path: Path, file_size: int, version: str, *, lazy: bool) -> Pol
             pos = mm.find(b"\n", pos) + 1
 
         poly = _parse_binary_body(mm, mv, pos, file_size, version)
-        del mv  # release memoryview before closing mmap
+        del mv  # release the view before the mapping goes
         if not lazy:
             poly = _materialize(poly)
-        mm.close()
 
     return poly
 
@@ -1094,7 +1102,7 @@ def _parse_binary_attrs(
     return pos, attrs
 
 
-def _read_rectilinear_grid(path: Path, *, is_binary: bool) -> PolyData:
+def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     """Read a VTK legacy RECTILINEAR_GRID dataset (ASCII or binary).
 
     Parameters
@@ -1110,7 +1118,7 @@ def _read_rectilinear_grid(path: Path, *, is_binary: bool) -> PolyData:
         Mesh with meshgrid vertices from X/Y/Z_COORDINATES and generated
         hex/quad/line connectivity from DIMENSIONS.
     """
-    raw = path.read_bytes()
+    raw = read_bytes(path)
 
     line_offsets: list[int] = []
     texts: list[str] = []
@@ -1335,7 +1343,7 @@ def _read_rectilinear_grid(path: Path, *, is_binary: bool) -> PolyData:
     )
 
 
-def _read_structured_grid(path: Path, *, is_binary: bool) -> PolyData:
+def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
     """Read a VTK legacy STRUCTURED_GRID dataset (ASCII or binary).
 
     Parameters
@@ -1351,7 +1359,7 @@ def _read_structured_grid(path: Path, *, is_binary: bool) -> PolyData:
         Mesh with explicit point coordinates and generated hex/quad/line
         connectivity from the DIMENSIONS keyword.
     """
-    raw = path.read_bytes()
+    raw = read_bytes(path)
 
     offsets: list[int] = []
     texts: list[str] = []
@@ -1530,7 +1538,7 @@ def _read_structured_grid(path: Path, *, is_binary: bool) -> PolyData:
     )
 
 
-def _read_field_data(path: Path) -> PolyData:
+def _read_field_data(path: Source) -> PolyData:
     """Read a VTK FIELD data file (no geometry) into an empty PolyData.
 
     Parameters
@@ -1545,13 +1553,13 @@ def _read_field_data(path: Path) -> PolyData:
         ``global_attrs`` keyed by array name.
     """
     warnings.warn(
-        f"{path.name}: VTK FIELD dataset has no geometry. "
+        f"{source_name(path)}: VTK FIELD dataset has no geometry. "
         "Returning empty PolyData with field arrays in global_attrs.",
         UserWarning,
         stacklevel=3,
     )
 
-    raw = path.read_bytes()
+    raw = read_bytes(path)
     lines: list[str] = []
     pos = 0
     while pos < len(raw):
@@ -1660,7 +1668,7 @@ def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:
     return np.zeros((0, 1), dtype=np.int32), "vertex"
 
 
-def _read_structured_points(path: Path, *, is_binary: bool) -> PolyData:
+def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
     """Read a VTK legacy STRUCTURED_POINTS dataset (ASCII or binary).
 
     Parameters
@@ -1676,7 +1684,7 @@ def _read_structured_points(path: Path, *, is_binary: bool) -> PolyData:
         Mesh with generated hex/quad/line connectivity and preserved
         vertex attributes.
     """
-    raw = path.read_bytes()
+    raw = read_bytes(path)
 
     # Build (byte_offset, stripped_text) for every line
     offsets: list[int] = []

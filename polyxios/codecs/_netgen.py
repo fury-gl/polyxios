@@ -60,7 +60,6 @@ refused rather than parsed as text.
 
 from collections.abc import Iterable
 from itertools import repeat
-from pathlib import Path
 import re
 from typing import Any
 import warnings
@@ -75,6 +74,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
     NODES_PER_ELEMENT,
 )
+from polyxios._io import Source, read_bytes, source_name, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -236,22 +236,22 @@ def _natural_key(name: str) -> tuple[tuple[int, Any], ...]:
     )
 
 
-def _read_lines(path: Path) -> list[str]:
+def _read_lines(path: Source) -> list[str]:
     """Return the file's lines, stripped, without blanks or comments.
 
     Netgen writes a commented column header above most sections and blank lines
     between them, and neither belongs to any section's record count.
     """
     try:
-        raw = path.read_bytes()
+        raw = read_bytes(path)
     except OSError as exc:
-        raise CodecError(f".vol: cannot read '{path.name}': {exc}") from exc
+        raise CodecError(f".vol: cannot read '{source_name(path)}': {exc}") from exc
     if raw[:2] == b"\x1f\x8b":
         # A .vol.gz opens with the gzip magic. Decoded as text it becomes a
         # first line of mojibake, and the error naming it would be about a
         # missing 'mesh3d' rather than about the compression.
         raise CodecError(
-            f".vol: '{path.name}' is gzip-compressed; only plain-text .vol files"
+            f".vol: '{source_name(path)}' is gzip-compressed; only plain-text .vol files"
             " are supported. Decompress it first."
         )
     text = raw.decode("utf-8-sig", errors="replace")
@@ -593,7 +593,7 @@ def _element_tags(
     return tags
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a Netgen ASCII ``.vol`` file and return a PolyData.
 
     Parameters
@@ -642,15 +642,14 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             ".vol: lazy=True is not supported; loading eagerly.", stacklevel=2
         )
 
-    path = Path(path)
     lines = _read_lines(path)
     if not lines:
         raise CodecError(
-            f".vol: '{path.name}' is an empty file; this is not a Netgen mesh file."
+            f".vol: '{source_name(path)}' is an empty file; this is not a Netgen mesh file."
         )
     if lines[0].lower() != "mesh3d":
         raise CodecError(
-            f".vol: '{path.name}' opens with {lines[0]!r}, not 'mesh3d'; this is not"
+            f".vol: '{source_name(path)}' opens with {lines[0]!r}, not 'mesh3d'; this is not"
             " a Netgen mesh file."
         )
 
@@ -725,7 +724,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             )
 
     if vertices is None:
-        raise CodecError(f".vol: '{path.name}' has no 'points' section.")
+        raise CodecError(f".vol: '{source_name(path)}' has no 'points' section.")
 
     n_elems = sum(refs.shape[0] for _n, _d, refs, _i in blocks)
     total_conn = sum(int(refs.size) for _n, _d, refs, _i in blocks)
@@ -1092,7 +1091,7 @@ def _name_lines(keyword: str, names: dict[int, str]) -> list[str]:
     return lines
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a Netgen ASCII ``.vol`` file.
 
     Parameters
@@ -1143,7 +1142,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     The format carries no fields, so ``vertex_attrs``, ``element_attrs``,
     ``vertex_tags`` and ``global_attrs`` are not written.
     """
-    path = Path(path)
     fmt = _float_fmt(dict(opts))
 
     vertices = np.asarray(poly.vertices, dtype=np.float64)
@@ -1262,4 +1260,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
     lines.append("endmesh")
     lines.append("")
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")

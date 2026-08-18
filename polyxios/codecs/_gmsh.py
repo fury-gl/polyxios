@@ -1,6 +1,5 @@
 """Gmsh .msh ASCII codec - read (v2.2 and v4.1) + write (v2.2)."""
 
-from pathlib import Path
 from typing import Any
 import warnings
 
@@ -13,6 +12,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -111,7 +111,7 @@ _WRITE_ENCODING: str = "utf-8"
 _DEFAULT_FLOAT_FMT: str = ".17g"
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a Gmsh .msh file in ASCII format version 2.2 or 4.1.
 
     Parameters
@@ -153,7 +153,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         )
 
     try:
-        text = Path(path).read_text(encoding=_READ_ENCODING)
+        text = read_text(path, encoding=_READ_ENCODING)
     except UnicodeDecodeError as exc:
         raise CodecError(
             ".msh: file is not ASCII/UTF-8 text; binary .msh is not supported."
@@ -214,7 +214,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Write PolyData to Gmsh ASCII .msh format version 2.2.
 
     Parameters
@@ -302,7 +302,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     lines.append("$EndElements")
     lines.append("")
 
-    Path(path).write_text("\n".join(lines), encoding=_WRITE_ENCODING)
+    write_text(path, "\n".join(lines), encoding=_WRITE_ENCODING)
 
 
 def _split_sections(text: str) -> dict[str, list[str]]:

@@ -10,11 +10,12 @@ For appended data:
 
 import base64
 import math
-from pathlib import Path
 import xml.etree.ElementTree as ET
 import zlib
 
 import numpy as np
+
+from polyxios._io import Source, read_bytes
 
 _VTK_TO_NP: dict[str, str] = {
     "Float32": "f4",
@@ -48,7 +49,7 @@ def vtk_type_to_np(vtk_type: str) -> str | None:
 
 
 def parse_xml(
-    path: Path,
+    path: Source,
 ) -> tuple[ET.Element, bytes | None, str, bool, bool, bool]:
     """Read a VTK XML file and return parsed state.
 
@@ -71,7 +72,7 @@ def parse_xml(
         * *compressed* - ``True`` when a vtkZLibDataCompressor is declared.
         * *is_base64* - ``True`` when the appended section uses base64 encoding.
     """
-    raw = path.read_bytes()
+    raw = read_bytes(path)
 
     preamble = raw[:512]
     big_endian = b'byte_order="BigEndian"' in preamble

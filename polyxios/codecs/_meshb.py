@@ -1,13 +1,13 @@
 """Medit .meshb binary codec (GmFlib format) - read + write."""
 
 import mmap
-from pathlib import Path
 import struct
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import Source, open_block, open_write
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -70,7 +70,7 @@ for _name, _kw in _ELEM_TO_KW.items():
         _TYPE_KW_LUT[_code] = _kw
 
 
-def read(*, path: Path | str, lazy: bool = False) -> PolyData:
+def read(*, path: Source, lazy: bool = False) -> PolyData:
     """Parse a Medit binary mesh file (.meshb) and return a PolyData.
 
     Parameters
@@ -101,19 +101,11 @@ def read(*, path: Path | str, lazy: bool = False) -> PolyData:
             UserWarning,
             stacklevel=2,
         )
-    path = Path(path)
-    with open(path, "rb") as fh:
-        try:
-            mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
-        except ValueError as exc:
-            raise CodecError(f".meshb: cannot mmap '{path}': {exc}") from exc
-        try:
-            return _decode(mm)
-        finally:
-            mm.close()
+    with open_block(path, fmt=".meshb") as block:
+        return _decode(block)
 
 
-def write(*, poly: PolyData, path: Path | str) -> None:
+def write(*, poly: PolyData, path: Source) -> None:
     """Serialise PolyData to a Medit binary mesh file (.meshb).
 
     Writes version 2 (float64, 32-bit counts). Elements are written grouped
@@ -129,7 +121,6 @@ def write(*, poly: PolyData, path: Path | str) -> None:
     path
         Output .meshb file path.
     """
-    path = Path(path)
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
     dim = poly.vertices.shape[1]
@@ -156,7 +147,7 @@ def write(*, poly: PolyData, path: Path | str) -> None:
         if np.any(kw_per_elem == kw)
     }
 
-    with open(path, "wb") as fh:
+    with open_write(path) as fh:
         # File header
         _write_i32(fh, _KW_VERSION)
         _write_i32(fh, 2)  # version 2 = float64
@@ -204,7 +195,7 @@ def _write_i32(fh, v: int) -> None:
     fh.write(struct.pack("<i", v))
 
 
-def _parse_header(mm: mmap.mmap) -> tuple[int, int, str]:
+def _parse_header(mm: mmap.mmap | bytes) -> tuple[int, int, str]:
     """Read magic, version, endian from mmap. Returns (version, dim, endian_char)."""
     if len(mm) < 8:
         raise CodecError("File too short for .meshb header.")
@@ -240,7 +231,7 @@ def _parse_header(mm: mmap.mmap) -> tuple[int, int, str]:
 
 
 def _scan_sections(
-    mm: mmap.mmap, version: int, dim: int, endian: str
+    mm: mmap.mmap | bytes, version: int, dim: int, endian: str
 ) -> dict[int, tuple[int, int]]:
     """Return {keyword: (count, data_byte_offset)} for decodable sections.
 
@@ -294,7 +285,7 @@ def _scan_sections(
     return sections
 
 
-def _decode(mm: mmap.mmap) -> PolyData:
+def _decode(mm: mmap.mmap | bytes) -> PolyData:
     version, dim, endian = _parse_header(mm)
     sections = _scan_sections(mm, version, dim, endian)
 

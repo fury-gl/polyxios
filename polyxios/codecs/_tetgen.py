@@ -35,6 +35,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, require_path
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -419,7 +420,7 @@ def _read_ele(path: Path) -> tuple[np.ndarray, int, dict[str, np.ndarray]]:
     return refs, n_nodes, attrs
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a TetGen ``.node`` + ``.ele`` pair and return a PolyData.
 
     Parameters
@@ -468,7 +469,14 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             ".tetgen: lazy=True is not supported; loading eagerly.", stacklevel=2
         )
 
-    given = Path(path)
+    given = require_path(
+        path,
+        fmt=".tetgen",
+        reason=(
+            "a TetGen mesh is split across a '.node' and a '.ele' file, and "
+            "the second half is found beside the first by name"
+        ),
+    )
     node_path = _find_half(given, ".node")
     ele_path = _find_half(given, ".ele")
     if not _exists(node_path):
@@ -755,7 +763,7 @@ def _write_ele(
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a TetGen ``.node`` + ``.ele`` pair.
 
     Parameters
@@ -819,7 +827,14 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
             " number the reader can parse back."
         ) from exc
 
-    given = Path(path)
+    given = require_path(
+        path,
+        fmt=".tetgen",
+        reason=(
+            "a TetGen mesh is written as a '.node' and an '.ele' file, and "
+            "one file object cannot hold both"
+        ),
+    )
     node_path, ele_path = _pair_paths(given)
 
     keep = _tetra_elements(poly)

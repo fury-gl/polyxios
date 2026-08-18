@@ -1,12 +1,12 @@
 """DOLFIN/FEniCS XML .xml codec - read + write."""
 
-from pathlib import Path
 import warnings
 import xml.etree.ElementTree as ET
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._io import Source
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -28,7 +28,7 @@ _POLYXIOS_TO_CELLTYPE: dict[str, str] = {
 }
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a DOLFIN XML .xml mesh file.
 
     Parameters
@@ -144,7 +144,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
 def write(
     poly: PolyData,
-    path: Path | str,
+    path: Source,
     *,
     dim: int | None = None,
 ) -> None:

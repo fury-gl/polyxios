@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import Any
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._io import Source, open_text, source_name, source_size, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
@@ -27,7 +27,7 @@ _MFEM_GEOM: dict[int, tuple[str, int]] = {
 _POLY_TO_MFEM: dict[str, int] = {name: code for code, (name, _) in _MFEM_GEOM.items()}
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an MFEM mesh file (.mesh) and return a PolyData.
 
     Parameters
@@ -49,13 +49,12 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     CodecError
         On malformed or unrecognised mesh data.
     """
-    path = Path(path)
-    file_size = path.stat().st_size
+    file_size = source_size(path)
 
     header, all_tokens = _read_header_and_tokens(path)
 
     if not header:
-        raise CodecError(f"'{path.name}' is empty.")
+        raise CodecError(f"'{source_name(path)}' is empty.")
 
     if header.startswith("MFEM INLINE"):
         return _read_inline(path, header, all_tokens)
@@ -65,7 +64,8 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         return _read_nc(path, header, all_tokens, file_size)
     if not header.startswith("MFEM mesh"):
         raise CodecError(
-            f"'{path.name}' does not start with 'MFEM mesh'. Got: '{header[:40]}'"
+            f"'{source_name(path)}' does not start with 'MFEM mesh'. "
+            f"Got: '{header[:40]}'"
         )
 
     _read_section_int(all_tokens, "dimension")  # validated but not used directly
@@ -103,7 +103,9 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         geom = int(next(elem_iter))
         poly_name, n_nodes = _MFEM_GEOM.get(geom, ("polygon", -1))
         if n_nodes < 0:
-            raise CodecError(f"Unknown MFEM geometry type {geom} in '{path.name}'.")
+            raise CodecError(
+                f"Unknown MFEM geometry type {geom} in '{source_name(path)}'."
+            )
         indices = [int(next(elem_iter)) for _ in range(n_nodes)]
         conn_list.extend(indices)
         offsets_list.append(offsets_list[-1] + n_nodes)
@@ -119,7 +121,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to an MFEM mesh file (.mesh).
 
     Parameters
@@ -129,7 +131,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     path
         Output file path.
     """
-    path = Path(path)
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
     dim = 3 if np.any(poly.vertices[:, 2] != 0) else 2
@@ -157,10 +158,10 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         lines.append(coord)
     lines.append("")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")
 
 
-def _read_inline(path: Path, header: str, tokens: list[str]) -> PolyData:
+def _read_inline(path: Source, header: str, tokens: list[str]) -> PolyData:
     """Generate an MFEM INLINE parametric mesh from its recipe.
 
     INLINE meshes store only a parametric recipe (element type, grid counts,
@@ -358,7 +359,9 @@ def _make_poly(vertices, connectivity, offsets, element_types, params) -> PolyDa
     )
 
 
-def _read_nurbs(path: Path, header: str, tokens: list[str], file_size: int) -> PolyData:
+def _read_nurbs(
+    path: Source, header: str, tokens: list[str], file_size: int
+) -> PolyData:
     """Read an MFEM NURBS mesh, returning control points and element topology.
 
     NURBS meshes use B-spline basis functions to map a parametric domain onto
@@ -447,7 +450,7 @@ def _read_nurbs(path: Path, header: str, tokens: list[str], file_size: int) -> P
         pass
 
     warnings.warn(
-        f"'{path.name}' is an MFEM NURBS mesh (header: '{header}'). "
+        f"'{source_name(path)}' is an MFEM NURBS mesh (header: '{header}'). "
         "NURBS meshes store B-spline control points, not actual mesh vertices. "
         "The 'vertices' in the returned PolyData are CONTROL POINTS - they define "
         "the geometry mathematically but are NOT physical mesh nodes. "
@@ -477,7 +480,7 @@ def _read_nurbs(path: Path, header: str, tokens: list[str], file_size: int) -> P
     )
 
 
-def _read_nc(path: Path, header: str, tokens: list[str], file_size: int) -> PolyData:
+def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> PolyData:
     """Read an MFEM NC (non-conforming) mesh with full vertex reconstruction.
 
     NC meshes store a forest-of-octrees refinement tree.  Each entry in the
@@ -639,7 +642,7 @@ def _parse_nodes_field(tokens: list[str], n_verts: int) -> np.ndarray:
     return out
 
 
-def _read_header_and_tokens(path: Path) -> tuple[str, list[str]]:
+def _read_header_and_tokens(path: Source) -> tuple[str, list[str]]:
     """Return (first_meaningful_line, list_of_remaining_tokens).
 
     Comments (``#``-prefixed) are stripped.  The header is the complete first
@@ -648,7 +651,7 @@ def _read_header_and_tokens(path: Path) -> tuple[str, list[str]]:
     """
     header = ""
     tokens: list[str] = []
-    with open(path, encoding="utf-8", errors="replace") as fh:
+    with open_text(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             stripped = line.split("#")[0].strip()
             if not stripped:

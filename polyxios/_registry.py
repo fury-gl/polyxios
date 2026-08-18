@@ -1,9 +1,9 @@
 from collections.abc import Callable
-from pathlib import Path
 from typing import NamedTuple
 import warnings
 
-from polyxios.exceptions import UnsupportedFormatError
+from polyxios._io import Source, is_buffer, open_read, source_name, source_suffix
+from polyxios.exceptions import CodecError, UnsupportedFormatError
 
 
 class Codec(NamedTuple):
@@ -69,12 +69,26 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
         shared = f"'{ext}' is shared between formats, of which only {named} reads here"
         no_match = f"the file's content does not look like {named}"
 
-    def read(path: Path | str, *, lazy: bool = False) -> object:
+    def read(path: Source, *, lazy: bool = False) -> object:
         # A file that cannot be opened is not an ambiguous file: let the OS
         # error through, so a missing or unreadable path raises the same
         # thing here as it does under an extension one codec owns.
-        with open(path, "rb") as fh:
+        with open_read(path) as fh:
+            # Sniffing a caller's handle spends bytes the codec still needs,
+            # so the position is put back. A stream that cannot rewind has
+            # no way to give them back at all: say so instead of handing the
+            # winner a file already missing its opening.
+            start = fh.tell() if fh.seekable() else None
+            if is_buffer(path) and start is None:
+                raise CodecError(
+                    f"'{source_name(path)}': {shared}, so the file's opening "
+                    f"has to be read to choose one - and this stream cannot "
+                    f"seek back to give it to the codec. Pass fmt= to choose "
+                    f"one explicitly, or buffer the stream first."
+                )
             head = fh.read(_SNIFF_BYTES)
+            if start is not None:
+                fh.seek(start)
 
         # A full buffer means the read stopped mid-line, and half a line
         # answers a sniffer's question by accident either way; drop it. A
@@ -90,7 +104,7 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
             except Exception as exc:  # a broken sniffer must not mask the rest
                 broken.append(f"{label} ({exc})")
                 warnings.warn(
-                    f"{label} sniffer raised on '{Path(path).name}': {exc}",
+                    f"{label} sniffer raised on '{source_name(path)}': {exc}",
                     stacklevel=2,
                 )
                 continue
@@ -105,7 +119,7 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
         else:
             detail = no_match
 
-        parts = [f"'{Path(path).name}': {shared} and {detail}."]
+        parts = [f"'{source_name(path)}': {shared} and {detail}."]
         if broken and len(broken) != len(entries):
             noun = "sniffer" if len(broken) == 1 else "sniffers"
             parts.append(f"The {noun} {'; '.join(broken)} raised instead of answering.")
@@ -113,7 +127,7 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
 
         raise UnsupportedFormatError(" ".join(parts))
 
-    def write(poly: object, path: Path | str, **opts: object) -> None:
+    def write(poly: object, path: Source, **opts: object) -> None:
         raise UnsupportedFormatError(
             f"{shared}, so a writer cannot be chosen from the extension "
             f"alone. Pass fmt= to choose one explicitly."
@@ -258,16 +272,19 @@ def build_default_registry() -> dict[str, Codec]:
 
 
 def resolve(
-    path: Path | str,
+    path: Source,
     fmt: str | None,
     registry: dict[str, Codec],
 ) -> Codec:
-    """Resolve a file path or explicit format string to a Codec.
+    """Resolve a file path, a file object, or a format string to a Codec.
 
     Parameters
     ----------
     path
-        File path (used to infer extension if fmt is None).
+        File path, or an open file object. Either is used to infer the
+        extension when fmt is None - a handle only carries one when it has
+        a usable ``name``, which ``open()`` gives it and ``io.BytesIO`` does
+        not.
     fmt
         Explicit format override (e.g. '.vtk'). The leading dot and the case
         are both optional, so 'vtk' and 'VTK' resolve the same way.
@@ -282,10 +299,18 @@ def resolve(
     Raises
     ------
     UnsupportedFormatError
-        If no codec is registered for the resolved extension.
+        If no codec is registered for the resolved extension, or if a file
+        object carrying no name was passed without fmt.
     """
     if fmt is None:
-        ext = Path(path).suffix.lower()
+        ext = source_suffix(path)
+        # A nameless buffer is not a file with an unknown extension: there is
+        # nothing to infer from at all, and saying so beats "No codec for ''".
+        if not ext and is_buffer(path):
+            raise UnsupportedFormatError(
+                f"'{source_name(path)}' is a file object with no file name to "
+                f"take an extension from. Pass fmt= to name the format."
+            )
     else:
         ext = fmt.strip().lower()
         ext = ext if ext.startswith(".") else f".{ext}"

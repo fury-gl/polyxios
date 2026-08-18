@@ -13,7 +13,6 @@ is claimed through the registry's sniff hook instead: a ``.dat`` opening with a
 Tecplot header keyword resolves here, anything else does not.
 """
 
-from pathlib import Path
 import re
 from typing import Any
 import warnings
@@ -27,6 +26,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, open_read, source_name, source_suffix, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -586,7 +586,7 @@ def sniff(head: bytes) -> bool:
     return False
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a Tecplot ASCII file (finite-element zone).
 
     Parameters
@@ -624,14 +624,14 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     # The magic is read on its own before the body: a binary '.plt' runs to
     # gigabytes, and slurping one only to reject it costs its whole size in
     # memory for an error the first five bytes already settle.
-    with open(path, "rb") as fh:
+    with open_read(path) as fh:
         magic = fh.read(len(_BINARY_MAGIC))
         if magic == _BINARY_MAGIC:
             # Decoded as text this becomes a wall of replacement characters
             # and then a confusing 'no ZONE header' error; name the real
             # problem.
             raise CodecError(
-                f".tec: '{Path(path).name}' is a binary Tecplot file (.plt); "
+                f".tec: '{source_name(path)}' is a binary Tecplot file (.plt); "
                 "only the ASCII flavour is supported. Re-export it as ASCII."
             )
         raw = magic + fh.read()
@@ -755,7 +755,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Write PolyData to Tecplot ASCII format (FEPOINT).
 
     Parameters
@@ -792,9 +792,9 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
     # '.plt' resolves here so its reader can name the problem; writing one
     # would hand back an ASCII file under a binary format's name.
-    if Path(path).suffix.lower() == ".plt":
+    if source_suffix(path) == ".plt":
         raise CodecError(
-            f".tec: cannot write '{Path(path).name}'; .plt is the binary "
+            f".tec: cannot write '{source_name(path)}'; .plt is the binary "
             "Tecplot flavour and only ASCII is supported. Write a .tec file "
             "instead, or a .dat one with fmt='.tec' - '.dat' is shared, so it "
             "names no writer on its own."
@@ -889,4 +889,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         lines.append(" ".join(str(nid + 1) for nid in nodes))
     lines.append("")
 
-    Path(path).write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")

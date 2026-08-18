@@ -1,10 +1,10 @@
 import base64
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import Source, source_size, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import decode_da, parse_xml
 from polyxios.exceptions import LazyReadError
@@ -13,7 +13,7 @@ from polyxios.validate import validate_header
 EXTENSION: str = ".vti"
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK ImageData XML file (.vti) and return a PolyData.
 
     Parameters
@@ -36,8 +36,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     if lazy:
         raise LazyReadError("VTI lazy reads are not supported with frozen PolyData.")
 
-    path = Path(path)
-    file_size = path.stat().st_size
+    file_size = source_size(path)
 
     root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
 
@@ -133,7 +132,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise a hex PolyData to a VTK ImageData XML file (.vti).
 
     Parameters
@@ -146,7 +145,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     binary
         If True (default), encode data as base64 binary.
     """
-    path = Path(path)
     binary: bool = bool(opts.get("binary", True))
 
     # Recover grid metadata stored by read() or compute from vertex coords
@@ -199,7 +197,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     lines.append("  </ImageData>")
     lines.append("</VTKFile>")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")
 
 
 def _da(

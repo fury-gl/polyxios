@@ -1,12 +1,12 @@
 """FLAC3D .f3grid ASCII codec - read + write."""
 
-from pathlib import Path
 from typing import Any
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -313,7 +313,7 @@ def _resolve_gridpoints(
     return vals[pos].astype(np.int32)
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a FLAC3D .f3grid ASCII file.
 
     Both the single-letter record keywords written by FLAC3D (``G``, ``Z``,
@@ -358,9 +358,9 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         stripped
         # errors="replace": the format is ASCII-spec, but real files carry
         # extended characters in comments and group names.
-        for ln in Path(path)
-        .read_text(encoding=_READ_ENCODING, errors="replace")
-        .splitlines()
+        for ln in read_text(
+            path, encoding=_READ_ENCODING, errors="replace"
+        ).splitlines()
         if (stripped := _strip_comment(ln).strip())
     ]
 
@@ -565,7 +565,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Write PolyData to FLAC3D .f3grid ASCII format.
 
     Records are written with the single-letter keywords FLAC3D itself emits
@@ -779,4 +779,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         )
 
     lines.append("")
-    Path(path).write_text("\n".join(lines), encoding=_WRITE_ENCODING)
+    write_text(path, "\n".join(lines), encoding=_WRITE_ENCODING)

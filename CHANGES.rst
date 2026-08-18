@@ -12,6 +12,17 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- ``read()`` and ``write()`` now take an open binary file object wherever
+  they take a path, so a mesh round-trips through ``io.BytesIO``, a socket
+  or a file inside an archive without touching disk. A handle polyxios was
+  given is read or written where it stands and is never closed. A buffer
+  with no file name cannot have its format inferred, so ``fmt=`` is
+  required there; a handle from ``open()`` carries its own extension and
+  does not need it. TetGen is the exception: a ``.node``/``.ele`` pair is
+  two files and still needs a path.
+- Lazy reads over a file object work when the handle is backed by a real
+  file - mmap needs a descriptor - and raise ``LazyReadError`` naming the
+  reason for an in-memory buffer.
 - Extensions several unrelated formats share are now resolved by looking
   inside the file. A codec declares ``SNIFF_EXTENSIONS``, a
   ``sniff(head) -> bool`` test and a ``SNIFF_PRIORITY``; the contested
