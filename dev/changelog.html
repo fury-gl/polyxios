@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.3.0 (upcoming): New features: pxios command line interface with fetch, list, convert and viz subcommands. Visualization requires the optional viz extra ( pip install polyxios[viz])., polyxios.rea..." />
+<meta property="og:description" content="0.3.0 (2026-08-18): Fifteen new mesh formats, a real command line interface and a versioned documentation site. New features: Fifteen new codecs, taking the registry from 16 to 34 recognised extens..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_9838fe43.png" />
-<meta property="og:image:alt" content="0.3.0 (upcoming): New features: pxios command line interface with fetch, list, convert and viz subcommands. Visualization requires the optional viz extra ( pip install polyxios[viz])., polyxios.rea..." />
-<meta name="description" content="0.3.0 (upcoming): New features: pxios command line interface with fetch, list, convert and viz subcommands. Visualization requires the optional viz extra ( pip install polyxios[viz])., polyxios.rea..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_bd5241eb.png" />
+<meta property="og:image:alt" content="0.3.0 (2026-08-18): Fifteen new mesh formats, a real command line interface and a versioned documentation site. New features: Fifteen new codecs, taking the registry from 16 to 34 recognised extens..." />
+<meta name="description" content="0.3.0 (2026-08-18): Fifteen new mesh formats, a real command line interface and a versioned documentation site. New features: Fifteen new codecs, taking the registry from 16 to 34 recognised extens..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=11d5392c"></script>
+    <script src="_static/documentation_options.js?v=2c32ce0b"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -74,7 +74,7 @@
     <link rel="prev" title="Development Guide" href="development.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.3" />
+  <meta name="docsearch:version" content="0.4" />
     <meta name="docbuild:last-update" content="2026-08-18"/>
   
     
@@ -534,33 +534,126 @@
                   
   <section id="changes">
 <span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
-<section id="upcoming">
-<span id="changes-0-3-0"></span><h2>0.3.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<section id="changes-0-3-0">
+<span id="id2"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
+<p>Fifteen new mesh formats, a real command line interface and a versioned
+documentation site.</p>
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
+extensions:</p>
+<ul>
+<li><p>Abaqus <code class="docutils literal notranslate"><span class="pre">.inp</span></code> (C3D4 / C3D8 / S3 / S4 and friends).</p></li>
+<li><p>AVS-UCD <code class="docutils literal notranslate"><span class="pre">.avs</span></code>, preserving <code class="docutils literal notranslate"><span class="pre">mat_id</span></code>.</p></li>
+<li><p>DOLFIN / FEniCS XML <code class="docutils literal notranslate"><span class="pre">.xml</span></code>.</p></li>
+<li><p>FLAC3D <code class="docutils literal notranslate"><span class="pre">.f3grid</span></code> (zones and faces).</p></li>
+<li><p>Gmsh <code class="docutils literal notranslate"><span class="pre">.msh</span></code> - ASCII v2 read/write, v4.1 read, physical groups kept.</p></li>
+<li><p>Medit binary <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> (GmfLib v1 and v2, zero-copy mmap).</p></li>
+<li><p>Nastran <code class="docutils literal notranslate"><span class="pre">.bdf</span></code>, also registered for <code class="docutils literal notranslate"><span class="pre">.nas</span></code> and <code class="docutils literal notranslate"><span class="pre">.fem</span></code>, reading
+free, small and large field formats.</p></li>
+<li><p>Netgen <code class="docutils literal notranslate"><span class="pre">.vol</span></code> (points, edges, faces, cells, tags).</p></li>
+<li><p>OFF <code class="docutils literal notranslate"><span class="pre">.off</span></code> (ASCII and binary, colours, normals, texture coordinates).</p></li>
+<li><p>STL <code class="docutils literal notranslate"><span class="pre">.stl</span></code> (binary and ASCII, lazy loading for binary).</p></li>
+<li><p>SU2 <code class="docutils literal notranslate"><span class="pre">.su2</span></code> (VTK element codes, boundary markers).</p></li>
+<li><p>Tecplot <code class="docutils literal notranslate"><span class="pre">.tec</span></code> (ASCII FE zone, POINT and BLOCK ordering).</p></li>
+<li><p>TetGen <code class="docutils literal notranslate"><span class="pre">.node</span></code> + <code class="docutils literal notranslate"><span class="pre">.ele</span></code> pairs (markers, regions).</p></li>
+<li><p>UGRID <code class="docutils literal notranslate"><span class="pre">.ugrid</span></code> (AFLR ASCII, boundary tags).</p></li>
+<li><p>WKT <code class="docutils literal notranslate"><span class="pre">.wkt</span></code> (Well-Known Text).</p></li>
+</ul>
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">pxios</span></code> command line interface with <code class="docutils literal notranslate"><span class="pre">fetch</span></code>, <code class="docutils literal notranslate"><span class="pre">list</span></code>, <code class="docutils literal notranslate"><span class="pre">convert</span></code> and
 <code class="docutils literal notranslate"><span class="pre">viz</span></code> subcommands. Visualization requires the optional <code class="docutils literal notranslate"><span class="pre">viz</span></code> extra
 (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">polyxios[viz]</span></code>).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">polyxios.read_polydata</span></code> and <code class="docutils literal notranslate"><span class="pre">polyxios.visualize_mesh</span></code> helpers, plus
 <code class="docutils literal notranslate"><span class="pre">polyxios.supported_extensions</span></code> to introspect the codec registry.</p></li>
+<li><p>Versioned documentation at <a class="reference external" href="https://polyxios.org">https://polyxios.org</a>, with a version switcher,
+a credits page generated from the git history, and a page per format.</p></li>
 </ul>
 </section>
-<section id="id2">
-<h3>Changes<a class="headerlink" href="#id2" title="Link to this heading">#</a></h3>
+<section id="id3">
+<h3>Changes<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
 downloads files individually, instead of pinned per-format release zips.
 Downloads are checksum-verified and the result is cached across runs; set
 <code class="docutils literal notranslate"><span class="pre">POLYXIOS_MODELS_URL</span></code> to pin the catalog to an immutable URL.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span></code> gained <code class="docutils literal notranslate"><span class="pre">--verbose</span></code>, requires a <code class="docutils literal notranslate"><span class="pre">sha256</span></code> for every asset
+and resolves destination paths defensively.</p></li>
+<li><p>ASCII writing is vectorised, and the docs build now treats Sphinx warnings
+as errors.</p></li>
 </ul>
 </section>
+<section id="bug-fixes">
+<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
+added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
+from downloading the whole pack.</p></li>
+<li><p>STL: fixed a file-descriptor leak, ASCII decoding, lazy-format detection,
+trailing-data handling and zero normals on degenerate triangles.</p></li>
+<li><p>WKT: fixed ring grouping, decoding and degenerate rings, and hardened
+parsing and hole encoding.</p></li>
+<li><p>Gmsh: corrected the element type codes.</p></li>
+<li><p>Nastran: fixed marker parsing, exponent handling and write precision.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resolve()</span></code> now accepts a dotless <code class="docutils literal notranslate"><span class="pre">fmt</span></code> override.</p></li>
+<li><p>Fixed multi-channel vertex attributes in <code class="docutils literal notranslate"><span class="pre">merge</span></code> and <code class="docutils literal notranslate"><span class="pre">vertex_colors</span></code>,
+offset validation and ASCII newlines in the VTK XML path, and restored
+multiblock partial loading and visualization colours.</p></li>
+</ul>
+<p>GitHub stats for 2026/06/25 - 2026/08/18 (tag: v0.2.0)</p>
+<p>These lists are automatically generated and may be incomplete or contain duplicates.</p>
+<p>The following 3 authors contributed 97 commits.</p>
+<ul class="simple">
+<li><p>Praneeth Shetty</p></li>
+<li><p>Serge Koudoro</p></li>
+<li><p>dependabot[bot]</p></li>
+</ul>
+<p>We closed a total of 29 issues, 29 pull requests and 0 regular issues.</p>
+<p>Pull Requests (29):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/43">PR #43</a>: CI: publish versioned docs from the tag push</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/42">PR #42</a>: NF: warnings as error</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/41">PR #41</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/40">PR #40</a>: DOC: SEO metadata, em dash removal, copy icon, mobile fixes</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/39">PR #39</a>: NF: new polyxios website</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/38">PR #38</a>: NF: add Netgen .vol codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/37">PR #37</a>: NF: add UGRID ASCII .ugrid codec (AFLR format, boundary tags)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/36">PR #36</a>: NF: add TetGen codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/35">PR #35</a>: NF: add SU2 codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/34">PR #34</a>: NF: add Tecplot ASCII .tec codec (FE zone, POINT + BLOCK)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/33">PR #33</a>: NF: add OFF codec (ASCII + binary, colours/normals/texcoords)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/32">PR #32</a>: NF: add Nastran .bdf codec (free/small/large field read)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/23">PR #23</a>: NF: Add WKT (Well-Known Text) codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/31">PR #31</a>: NF:  Adding gmsh codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/21">PR #21</a>: NF: add FLAC3D .f3grid codec (T4/P5/W6/B8 zone types)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/20">PR #20</a>: NF: Adding CLI support <cite>pxios</cite></p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/29">PR #29</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/28">PR #28</a>: MNT: Bump pypa/cibuildwheel from 4.1.1 to 4.2.0 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/26">PR #26</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/27">PR #27</a>: MNT: Bump pypa/cibuildwheel from 4.1.0 to 4.1.1 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/25">PR #25</a>: MNT: Bump actions/setup-python from 6 to 7 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/24">PR #24</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/22">PR #22</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/19">PR #19</a>: Feat/dolfin codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/18">PR #18</a>: NF: add Medit .meshb codec (GmFlib binary, v1/v2, lazy mmap support)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/17">PR #17</a>: NF: add AVS-UCD .avs codec (ASCII, mat_id preserved)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/16">PR #16</a>: NF: add Abaqus .inp codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/15">PR #15</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/14">PR #14</a>: NF: add STL codec with binary/ASCII read-write and lazy binary support</p></li>
+</ul>
+<p>Issues (0):</p>
+</section>
+</section>
+<section id="upcoming">
+<span id="changes-0-4-0"></span><h2>0.4.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<p>(No entries yet.)</p>
 </section>
 <section id="changes-0-2-0">
-<span id="id3"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id4"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id4">
-<h3>New features<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<section id="id5">
+<h3>New features<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -651,13 +744,15 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.3.0 (upcoming)</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.4.0 (upcoming)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">New features</a></li>
 </ul>
 </li>
 </ul>

@@ -42,5 +42,5 @@ polyxios reads and writes 25 3D mesh and geometry file formats through one API, 
 - [API Reference](https://polyxios.org/stable/api/index.html): Complete reference for all public functions, types, and exceptions.
 - [Contributing](https://polyxios.org/stable/contributing.html): Every commit subject line must start with one of these prefixes followed by a space:
 - [Development Guide](https://polyxios.org/stable/development.html): polyxios uses spin to manage the development workflow. All common tasks - building, testing, linting, and documentation - are available as spin sub-commands.
-- [Changelog](https://polyxios.org/stable/changelog.html): pxios command line interface with fetch, list, convert and viz subcommands. Visualization requires the optional viz extra (pip install polyxios[viz]).
+- [Changelog](https://polyxios.org/stable/changelog.html): Fifteen new mesh formats, a real command line interface and a versioned documentation site.
 - [Credits](https://polyxios.org/stable/credits.html): polyxios is developed in the open under the FURY umbrella. Every codec, test and page in these docs came from someone’s spare evening.
