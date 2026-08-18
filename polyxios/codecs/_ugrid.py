@@ -31,7 +31,6 @@ name where the name carries the infix, and by the NUL in the opening record
 where it does not.
 """
 
-from pathlib import Path
 import re
 from typing import Any
 import warnings
@@ -45,6 +44,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, read_bytes, source_name, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -117,7 +117,7 @@ def _natural_key(name: str) -> tuple[tuple[int, Any], ...]:
     )
 
 
-def _reject_binary(path: Path) -> None:
+def _reject_binary(path: Source) -> None:
     """Refuse a binary UGRID variant by name before parsing it as text.
 
     The binary flavours share the ``.ugrid`` extension and are told apart only
@@ -129,15 +129,15 @@ def _reject_binary(path: Path) -> None:
     that is perfectly readable. A binary file spelled that way is caught by
     :func:`_reject_binary_bytes` instead, which does not have to guess.
     """
-    parts = path.name.lower().split(".")
+    parts = source_name(path).lower().split(".")
     if len(parts) > 2 and parts[-2] in _BINARY_INFIXES:
         raise CodecError(
-            f".ugrid: '{path.name}' names the binary '{parts[-2]}' UGRID variant;"
+            f".ugrid: '{source_name(path)}' names the binary '{parts[-2]}' UGRID variant;"
             " only the ASCII flavour is supported."
         )
 
 
-def _reject_binary_bytes(path: Path, head: bytes) -> None:
+def _reject_binary_bytes(path: Source, head: bytes) -> None:
     """Refuse a file whose opening bytes are not text.
 
     The name check only catches the ``mesh.lb8.ugrid`` spelling. A binary UGRID
@@ -147,12 +147,12 @@ def _reject_binary_bytes(path: Path, head: bytes) -> None:
     """
     if b"\x00" in head:
         raise CodecError(
-            f".ugrid: '{path.name}' opens with binary data; only the ASCII"
+            f".ugrid: '{source_name(path)}' opens with binary data; only the ASCII"
             " UGRID flavour is supported, not the b8/lb8/r8 variants."
         )
 
 
-def _tokenize(path: Path) -> list[str]:
+def _tokenize(path: Source) -> list[str]:
     """Return the file's whitespace-separated tokens.
 
     The format defines no comment character, so nothing is stripped: a ``#``
@@ -160,9 +160,9 @@ def _tokenize(path: Path) -> list[str]:
     would shift every value after it instead of reporting it.
     """
     try:
-        raw = path.read_bytes()
+        raw = read_bytes(path)
     except OSError as exc:
-        raise CodecError(f".ugrid: cannot read '{path.name}': {exc}") from exc
+        raise CodecError(f".ugrid: cannot read '{source_name(path)}': {exc}") from exc
     _reject_binary_bytes(path, raw[:_SNIFF_BYTES])
     return raw.decode("utf-8-sig", errors="replace").split()
 
@@ -232,7 +232,7 @@ def _as_ints(values: np.ndarray, what: str) -> np.ndarray:
     return values.astype(np.int64)
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an AFLR UGRID ASCII ``.ugrid`` file and return a PolyData.
 
     Parameters
@@ -273,7 +273,6 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             ".ugrid: lazy=True is not supported; loading eagerly.", stacklevel=2
         )
 
-    path = Path(path)
     _reject_binary(path)
     tokens = _tokenize(path)
     if len(tokens) < 7:
@@ -598,7 +597,7 @@ def _float_fmt(opts: dict[str, Any]) -> str:
     return fmt
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to an AFLR UGRID ASCII ``.ugrid`` file.
 
     Parameters
@@ -643,7 +642,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     The format carries no fields, so ``vertex_attrs``, ``element_attrs``,
     ``vertex_tags`` and ``global_attrs`` are not written.
     """
-    path = Path(path)
     _reject_binary(path)
 
     fmt = _float_fmt(dict(opts))
@@ -710,4 +708,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
             lines.extend(str(v) for v in ids.tolist())
         lines.extend(" ".join(str(v) for v in row) for row in block.tolist())
 
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text(path, "\n".join(lines) + "\n", encoding="utf-8")

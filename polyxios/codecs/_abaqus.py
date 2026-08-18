@@ -1,11 +1,11 @@
 """Abaqus .inp ASCII codec - read + write."""
 
-from pathlib import Path
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -55,7 +55,7 @@ def _inp_type_info(type_str: str) -> tuple[str, int] | None:
     return None
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an Abaqus .inp file.
 
     Parameters
@@ -76,7 +76,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     """
     raw = [
         ln.split("**")[0].rstrip()
-        for ln in Path(path).read_text().splitlines()
+        for ln in read_text(path).splitlines()
         if not ln.strip().startswith("**")
     ]
 
@@ -185,7 +185,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str) -> None:
+def write(poly: PolyData, path: Source) -> None:
     """Write PolyData to Abaqus .inp ASCII format.
 
     Parameters
@@ -240,4 +240,4 @@ def write(poly: PolyData, path: Path | str) -> None:
             lines.append(f"{elem_id}, {node_str}")
 
     lines.append("")
-    Path(path).write_text("\n".join(lines))
+    write_text(path, "\n".join(lines))

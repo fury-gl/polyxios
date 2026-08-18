@@ -33,7 +33,6 @@ Two lossy write behaviours are worth knowing about:
 """
 
 from collections.abc import Iterator
-from pathlib import Path
 import re
 from typing import Any
 import warnings
@@ -47,6 +46,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -817,7 +817,7 @@ def _polygon_groups(
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a WKT file and return a PolyData.
 
     The file may contain one geometry per line, a single multi-line
@@ -848,11 +848,11 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
 
     # errors="replace" keeps a non-UTF-8 file inside the codec error
     # contract: the replacement character is rejected by the tokeniser.
-    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    text = read_text(path, encoding="utf-8-sig", errors="replace")
     return _Parser(text).parse_all()
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a WKT file.
 
     Each element is written as one WKT geometry line, except polygon
@@ -953,4 +953,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         )
 
     text = "\n".join(lines) + "\n" if lines else ""
-    Path(path).write_text(text, encoding="utf-8")
+    write_text(path, text, encoding="utf-8")

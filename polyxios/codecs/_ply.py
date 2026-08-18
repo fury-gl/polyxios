@@ -1,10 +1,16 @@
-import mmap
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import (
+    Source,
+    map_read,
+    open_block,
+    open_read,
+    open_write,
+    source_size,
+)
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
@@ -34,7 +40,7 @@ _PLY_DTYPE: dict[str, str] = {
 }
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a PLY file and return a PolyData.
 
     Parameters
@@ -57,11 +63,16 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     CodecError
         On malformed PLY data.
     """
-    path = Path(path)
-    file_size = path.stat().st_size
+    file_size = source_size(path)
 
-    with open(path, "rb") as fh:
+    with open_read(path) as fh:
+        start = fh.tell()
         header, header_end_offset = _parse_header(fh)
+        # The header parse walks the handle forward; every reader below seeks
+        # from the file's start, so a caller's handle is put back where it
+        # was found rather than left mid-file.
+        if fh.seekable():
+            fh.seek(start)
 
     fmt = header["format"]
     elements = header["elements"]
@@ -97,7 +108,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     return _read_binary(path, header, header_end_offset, little_endian)
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a PLY file.
 
     Parameters
@@ -111,7 +122,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     endian
         'little' (default) or 'big'.
     """
-    path = Path(path)
     binary: bool = bool(opts.get("binary", True))
     endian: str = str(opts.get("endian", "little"))
 
@@ -156,7 +166,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
 
     header_bytes = b"\n".join(lines) + b"\n"
 
-    with open(path, "wb") as fh:
+    with open_write(path) as fh:
         fh.write(header_bytes)
 
         if binary:
@@ -206,16 +216,19 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
                 fh.write((" ".join(parts) + "\n").encode())
 
 
-def _read_ascii(path: Path, header: dict, header_end_offset: int) -> PolyData:
+def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
     vert_elem = next((e for e in header["elements"] if e["name"] == "vertex"), None)
     face_elem = next((e for e in header["elements"] if e["name"] == "face"), None)
 
     n_verts = vert_elem["count"] if vert_elem else 0
     n_faces = face_elem["count"] if face_elem else 0
 
-    with open(path, "rb") as fh:
-        fh.seek(header_end_offset)
+    with open_read(path) as fh:
+        start = fh.tell()
+        fh.seek(start + header_end_offset)
         lines = fh.read().decode("ascii", errors="replace").splitlines()
+        if fh.seekable():
+            fh.seek(start)
 
     idx = 0
     vertices = np.zeros((n_verts, 3), dtype=np.float64)
@@ -285,27 +298,24 @@ def _read_ascii(path: Path, header: dict, header_end_offset: int) -> PolyData:
 
 
 def _read_binary(
-    path: Path, header: dict, header_end_offset: int, little_endian: bool
+    path: Source, header: dict, header_end_offset: int, little_endian: bool
 ) -> PolyData:
-    with open(path, "rb") as fh:
-        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
-        mv = memoryview(mm)
+    with open_block(path, fmt=".ply") as block:
+        mv = memoryview(block)
         try:
             poly = _decode_binary(mv, header, header_end_offset, little_endian)
         finally:
-            del mv  # release memoryview before closing mmap
-            mm.close()
+            del mv  # release the view before the mapping goes
     return poly
 
 
 def _read_binary_lazy(
-    path: Path, header: dict, header_end_offset: int, little_endian: bool
+    path: Source, header: dict, header_end_offset: int, little_endian: bool
 ) -> PolyData:
     # The mapping outlives the descriptor: mmap keeps the file alive on its own,
     # so closing fh here leaks nothing while the arrays still reference the
     # mapped pages, which the OS loads on demand.
-    with open(path, "rb") as fh:
-        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+    mm = map_read(path, fmt=".ply")
     mv = memoryview(mm)
     poly = _decode_binary(mv, header, header_end_offset, little_endian)
     # mm is kept alive by the arrays that view it, and unmapped once they go.
@@ -453,7 +463,9 @@ def _skip_binary_element(
     return pos
 
 
-def _read_compressed_3dgs(path: Path, header: dict, header_end_offset: int) -> PolyData:
+def _read_compressed_3dgs(
+    path: Source, header: dict, header_end_offset: int
+) -> PolyData:
     """Decode a compressed 3D Gaussian Splat PLY file.
 
     The compressed format (produced by super-splat / splat-transform) stores:
@@ -501,8 +513,7 @@ def _read_compressed_3dgs(path: Path, header: dict, header_end_offset: int) -> P
         ]
     )
 
-    with open(path, "rb") as fh:
-        mm = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+    with open_block(path, fmt=".ply") as mm:
         try:
             pos = header_end_offset
             chunk_bytes = n_chunks * chunk_dt.itemsize

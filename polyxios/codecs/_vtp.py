@@ -1,10 +1,10 @@
 import base64
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import Source, source_size, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import decode_da, parse_xml
 from polyxios.exceptions import LazyReadError, UnsupportedFormatError
@@ -15,7 +15,7 @@ EXTENSION: str = ".vtp"
 _SECTION_TYPES = ("Verts", "Lines", "Strips", "Polys")
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK PolyData XML file (.vtp) and return a PolyData.
 
     Parameters
@@ -36,8 +36,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             "VTP lazy reads require mutable array proxies; not supported with frozen PolyData."
         )
 
-    path = Path(path)
-    file_size = path.stat().st_size
+    file_size = source_size(path)
 
     root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
 
@@ -182,7 +181,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a VTK PolyData XML file (.vtp).
 
     Parameters
@@ -196,7 +195,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     compressed
         If True (default: False), compress binary data with zlib.
     """
-    path = Path(path)
     binary: bool = bool(opts.get("binary", True))
 
     n_verts = poly.vertices.shape[0]
@@ -250,7 +248,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     lines.append("  </PolyData>")
     lines.append("</VTKFile>")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")
 
 
 def _da(

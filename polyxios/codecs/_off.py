@@ -3,7 +3,6 @@
 from collections.abc import Iterator
 import io
 from itertools import chain, islice
-from pathlib import Path
 import re
 from typing import Any, NamedTuple
 import warnings
@@ -17,6 +16,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, read_bytes, write_bytes, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -87,7 +87,7 @@ class _Layout(NamedTuple):
     binary: bool
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an OFF file and return a PolyData.
 
     Parameters
@@ -132,7 +132,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     # The byte-order mark a Windows editor leaves behind would otherwise glue
     # itself to the header keyword; the other text codecs drop it by reading
     # through utf-8-sig, and the binary spelling has to be sniffed as bytes.
-    raw = Path(path).read_bytes().removeprefix(_BOM)
+    raw = read_bytes(path).removeprefix(_BOM)
     header, body_offset = _sniff_header(raw)
     if header is None:
         raise CodecError(".off: empty file.")
@@ -148,7 +148,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     return _read_ascii(text, layout)
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to an OFF file.
 
     Parameters
@@ -211,9 +211,9 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         )
     )
 
-    path = Path(path)
     if binary:
-        path.write_bytes(
+        write_bytes(
+            path,
             _encode_binary(
                 keyword,
                 poly.vertices,
@@ -223,10 +223,11 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
                 texcoords,
                 face_colors,
                 face_index,
-            )
+            ),
         )
         return
-    path.write_text(
+    write_text(
+        path,
         _encode_ascii(
             keyword,
             poly.vertices,
