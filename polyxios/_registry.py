@@ -2,7 +2,14 @@ from collections.abc import Callable
 from typing import NamedTuple
 import warnings
 
-from polyxios._io import Source, is_buffer, open_read, source_name, source_suffix
+from polyxios._io import (
+    GZIP_SUFFIXES,
+    Source,
+    is_buffer,
+    open_read,
+    source_name,
+    source_suffix,
+)
 from polyxios.exceptions import CodecError, UnsupportedFormatError
 
 
@@ -271,6 +278,16 @@ def build_default_registry() -> dict[str, Codec]:
     return registry
 
 
+def _drop_suffix(path: Source, suffix: str) -> str:
+    """Return a source's name without one trailing suffix.
+
+    Only ever used to look past ``.gz``, so what comes back is a name to take
+    an extension from, never a path to open.
+    """
+    name = source_name(path)
+    return name[: -len(suffix)] if suffix and name.endswith(suffix) else name
+
+
 def resolve(
     path: Source,
     fmt: str | None,
@@ -304,6 +321,10 @@ def resolve(
     """
     if fmt is None:
         ext = source_suffix(path)
+        # '.gz' names the compression, not the format: the IO layer unwraps it
+        # on the way in, so the codec is chosen by what is inside.
+        if ext in GZIP_SUFFIXES:
+            ext = source_suffix(_drop_suffix(path, ext))
         # A nameless buffer is not a file with an unknown extension: there is
         # nothing to infer from at all, and saying so beats "No codec for ''".
         if not ext and is_buffer(path):

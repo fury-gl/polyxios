@@ -75,6 +75,10 @@ the whole file at once - mapped for a path, read into memory for a buffer.
 ``source_name`` and ``source_suffix`` are what an error message should quote,
 since a buffer has no ``Path`` to ask.
 
+Going through the helpers is also what gives a codec gzip for free: the
+decompression happens inside them, so a codec that opened the path itself
+would be the only format in the library that cannot read a ``.gz``.
+
 A codec that genuinely needs a file on disk - a format split across sibling
 files, say - calls ``require_path(path, fmt=..., reason=...)``, which returns
 a ``Path`` or refuses the buffer with a message naming why.

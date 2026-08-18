@@ -55,6 +55,27 @@ file descriptor: an ``io.BytesIO`` raises ``LazyReadError`` rather than
 quietly loading eagerly. TetGen is the one format a buffer cannot carry -
 a mesh is a ``.node`` and an ``.ele`` file found beside each other by name.
 
+Compressed files
+----------------
+
+gzip is handled by the same layer, for every format at once:
+
+.. code-block:: python
+
+    mesh = px.read("brain.vol.gz")      # decompressed on the way in
+    px.write(mesh, "brain.vtk.gz")      # compressed on the way out
+
+Reading looks at the **content**: a file compressed without being renamed
+reads just as well as one ending in ``.gz``, and a ``.gz`` name over plain
+bytes is read as the plain file it is. Writing looks at the **name**, since
+an output file has no content to inspect yet - a destination ending ``.gz``
+is compressed, and nothing else is.
+
+The compressed output carries no timestamp and no embedded file name, so the
+same mesh always produces the same bytes. Lazy reads are the one thing gzip
+takes away: ``mmap`` maps a file as it is stored, so a compressed file raises
+``LazyReadError`` rather than handing back compressed bytes.
+
 Format-specific options
 -----------------------
 
