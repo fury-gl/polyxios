@@ -1,15 +1,93 @@
 from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
+import warnings
 
 from polyxios.exceptions import UnsupportedFormatError
 
 
 class Codec(NamedTuple):
-    """A read+write pair for a mesh format."""
+    """A read+write pair for a mesh format.
+
+    Attributes
+    ----------
+    read
+        Reader callable, invoked as ``read(path=..., lazy=...)``.
+    write
+        Writer callable, invoked as ``write(poly=..., path=..., **opts)``.
+    sniff
+        Optional content test, ``sniff(head: bytes) -> bool``, answering
+        whether the opening bytes of a file look like this format. Only a
+        codec competing for an extension another format also uses needs one.
+    """
 
     read: Callable
     write: Callable
+    sniff: Callable | None = None
+
+
+# How much of a file's opening the sniffers see. Large enough that a Nastran
+# deck's comment banner does not hide its first real card, small enough that
+# reading it costs one page.
+_SNIFF_BYTES: int = 8192
+
+
+def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
+    """Build the Codec that resolves one contested extension by content.
+
+    Parameters
+    ----------
+    ext
+        The contested extension, lower case and with its leading dot.
+    entries
+        Candidate ``(label, codec)`` pairs, already in the order their
+        ``sniff`` should be tried.
+
+    Returns
+    -------
+    Codec
+        A codec whose ``read`` delegates to the first candidate that
+        recognises the file, and whose ``write`` always raises - an output
+        file has no content to sniff yet.
+    """
+    labels = [label for label, _ in entries]
+    named = ", ".join(labels)
+
+    def read(path: Path | str, *, lazy: bool = False) -> object:
+        try:
+            with open(path, "rb") as fh:
+                head = fh.read(_SNIFF_BYTES)
+        except OSError as exc:
+            raise UnsupportedFormatError(
+                f"Cannot identify '{ext}' file '{Path(path).name}': {exc}"
+            ) from exc
+
+        for label, codec in entries:
+            try:
+                matched = bool(codec.sniff(head))
+            except Exception as exc:  # a broken sniffer must not mask the rest
+                warnings.warn(
+                    f"{label} sniffer raised on '{Path(path).name}': {exc}",
+                    stacklevel=2,
+                )
+                continue
+            if matched:
+                return codec.read(path=path, lazy=lazy)
+
+        raise UnsupportedFormatError(
+            f"'{Path(path).name}': '{ext}' is used by several formats "
+            f"({named}) and the file's content matches none of them. "
+            f"Pass fmt= to choose one explicitly."
+        )
+
+    def write(poly: object, path: Path | str, **opts: object) -> None:
+        raise UnsupportedFormatError(
+            f"'{ext}' is used by several formats ({named}), so a writer "
+            f"cannot be chosen from the extension alone. "
+            f"Pass fmt= to choose one explicitly."
+        )
+
+    return Codec(read, write, None)
 
 
 def build_default_registry() -> dict[str, Codec]:
@@ -26,6 +104,17 @@ def build_default_registry() -> dict[str, Codec]:
     docs quote and the one a writer should prefer - and is registered first
     whether or not ``EXTENSIONS`` repeats it, so a typo there cannot drop a
     format's own extension.
+
+    An extension several unrelated formats use - ``.dat`` belongs to Tecplot,
+    Nastran, LS-DYNA and plain ASCII tables alike - is claimed by none of them
+    outright. A codec competing for one declares it under
+    ``SNIFF_EXTENSIONS : tuple[str, ...]`` and supplies
+    ``sniff(head: bytes) -> bool``; the extension then resolves to a
+    dispatcher that reads the file's opening bytes and delegates to the first
+    codec recognising them. ``SNIFF_PRIORITY : int`` orders the attempts, the
+    lowest first, ties broken by module name; a codec whose test is narrow
+    should sort ahead of one whose test is broad. An extension a codec owns
+    outright through ``EXTENSION``/``EXTENSIONS`` is never contested.
 
     Also loads third-party codecs declared under the ``polyxios.codecs``
     entry-point group; those stay one extension per entry point.
@@ -49,6 +138,9 @@ def build_default_registry() -> dict[str, Codec]:
     ]
 
     registry: dict[str, Codec] = {}
+    # Contested extension -> the codecs competing for it, each carrying the
+    # sort key that decides which sniffer runs first.
+    contested: dict[str, list[tuple[int, str, Codec]]] = {}
 
     for mod_info in pkgutil.iter_modules(_search_path):
         if mod_info.name.startswith("_") and not mod_info.name.startswith("__"):
@@ -72,7 +164,11 @@ def build_default_registry() -> dict[str, Codec]:
             ):
                 exts = ()
 
-            codec = Codec(read_fn, write_fn)
+            sniff_fn = getattr(mod, "sniff", None)
+            if not callable(sniff_fn):
+                sniff_fn = None
+
+            codec = Codec(read_fn, write_fn, sniff_fn)
             # EXTENSION leads, so a module whose EXTENSIONS forgets its own
             # canonical spelling still answers to it; dict.fromkeys drops the
             # repeat the usual case produces. resolve() looks a key up in
@@ -80,6 +176,34 @@ def build_default_registry() -> dict[str, Codec]:
             # it registers a key nothing can reach.
             for alias in dict.fromkeys(e.lower() for e in (ext, *exts)):
                 registry[alias] = codec
+
+            # Same shape guard as EXTENSIONS: a bare string is iterable, and
+            # a codec declaring one without a sniffer has nothing to compete
+            # with, so it is dropped rather than allowed to claim the key.
+            sniff_exts = getattr(mod, "SNIFF_EXTENSIONS", ())
+            if (
+                sniff_fn is None
+                or not isinstance(sniff_exts, (tuple, list))
+                or not all(isinstance(e, str) for e in sniff_exts)
+            ):
+                sniff_exts = ()
+
+            priority = getattr(mod, "SNIFF_PRIORITY", 0)
+            if not isinstance(priority, int) or isinstance(priority, bool):
+                priority = 0
+
+            for alias in dict.fromkeys(e.lower() for e in sniff_exts):
+                contested.setdefault(alias, []).append((priority, mod_info.name, codec))
+
+    for alias, competing in contested.items():
+        # An extension one codec owns outright is not contested, whatever
+        # another codec believes it competes for: the owner keeps the key.
+        if alias in registry:
+            continue
+        competing.sort(key=lambda entry: (entry[0], entry[1]))
+        registry[alias] = _make_dispatcher(
+            alias, [(name.lstrip("_"), codec) for _, name, codec in competing]
+        )
 
     try:
         from importlib.metadata import entry_points

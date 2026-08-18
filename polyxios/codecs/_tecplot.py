@@ -6,9 +6,11 @@ both the classic ``F=FEPOINT, ET=TRIANGLE`` spelling and the modern
 coordinates travel as ``vertex_attrs``. Zones are written back under POINT
 packing.
 
-Registered for ``.tec``. Tecplot's other common spelling, ``.dat``, is
-deliberately not claimed - LS-DYNA, Nastran and plain ASCII tables all use it
-too, so a file named that way reads through ``read(path, fmt=".tec")``.
+Registered for ``.tec`` and, so the error names the real problem, for the
+binary ``.plt`` this codec cannot read. Tecplot's most common spelling in the
+wild, ``.dat``, is shared with LS-DYNA, Nastran and plain ASCII tables, so it
+is claimed through the registry's sniff hook instead: a ``.dat`` opening with a
+Tecplot header keyword resolves here, anything else does not.
 """
 
 from pathlib import Path
@@ -29,6 +31,25 @@ from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".tec"
+EXTENSIONS: tuple[str, ...] = (".tec", ".plt")
+SNIFF_EXTENSIONS: tuple[str, ...] = (".dat",)
+# Ahead of Nastran's: the keywords below open a Tecplot file and nothing else,
+# while a Nastran deck is recognised by a card that may sit far from the top.
+SNIFF_PRIORITY: int = 0
+
+# Every Tecplot ASCII file opens with one of these; the header is mandatory and
+# a bare ``ZONE`` is a legal file. ``FILETYPE`` and ``DATASETAUXDATA`` belong
+# to the modern spelling, ``TITLE``/``VARIABLES`` to every version. A Tecplot
+# title is quoted and a Nastran case-control one is not, so the quote is what
+# keeps a deck opening ``TITLE = my model`` out of this codec.
+_HEADER_RE: re.Pattern[str] = re.compile(
+    r'(TITLE\s*=\s*"|VARIABLES\s*=|ZONE\b|FILETYPE\s*=|DATASETAUXDATA\b)',
+    re.IGNORECASE,
+)
+
+# Binary Tecplot ('.plt') opens with this magic. Recognised so the file lands
+# in this codec and gets told what is wrong, rather than resolving nowhere.
+_BINARY_MAGIC: bytes = b"#!TDV"
 
 # Classic ``ET=`` spellings and the modern ``ZONETYPE=`` ones both land here;
 # a file may use either, and older writers emit both at once.
@@ -519,6 +540,39 @@ def _resolve_packing(hdr: dict[str, str]) -> bool:
     return packings.pop()
 
 
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like Tecplot.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes, as handed over by the registry.
+
+    Returns
+    -------
+    bool
+        True when the file opens with the binary ``.plt`` magic or its first
+        meaningful line starts with a Tecplot header keyword.
+
+    Notes
+    -----
+    Used to resolve ``.dat``, which several unrelated formats share. The test
+    is deliberately narrow: only the mandatory header opens a Tecplot file, so
+    a deck belonging to another format cannot pass it.
+    """
+    if head.startswith(_BINARY_MAGIC):
+        return True
+
+    text = head.decode("utf-8-sig", errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        # A comment or a blank line says nothing either way; keep looking.
+        if not stripped or stripped.startswith("#"):
+            continue
+        return _HEADER_RE.match(stripped) is not None
+    return False
+
+
 def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     """Parse a Tecplot ASCII file (finite-element zone).
 
@@ -536,10 +590,11 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     CodecError
-        On a missing or malformed ZONE header, two header spellings of the same
-        field disagreeing, one field declared twice with two values, a zone
-        that shares or cell-centres its data, an unsupported element type or
-        data packing, a truncated file, or an out-of-range node reference.
+        On a binary ``.plt`` file, a missing or malformed ZONE header, two
+        header spellings of the same field disagreeing, one field declared
+        twice with two values, a zone that shares or cell-centres its data, an
+        unsupported element type or data packing, a truncated file, or an
+        out-of-range node reference.
 
     Notes
     -----
@@ -553,11 +608,20 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             ".tec: lazy=True is not supported; loading eagerly.", stacklevel=2
         )
 
+    raw = Path(path).read_bytes()
+    if raw.startswith(_BINARY_MAGIC):
+        # Decoded as text this becomes a wall of replacement characters and
+        # then a confusing 'no ZONE header' error; name the real problem.
+        raise CodecError(
+            f".tec: '{Path(path).name}' is a binary Tecplot file (.plt); only "
+            "the ASCII flavour is supported. Re-export it as ASCII."
+        )
+
     # 'utf-8-sig' so a byte-order mark left by a Windows pre-processor does not
     # glue itself to the first keyword and hide the header. errors="replace"
     # keeps a file written in some other 8-bit encoding inside a CodecError -
     # its numbers are ASCII either way, and only a title or comment is hurt.
-    lines = Path(path).read_text(encoding="utf-8-sig", errors="replace").splitlines()
+    lines = raw.decode("utf-8-sig", errors="replace").splitlines()
 
     zone_idx = -1
     zone_hdr = ""
@@ -687,10 +751,11 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     Raises
     ------
     CodecError
-        If no supported element type is found - which a mesh carrying no
-        elements at all also is, since an FE zone has no cells to hold its
-        nodes - or an element's node count does not match its type, or an
-        element references a vertex that does not exist.
+        On a ``.plt`` output path, since only the ASCII flavour is written; if
+        no supported element type is found - which a mesh carrying no elements
+        at all also is, since an FE zone has no cells to hold its nodes - or an
+        element's node count does not match its type, or an element references
+        a vertex that does not exist.
 
     Notes
     -----
@@ -704,6 +769,15 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     if opts:
         warnings.warn(
             f".tec write: unrecognized options {set(opts)}; ignored.", stacklevel=2
+        )
+
+    # '.plt' resolves here so its reader can name the problem; writing one
+    # would hand back an ASCII file under a binary format's name.
+    if Path(path).suffix.lower() == ".plt":
+        raise CodecError(
+            f".tec: cannot write '{Path(path).name}'; .plt is the binary "
+            "Tecplot flavour and only ASCII is supported. Write a .tec or "
+            ".dat file instead."
         )
 
     n_verts = poly.vertices.shape[0]
