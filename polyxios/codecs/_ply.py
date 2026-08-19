@@ -64,6 +64,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     CodecError
         On malformed PLY data.
     """
+    # Measured rather than taken from a later read, because the header's
+    # counts are checked against it before any of them sizes an array, and
+    # the reader that would hand the size back runs after that check. Over a
+    # compressed source that costs a decompression pass whose output is
+    # thrown away as it is counted - constant memory, unlike holding the
+    # whole file to measure it, which is the trade this format's large binary
+    # files are on the wrong side of.
     file_size = source_size(path)
 
     with open_read(path) as fh:

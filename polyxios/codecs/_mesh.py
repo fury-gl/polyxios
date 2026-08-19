@@ -49,6 +49,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     CodecError
         On malformed or unrecognised mesh data.
     """
+    # Measured rather than taken from a later read: the tokens are walked as
+    # a stream, so no step below ever holds the whole file to take a length
+    # off it. Over a compressed source that is one decompression pass counted
+    # and discarded, which is the cheaper half of the trade.
     file_size = source_size(path)
 
     header, all_tokens = _read_header_and_tokens(path)

@@ -44,7 +44,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
-from polyxios._io import Source, read_bytes, source_name, write_text
+from polyxios._io import Source, read_bytes, source_name, strip_gzip, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -128,8 +128,12 @@ def _reject_binary(path: Source) -> None:
     stem-less binary file, and refusing it would lock a caller out of a file
     that is perfectly readable. A binary file spelled that way is caught by
     :func:`_reject_binary_bytes` instead, which does not have to guess.
+
+    A ``.gz`` on the end names the compression rather than the format, so it
+    comes off before the infix is looked for: ``mesh.lb8.ugrid.gz`` is the
+    same binary variant as ``mesh.lb8.ugrid``.
     """
-    parts = source_name(path).lower().split(".")
+    parts = strip_gzip(source_name(path).lower()).split(".")
     if len(parts) > 2 and parts[-2] in _BINARY_INFIXES:
         raise CodecError(
             f".ugrid: '{source_name(path)}' names the binary '{parts[-2]}' UGRID variant;"

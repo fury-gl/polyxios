@@ -1,5 +1,5 @@
 from polyxios import transforms
-from polyxios._io import Source
+from polyxios._io import Source, open_target
 from polyxios._registry import Codec, build_default_registry, resolve
 from polyxios._types import PolyData, make_polydata
 from polyxios.fetcher import fetch
@@ -52,7 +52,8 @@ def read(
         A handle is read from wherever it stands and is never closed here.
     fmt
         Format override (e.g. '.vtk'). The leading dot and the case are
-        both optional. Inferred from the file extension if None, which a
+        both optional, and a trailing '.gz' names the compression rather
+        than the format. Inferred from the file extension if None, which a
         file object only has when it carries a usable ``name``; pass ``fmt``
         for any other buffer.
     lazy
@@ -73,6 +74,13 @@ def read(
     UnsupportedFormatError
         If no codec matches, or if a nameless file object was passed
         without ``fmt``.
+    CodecError
+        If the file object is open in text mode where the format is read as
+        bytes, or if it is a stream that cannot seek where the format needs
+        to look twice - at the file's size, or at its opening to tell two
+        formats sharing an extension apart.
+    LazyReadError
+        If ``lazy`` is set and the source cannot be mapped.
     """
     codec = resolve(path, fmt, registry or _REGISTRY)
     return codec.read(path=path, lazy=lazy)
@@ -99,9 +107,10 @@ def write(
         to it afterwards.
     fmt
         Format override (e.g. '.vtk'). The leading dot and the case are
-        both optional. Inferred from the file extension if None, which a
-        file object only has when it carries a usable ``name``; pass ``fmt``
-        for any other buffer.
+        both optional, and a trailing '.gz' compresses the output - which is
+        the only way to ask a nameless buffer for gzip. Inferred from the
+        file extension if None, which a file object only has when it carries
+        a usable ``name``; pass ``fmt`` for any other buffer.
     registry
         Custom codec registry. Uses the built-in registry if None.
     **opts
@@ -112,9 +121,13 @@ def write(
     UnsupportedFormatError
         If no codec matches, or if a nameless file object was passed
         without ``fmt``.
+    CodecError
+        If the file object is open in text mode where the format is written
+        as bytes, or if the format refuses the destination it was given.
     """
     codec = resolve(path, fmt, registry or _REGISTRY)
-    codec.write(poly=poly, path=path, **opts)
+    with open_target(path, fmt=fmt) as target:
+        codec.write(poly=poly, path=target, **opts)
 
 
 __all__ = [

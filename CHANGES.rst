@@ -21,15 +21,46 @@ New features
   does not need it. TetGen is the exception: a ``.node``/``.ele`` pair is
   two files and still needs a path.
 - Lazy reads over a file object work when the handle is backed by a real
-  file - mmap needs a descriptor - and raise ``LazyReadError`` naming the
-  reason for an in-memory buffer.
+  file and stands at its start - mmap needs a descriptor and addresses a
+  file from byte zero - and raise ``LazyReadError`` naming the reason for an
+  in-memory buffer or a handle part-way into a file. Only the formats whose
+  lazy read hands back arrays viewing the mapping ask for that. Binary STL's
+  lazy mode copies what it reads - it skips vertex deduplication and nothing
+  else - so it takes a buffer like any other read rather than sending the
+  caller to an eager read that would merge the vertices it was asked to keep.
 - gzip is now transparent for every format: a file opening with the gzip
   magic is decompressed on the way in, whatever it is named, and a
   destination named ``.gz`` is compressed on the way out. ``.vol.gz`` is
   read as Netgen rather than refused, ``.gz`` names the compression rather
-  than the format when a codec is chosen, and the compressed output is
-  byte-reproducible (no timestamp, no embedded name). Lazy reads still
-  need an uncompressed file and say so.
+  than the format when a codec is chosen - in ``fmt=`` as well as in a file
+  name - and the compressed output is byte-reproducible (no timestamp, no
+  embedded name). ``fmt=".obj.gz"`` is how a nameless buffer asks for
+  compression, since it has no name to end in ``.gz``. A compressed member
+  need not run to the end of what it sits in, so a mesh gzipped into the
+  middle of an archive reads without the bytes after it becoming an error,
+  and a file holding several members back to back - what ``cat a.gz b.gz``
+  leaves - is read and measured as the whole it decompresses to. A path and
+  a file object go through the same reader, so one compressed file reads the
+  same way and fails the same way whichever it was handed over as. A
+  destination that compresses on its own, such as a handle from
+  ``gzip.open()``, is written to as it is rather than compressed a second
+  time. Lazy reads still need an uncompressed file and say so, and TetGen -
+  which opens its own sibling files rather than going through this layer -
+  refuses a compressed file rather than parsing it as text, by its content on
+  the way in and by its name on the way out, and for whichever half of the
+  pair carries it rather than only for the one the caller named. Whether a
+  source is compressed is decided by the whole four-byte gzip header rather
+  than by the two magic bytes alone: those open one file in every 65536 by
+  chance,
+  and in a headerless binary format they are an ordinary coordinate's low
+  mantissa bytes - a ``.splat`` whose first x is 10.658965 opens with exactly
+  them and is a mesh, not an archive.
+- The formats that check a header against the size of the file it came from
+  now take that size from the read they were already making rather than
+  measuring the source separately. Measuring a compressed one cost a whole
+  decompression pass that the read then repeated, and a stream that cannot
+  seek could not be measured at all, so legacy VTK, the VTK XML formats and
+  ``.splat`` read one pass faster and from more kinds of source than before.
 - Extensions several unrelated formats share are now resolved by looking
   inside the file. A codec declares ``SNIFF_EXTENSIONS``, a
   ``sniff(head) -> bool`` test and a ``SNIFF_PRIORITY``; the contested
@@ -43,6 +74,36 @@ New features
 - ``.plt`` is registered to the Tecplot codec so a binary Tecplot file is
   told what is wrong instead of resolving nowhere. Reading it is not
   supported.
+
+Behaviour changes
+~~~~~~~~~~~~~~~~~
+
+- Text formats are written with ``\n`` line endings on every platform.
+  Writing used to go through ``Path.write_text``, which turned them into
+  ``\r\n`` on Windows; every write now goes through the same binary path a
+  buffer does, so the bytes a path receives and the bytes a ``BytesIO``
+  receives are the same ones. Every reader already accepted either ending.
+
+Bug fixes
+~~~~~~~~~
+
+- A broken binary file now reports what is wrong with it rather than
+  ``BufferError: cannot close exported pointers exist``. The formats that
+  parse over a mapping - ``.ply``, legacy ``.vtk``, ``.meshb`` - build their
+  arrays as views of it, and a parse that gives up half-way leaves one of
+  those alive in the traceback carrying the failure; unmapping underneath it
+  then raised, and that error replaced the codec's own. The mapping is left
+  to the last view of it instead, so a corrupt file says the same thing read
+  from a path as it does read from a buffer, where there was never a mapping
+  to unmap.
+- A source that answers a read with less than it was asked for is now read to
+  the end of the request. A bare ``read`` is allowed to come up short - a
+  socket hands back what has arrived, not what was wanted - and the wrapper
+  put in front of a duck-typed handle passed that straight through, so a
+  codec asking for n bytes could silently get fewer and parse the gap as
+  data. A handle from ``open()`` never came up short, so no codec guarded
+  against it. Nothing is read past what was asked for, so a handle the caller
+  shares still ends up where the codec's reading left it.
 
 Tests
 ~~~~~

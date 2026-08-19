@@ -78,7 +78,8 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
     path
         Path to the .meshb file.
     lazy
-        Accepted for API consistency; ignored. .meshb always uses mmap.
+        Accepted for API consistency; ignored. A path is always mapped,
+        and a file object always read into memory, whichever it is set to.
 
     Returns
     -------
@@ -97,7 +98,8 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
     """
     if lazy:
         warnings.warn(
-            "lazy=True ignored for .meshb; mmap always used.",
+            "lazy=True ignored for .meshb; a path is mapped and a file"
+            " object read into memory either way.",
             UserWarning,
             stacklevel=2,
         )
