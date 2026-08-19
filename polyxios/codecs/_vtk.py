@@ -12,6 +12,7 @@ from polyxios._element_types import (
 )
 from polyxios._io import (
     Source,
+    can_seek,
     open_block,
     open_read,
     open_write,
@@ -105,7 +106,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 break
         # Every reader below starts from the top of the file, so the handle
         # goes back to where the header sniff found it.
-        if fh.seekable():
+        if can_seek(fh):
             fh.seek(start)
 
     is_binary = data_type == "BINARY"

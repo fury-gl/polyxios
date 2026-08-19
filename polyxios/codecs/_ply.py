@@ -5,6 +5,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import (
     Source,
+    can_seek,
     map_read,
     open_block,
     open_read,
@@ -71,7 +72,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         # The header parse walks the handle forward; every reader below seeks
         # from the file's start, so a caller's handle is put back where it
         # was found rather than left mid-file.
-        if fh.seekable():
+        if can_seek(fh):
             fh.seek(start)
 
     fmt = header["format"]
@@ -227,7 +228,7 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
         start = fh.tell()
         fh.seek(start + header_end_offset)
         lines = fh.read().decode("ascii", errors="replace").splitlines()
-        if fh.seekable():
+        if can_seek(fh):
             fh.seek(start)
 
     idx = 0

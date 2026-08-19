@@ -605,9 +605,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     CodecError
-        On a file not opening with ``mesh3d``, a missing ``points`` section, a negative or absurd count, a truncated section, a
-        non-numeric coordinate or node reference, a record too short for the
-        nodes it declares, or a node reference outside the point array.
+        On a file not opening with ``mesh3d``, a missing ``points`` section,
+        a negative or absurd count, a truncated section, a non-numeric
+        coordinate or node reference, a record too short for the nodes it
+        declares, or a node reference outside the point array.
 
     Notes
     -----
@@ -636,12 +637,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     lines = _read_lines(path)
     if not lines:
         raise CodecError(
-            f".vol: '{source_name(path)}' is an empty file; this is not a Netgen mesh file."
+            f".vol: '{source_name(path)}' is an empty file; this is not a Netgen"
+            " mesh file."
         )
     if lines[0].lower() != "mesh3d":
         raise CodecError(
-            f".vol: '{source_name(path)}' opens with {lines[0]!r}, not 'mesh3d'; this is not"
-            " a Netgen mesh file."
+            f".vol: '{source_name(path)}' opens with {lines[0]!r}, not"
+            " 'mesh3d'; this is not a Netgen mesh file."
         )
 
     pos = 1

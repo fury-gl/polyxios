@@ -50,10 +50,20 @@ Two rules hold everywhere:
   ``fmt=`` is required for one; ``open()`` gives a handle a name, and that
   is enough.
 
+A source has to offer a binary ``read`` and a destination a binary
+``write``; everything else a codec reaches for - ``readline``, ``seek``,
+``seekable`` - is supplied for a handle that lacks it. A handle that cannot
+seek is still read, except by the formats that need to measure a file before
+parsing it and by the extensions several formats share, both of which say so
+rather than guess.
+
 Reading lazily needs a real file behind the handle, since ``mmap`` maps a
 file descriptor: an ``io.BytesIO`` raises ``LazyReadError`` rather than
 quietly loading eagerly. TetGen is the one format a buffer cannot carry -
 a mesh is a ``.node`` and an ``.ele`` file found beside each other by name.
+
+Text formats are written with ``\n`` line endings on every platform, so the
+bytes a path receives and the bytes a buffer receives are the same ones.
 
 Compressed files
 ----------------
@@ -75,6 +85,12 @@ The compressed output carries no timestamp and no embedded file name, so the
 same mesh always produces the same bytes. Lazy reads are the one thing gzip
 takes away: ``mmap`` maps a file as it is stored, so a compressed file raises
 ``LazyReadError`` rather than handing back compressed bytes.
+
+A compressed handle is the one exception to "left where the codec left it":
+a decompressor reads ahead, so where it stops says nothing about how much of
+the mesh was consumed. The handle is put back at the front of the member
+instead, which is the only position over compressed bytes that means
+anything to whatever reads next.
 
 Format-specific options
 -----------------------

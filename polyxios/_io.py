@@ -5,14 +5,17 @@ text behind whatever the caller passed - a path, or an already-open file
 object - so that widening the public API to buffers costs each codec one
 call site instead of one rewrite.
 
-Two rules hold everywhere:
+Three rules hold everywhere:
 
 - a handle the caller owns is never closed here, and is left wherever the
   codec's reading or writing leaves it;
-- a path is opened and closed inside the helper that was given it.
+- a path is opened and closed inside the helper that was given it;
+- a handle is read from and written at wherever it stands, never from the
+  start of the buffer it happens to sit in - so a mesh reached through an
+  archive member or an offset into a larger stream is the mesh that is read.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 import gzip
 import io
@@ -25,8 +28,10 @@ from typing import IO, Any
 from polyxios.exceptions import CodecError, LazyReadError
 
 # What read() and write() accept in place of a path. A file object is only
-# ever duck-typed - anything with the read/write methods a codec reaches for
-# qualifies - so the alias documents the intent rather than gating on a type.
+# ever duck-typed - a binary ``read`` is all a source has to offer and a binary
+# ``write`` all a destination does - so the alias documents the intent rather
+# than gating on a type. Anything short of the full io protocol is wrapped on
+# the way in, so a handle need not subclass io.IOBase to be read line by line.
 Source = str | os.PathLike[str] | IO[Any]
 
 # A gzip member opens with these two bytes. Reading them is what decides
@@ -46,6 +51,8 @@ _GZIP_LEVEL: int = 6
 __all__ = [
     "GZIP_SUFFIXES",
     "Source",
+    "can_seek",
+    "format_suffix",
     "is_buffer",
     "is_gzip",
     "map_read",
@@ -128,6 +135,147 @@ def source_suffix(src: Source) -> str:
     return ""
 
 
+def format_suffix(src: Source) -> str:
+    """Return the extension that names a source's format, past any ``.gz``.
+
+    ``.gz`` names the compression, not the format, so a codec branching on the
+    extension - to tell a binary flavour from a text one, say - has to look at
+    the suffix underneath it or it will read ``mesh.plt.gz`` as neither.
+
+    Parameters
+    ----------
+    src
+        Path or file object handed to a codec.
+
+    Returns
+    -------
+    str
+        The lower-case suffix, dot included, of the name with a gzip suffix
+        stripped off it. Empty when there is no name to take one from.
+    """
+    ext = source_suffix(src)
+    if ext not in GZIP_SUFFIXES:
+        return ext
+    name = source_name(src)
+    return Path(name[: -len(ext)]).suffix.lower()
+
+
+def can_seek(handle: Any) -> bool:
+    """Say whether a handle can be seeked, without assuming it says so.
+
+    A file object is only ever duck-typed here, so ``seekable`` is not a
+    method every source has. Asking for it directly is what turns a stream
+    polyxios means to refuse politely into an ``AttributeError``.
+
+    Parameters
+    ----------
+    handle
+        Open file object, or anything pretending to be one.
+
+    Returns
+    -------
+    bool
+        True only when the handle claims to seek and offers the ``seek`` and
+        ``tell`` that claim implies.
+    """
+    try:
+        seekable = handle.seekable
+    except AttributeError:
+        return False
+    try:
+        if not seekable():
+            return False
+    except Exception:
+        return False
+    return callable(getattr(handle, "seek", None)) and callable(
+        getattr(handle, "tell", None)
+    )
+
+
+class _Stream(io.RawIOBase):
+    """A duck-typed handle presented as a real raw stream.
+
+    Two jobs, both about handles that are not already ``io`` objects. It puts
+    ``head`` - bytes taken off a source that cannot seek back, to look at its
+    opening - in front of the stream again; and it supplies the ``readable``,
+    ``readline`` and friends that ``io.TextIOWrapper`` and the codecs reach
+    for and that a bare ``read`` does not provide.
+
+    Nothing is read ahead: the source ends up exactly where the codec left it,
+    which is the promise a caller's handle is given. Seeking is passed through
+    to a source that offers it, so a codec that walks a header and then goes
+    back to the start moves the source itself and not a copy of it - unless
+    bytes are being served from ``head``, which no position over the source
+    accounts for. Closing this wrapper does not close the source underneath it.
+    """
+
+    def __init__(self, src: Any, *, head: bytes = b"") -> None:
+        self._src = src
+        self._head = head
+        self._seekable = not head and can_seek(src)
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return self._seekable
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        if not self._seekable:
+            raise io.UnsupportedOperation("seek")
+        return int(self._src.seek(offset, whence))
+
+    def tell(self) -> int:
+        if not self._seekable:
+            raise io.UnsupportedOperation("tell")
+        return int(self._src.tell())
+
+    def readinto(self, buf: Any) -> int:
+        want = len(buf)
+        if not want:
+            return 0
+        out = b""
+        if self._head:
+            out = self._head[:want]
+            self._head = self._head[len(out) :]
+            want -= len(out)
+        if want:
+            chunk = self._src.read(want)
+            if chunk:
+                out += bytes(chunk)
+        buf[: len(out)] = out
+        return len(out)
+
+
+class _Window:
+    """The tail of a seekable handle, presented as a stream of its own.
+
+    ``gzip`` rewinds by seeking its file object to absolute zero, which for a
+    handle standing part-way into a buffer is not where the member began -
+    the decompressor would resume over whatever came before it and hand back
+    an empty mesh rather than an error. Position zero is mapped back onto
+    wherever the handle stood instead.
+    """
+
+    def __init__(self, src: Any, start: int) -> None:
+        self._src = src
+        self._start = start
+
+    def read(self, size: int = -1) -> bytes:
+        return bytes(self._src.read(size))
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        if whence == os.SEEK_SET:
+            return int(self._src.seek(self._start + offset)) - self._start
+        return int(self._src.seek(offset, whence)) - self._start
+
+    def tell(self) -> int:
+        return int(self._src.tell()) - self._start
+
+    def seekable(self) -> bool:
+        return True
+
+
 def require_path(src: Source, *, fmt: str, reason: str) -> Path:
     """Return the source as a Path, or refuse a file object.
 
@@ -197,9 +345,10 @@ def _peek(src: Source, n: int) -> bytes:
     Returns
     -------
     bytes
-        The opening bytes, or an empty result when the source is a stream
-        that can neither peek nor seek back - nothing has been consumed
-        either way.
+        The opening bytes. Fewer than ``n`` of them means either that the
+        source is shorter than that or that it is a stream which can neither
+        peek that far nor seek back - a caller that cannot act on a short
+        answer has to tell the two apart itself. Nothing is consumed.
     """
     if not is_buffer(src):
         try:
@@ -210,6 +359,17 @@ def _peek(src: Source, n: int) -> bytes:
             # open the same path and will raise the real one.
             return b""
 
+    # Reading and seeking back is the exact answer, so it is preferred over
+    # peeking: 'peek' is allowed to return less than it was asked for, and a
+    # short answer read as the whole opening is how a compressed file gets
+    # parsed as though it were plain.
+    if can_seek(src):
+        here = src.tell()  # type: ignore[union-attr]
+        try:
+            return bytes(src.read(n))  # type: ignore[union-attr]
+        finally:
+            src.seek(here)  # type: ignore[union-attr]
+
     peek = getattr(src, "peek", None)
     if callable(peek):
         try:
@@ -217,13 +377,35 @@ def _peek(src: Source, n: int) -> bytes:
         except Exception:
             return b""
 
-    if not getattr(src, "seekable", lambda: False)():
-        return b""
-    here = src.tell()  # type: ignore[union-attr]
-    try:
-        return bytes(src.read(n))  # type: ignore[union-attr]
-    finally:
-        src.seek(here)  # type: ignore[union-attr]
+    return b""
+
+
+def _read_exactly(src: Any, n: int) -> bytes:
+    """Take ``n`` bytes off a stream, or everything left if there are fewer."""
+    chunks: list[bytes] = []
+    got = 0
+    while got < n:
+        chunk = src.read(n - got)
+        if not chunk:
+            break
+        chunks.append(bytes(chunk))
+        got += len(chunk)
+    return b"".join(chunks)
+
+
+def _sniffed(src: Any) -> tuple[bytes, Any]:
+    """Return a buffer's opening bytes and the handle to read it through.
+
+    A stream that cannot seek back and whose ``peek`` came up short leaves no
+    way to look at the opening without spending it, so the bytes are taken and
+    put back in front of the stream. The handle that comes back is the one to
+    read from; the caller's own is never left short of what it started with.
+    """
+    head = _peek(src, len(_GZIP_MAGIC))
+    if len(head) == len(_GZIP_MAGIC) or can_seek(src):
+        return head, src
+    head = _read_exactly(src, len(_GZIP_MAGIC))
+    return head, _Stream(src, head=head)
 
 
 def is_gzip(src: Source) -> bool:
@@ -275,8 +457,12 @@ def open_read(src: Source) -> Iterator[IO[bytes]]:
         If the file object was opened in text mode.
     """
     if not is_buffer(src):
+        # One open, not two: the magic is read off the handle already in hand
+        # rather than by opening the path a second time to look at it.
         with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
-            if is_gzip(src):
+            packed = fh.read(len(_GZIP_MAGIC)) == _GZIP_MAGIC
+            fh.seek(0)
+            if packed:
                 with gzip.GzipFile(fileobj=fh, mode="rb") as gz:
                     yield gz  # type: ignore[misc]
             else:
@@ -289,14 +475,49 @@ def open_read(src: Source) -> Iterator[IO[bytes]]:
             f"as bytes. Open it with mode='rb'."
         )
 
-    if is_gzip(src):
+    head, handle = _sniffed(src)
+
+    if head == _GZIP_MAGIC:
         # Closing the wrapper flushes it without closing what it wraps, so
         # the caller's handle survives the decompression.
-        with gzip.GzipFile(fileobj=src, mode="rb") as gz:  # type: ignore[arg-type]
-            yield gz  # type: ignore[misc]
+        base, restore = _gzip_base(handle)
+        try:
+            with gzip.GzipFile(fileobj=base, mode="rb") as gz:
+                yield gz  # type: ignore[misc]
+        finally:
+            restore()
         return
 
-    yield src  # type: ignore[misc]
+    # A bare duck type is given the rest of the io protocol - readline and the
+    # readable/seekable trio - that the codecs and TextIOWrapper reach for.
+    if not isinstance(handle, io.IOBase):
+        handle = _Stream(handle)
+
+    yield handle  # type: ignore[misc]
+
+
+def _gzip_base(handle: Any) -> tuple[Any, Callable[[], None]]:
+    """Return what to hand ``gzip``, and how to put the handle back after.
+
+    Two things a decompressor does to the handle underneath it have to be
+    undone. It rewinds by seeking to absolute zero, which for a handle
+    standing part-way into a buffer is not where the member began, so the
+    handle is windowed and zero mapped back onto where it stood. And it reads
+    ahead in blocks, so where it leaves the handle says nothing about how much
+    of the mesh the codec consumed - a codec that opens the same source twice,
+    as the ones that walk a header before parsing a body do, would find the
+    second read starting in the middle of the compressed stream. The handle
+    goes back to the front of the member instead, which is the only position
+    over compressed bytes that means anything to the next reader.
+
+    A stream that cannot seek has neither problem to fix and nothing that
+    could be put back; it is passed through.
+    """
+    if not can_seek(handle):
+        return handle, lambda: None
+    here = int(handle.tell())
+    base = _Window(handle, here) if here else handle
+    return base, lambda: handle.seek(here)
 
 
 @contextmanager
@@ -433,58 +654,109 @@ def write_text(dst: Source, text: str, *, encoding: str = "utf-8") -> None:
     write_bytes(dst, text.encode(encoding))
 
 
-def _gzip_size(src: Source) -> int:
-    """Return what a gzip source decompresses to, from its ISIZE trailer.
-
-    gzip records the uncompressed size modulo 2**32 in the last four bytes.
-    Past 4 GiB that wraps, and a wrapped value would understate the file - so
-    the compressed size wins whenever it is the larger of the two. The number
-    is only ever used as an upper bound on what a header may claim, where
-    overstating is harmless and understating rejects a valid file.
-    """
+def _compressed_span(src: Source) -> int:
+    """Return how many compressed bytes a gzip source still has to offer."""
     if not is_buffer(src):
-        compressed = os.stat(os.fspath(src)).st_size  # type: ignore[arg-type]
-        with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
-            if compressed < 4:
-                return compressed
-            fh.seek(-4, os.SEEK_END)
-            trailer = fh.read(4)
-        return max(int.from_bytes(trailer, "little"), compressed)
-
-    if not getattr(src, "seekable", lambda: False)():
+        return os.stat(os.fspath(src)).st_size  # type: ignore[arg-type]
+    if not can_seek(src):
         raise CodecError(
             f"'{source_name(src)}' is a compressed stream that cannot seek, "
             f"and this format needs the file's size before it can parse it. "
             f"Read the stream into io.BytesIO first, or pass a path."
         )
-    here = src.tell()  # type: ignore[union-attr]
+    here = int(src.tell())  # type: ignore[union-attr]
+    end = int(src.seek(0, os.SEEK_END))  # type: ignore[union-attr]
+    src.seek(here)  # type: ignore[union-attr]
+    return end - here
+
+
+def _gzip_trailer_size(src: Source) -> int:
+    """Return the uncompressed size a gzip source records in its trailer.
+
+    The trailer is the last four bytes of the source, so this is the member's
+    own number only when the member runs to the end of what it sits in. A
+    handle holding a member with data after it reports whatever those last
+    four bytes happen to say, which is why the caller treats a value it cannot
+    corroborate as a bound rather than as the size.
+    """
+    if not is_buffer(src):
+        with open(os.fspath(src), "rb") as fh:  # type: ignore[arg-type]
+            fh.seek(-4, os.SEEK_END)
+            trailer = fh.read(4)
+        return int.from_bytes(trailer, "little")
+
+    here = int(src.tell())  # type: ignore[union-attr]
     try:
-        compressed = int(src.seek(0, os.SEEK_END))  # type: ignore[union-attr]
-        if compressed < 4:
-            return compressed
         src.seek(-4, os.SEEK_END)  # type: ignore[union-attr]
         trailer = bytes(src.read(4))  # type: ignore[union-attr]
     finally:
         src.seek(here)  # type: ignore[union-attr]
-    return max(int.from_bytes(trailer, "little"), compressed)
+    return int.from_bytes(trailer, "little")
 
 
-def source_size(src: Source) -> int:
-    """Return the total size of a source in bytes.
+def _decompressed_length(src: Source) -> int:
+    """Count what a gzip source decompresses to, a chunk at a time.
+
+    The trailer is cheaper and is what ``_gzip_size`` reaches for first; this
+    is the fallback for the one case the trailer cannot answer, and it holds
+    no more than a chunk of the file in memory while it counts.
+    """
+    total = 0
+    with open_read(src) as fh:
+        while True:
+            chunk = fh.read(1 << 20)
+            if not chunk:
+                break
+            total += len(chunk)
+    return total
+
+
+def _gzip_size(src: Source, *, exact: bool) -> int:
+    """Return what a gzip source decompresses to, from its ISIZE trailer.
+
+    gzip records the uncompressed size modulo 2**32 in the last four bytes,
+    which is the true size for every file under 4 GiB and a wrapped one above
+    it. A value at least as large as the compressed input cannot have wrapped
+    below it, so it is taken as exact; anything smaller is either a wrap or an
+    incompressible file, and the two are indistinguishable from the trailer
+    alone. A caller that only needs an upper bound - a ceiling on what a
+    header may claim - gets the larger of the two numbers, which never
+    understates and so never rejects a valid file. A caller that needs the
+    real number gets the file counted.
+    """
+    compressed = _compressed_span(src)
+    if compressed < 4:
+        return compressed
+    trailer = _gzip_trailer_size(src)
+    if trailer >= compressed:
+        return trailer
+    if exact:
+        return _decompressed_length(src)
+    return compressed
+
+
+def source_size(src: Source, *, exact: bool = False) -> int:
+    """Return the size of a source in bytes.
 
     Parameters
     ----------
     src
         Path or open binary file object. A handle is measured by seeking to
         its end and back, so an unseekable stream cannot be measured.
+    exact
+        Set by a codec that divides the number rather than comparing against
+        it. Only a gzip source can answer inexactly, and only when its size
+        trailer is smaller than the compressed input it belongs to; asking
+        for an exact size there costs one pass over the file.
 
     Returns
     -------
     int
-        Size of the file for a path; for a handle, the number of bytes it
-        holds in total, counted from its start and not from where it stands.
-        A gzip source reports the size of what it decompresses to, which is
-        the number a codec is checking a header against.
+        Size of the file for a path; for a handle, the number of bytes it has
+        left to offer, counted from where it stands - the same bytes
+        ``open_read`` would go on to read. A gzip source reports the size of
+        what it decompresses to, which is the number a codec is checking a
+        header against.
 
     Raises
     ------
@@ -492,21 +764,21 @@ def source_size(src: Source) -> int:
         If the source is a file object that cannot seek.
     """
     if is_gzip(src):
-        return _gzip_size(src)
+        return _gzip_size(src, exact=exact)
 
     if not is_buffer(src):
         return os.stat(os.fspath(src)).st_size  # type: ignore[arg-type]
 
-    if not getattr(src, "seekable", lambda: False)():
+    if not can_seek(src):
         raise CodecError(
             f"'{source_name(src)}' is a stream that cannot seek, and this "
             f"format needs the file's size before it can parse it. Read the "
             f"stream into io.BytesIO first, or pass a path."
         )
-    here = src.tell()  # type: ignore[union-attr]
-    size = src.seek(0, os.SEEK_END)  # type: ignore[union-attr]
+    here = int(src.tell())  # type: ignore[union-attr]
+    end = int(src.seek(0, os.SEEK_END))  # type: ignore[union-attr]
     src.seek(here)  # type: ignore[union-attr]
-    return int(size)
+    return end - here
 
 
 @contextmanager
@@ -545,7 +817,11 @@ def open_text(
         return
 
     with open_read(src) as raw:
-        wrapper = io.TextIOWrapper(raw, encoding=encoding, errors=errors)
+        wrapper = io.TextIOWrapper(
+            raw if isinstance(raw, io.IOBase) else _Stream(raw),
+            encoding=encoding,
+            errors=errors,
+        )
         try:
             yield wrapper
         finally:
