@@ -81,4 +81,15 @@ would be the only format in the library that cannot read a ``.gz``.
 
 A codec that genuinely needs a file on disk - a format split across sibling
 files, say - calls ``require_path(path, fmt=..., reason=...)``, which returns
-a ``Path`` or refuses the buffer with a message naming why.
+a ``Path`` or refuses the buffer with a message naming why. It refuses a
+compressed one too: a codec opening its own files is not going through the
+layer that unwraps gzip, so a ``.gz`` there would be parsed as text.
+
+Pass ``reading=True`` on the way in, where the file already holds bytes to
+look at, so a file compressed without being renamed is caught by its content
+the way it is everywhere else. Leave it unset on the way out: a destination
+holds either nothing or the file about to be replaced, and reading that one
+would refuse a plain write for the sake of whatever happened to be sitting
+there. ``require_path`` only ever sees the path the caller named, so a codec
+that then opens siblings of its own has to check those itself - ``is_gzip``
+takes a path and answers in four bytes.

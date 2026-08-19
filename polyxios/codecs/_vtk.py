@@ -13,12 +13,12 @@ from polyxios._element_types import (
 from polyxios._io import (
     Source,
     can_seek,
+    is_buffer,
     open_block,
     open_read,
     open_write,
     read_bytes,
     source_name,
-    source_size,
 )
 from polyxios._types import PolyData
 from polyxios.exceptions import (
@@ -84,8 +84,22 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     UnknownElementTypeError
         If the file contains a VTK cell type not in _element_types.VTK_TO_POLYXIOS.
     """
-    file_size = source_size(path)
+    # The dataset keyword lives in the header and decides which reader runs,
+    # and that reader starts again from the top of the file. A stream that
+    # cannot be put back cannot serve both passes: say so before a byte is
+    # taken off it, rather than let the second pass start wherever the first
+    # one stopped and hand back a mesh of nothing.
+    if is_buffer(path) and not can_seek(path):
+        raise CodecError(
+            f"'{source_name(path)}' is a stream that cannot seek, and this "
+            f"format is read by walking its header and then its body from the "
+            f"start. Read the stream into io.BytesIO first, or pass a path."
+        )
 
+    # The file's size is not measured here. Every reader below reads the
+    # whole file anyway, so each takes the size from what it read: measuring a
+    # compressed source separately costs a whole decompression pass that the
+    # read then repeats.
     with open_read(path) as fh:
         start = fh.tell()
         header_line = fh.readline().decode("ascii", errors="replace").strip()
@@ -114,17 +128,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     if "UNSTRUCTURED_GRID" in dataset_line:
         if is_binary:
-            return _read_binary(path, file_size, version, lazy=lazy)
+            return _read_binary(path, version, lazy=lazy)
         else:
             if lazy:
                 raise LazyReadError("VTK ASCII format does not support lazy reads.")
-            return _read_ascii(path, file_size, version)
+            return _read_ascii(path, version)
     elif "POLYDATA" in dataset_line:
         if lazy:
             raise LazyReadError("VTK POLYDATA format does not support lazy reads.")
         if is_binary:
-            return _read_polydata_binary(path, file_size)
-        return _read_polydata_ascii(path, file_size)
+            return _read_polydata_binary(path)
+        return _read_polydata_ascii(path)
     elif "RECTILINEAR_GRID" in dataset_line:
         if lazy:
             raise LazyReadError(
@@ -362,7 +376,7 @@ def _write_bin_i32(arr: np.ndarray, fh: object) -> None:
     fh.write(arr.astype(np.dtype(">i4")).tobytes())  # type: ignore[union-attr]
 
 
-def _read_polydata_ascii(path: Source, file_size: int) -> PolyData:
+def _read_polydata_ascii(path: Source) -> PolyData:
     """Read a VTK legacy ASCII POLYDATA file and convert to PolyData.
 
     POLYDATA uses named topology sections (POLYGONS, LINES, VERTICES,
@@ -382,7 +396,9 @@ def _read_polydata_ascii(path: Source, file_size: int) -> PolyData:
     TRIANGLE_STRIPS:
         always      -> triangle_strip (code 6)
     """
-    content = read_bytes(path).decode("ascii", errors="replace")
+    raw = read_bytes(path)
+    file_size = len(raw)
+    content = raw.decode("ascii", errors="replace")
 
     lines = content.splitlines()
     # Skip lines until we find POINTS (header may have blank lines / extra lines)
@@ -495,9 +511,10 @@ def _read_polydata_ascii(path: Source, file_size: int) -> PolyData:
     )
 
 
-def _read_polydata_binary(path: Source, file_size: int) -> PolyData:
+def _read_polydata_binary(path: Source) -> PolyData:
     """Read a VTK legacy binary POLYDATA file."""
     with open_block(path, fmt=".vtk") as mm:
+        file_size = len(mm)
         mv = memoryview(mm)
         pos = 0
         for _ in range(4):
@@ -508,7 +525,7 @@ def _read_polydata_binary(path: Source, file_size: int) -> PolyData:
 
 
 def _parse_binary_polydata_body(
-    mm: mmap.mmap,
+    mm: mmap.mmap | bytes,
     mv: memoryview,
     start_pos: int,
     file_size: int,
@@ -615,8 +632,10 @@ def _parse_binary_polydata_body(
     )
 
 
-def _read_ascii(path: Source, file_size: int, version: str) -> PolyData:
-    content = read_bytes(path).decode("ascii", errors="replace")
+def _read_ascii(path: Source, version: str) -> PolyData:
+    raw = read_bytes(path)
+    file_size = len(raw)
+    content = raw.decode("ascii", errors="replace")
 
     lines = content.splitlines()
     # Skip the 4-line header
@@ -822,12 +841,13 @@ def _parse_vtk_data_attrs(
     return i, attrs
 
 
-def _read_binary(path: Source, file_size: int, version: str, *, lazy: bool) -> PolyData:
+def _read_binary(path: Source, version: str, *, lazy: bool) -> PolyData:
     """Read binary VTK file, using mmap (lazy) or direct reads."""
     # A lazy read hands back arrays that view the block, so it has to be a
     # mapping: reading a file object into memory would answer the call with
     # the copy the caller asked not to make.
     with open_block(path, fmt=".vtk", require_map=lazy) as mm:
+        file_size = len(mm)
         mv = memoryview(mm)
 
         # Skip 4 ASCII header lines to reach the data sections
@@ -859,7 +879,7 @@ def _materialize(poly: PolyData) -> PolyData:
 
 
 def _parse_binary_body(
-    mm: mmap.mmap,
+    mm: mmap.mmap | bytes,
     mv: memoryview,
     start_pos: int,
     file_size: int,
@@ -1000,7 +1020,7 @@ def _unpack_v42_cells(raw: np.ndarray, n_elems: int) -> tuple[np.ndarray, np.nda
 
 
 def _parse_binary_attrs(
-    mm: mmap.mmap,
+    mm: mmap.mmap | bytes,
     mv: memoryview,
     pos: int,
     n_items: int,

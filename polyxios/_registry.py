@@ -3,12 +3,15 @@ from typing import NamedTuple
 import warnings
 
 from polyxios._io import (
+    GZIP_SUFFIXES,
     Source,
     can_seek,
     format_suffix,
     is_buffer,
     open_read,
     source_name,
+    source_suffix,
+    strip_gzip,
 )
 from polyxios.exceptions import CodecError, UnsupportedFormatError
 
@@ -77,22 +80,32 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
         no_match = f"the file's content does not look like {named}"
 
     def read(path: Source, *, lazy: bool = False) -> object:
+        # Sniffing a caller's handle spends bytes the codec still needs, so
+        # the position is put back afterwards. A stream that cannot rewind
+        # has no way to give them back at all: say so before a single byte is
+        # taken off it, rather than after opening it has already cost it its
+        # opening. The source is asked, never the handle open_read would hand
+        # back - a gzip wrapper answers 'seekable' for itself and not for the
+        # stream underneath it, so asking the wrapper would let an unseekable
+        # compressed stream through to fail on the rewind.
+        if is_buffer(path) and not can_seek(path):
+            raise CodecError(
+                f"'{source_name(path)}': {shared}, so the file's opening "
+                f"has to be read to choose one - and this stream cannot "
+                f"seek back to give it to the codec. Pass fmt= to choose "
+                f"one explicitly, or buffer the stream first."
+            )
+
         # A file that cannot be opened is not an ambiguous file: let the OS
         # error through, so a missing or unreadable path raises the same
         # thing here as it does under an extension one codec owns.
         with open_read(path) as fh:
-            # Sniffing a caller's handle spends bytes the codec still needs,
-            # so the position is put back. A stream that cannot rewind has
-            # no way to give them back at all: say so instead of handing the
-            # winner a file already missing its opening.
-            start = fh.tell() if can_seek(fh) else None
-            if is_buffer(path) and start is None:
-                raise CodecError(
-                    f"'{source_name(path)}': {shared}, so the file's opening "
-                    f"has to be read to choose one - and this stream cannot "
-                    f"seek back to give it to the codec. Pass fmt= to choose "
-                    f"one explicitly, or buffer the stream first."
-                )
+            # Only a handle the caller owns is put back. A path's handle is
+            # opened here and closed on the next line, so where the sniff left
+            # it is nobody's business; a compressed handle is rewound by
+            # open_read itself, on the source rather than on the decompressor
+            # sitting over it.
+            start = fh.tell() if is_buffer(path) and can_seek(fh) else None
             head = fh.read(_SNIFF_BYTES)
             if start is not None:
                 fh.seek(start)
@@ -313,6 +326,17 @@ def resolve(
         # '.gz' names the compression, not the format: the IO layer unwraps it
         # on the way in, so the codec is chosen by what is inside.
         ext = format_suffix(path)
+        # 'mesh.gz' has a name and still says nothing about what is inside it,
+        # which is a different problem from an extension nothing is registered
+        # under - and one the caller fixes differently. Asked before the
+        # nameless-buffer case below, because a handle onto 'mesh.gz' has a
+        # name and would otherwise be told it has none.
+        if not ext and source_suffix(path) in GZIP_SUFFIXES:
+            raise UnsupportedFormatError(
+                f"'{source_name(path)}' names the compression and not the "
+                f"format: '.gz' says how the file is packed, not what is "
+                f"packed in it. Pass fmt= to name the format."
+            )
         # A nameless buffer is not a file with an unknown extension: there is
         # nothing to infer from at all, and saying so beats "No codec for ''".
         if not ext and is_buffer(path):
@@ -323,6 +347,10 @@ def resolve(
     else:
         ext = fmt.strip().lower()
         ext = ext if ext.startswith(".") else f".{ext}"
+        # '.gz' names the compression in an override too, so 'vtk.gz' picks
+        # the same codec 'mesh.vtk.gz' does instead of falling off the
+        # registry as an extension nothing is registered under.
+        ext = strip_gzip(ext)
     if ext not in registry:
         raise UnsupportedFormatError(f"No codec for '{ext}'")
     return registry[ext]

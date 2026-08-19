@@ -353,3 +353,189 @@ def test_a_handle_is_read_from_where_it_stands() -> None:
     back = _quietly(polyxios.read, buf, fmt=".obj")
 
     assert back.vertices.shape == (3, 3)
+
+
+# ---------------------------------------------------------------------------
+# Lazy reads, which need a mapping and so need the top of a file
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("ext", (".stl", ".ply", ".vtk"))
+def test_a_lazy_read_of_a_handle_at_its_start_maps_the_file(tmp_path, ext) -> None:
+    """A handle over a real file is as mappable as the path that opened it."""
+    poly = CANONICAL["mixed"]()
+    path = tmp_path / f"mesh{ext}"
+    _quietly(polyxios.write, poly, path, binary=True)
+
+    with path.open("rb") as fh:
+        back = _quietly(polyxios.read, fh, fmt=ext, lazy=True)
+
+    _same_mesh(_quietly(polyxios.read, path, fmt=ext, lazy=True), back)
+
+
+@pytest.mark.parametrize("ext", (".ply", ".vtk"))
+def test_a_lazy_read_of_a_handle_part_way_in_is_refused(tmp_path, ext) -> None:
+    """mmap addresses a file from byte zero and starts only on an allocation
+    boundary, so a handle standing part-way in cannot be mapped from where it
+    stands. Mapping from the top instead read a header field off the padding:
+    a mesh came back with no elements at all and no error to say why.
+
+    Only the formats that hand back arrays viewing the mapping are refused.
+    STL's lazy mode copies what it reads - it skips vertex deduplication and
+    nothing else - so it has its own test saying it reads either way."""
+    poly = CANONICAL["mixed"]()
+    path = tmp_path / f"mesh{ext}"
+    _quietly(polyxios.write, poly, path, binary=True)
+    padded = tmp_path / f"padded{ext}"
+    padded.write_bytes(b"NOT THE MESH" + path.read_bytes())
+
+    with padded.open("rb") as fh:
+        fh.seek(len(b"NOT THE MESH"))
+        with pytest.raises(LazyReadError, match="standing at byte"):
+            polyxios.read(fh, fmt=ext, lazy=True)
+
+
+def test_a_lazy_read_that_copies_needs_no_mapping(tmp_path) -> None:
+    """STL's lazy mode only skips deduplication, so it needs no descriptor.
+
+    Refusing a buffer here would send a caller to ``lazy=False``, which for
+    this format is not the same read: it merges vertices, so the mesh that
+    came back would differ from the one the lazy read was asked for.
+    """
+    poly = CANONICAL["mixed"]()
+    path = tmp_path / "mesh.stl"
+    _quietly(polyxios.write, poly, path, binary=True)
+    reference = _quietly(polyxios.read, path, fmt=".stl", lazy=True)
+
+    buffered = _quietly(
+        polyxios.read, io.BytesIO(path.read_bytes()), fmt=".stl", lazy=True
+    )
+    _same_mesh(reference, buffered)
+
+    padded = tmp_path / "padded.stl"
+    padded.write_bytes(b"NOT THE MESH" + path.read_bytes())
+    with padded.open("rb") as fh:
+        fh.seek(len(b"NOT THE MESH"))
+        _same_mesh(reference, _quietly(polyxios.read, fh, fmt=".stl", lazy=True))
+
+
+def test_a_lazy_read_of_a_stream_spends_none_of_it_before_refusing() -> None:
+    """A stream cannot be put back, so a refusal has to come before the read.
+
+    Looking at the opening to decide costs the opening, and a caller told to
+    fall back to an eager read would find those bytes already gone.
+    """
+    payload = b"solid x\nendsolid x\n"
+    stream = io.BufferedReader(_Unseekable(payload))
+
+    with pytest.raises((LazyReadError, CodecError)):
+        polyxios.read(stream, fmt=".stl", lazy=True)
+
+    assert stream.read() == payload, "the stream is still whole"
+
+
+def test_a_broken_file_reports_itself_and_not_the_mapping(tmp_path) -> None:
+    """A path is mapped and a buffer is not, and both have to fail alike.
+
+    A parse that gives up half-way leaves an array or two viewing the block,
+    still alive in the traceback carrying the failure - and closing a mapping
+    whose pages are exported raises BufferError. That reached the caller in
+    place of the codec's own error, so the same broken file said one thing
+    read from a path and another read from a buffer.
+    """
+    poly = CANONICAL[CAPABILITIES[".ply"].mesh]()
+    good = tmp_path / "good.ply"
+    _quietly(polyxios.write, poly, good, binary=True)
+
+    # The header stays intact and the body loses bytes, so the failure lands
+    # inside the decode with the arrays already built.
+    raw = bytearray(good.read_bytes())
+    del raw[-7:]
+    broken = tmp_path / "broken.ply"
+    broken.write_bytes(bytes(raw))
+
+    from_path: Exception | None = None
+    from_buffer: Exception | None = None
+    try:
+        _quietly(polyxios.read, broken)
+    except Exception as exc:  # noqa: BLE001 - the type is the assertion
+        from_path = exc
+    try:
+        _quietly(polyxios.read, io.BytesIO(bytes(raw)), fmt=".ply")
+    except Exception as exc:  # noqa: BLE001
+        from_buffer = exc
+
+    assert from_path is not None
+    assert not isinstance(from_path, BufferError)
+    assert type(from_path) is type(from_buffer)
+    assert str(from_path) == str(from_buffer)
+
+
+@pytest.mark.parametrize("ext", (".stl", ".ply", ".vtk"))
+def test_an_eager_read_of_a_handle_part_way_in_still_reads(tmp_path, ext) -> None:
+    """Only the mapping needs the top of the file; reading does not."""
+    poly = CANONICAL["mixed"]()
+    path = tmp_path / f"mesh{ext}"
+    _quietly(polyxios.write, poly, path, binary=True)
+    padded = tmp_path / f"padded{ext}"
+    padded.write_bytes(b"NOT THE MESH" + path.read_bytes())
+
+    with padded.open("rb") as fh:
+        fh.seek(len(b"NOT THE MESH"))
+        back = _quietly(polyxios.read, fh, fmt=ext)
+
+    np.testing.assert_allclose(
+        np.sort(back.vertices, axis=0),
+        np.sort(_quietly(polyxios.read, path, fmt=ext).vertices, axis=0),
+    )
+
+
+class _Trickle(_BareRead):
+    """A bare source that answers a read with less than it was asked for.
+
+    A socket, a pipe and an HTTP response all do this: ``read(n)`` hands back
+    what has arrived, not what was wanted. A handle from ``open()`` never
+    does, so the codecs ask for n bytes and count on n.
+    """
+
+    _MOST: int = 3
+
+    def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            return self._buf.read()
+        return self._buf.read(min(size, self._MOST))
+
+
+def test_a_source_that_answers_short_is_read_in_full() -> None:
+    """A short answer from the source must not become a short answer to the
+    codec: the wrapper asks again until the read is satisfied or the source
+    is spent."""
+    from polyxios._io import open_read
+
+    payload = bytes(range(256)) * 4
+
+    with open_read(_Trickle(payload)) as fh:
+        assert fh.read(200) == payload[:200]
+        assert fh.read(200) == payload[200:400]
+        assert fh.read() == payload[400:]
+        assert fh.read(10) == b""
+
+
+def test_a_source_that_answers_short_still_reads_a_mesh() -> None:
+    """The whole point of the wrapper: a trickling stream reads like a file."""
+    back = _quietly(polyxios.read, _Trickle(_OBJ, name="mesh.obj"))
+
+    assert back.vertices.shape == (3, 3)
+
+
+def test_nothing_is_read_past_what_was_asked_for() -> None:
+    """The source is left exactly where the codec's reading leaves it, so a
+    handle shared with the caller keeps the bytes the codec did not take."""
+    from polyxios._io import open_read
+
+    src = _Trickle(b"HEAD" + b"TAIL" * 4)
+
+    with open_read(src) as fh:
+        assert fh.read(4) == b"HEAD"
+
+    assert src.read() == b"TAIL" * 4

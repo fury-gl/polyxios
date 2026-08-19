@@ -2,7 +2,7 @@ from typing import Any
 
 import numpy as np
 
-from polyxios._io import Source, read_bytes, source_name, source_size, write_bytes
+from polyxios._io import Source, read_bytes, source_name, write_bytes
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
@@ -69,9 +69,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     CodecError
         If the file size is not a multiple of 32 bytes.
     """
-    # Every other codec compares this number against a header and can take an
-    # upper bound; this one divides by it, so it has to be the size itself.
-    file_size = source_size(path, exact=True)
+    # The size is the length of what was read, not a separate measurement of
+    # the source: measuring a compressed one costs a whole decompression pass
+    # that the read about to follow would only repeat, and a stream that
+    # cannot seek can be read even though it cannot be measured.
+    data = read_bytes(path)
+    file_size = len(data)
 
     if file_size % 32 != 0:
         raise CodecError(
@@ -82,7 +85,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     n_splats = file_size // 32
     validate_header(n_splats, 0, 0, file_size)
 
-    raw = np.frombuffer(read_bytes(path), dtype=_SPLAT_DTYPE)
+    raw = np.frombuffer(data, dtype=_SPLAT_DTYPE)
 
     vertices = np.column_stack(
         [

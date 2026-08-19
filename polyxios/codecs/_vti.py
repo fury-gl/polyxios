@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
-from polyxios._io import Source, source_size, write_text
+from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import decode_da, parse_xml
 from polyxios.exceptions import LazyReadError
@@ -36,9 +36,18 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     if lazy:
         raise LazyReadError("VTI lazy reads are not supported with frozen PolyData.")
 
-    file_size = source_size(path)
-
-    root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
+    # The size comes back from the read itself: measuring the source
+    # separately costs a whole decompression pass over a compressed one,
+    # and a stream that cannot seek cannot be measured at all.
+    (
+        root,
+        appended,
+        header_type,
+        big_endian,
+        compressed,
+        is_base64,
+        file_size,
+    ) = parse_xml(path)
 
     def _decode(elem):
         return decode_da(

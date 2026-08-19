@@ -20,8 +20,11 @@ def _tetrahedron():
 
 
 def _write_off(tmp_path: Path, text: str) -> Path:
+    # Written as bytes, not as text: 'write_text' translates '\n' to the
+    # platform's line ending, and a fixture that says CRLF on Windows alone
+    # cannot be compared against what polyxios writes, which is LF everywhere.
     path = tmp_path / "mesh.off"
-    path.write_text(text, encoding="utf-8")
+    path.write_bytes(text.encode("utf-8"))
     return path
 
 

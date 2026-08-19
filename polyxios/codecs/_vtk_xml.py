@@ -50,7 +50,7 @@ def vtk_type_to_np(vtk_type: str) -> str | None:
 
 def parse_xml(
     path: Source,
-) -> tuple[ET.Element, bytes | None, str, bool, bool, bool]:
+) -> tuple[ET.Element, bytes | None, str, bool, bool, bool, int]:
     """Read a VTK XML file and return parsed state.
 
     Handles both inline and appended data sections, including raw-binary
@@ -59,20 +59,26 @@ def parse_xml(
     Parameters
     ----------
     path
-        Path to the VTK XML file.
+        Path or open file object holding the VTK XML file.
 
     Returns
     -------
     tuple
-        ``(root, appended, header_type, big_endian, compressed, is_base64)``
+        ``(root, appended, header_type, big_endian, compressed, is_base64,
+        size)``
 
         * *appended* - raw base64 text (bytes) when ``is_base64=True``, or raw
           binary bytes when ``is_base64=False``, or ``None`` for inline-only files.
         * *header_type* - ``"UInt32"`` or ``"UInt64"``.
         * *compressed* - ``True`` when a vtkZLibDataCompressor is declared.
         * *is_base64* - ``True`` when the appended section uses base64 encoding.
+        * *size* - how many bytes were read, which is what a caller checking a
+          declared count against the file it came from wants. It is handed
+          back rather than measured again, because measuring a compressed
+          source costs a whole decompression pass that this read already paid.
     """
     raw = read_bytes(path)
+    size = len(raw)
 
     preamble = raw[:512]
     big_endian = b'byte_order="BigEndian"' in preamble
@@ -88,6 +94,7 @@ def parse_xml(
             big_endian,
             compressed,
             False,
+            size,
         )
 
     xml_bytes = raw[:app_pos] + b"</VTKFile>"
@@ -102,10 +109,18 @@ def parse_xml(
         b64_text = raw[app_tag_end + 1 : app_close].strip()
         if b64_text.startswith(b"_"):
             b64_text = b64_text[1:]
-        return root, b64_text, header_type, big_endian, compressed, True
+        return root, b64_text, header_type, big_endian, compressed, True, size
 
     underscore = raw.find(b"_", app_tag_end)
-    return root, raw[underscore + 1 :], header_type, big_endian, compressed, False
+    return (
+        root,
+        raw[underscore + 1 :],
+        header_type,
+        big_endian,
+        compressed,
+        False,
+        size,
+    )
 
 
 def _decode_chars(text: bytes, start: int, byte_count: int) -> bytes:

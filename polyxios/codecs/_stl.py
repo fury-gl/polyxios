@@ -6,7 +6,7 @@ from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import (
     Source,
     can_seek,
-    map_read,
+    open_block,
     open_read,
     open_write,
     read_bytes,
@@ -127,7 +127,6 @@ def write(poly: PolyData, path: Source, *, binary: bool = True) -> None:
     binary
         If True (default), write binary STL.
     """
-
     tri_code = ELEMENT_TYPES["triangle"]
     tri_indices = np.where(poly.element_types == tri_code)[0]
 
@@ -164,6 +163,11 @@ def _read_binary_lazy(path: Source) -> PolyData:
     Skips merge_vertices step - useful for large files where deduplication
     overhead is significant. Data is eagerly copied; file is closed on return.
 
+    The facets are copied out rather than handed back as a view, so nothing
+    here needs a mapping to outlive the call: a file object with no
+    descriptor is read into memory instead of being refused for a lazy read
+    it would have served the same way.
+
     Normals are the values stored in the STL file (may be all-zero - the STL
     spec allows writers to omit them). Callers requiring unit normals should
     recompute from vertices.
@@ -171,7 +175,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
     )
-    with map_read(path, fmt=".stl") as mm:
+    with open_block(path, fmt=".stl") as mm:
         if len(mm) < _HEADER_SIZE + 4:
             raise CodecError("Binary STL too short.")
         n_tris = int(np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
@@ -187,7 +191,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
         )
         normals = facets["normal"].copy()
         vertices = facets["verts"].reshape(-1, 3).copy()
-        del facets  # release memoryview before mm closes
+        del facets  # release the view before the block goes
 
     tri_code = ELEMENT_TYPES["triangle"]
     connectivity = np.arange(n_tris * 3, dtype=np.int32)
