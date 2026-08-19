@@ -69,13 +69,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     CodecError
         If the file size is not a multiple of 32 bytes.
     """
-    file_size = source_size(path)
+    # Every other codec compares this number against a header and can take an
+    # upper bound; this one divides by it, so it has to be the size itself.
+    file_size = source_size(path, exact=True)
 
     if file_size % 32 != 0:
         raise CodecError(
             f"'{source_name(path)}' has size {file_size} bytes which is not a "
-            f"multiple "
-            "of 32. Not a valid .splat file."
+            "multiple of 32. Not a valid .splat file."
         )
 
     n_splats = file_size // 32

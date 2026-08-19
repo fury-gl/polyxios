@@ -26,7 +26,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
-from polyxios._io import Source, open_read, source_name, source_suffix, write_text
+from polyxios._io import Source, format_suffix, open_read, source_name, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -791,8 +791,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         )
 
     # '.plt' resolves here so its reader can name the problem; writing one
-    # would hand back an ASCII file under a binary format's name.
-    if source_suffix(path) == ".plt":
+    # would hand back an ASCII file under a binary format's name. '.plt.gz' is
+    # the same file with the compression named after it, so the suffix that
+    # names the format is the one to test.
+    if format_suffix(path) == ".plt":
         raise CodecError(
             f".tec: cannot write '{source_name(path)}'; .plt is the binary "
             "Tecplot flavour and only ASCII is supported. Write a .tec file "

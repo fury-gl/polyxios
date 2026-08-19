@@ -3,12 +3,12 @@ from typing import NamedTuple
 import warnings
 
 from polyxios._io import (
-    GZIP_SUFFIXES,
     Source,
+    can_seek,
+    format_suffix,
     is_buffer,
     open_read,
     source_name,
-    source_suffix,
 )
 from polyxios.exceptions import CodecError, UnsupportedFormatError
 
@@ -85,7 +85,7 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
             # so the position is put back. A stream that cannot rewind has
             # no way to give them back at all: say so instead of handing the
             # winner a file already missing its opening.
-            start = fh.tell() if fh.seekable() else None
+            start = fh.tell() if can_seek(fh) else None
             if is_buffer(path) and start is None:
                 raise CodecError(
                     f"'{source_name(path)}': {shared}, so the file's opening "
@@ -278,16 +278,6 @@ def build_default_registry() -> dict[str, Codec]:
     return registry
 
 
-def _drop_suffix(path: Source, suffix: str) -> str:
-    """Return a source's name without one trailing suffix.
-
-    Only ever used to look past ``.gz``, so what comes back is a name to take
-    an extension from, never a path to open.
-    """
-    name = source_name(path)
-    return name[: -len(suffix)] if suffix and name.endswith(suffix) else name
-
-
 def resolve(
     path: Source,
     fmt: str | None,
@@ -320,11 +310,9 @@ def resolve(
         object carrying no name was passed without fmt.
     """
     if fmt is None:
-        ext = source_suffix(path)
         # '.gz' names the compression, not the format: the IO layer unwraps it
         # on the way in, so the codec is chosen by what is inside.
-        if ext in GZIP_SUFFIXES:
-            ext = source_suffix(_drop_suffix(path, ext))
+        ext = format_suffix(path)
         # A nameless buffer is not a file with an unknown extension: there is
         # nothing to infer from at all, and saying so beats "No codec for ''".
         if not ext and is_buffer(path):

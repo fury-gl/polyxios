@@ -272,3 +272,84 @@ def test_an_unambiguous_format_reads_from_a_stream_that_cannot_rewind() -> None:
     back = _quietly(polyxios.read, stream, fmt=".obj")
 
     assert back.vertices.shape == (3, 3)
+
+
+# ---------------------------------------------------------------------------
+# What a handle is allowed to be missing
+# ---------------------------------------------------------------------------
+
+
+class _BareRead:
+    """A source offering nothing but ``read`` - no seek, no readline, no mode.
+
+    The public contract asks a source for a binary ``read`` and no more, so
+    everything the codecs and ``io.TextIOWrapper`` reach for beyond that has
+    to be supplied rather than assumed.
+    """
+
+    def __init__(self, payload: bytes, name: str | None = None) -> None:
+        self._buf = io.BytesIO(payload)
+        if name is not None:
+            self.name = name
+
+    def read(self, size: int = -1) -> bytes:
+        return self._buf.read(size)
+
+
+_OBJ = b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"
+
+
+def test_a_handle_with_nothing_but_read_is_enough() -> None:
+    """A codec reading line by line must not need io.IOBase underneath it."""
+    back = _quietly(polyxios.read, _BareRead(_OBJ, name="mesh.obj"))
+
+    assert back.vertices.shape == (3, 3)
+
+
+def test_a_handle_that_cannot_say_whether_it_seeks_is_refused_politely() -> None:
+    """A source with no 'seekable' is a stream, not an AttributeError."""
+    with pytest.raises(CodecError, match="cannot seek back"):
+        polyxios.read(_BareRead(_TECPLOT, name="mesh.dat"))
+
+
+def test_a_handle_that_cannot_seek_is_refused_where_a_size_is_needed() -> None:
+    """Formats that check a header against the file size need to measure it."""
+    stream = io.BufferedReader(_Unseekable(b"solid x\nendsolid x\n"))
+
+    with pytest.raises(CodecError, match="cannot seek"):
+        polyxios.read(stream, fmt=".stl", lazy=True)
+
+
+class _SeekableBareRead(_BareRead):
+    """A bare source that can seek: the codecs that re-read must be able to."""
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self._buf.seek(offset, whence)
+
+    def tell(self) -> int:
+        return self._buf.tell()
+
+    def seekable(self) -> bool:
+        return True
+
+
+def test_a_bare_handle_that_seeks_is_re_read_from_the_start() -> None:
+    """A '.vtk' walks the header and then parses the body from the top, so a
+    source wrapped for the io protocol has to move the source itself."""
+    poly = CANONICAL["mixed"]()
+    written = io.BytesIO()
+    _quietly(polyxios.write, poly, written, fmt=".vtk")
+
+    back = _quietly(polyxios.read, _SeekableBareRead(written.getvalue(), "m.vtk"))
+
+    np.testing.assert_allclose(back.vertices, poly.vertices)
+
+
+def test_a_handle_is_read_from_where_it_stands() -> None:
+    """A mesh at an offset into a larger buffer is the mesh that is read."""
+    buf = io.BytesIO(b"NOT A MESH AT ALL" + _OBJ)
+    buf.seek(17)
+
+    back = _quietly(polyxios.read, buf, fmt=".obj")
+
+    assert back.vertices.shape == (3, 3)

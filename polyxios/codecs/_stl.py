@@ -5,6 +5,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import (
     Source,
+    can_seek,
     map_read,
     open_read,
     open_write,
@@ -62,7 +63,7 @@ def read(
             # A caller's handle is left where it was found: the lazy path
             # maps the file from its start, and a moved handle would leave
             # the caller reading from the middle of a file it never read.
-            if fh.seekable():
+            if can_seek(fh):
                 fh.seek(here)
         if _is_ascii(peek, file_size=file_size):
             raise LazyReadError("STL ASCII format does not support lazy reads.")
