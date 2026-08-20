@@ -32,6 +32,197 @@ _VTK_TO_NP: dict[str, str] = {
 }
 
 
+_NP_TO_VTK: dict[str, str] = {np_str: name for name, np_str in _VTK_TO_NP.items()}
+
+# What a dtype no VTK type names is written as. Every numpy kind this package
+# can hold - bool, float16, a datetime - reads back as a double, and the bytes
+# have to be that double or the header lies about them.
+_FALLBACK_TYPE: str = "Float64"
+
+
+def np_to_vtk_type(dt: np.dtype) -> tuple[str, np.dtype]:
+    """Name a dtype the way a ``DataArray`` header does, and say what it is.
+
+    The two are handed back together because they have to agree: a header
+    naming ``Int32`` over the bytes of a double is a file no reader can take.
+    A dtype no VTK type names - bool, float16, a datetime - has no header of
+    its own, so it is written as the double it converts to.
+
+    Parameters
+    ----------
+    dt
+        The array's dtype.
+
+    Returns
+    -------
+    tuple[str, numpy.dtype]
+        The VTK type name, and the little-endian dtype whose bytes that name
+        describes.
+
+    Examples
+    --------
+    >>> np_to_vtk_type(np.dtype("int32"))[0]
+    'Int32'
+    >>> np_to_vtk_type(np.dtype("bool"))[0]
+    'Float64'
+    """
+    name = _NP_TO_VTK.get(dt.str.lstrip("<>|="), _FALLBACK_TYPE)
+    return name, np.dtype("<" + _VTK_TO_NP[name])
+
+
+def format_da(
+    name: str,
+    arr: np.ndarray,
+    *,
+    vtk_type: str,
+    dtype: np.dtype,
+    binary: bool,
+    n_comp: int,
+    indent: int,
+) -> str:
+    """Render one ``<DataArray>`` element.
+
+    Parameters
+    ----------
+    name
+        Array name; empty for the unnamed ``Points`` array.
+    arr
+        Values, of any shape - the element is a flat run either way, and
+        ``n_comp`` is what cuts it back into tuples.
+    vtk_type
+        The type name the element declares.
+    dtype
+        The dtype ``vtk_type`` describes, little endian. The values are cast
+        to it, so the bytes are what the header says they are whichever way
+        the machine running this orders them.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    n_comp
+        Components per tuple.
+    indent
+        Spaces to prefix the line with.
+
+    Returns
+    -------
+    str
+        The ``<DataArray>`` line.
+    """
+    pad = " " * indent
+    name_attr = f' Name="{name}"' if name else ""
+    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
+    values = np.ascontiguousarray(arr, dtype=dtype)
+
+    if binary:
+        raw = values.tobytes()
+        header = np.array([len(raw)], dtype="<u4").tobytes()
+        body = base64.b64encode(header + raw).decode()
+        fmt = "binary"
+    else:
+        body = spell_values(values)
+        fmt = "ascii"
+    return (
+        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
+        f'format="{fmt}">{body}</DataArray>'
+    )
+
+
+def spell_values(arr: np.ndarray) -> str:
+    """Spell an array as the ASCII body of a ``DataArray``.
+
+    ``repr`` of a Python float is the shortest decimal that reads back as
+    that double, so a value written this way survives the round trip; a
+    fixed precision does not, and ``'%.10g'`` quietly dropped the last seven
+    digits of every coordinate. The values are handed to Python as a list
+    first: formatting a numpy scalar goes through the array protocol on
+    every element, and the conversion costs less than that does.
+
+    Parameters
+    ----------
+    arr
+        Values to spell, of any shape.
+
+    Returns
+    -------
+    str
+        The values, space separated, in C order.
+    """
+    return " ".join(map(repr, arr.ravel().tolist()))
+
+
+def components(arr: np.ndarray) -> int:
+    """Count the components one tuple of an array holds.
+
+    Every dimension past the first belongs to the tuple: a ``(n, 3, 3)``
+    tensor array is nine components on n tuples, and declaring the three of
+    its second axis cuts the flat run into three times as many rows as the
+    mesh has points.
+
+    Parameters
+    ----------
+    arr
+        The array, one tuple per row.
+
+    Returns
+    -------
+    int
+        Components per tuple; 1 for a one-dimensional array.
+
+    Examples
+    --------
+    >>> components(np.zeros((4, 3, 3)))
+    9
+    >>> components(np.zeros(4))
+    1
+    """
+    count = 1
+    for dim in arr.shape[1:]:
+        count *= int(dim)
+    return count
+
+
+def structured_hexahedra(nx: int, ny: int, nz: int) -> np.ndarray:
+    """Build the connectivity of a structured grid of hexahedra.
+
+    The three XML grids that expand into an explicit mesh - ``.vti``,
+    ``.vts`` and ``.vtr`` - all index their points the same way, so they all
+    build the same cells. Done a cell at a time this is one Python loop per
+    cell, which on a grid of any size is where the read spends itself; the
+    corners are strides from the cell's own origin, so the whole array is
+    eight adds over the origins instead.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Cells along each axis; the grid holds one more point than that.
+
+    Returns
+    -------
+    numpy.ndarray
+        Flat connectivity, eight point indices per cell, in the order VTK
+        numbers a hexahedron's corners. Cells run with ``x`` fastest.
+
+    Examples
+    --------
+    >>> structured_hexahedra(1, 1, 1)
+    array([0, 1, 3, 2, 4, 5, 7, 6], dtype=int32)
+    """
+    nxp1, nyp1 = nx + 1, ny + 1
+    sj, sk = nxp1, nxp1 * nyp1
+    # Broadcast the three axes against each other rather than meshgrid them:
+    # the sum is the only array of cell size this builds.
+    origins = (
+        np.arange(nz, dtype=np.int64)[:, None, None] * sk
+        + np.arange(ny, dtype=np.int64)[None, :, None] * sj
+        + np.arange(nx, dtype=np.int64)[None, None, :]
+    ).ravel()
+
+    cells = np.empty((origins.size, 8), dtype=np.int32)
+    for corner, step in enumerate((0, 1, 1 + sj, sj)):
+        cells[:, corner] = origins + step
+        cells[:, corner + 4] = origins + step + sk
+    return cells.ravel()
+
+
 def vtk_type_to_np(vtk_type: str) -> str | None:
     """Map VTK XML type name to numpy dtype char.
 
@@ -426,7 +617,7 @@ def join_piece_attrs(
     joined: dict[str, np.ndarray] = {}
     for name, arrays in parts.items():
         try:
-            arr = np.concatenate(arrays)
+            joined[name] = np.concatenate(arrays)
         except ValueError:
             warnings.warn(
                 f"VTK XML: {kind} array '{name}' is shaped differently from"
@@ -435,18 +626,51 @@ def join_piece_attrs(
                 UserWarning,
                 stacklevel=3,
             )
-            continue
+    return sized_attrs(joined, expected=expected, kind=kind, stacklevel=4)
+
+
+def sized_attrs(
+    found: dict[str, np.ndarray], *, expected: int, kind: str, stacklevel: int = 3
+) -> dict[str, np.ndarray]:
+    """Keep the arrays that cover the mesh, and name the ones that do not.
+
+    A ``DataArray`` declares nothing about its length; what it holds is
+    whatever decoding it gave back, cut into tuples by its component count.
+    An array that ends up with a row count the mesh does not have belongs to
+    no point and no cell of it, and attaching it anyway is a ``PolyData``
+    that fails ``validate`` with a message about lengths rather than about
+    the file.
+
+    Parameters
+    ----------
+    found
+        Arrays read out of one attribute section, keyed by name.
+    expected
+        Rows an array must have: points for point data, cells for cell data.
+    kind
+        ``'point'`` or ``'cell'``, for the warning.
+    stacklevel
+        Frames between here and the caller of ``read``, so the warning is
+        blamed on the code that asked for the file.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The arrays that cover the mesh.
+    """
+    kept: dict[str, np.ndarray] = {}
+    for name, arr in found.items():
         if arr.shape[0] != expected:
             warnings.warn(
                 f"VTK XML: {kind} array '{name}' covers {arr.shape[0]} of"
                 f" {expected} {kind}s, so its rows cannot be matched to the"
                 " mesh; dropped.",
                 UserWarning,
-                stacklevel=3,
+                stacklevel=stacklevel,
             )
             continue
-        joined[name] = arr
-    return joined
+        kept[name] = arr
+    return kept
 
 
 def _shapes(arrays: list[np.ndarray]) -> str:

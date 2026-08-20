@@ -1,4 +1,3 @@
-import base64
 from typing import Any
 
 import numpy as np
@@ -6,7 +5,16 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml, shaped_da
+from polyxios.codecs._vtk_xml import (
+    components,
+    decode_da,
+    format_da,
+    np_to_vtk_type,
+    parse_xml,
+    shaped_da,
+    sized_attrs,
+    structured_hexahedra,
+)
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
@@ -93,44 +101,25 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     zz, yy, xx = np.meshgrid(z_arr, y_arr, x_arr, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
 
-    nxp1 = nx + 1
-    nyp1 = ny + 1
-    connectivity = np.empty(n_cells * 8, dtype=np.int32)
+    connectivity = structured_hexahedra(nx, ny, nz)
     offsets = np.arange(0, (n_cells + 1) * 8, 8, dtype=np.int32)
     element_types = np.full(n_cells, ELEMENT_TYPES["hexahedron"], dtype=np.uint8)
 
-    cell_idx = 0
-    for iz in range(nz):
-        for iy in range(ny):
-            for ix in range(nx):
-                v0 = ix + iy * nxp1 + iz * nxp1 * nyp1
-                v1 = v0 + 1
-                v2 = v0 + 1 + nxp1
-                v3 = v0 + nxp1
-                v4 = v0 + nxp1 * nyp1
-                v5 = v4 + 1
-                v6 = v4 + 1 + nxp1
-                v7 = v4 + nxp1
-                ci = cell_idx * 8
-                connectivity[ci : ci + 8] = [v0, v1, v2, v3, v4, v5, v6, v7]
-                cell_idx += 1
-
-    vertex_attrs: dict[str, np.ndarray] = {}
-    element_attrs: dict[str, np.ndarray] = {}
+    point_data: dict[str, np.ndarray] = {}
+    cell_data: dict[str, np.ndarray] = {}
 
     pd = piece.find("PointData")
     if pd is not None:
         for da in pd:
-            arr = _decode(da)
-            name = da.get("Name", "unknown")
-            vertex_attrs[name] = shaped_da(da, arr)
+            point_data[da.get("Name", "unknown")] = shaped_da(da, _decode(da))
 
     cd = piece.find("CellData")
     if cd is not None:
         for da in cd:
-            arr = _decode(da)
-            name = da.get("Name", "unknown")
-            element_attrs[name] = shaped_da(da, arr)
+            cell_data[da.get("Name", "unknown")] = shaped_da(da, _decode(da))
+
+    vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point")
+    element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell")
 
     global_attrs: dict[str, Any] = {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
@@ -205,16 +194,16 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
 
 def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) -> str:
-    """Render one DataArray element.
+    """Render one DataArray element in the type the array is held in.
 
     Parameters
     ----------
     name
         Array name.
     arr
-        Values. A second dimension is the component count, which the element
-        has to declare or a reader has no way to cut the flat run back into
-        tuples.
+        Values. Every dimension past the first is the component count, which
+        the element has to declare or a reader has no way to cut the flat run
+        back into tuples.
     binary
         Base64 the raw bytes instead of spelling the numbers.
     indent
@@ -225,40 +214,13 @@ def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) ->
     str
         The ``<DataArray>`` line.
     """
-    pad = " " * indent
-    vtk_type = _np_to_vtk_type(arr.dtype)
-    n_comp = arr.shape[1] if arr.ndim > 1 else 1
-    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
-
-    if binary:
-        # The bytes have to be the type the element declares; casting them
-        # to float64 under an Int32 header is how an integer attribute came
-        # back as the bit pattern of a double.
-        raw = arr.astype(arr.dtype.newbyteorder("<"), copy=False).tobytes()
-        length = np.array([len(raw)], dtype="<u4").tobytes()
-        encoded = base64.b64encode(length + raw).decode()
-        return (
-            f'{pad}<DataArray type="{vtk_type}" Name="{name}"{comp_attr}'
-            f' format="binary">{encoded}</DataArray>'
-        )
-    vals = " ".join(f"{v:.10g}" for v in arr.ravel())
-    return (
-        f'{pad}<DataArray type="{vtk_type}" Name="{name}"{comp_attr}'
-        f' format="ascii">{vals}</DataArray>'
+    vtk_type, dtype = np_to_vtk_type(arr.dtype)
+    return format_da(
+        name,
+        arr,
+        vtk_type=vtk_type,
+        dtype=dtype,
+        binary=binary,
+        n_comp=components(arr),
+        indent=indent,
     )
-
-
-def _np_to_vtk_type(dt: np.dtype) -> str:
-    mapping = {
-        "f4": "Float32",
-        "f8": "Float64",
-        "i1": "Int8",
-        "i2": "Int16",
-        "i4": "Int32",
-        "i8": "Int64",
-        "u1": "UInt8",
-        "u2": "UInt16",
-        "u4": "UInt32",
-        "u8": "UInt64",
-    }
-    return mapping.get(dt.str.lstrip("<>|="), "Float64")

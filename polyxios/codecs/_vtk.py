@@ -1,4 +1,5 @@
 from bisect import bisect_left
+from itertools import accumulate
 import mmap
 from typing import Any
 import warnings
@@ -92,6 +93,14 @@ _ATTRS_STOP_KEYWORDS: tuple[str, ...] = (
     "POINTS",
     "CELLS",
     "CELL_TYPES",
+)
+
+# What ends a METADATA block that was written without its blank terminator.
+# The geometry keywords belong here as much as the attribute ones: a block
+# left open at the end of a POINT_DATA section would otherwise swallow the
+# CELLS that follows it and every line to the end of the file.
+_METADATA_STOP_KEYWORDS: frozenset[str] = _ATTRIBUTE_KEYWORDS | frozenset(
+    _ATTRS_STOP_KEYWORDS
 )
 
 
@@ -260,8 +269,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         if binary:
             _write_bin_f64(poly.vertices.ravel(), fh)
         else:
-            fh.writelines(
-                f"{v[0]:.10g} {v[1]:.10g} {v[2]:.10g}\n".encode() for v in poly.vertices
+            _write_ascii_f64(
+                np.ascontiguousarray(poly.vertices, dtype=np.float64).ravel(),
+                fh,
+                per_line=3,
             )
 
         if vtk_version == "5.1":
@@ -376,51 +387,107 @@ def _write_vtk_array(
     binary: bool,
     vtk_version: str,
 ) -> None:
-    """Write a single attribute array to a VTK file (SCALARS/VECTORS/TENSORS)."""
-    if arr.ndim == 1:
-        fh.write(f"SCALARS {name} double 1\n".encode())  # type: ignore[union-attr]
-        fh.write(b"LOOKUP_TABLE default\n")
-        flat = arr.astype(np.float64)
-        if binary:
-            _write_bin_f64(flat, fh)
-        else:
-            fh.write((" ".join(f"{v:.10g}" for v in flat) + "\n").encode())  # type: ignore[union-attr]
-    elif arr.ndim == 2 and arr.shape[1] == 3:
-        fh.write(f"VECTORS {name} double\n".encode())  # type: ignore[union-attr]
-        flat = arr.astype(np.float64).ravel()
-        if binary:
-            _write_bin_f64(flat, fh)
-        else:
-            for row in arr:
-                fh.write(f"{row[0]:.10g} {row[1]:.10g} {row[2]:.10g}\n".encode())  # type: ignore[union-attr]
-    elif arr.ndim == 3 and arr.shape[1] == 3 and arr.shape[2] == 3:
-        fh.write(f"TENSORS {name} double\n".encode())  # type: ignore[union-attr]
-        for mat in arr.astype(np.float64):
-            for row in mat:
-                fh.write(f"{row[0]:.10g} {row[1]:.10g} {row[2]:.10g}\n".encode())  # type: ignore[union-attr]
-    elif arr.ndim == 2 and arr.shape[1] == 6:
-        # Voigt 6-component - expand to 3×3 and emit TENSORS
-        fh.write(f"TENSORS {name} double\n".encode())  # type: ignore[union-attr]
-        for row in arr.astype(np.float64):
-            mat = np.array(
-                [
-                    [row[0], row[3], row[4]],
-                    [row[3], row[1], row[5]],
-                    [row[4], row[5], row[2]],
-                ]
-            )
-            for r in mat:
-                fh.write(f"{r[0]:.10g} {r[1]:.10g} {r[2]:.10g}\n".encode())  # type: ignore[union-attr]
+    """Write a single attribute array to a VTK file (SCALARS/VECTORS/TENSORS).
+
+    Parameters
+    ----------
+    name
+        Array name.
+    arr
+        Values, one row per point or cell.
+    section
+        ``'POINT_DATA'`` or ``'CELL_DATA'``; the array's own header says
+        nothing about which it is, the section above it does.
+    fh
+        Open binary file object.
+    binary
+        Write the payload as big-endian doubles rather than spelling it.
+    vtk_version
+        The version the file declares. Attribute sections are spelled the
+        same way in every version the writer emits.
+    """
+    values = np.ascontiguousarray(arr, dtype=np.float64)
+
+    if values.ndim == 1:
+        header = f"SCALARS {name} double 1\nLOOKUP_TABLE default\n"
+        per_line = values.size
+    elif values.ndim == 2 and values.shape[1] == 3:
+        header = f"VECTORS {name} double\n"
+        per_line = 3
+    elif values.ndim == 3 and values.shape[1:] == (3, 3):
+        header = f"TENSORS {name} double\n"
+        per_line = 3
+    elif values.ndim == 2 and values.shape[1] == 6:
+        # Voigt 6-component - expand to the full 3x3 a TENSORS section holds.
+        values = values[:, [0, 3, 4, 3, 1, 5, 4, 5, 2]]
+        header = f"TENSORS {name} double\n"
+        per_line = 3
     else:
-        # Generic multi-component: emit SCALARS with numComp
-        n_comp = arr.shape[1] if arr.ndim == 2 else 1
-        fh.write(f"SCALARS {name} double {n_comp}\n".encode())  # type: ignore[union-attr]
-        fh.write(b"LOOKUP_TABLE default\n")
-        flat = arr.astype(np.float64).ravel()
-        if binary:
-            _write_bin_f64(flat, fh)
-        else:
-            fh.write((" ".join(f"{v:.10g}" for v in flat) + "\n").encode())  # type: ignore[union-attr]
+        # Generic multi-component. Every dimension past the first belongs to
+        # the tuple, so a (n, 2, 4) array is eight components and not two.
+        header = f"SCALARS {name} double {_components(values)}\n"
+        header += "LOOKUP_TABLE default\n"
+        per_line = values.size
+
+    fh.write(header.encode())  # type: ignore[union-attr]
+    if binary:
+        # Every branch writes its payload the same way. The two TENSORS ones
+        # used to spell their numbers whatever was asked for, which put a run
+        # of ASCII in the middle of a binary file that no reader can take -
+        # this one answered it with a CodecError about a short block.
+        _write_bin_f64(values.ravel(), fh)
+    else:
+        _write_ascii_f64(values.ravel(), fh, per_line=per_line)
+
+
+def _components(arr: np.ndarray) -> int:
+    """Count the components one tuple of an attribute array holds.
+
+    Parameters
+    ----------
+    arr
+        The array, one tuple per row.
+
+    Returns
+    -------
+    int
+        Components per tuple; 1 for a one-dimensional array.
+    """
+    count = 1
+    for dim in arr.shape[1:]:
+        count *= int(dim)
+    return count
+
+
+def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
+    """Spell a run of doubles into a legacy VTK file.
+
+    ``repr`` of a Python float is the shortest decimal that reads back as
+    that double, so a value written this way survives the round trip; the
+    fixed ``'%.10g'`` this used quietly dropped the last seven digits of
+    every coordinate a ``double`` section claimed to hold. The whole block
+    is joined and written once: a write per line costs a syscall per point.
+
+    Parameters
+    ----------
+    flat
+        The values, already flat.
+    fh
+        Open binary file object.
+    per_line
+        Values per line; ``flat.size`` puts them all on one. A run it does
+        not divide goes on one line rather than losing its last few values.
+    """
+    values = flat.tolist()
+    if per_line >= len(values) or len(values) % per_line:
+        body = " ".join(map(repr, values))
+    else:
+        # One shared iterator spells each value once and zip cuts the run
+        # into rows; grouping a spelled list by slices copies it again, and
+        # a join per row costs more than the one this pays.
+        spelled = map(repr, values)
+        body = "\n".join(map(" ".join, zip(*[spelled] * per_line)))
+    fh.write((body + "\n").encode() if body else b"\n")  # type: ignore[union-attr]
 
 
 def _write_bin_f64(arr: np.ndarray, fh: object) -> None:
@@ -1068,13 +1135,13 @@ def _parse_vtk_data_attrs(
             # knowable, so they are skipped too, and the array is gone.
             # Saying so once per keyword is the difference between a short
             # read and a silent one.
-            _warn_unhandled_attr(line, unknown, stacklevel=5)
+            _warn_unhandled_attr(line, unknown)
             i += 1
 
     return i, attrs
 
 
-def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 4) -> None:
+def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 5) -> None:
     """Say once that a data keyword with no branch here is being dropped.
 
     The readers walk their file a line at a time and skip what they do not
@@ -1093,8 +1160,8 @@ def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 4) -> N
     stacklevel
         Frames between here and the caller of ``read``, so the warning is
         blamed on the code that asked for the file rather than on this
-        module. The structured readers sit one frame closer to ``read``
-        than the section parsers do.
+        module. The default suits both scans, which sit the same depth
+        below ``read``.
     """
     tokens = line.split()
     keyword = tokens[0] if tokens else ""
@@ -1172,7 +1239,7 @@ def _skip_metadata(lines: list[str], i: int) -> int:
         if not line:
             return i + 1
         keyword = line.split()[0].upper()
-        if keyword in _ATTRIBUTE_KEYWORDS or keyword in _SECTION_KEYWORDS:
+        if keyword in _METADATA_STOP_KEYWORDS:
             return i
         i += 1
     return i
@@ -1531,7 +1598,7 @@ def _skip_binary_metadata(
         if not line:
             return pos
         keyword = line.split()[0].upper()
-        if keyword in _ATTRIBUTE_KEYWORDS or keyword in _SECTION_KEYWORDS:
+        if keyword in _METADATA_STOP_KEYWORDS:
             return line_start
     return pos
 
@@ -1745,6 +1812,37 @@ def _parse_binary_attrs(
     return pos, attrs
 
 
+def _lines_with_offsets(raw: bytes) -> tuple[list[str], list[int]]:
+    """Cut a file into stripped lines, and say where each one starts.
+
+    The three structured readers walk their file themselves, so they need
+    the byte offset of every line to find a binary payload. Splitting on the
+    newline in one pass is what a ``find`` per line was doing four calls at
+    a time, and a binary payload carries a newline every few values, so a
+    grid of any size is cut into lines by the million.
+
+    Parameters
+    ----------
+    raw
+        The whole file.
+
+    Returns
+    -------
+    tuple[list of str, list of int]
+        The lines, stripped, and the byte offset each one starts at. A
+        trailing newline ends the last line rather than opening an empty
+        one, which is what a walk stopping at the end of the file did.
+    """
+    if not raw:
+        return [], []
+    chunks = raw.split(b"\n")
+    if chunks[-1] == b"" and raw.endswith(b"\n"):
+        chunks.pop()
+    texts = [chunk.decode("ascii", errors="replace").strip() for chunk in chunks]
+    offsets = list(accumulate((len(chunk) + 1 for chunk in chunks), initial=0))[:-1]
+    return texts, offsets
+
+
 def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     """Read a VTK legacy RECTILINEAR_GRID dataset (ASCII or binary).
 
@@ -1763,15 +1861,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     """
     raw = read_bytes(path)
 
-    line_offsets: list[int] = []
-    texts: list[str] = []
-    pos = 0
-    while pos < len(raw):
-        nl = raw.find(b"\n", pos)
-        end = nl if nl != -1 else len(raw)
-        line_offsets.append(pos)
-        texts.append(raw[pos:end].decode("ascii", errors="replace").strip())
-        pos = end + 1
+    texts, line_offsets = _lines_with_offsets(raw)
 
     nx, ny, nz = 1, 1, 1
     xs: np.ndarray = np.zeros(1)
@@ -1876,39 +1966,27 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             in_point_data = False
             in_data_section = True
         elif in_data_section:
-            # A CELL_DATA section reads the same way a POINT_DATA one does,
-            # only against the cells; the chain that used to sit here asked
-            # about points and let everything else fall past it.
-            found: dict[str, np.ndarray] = {}
-            nxt = _scan_structured_attr(
+            # The coordinate arrays are the grid, not what DIMENSIONS said
+            # about it: the points are their outer product, so a header that
+            # disagrees would drop an attribute that covers every point
+            # there is.
+            gx, gy, gz = len(xs), len(ys), len(zs)
+            i = _read_structured_attr(
                 texts,
                 line_offsets,
                 raw,
                 i,
                 n_items=n_points if in_point_data else n_cells_declared,
                 is_binary=is_binary,
-                attrs=found,
-            )
-            if nxt is None:
-                _warn_unhandled_attr(line, unhandled)
-                i += 1
-                continue
-            # The coordinate arrays are the grid, not what DIMENSIONS said
-            # about it: the points are their outer product, so a header that
-            # disagrees would drop an attribute that covers every point
-            # there is.
-            gx, gy, gz = len(xs), len(ys), len(zs)
-            _keep_structured_attrs(
-                found,
-                vertex_attrs if in_point_data else element_attrs,
+                attrs=vertex_attrs if in_point_data else element_attrs,
                 expected=(
                     gx * gy * gz
                     if in_point_data
                     else _structured_cell_count(gx, gy, gz)
                 ),
                 kind="point" if in_point_data else "cell",
+                unhandled=unhandled,
             )
-            i = nxt
             continue
         i += 1
 
@@ -1979,15 +2057,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
     """
     raw = read_bytes(path)
 
-    offsets: list[int] = []
-    texts: list[str] = []
-    pos = 0
-    while pos < len(raw):
-        nl = raw.find(b"\n", pos)
-        end = nl if nl != -1 else len(raw)
-        offsets.append(pos)
-        texts.append(raw[pos:end].decode("ascii", errors="replace").strip())
-        pos = end + 1
+    texts, offsets = _lines_with_offsets(raw)
 
     nx, ny, nz = 1, 1, 1
     n_points = 0
@@ -2053,32 +2123,20 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             in_point_data = False
             in_data_section = True
         elif in_data_section:
-            # A CELL_DATA section reads the same way a POINT_DATA one does,
-            # only against the cells; the chain that used to sit here asked
-            # about points and let everything else fall past it.
-            found: dict[str, np.ndarray] = {}
-            nxt = _scan_structured_attr(
+            i = _read_structured_attr(
                 texts,
                 offsets,
                 raw,
                 i,
                 n_items=n_points if in_point_data else n_cells_declared,
                 is_binary=is_binary,
-                attrs=found,
-            )
-            if nxt is None:
-                _warn_unhandled_attr(line, unhandled)
-                i += 1
-                continue
-            _keep_structured_attrs(
-                found,
-                vertex_attrs if in_point_data else element_attrs,
+                attrs=vertex_attrs if in_point_data else element_attrs,
                 expected=(
                     n_points if in_point_data else _structured_cell_count(nx, ny, nz)
                 ),
                 kind="point" if in_point_data else "cell",
+                unhandled=unhandled,
             )
-            i = nxt
             continue
         i += 1
 
@@ -2137,13 +2195,7 @@ def _read_field_data(path: Source) -> PolyData:
     )
 
     raw = read_bytes(path)
-    lines: list[str] = []
-    pos = 0
-    while pos < len(raw):
-        nl = raw.find(b"\n", pos)
-        end = nl if nl != -1 else len(raw)
-        lines.append(raw[pos:end].decode("ascii", errors="replace").strip())
-        pos = end + 1
+    lines, _ = _lines_with_offsets(raw)
 
     global_attrs: dict[str, object] = {}
     i = 0
@@ -2203,6 +2255,111 @@ def _read_field_data(path: Source) -> PolyData:
     )
 
 
+def _read_structured_attr(
+    texts: list[str],
+    offsets: list[int],
+    raw: bytes,
+    i: int,
+    *,
+    n_items: int,
+    is_binary: bool,
+    attrs: dict[str, np.ndarray],
+    expected: int,
+    kind: str,
+    unhandled: set[str],
+) -> int:
+    """Read one attribute of a structured dataset and keep what fits.
+
+    The three structured readers all reach their attributes the same way -
+    scan one, drop it if its rows belong to no point or cell of the mesh,
+    say so if the keyword is not one this reader knows - so they all do it
+    here.
+
+    A section's own header is what says how long its payload is, and a file
+    that does not hold that much leaves nowhere to look for the array after
+    it. That costs the rest of the section, but not the mesh: the geometry
+    was read whole before the scan reached this, and refusing to hand it
+    back over a malformed attribute would lose more than it saved.
+
+    Parameters
+    ----------
+    texts
+        The file's lines, stripped.
+    offsets
+        Byte offset of each line, for finding a binary payload.
+    raw
+        The whole file.
+    i
+        Index of the attribute's header line.
+    n_items
+        Tuples the section declares: points for ``POINT_DATA``, cells for
+        ``CELL_DATA``.
+    is_binary
+        Whether the payload is binary rather than ASCII.
+    attrs
+        Destination, written in place.
+    expected
+        Rows an array must have to belong to this mesh.
+    kind
+        ``'point'`` or ``'cell'``, for the warnings.
+    unhandled
+        Keywords already warned about in this file; added to in place.
+
+    Returns
+    -------
+    int
+        The line index to carry on from.
+    """
+    found: dict[str, np.ndarray] = {}
+    try:
+        nxt = _scan_structured_attr(
+            texts,
+            offsets,
+            raw,
+            i,
+            n_items=n_items,
+            is_binary=is_binary,
+            attrs=found,
+        )
+    except CodecError as exc:
+        warnings.warn(
+            f"{exc} The rest of this data section is dropped.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return _skip_data_section(texts, i)
+
+    if nxt is None:
+        _warn_unhandled_attr(texts[i], unhandled)
+        return i + 1
+
+    _keep_structured_attrs(found, attrs, expected=expected, kind=kind)
+    return nxt
+
+
+def _skip_data_section(texts: list[str], i: int) -> int:
+    """Find the end of the attribute section a line sits in.
+
+    Parameters
+    ----------
+    texts
+        The file's lines, stripped.
+    i
+        Index to start looking from.
+
+    Returns
+    -------
+    int
+        Index of the next line that opens a section or returns to the
+        geometry, or past the end when there is none.
+    """
+    n_lines = len(texts)
+    i += 1
+    while i < n_lines and not texts[i].upper().startswith(_ATTRS_STOP_KEYWORDS):
+        i += 1
+    return i
+
+
 def _keep_structured_attrs(
     found: dict[str, np.ndarray],
     attrs: dict[str, np.ndarray],
@@ -2235,7 +2392,7 @@ def _keep_structured_attrs(
                 f".vtk: {kind} array {name!r} covers {arr.shape[0]} of"
                 f" {expected} {kind}s, so its rows cannot be matched to the"
                 " mesh; dropped.",
-                stacklevel=4,
+                stacklevel=5,
             )
             continue
         attrs[name] = arr
@@ -2573,15 +2730,7 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
     raw = read_bytes(path)
 
     # Build (byte_offset, stripped_text) for every line
-    offsets: list[int] = []
-    texts: list[str] = []
-    pos = 0
-    while pos < len(raw):
-        nl = raw.find(b"\n", pos)
-        end = nl if nl != -1 else len(raw)
-        offsets.append(pos)
-        texts.append(raw[pos:end].decode("ascii", errors="replace").strip())
-        pos = end + 1
+    texts, offsets = _lines_with_offsets(raw)
 
     nx, ny, nz = 1, 1, 1
     ox, oy, oz = 0.0, 0.0, 0.0
@@ -2626,34 +2775,22 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             in_point_data = False
             in_data_section = True
         elif in_data_section:
-            # A CELL_DATA section reads the same way a POINT_DATA one does,
-            # only against the cells; the chain that used to sit here asked
-            # about points and let everything else fall past it.
-            found: dict[str, np.ndarray] = {}
-            nxt = _scan_structured_attr(
+            i = _read_structured_attr(
                 texts,
                 offsets,
                 raw,
                 i,
                 n_items=n_points if in_point_data else n_cells_declared,
                 is_binary=is_binary,
-                attrs=found,
-            )
-            if nxt is None:
-                _warn_unhandled_attr(line, unhandled)
-                i += 1
-                continue
-            _keep_structured_attrs(
-                found,
-                vertex_attrs if in_point_data else element_attrs,
+                attrs=vertex_attrs if in_point_data else element_attrs,
                 expected=(
                     nx * ny * nz
                     if in_point_data
                     else _structured_cell_count(nx, ny, nz)
                 ),
                 kind="point" if in_point_data else "cell",
+                unhandled=unhandled,
             )
-            i = nxt
             continue
         i += 1
 

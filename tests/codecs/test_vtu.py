@@ -341,3 +341,31 @@ def test_a_points_array_of_a_type_with_no_numbers_names_the_type() -> None:
 
     with pytest.raises(CodecError, match="String"):
         read(tmp)
+
+
+def test_a_failing_piece_is_named_by_its_index() -> None:
+    """A file of many pieces gave no way to find the one at fault."""
+    good = _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1)
+    bad = _piece("0 0 0 1 0 0", 3, _TRI_CELLS, 1)
+    with tempfile.NamedTemporaryFile("w", suffix=".vtu", delete=False) as f:
+        f.write(_vtu(good + bad))
+        tmp = f.name
+
+    with pytest.raises(CodecError, match="Piece 1 declares 3 points"):
+        read(tmp)
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_tensor_declares_every_component_it_holds(tmp_path, binary: bool) -> None:
+    """shape[1] of an (n, 3, 3) array is three, and the tuple is nine."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    tensor = np.arange(27, dtype=np.float64).reshape(3, 3, 3)
+    poly.vertex_attrs["tensor"] = tensor
+    path = tmp_path / "tensor.vtu"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.vertex_attrs["tensor"].shape == (3, 9)
+    np.testing.assert_array_equal(back.vertex_attrs["tensor"], tensor.reshape(3, 9))
