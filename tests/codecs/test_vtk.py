@@ -1426,3 +1426,88 @@ def test_a_structured_points_header_that_is_not_numbers_names_the_line(
 
     with pytest.raises(CodecError, match=match):
         read(tmp)
+
+
+def test_a_field_dataset_is_read_rather_than_refused() -> None:
+    """The dispatch asked what a line starts with, keyword and all."""
+    tmp = _write_tmp(
+        b"# vtk DataFile Version 2.0\ns\nASCII\nDATASET FIELD FieldData 1\n"
+        b"arr 1 2 float\n1 2\n"
+    )
+
+    with pytest.warns(UserWarning, match="no geometry"):
+        poly = read(tmp)
+
+    np.testing.assert_allclose(poly.global_attrs["arr"], [1.0, 2.0])
+
+
+def test_v51_cells_are_found_whatever_version_the_header_declares() -> None:
+    """Versions compared as strings sort '10.0' below '5.1'."""
+    tmp = _write_tmp(
+        b"# vtk DataFile Version 10.0\ns\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 2 3\nOFFSETS vtktypeint64\n0 3\n"
+        b"CONNECTIVITY vtktypeint64\n0 1 2\nCELL_TYPES 1\n5\n"
+    )
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+    np.testing.assert_array_equal(poly.offsets, [0, 3])
+    validate(poly)
+
+
+@pytest.mark.parametrize(
+    "cells",
+    [
+        pytest.param(
+            b"CELLS 2 3\nOFFSETS vtktypeint64\n0 3\nMETADATA\nINFORMATION 0\n\n"
+            b"CONNECTIVITY vtktypeint64\n0 1 2\n",
+            id="after-offsets",
+        ),
+        pytest.param(
+            b"CELLS 2 3\nOFFSETS vtktypeint64\n0 3\n"
+            b"CONNECTIVITY vtktypeint64\nMETADATA\nINFORMATION 0\n\n0 1 2\n",
+            id="after-connectivity-keyword",
+        ),
+        pytest.param(
+            b"CELLS 2 3\nOFFSETS vtktypeint64\n0 3\nMETADATA\nINFORMATION 0\n"
+            b"CONNECTIVITY vtktypeint64\n0 1 2\n",
+            id="unterminated",
+        ),
+    ],
+)
+def test_metadata_inside_a_v51_cells_section_is_stepped_over(cells: bytes) -> None:
+    """VTK follows a cell array with a METADATA block; it is not offsets."""
+    tmp = _write_tmp(
+        b"# vtk DataFile Version 5.1\ns\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n" + cells + b"CELL_TYPES 1\n5\n"
+    )
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+    np.testing.assert_array_equal(poly.offsets, [0, 3])
+    validate(poly)
+
+
+def test_metadata_inside_a_binary_v51_cells_section_is_stepped_over() -> None:
+    """The binary flavour writes the same block as text between the arrays."""
+    tmp = _write_tmp(
+        b"# vtk DataFile Version 5.1\ns\nBINARY\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        + np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=">f4").tobytes()
+        + b"\nCELLS 2 3\nOFFSETS vtktypeint64\n"
+        + np.array([0, 3], dtype=">i8").tobytes()
+        + b"\nMETADATA\nINFORMATION 0\n\nCONNECTIVITY vtktypeint64\n"
+        + np.array([0, 1, 2], dtype=">i8").tobytes()
+        + b"\nCELL_TYPES 1\n"
+        + np.array([5], dtype=">i4").tobytes()
+        + b"\n"
+    )
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+    np.testing.assert_array_equal(poly.offsets, [0, 3])
+    validate(poly)

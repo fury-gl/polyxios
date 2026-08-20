@@ -11,7 +11,8 @@ from polyxios.codecs._vtk_xml import (
     parse_xml,
     shaped_da,
     sized_attrs,
-    structured_hexahedra,
+    structured_cell_shape,
+    structured_cells,
     xml_extent,
 )
 from polyxios.exceptions import LazyReadError
@@ -84,9 +85,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     i0, i1, j0, j1, k0, k1 = extent
     nx, ny, nz = i1 - i0, j1 - j0, k1 - k0
     n_verts = (nx + 1) * (ny + 1) * (nz + 1)
-    n_cells = nx * ny * nz
+    # An extent flat along an axis is a sheet of quads or a run of lines, not
+    # a grid of no cells: the cells the grid holds decide the shape of a
+    # CellData array, so they are counted before the header is validated.
+    n_cells, n_per_cell, cell_kind = structured_cell_shape(nx, ny, nz)
 
-    validate_header(n_verts, n_cells, n_cells * 8, file_size, compressed=compressed)
+    validate_header(
+        n_verts, n_cells, n_cells * n_per_cell, file_size, compressed=compressed
+    )
 
     coords_elem = piece.find("Coordinates")
     if coords_elem is None:
@@ -100,9 +106,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     zz, yy, xx = np.meshgrid(z_arr, y_arr, x_arr, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
 
-    connectivity = structured_hexahedra(nx, ny, nz)
-    offsets = np.arange(0, (n_cells + 1) * 8, 8, dtype=np.int32)
-    element_types = np.full(n_cells, ELEMENT_TYPES["hexahedron"], dtype=np.uint8)
+    connectivity, _, _ = structured_cells(nx, ny, nz)
+    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
 
     point_data: dict[str, np.ndarray] = {}
     cell_data: dict[str, np.ndarray] = {}

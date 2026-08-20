@@ -377,7 +377,7 @@ def _record_rows(
         warnings.warn(
             f".obj: vertex attribute for {what} holds values that are not"
             " numbers; not written.",
-            stacklevel=3,
+            stacklevel=4,
         )
         return None
     # A one-value-per-vertex attribute arrives one-dimensional; read it as a
@@ -388,7 +388,7 @@ def _record_rows(
         warnings.warn(
             f".obj: vertex attribute for {what} has shape {arr.shape}, not one"
             f" row per vertex ({n_vertices}); not written.",
-            stacklevel=3,
+            stacklevel=4,
         )
         return None
     if arr.shape[1] < width:
@@ -397,7 +397,7 @@ def _record_rows(
         warnings.warn(
             f".obj: vertex attribute for {what} has {arr.shape[1]} components;"
             f" a {what} record carries {width}, so the rest are not written.",
-            stacklevel=3,
+            stacklevel=4,
         )
     return np.nan_to_num(arr[:, :width], nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -665,7 +665,7 @@ def _per_vertex(
             warnings.warn(
                 f".obj: {len(values)} {what}(s) for {n_vertices} vertices and no"
                 f" face indexes them, so they cannot be matched up; dropped.",
-                stacklevel=3,
+                stacklevel=4,
             )
             return None
         return records
@@ -691,6 +691,6 @@ def _per_vertex(
         warnings.warn(
             f".obj: a vertex is given more than one {what}, which a per-vertex"
             " array cannot hold; the last one written wins.",
-            stacklevel=3,
+            stacklevel=4,
         )
     return out

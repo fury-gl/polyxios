@@ -412,6 +412,33 @@ Bug fixes
 - A ``<DataArray>`` whose ``NumberOfComponents`` is not a count is read
   flat with a warning naming it, rather than raising a bare ``ValueError``
   from ``int()``.
+- A legacy ``.vtk`` file whose header declares ``DATASET FIELD`` is read.
+  The dispatch asked what the line starts with while the line still
+  carried its ``DATASET`` keyword, so the branch never ran and every field
+  data file was refused by the one below it.
+- A ``METADATA`` block inside a v5.1 ``CELLS`` section is stepped over. VTK
+  follows a cell array with one, so a block sat between the offsets and the
+  connectivity of files every release since 9.0 writes; read as offsets it
+  raised ``CodecError`` about a line of words where numbers belong.
+- A v5.1 ``CELLS`` section is found by what follows the header rather than
+  by the version in the first line. Versions were compared as strings, so a
+  file declaring ``10.0`` sorted below ``5.1`` and its offsets would have
+  been read as a v4.2 cell stream. The binary scan already asked this way.
+- A ``.vti``, ``.vts`` or ``.vtr`` extent flat along an axis - an image one
+  voxel deep - is a sheet of quads, or a run of lines when it is flat along
+  two. All three read it as a grid of no cells, which left every
+  ``CellData`` array belonging to nothing.
+- An ASCII ``<DataArray>`` holding a value its declared type is too narrow
+  for wraps with a warning naming the array, the way a C reader wraps it,
+  rather than escaping as a bare ``OverflowError`` from numpy. A token that
+  names no number at all raises ``CodecError`` naming the array.
+- Writing a point or cell attribute of a kind no ``<DataArray>`` can hold -
+  a label per vertex, say - raises ``CodecError`` naming the array and its
+  dtype, rather than a ``ValueError`` about one element.
+- The warnings the ``.vtk``, XML and OBJ codecs raise are blamed on the code
+  that asked for the file. Every one of them pointed a frame short, at
+  ``polyxios.read`` or ``polyxios.write`` itself, which tells a caller
+  nothing about which of their own calls found the file.
 
 Optimizations
 ~~~~~~~~~~~~~

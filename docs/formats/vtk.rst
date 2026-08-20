@@ -24,7 +24,7 @@ Specification at a glance
    * - data mode
      - ASCII or BINARY (binary payload is big-endian)
    * - dataset types
-     - STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID
+     - STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID, FIELD
    * - connectivity
      - CELLS <n> <size> followed by CELL_TYPES <n> integer codes
    * - attributes
@@ -88,6 +88,9 @@ Quirks worth knowing
 - A structured grid extends along whichever axes its ``DIMENSIONS`` declare: ``3 1 3`` is a sheet of quads in the x-z plane, not a run of lines, and a column along ``y`` or ``z`` is indexed with its own stride.
 - VTK 5.1 cells - the default since VTK 9.0 - are read wherever they appear: ``CELLS`` in an unstructured grid and ``POLYGONS``, ``LINES``, ``VERTICES`` or ``TRIANGLE_STRIPS`` in polydata. The two numbers on such a line are the length of the ``OFFSETS`` array and the length of ``CONNECTIVITY``, so the mesh holds one cell fewer than the first of them; the offsets are counted up to the ``CONNECTIVITY`` keyword, so a file spelling that line either way is read. ``write(..., vtk_version="5.1")`` declares the offsets length, which is what VTK's own reader expects.
 - A ``METADATA`` block - component names and information keys, written after every array by VTK 4.2 and later - is stepped over rather than read as an array. It is text even in a binary file, and it appears between the entries of a ``FIELD`` block as well as after a section.
+- A ``METADATA`` block also sits inside a v5.1 ``CELLS`` section, between its offsets and its connectivity, and is stepped over there too.
+- A ``DATASET FIELD`` file carries field arrays and no geometry. It reads as an empty :class:`~polyxios.PolyData` whose ``global_attrs`` hold the arrays, with a warning saying so.
+- Which cell spelling a v5.1 ``CELLS`` section uses is decided by what follows the header, not by the version in the first line, so a file declaring a version this reader has never heard of is still read by what it holds.
 - A ``RECTILINEAR_GRID`` takes its grid from its coordinate arrays: the points are their outer product, so a ``DIMENSIONS`` header that disagrees with them is warned about and ignored.
 - A ``STRUCTURED_GRID`` carries an explicit ``POINTS`` array, which its ``DIMENSIONS`` cannot be reconciled against the way a rectilinear grid's coordinates can. When the two disagree the points are handed back without cells, with a warning naming both counts: the cells the header describes would index points the file does not hold.
 - An attribute section is read by the count its own header declares, which is the only thing that says where one array ends and the next begins. An array that then covers no point or cell of the mesh is dropped with a warning naming it.

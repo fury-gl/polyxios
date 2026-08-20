@@ -425,3 +425,77 @@ def test_a_piece_count_that_is_not_a_count_names_the_file(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="NumberOfPoints='many'"):
         read(path)
+
+
+def _one_point_grid(point_data: str) -> str:
+    """An otherwise empty .vtu carrying one PointData array."""
+    return (
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">\n'
+        " <UnstructuredGrid>\n"
+        '  <Piece NumberOfPoints="1" NumberOfCells="0">\n'
+        '   <Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">0 0 0</DataArray></Points>\n'
+        "   <Cells>\n"
+        '    <DataArray type="Int64" Name="connectivity" format="ascii"></DataArray>\n'
+        '    <DataArray type="Int64" Name="offsets" format="ascii"></DataArray>\n'
+        '    <DataArray type="UInt8" Name="types" format="ascii"></DataArray>\n'
+        "   </Cells>\n"
+        f"   <PointData>{point_data}</PointData>\n"
+        "  </Piece>\n"
+        " </UnstructuredGrid>\n"
+        "</VTKFile>\n"
+    )
+
+
+def test_a_value_too_wide_for_its_declared_type_wraps_rather_than_raising(
+    tmp_path,
+) -> None:
+    """numpy answers an out-of-range token with OverflowError, not ValueError."""
+    path = tmp_path / "wide.vtu"
+    path.write_text(
+        _one_point_grid(
+            '<DataArray type="UInt8" Name="q" format="ascii">300</DataArray>'
+        )
+    )
+
+    with pytest.warns(UserWarning, match="cannot hold"):
+        poly = read(path)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["q"], [np.uint8(300 % 256)])
+
+
+def test_an_ascii_value_that_is_no_number_names_the_array(tmp_path) -> None:
+    """float() answers that with a ValueError about one token."""
+    path = tmp_path / "nan.vtu"
+    path.write_text(
+        _one_point_grid('<DataArray type="Int64" Name="q" format="ascii">x</DataArray>')
+    )
+
+    with pytest.raises(CodecError, match="DataArray 'q'"):
+        read(path)
+
+
+def test_an_integer_array_spelled_with_a_decimal_point_is_read(tmp_path) -> None:
+    """numpy will not parse '1.0' as an Int64; a C reader truncates it."""
+    path = tmp_path / "dotted.vtu"
+    path.write_text(
+        _one_point_grid(
+            '<DataArray type="Int64" Name="q" format="ascii">7.0</DataArray>'
+        )
+    )
+
+    poly = read(path)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["q"], [7])
+    assert poly.vertex_attrs["q"].dtype == np.int64
+
+
+def test_an_attribute_no_data_array_can_hold_names_itself(tmp_path) -> None:
+    """A label per vertex reached the Float64 fallback and died converting."""
+    poly = _tet_mesh()
+    poly.vertex_attrs["label"] = np.array(["a", "b", "c", "d"])
+    path = tmp_path / "label.vtu"
+
+    with pytest.raises(CodecError, match="attribute 'label'"):
+        write(poly, path)
