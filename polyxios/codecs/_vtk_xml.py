@@ -17,6 +17,7 @@ import zlib
 import numpy as np
 
 from polyxios._io import Source, read_bytes
+from polyxios.exceptions import CodecError
 
 _VTK_TO_NP: dict[str, str] = {
     "Float32": "f4",
@@ -515,10 +516,25 @@ def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
     -------
     numpy.ndarray
         An ``(n_tuples, n_comp)`` array, or the input unchanged when the
-        array is scalar or does not hold whole tuples - which the caller
-        then sees as a row count that does not match the mesh.
+        array is scalar, does not hold whole tuples, or names a width that
+        is not a count - which the caller then sees as a row count that
+        does not match the mesh.
     """
-    n_comp = int(elem.get("NumberOfComponents", "1"))
+    try:
+        n_comp = int(elem.get("NumberOfComponents", "1"))
+    except ValueError:
+        # Every other header field here answers a malformed value with a
+        # message naming the array; a bare ValueError out of int() names
+        # neither it nor the file, and the flat array below is already the
+        # shape a caller drops.
+        warnings.warn(
+            f"VTK XML: DataArray '{elem.get('Name', 'unnamed')}' declares"
+            f" NumberOfComponents='{elem.get('NumberOfComponents')}', which"
+            " is not a count; read flat.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return arr
     if n_comp > 1 and arr.size and arr.size % n_comp == 0:
         return arr.reshape(-1, n_comp)
     return arr
@@ -664,6 +680,78 @@ def parse_ascii_values(text: str, dtype_str: str) -> np.ndarray:
         # numpy parses, and not worth refusing either: read it as a double
         # and truncate it the way the declared type would have held it.
         return np.array([float(token) for token in tokens], dtype=dtype_str)
+
+
+def piece_count(piece: ET.Element, attr: str, *, fmt: str) -> int:
+    """Read a ``Piece``'s declared point or cell count.
+
+    Parameters
+    ----------
+    piece
+        The ``Piece`` element.
+    attr
+        ``'NumberOfPoints'`` or ``'NumberOfCells'``.
+    fmt
+        Extension the message names, such as ``'.vtu'``.
+
+    Returns
+    -------
+    int
+        The count, or zero when the attribute is absent - a Piece that
+        declares nothing holds nothing.
+
+    Raises
+    ------
+    CodecError
+        If the attribute is present and is not a count. ``int()`` answers
+        that with a ValueError naming neither the file nor the Piece.
+    """
+    text = piece.get(attr)
+    if text is None:
+        return 0
+    try:
+        return int(text)
+    except ValueError as exc:
+        raise CodecError(
+            f"{fmt}: a Piece declares {attr}='{text}', which is not a count."
+        ) from exc
+
+
+def xml_extent(text: str, *, fmt: str, where: str) -> list[int]:
+    """Read a ``WholeExtent`` or ``Extent`` into its six indices.
+
+    Parameters
+    ----------
+    text
+        The attribute's value, six whitespace-separated integers.
+    fmt
+        Extension the message names, such as ``'.vtr'``.
+    where
+        Which attribute this is, for the error message.
+
+    Returns
+    -------
+    list of int
+        ``[i0, i1, j0, j1, k0, k1]``.
+
+    Raises
+    ------
+    CodecError
+        If the value is not six integers. Unpacked straight into six names
+        it fails with a ValueError about unpacking, which says nothing
+        about the file it came out of.
+    """
+    try:
+        extent = [int(value) for value in text.split()]
+    except ValueError as exc:
+        raise CodecError(
+            f"{fmt}: {where}='{text}' is not a run of whole numbers."
+        ) from exc
+    if len(extent) != 6:
+        raise CodecError(
+            f"{fmt}: {where}='{text}' holds {len(extent)} indices; an extent holds six."
+        )
+    return extent
 
 
 def join_piece_attrs(

@@ -372,6 +372,46 @@ Bug fixes
   declares rather than through ``float()`` first. An ``Int64`` array was
   rounded to a double before the declared type ever saw it, which the top
   of the integer range does not survive.
+- A binary legacy ``.vtk`` block is read as the type its header names. A
+  ``POINTS n int`` was read at four bytes a float, so an integer point
+  array came back as coordinates the file never held, and a type name the
+  reader has no numpy equivalent for - ``bit``, or a misspelling - was
+  guessed at rather than refused. Every binary header now resolves its type
+  the same way and raises ``CodecError`` naming it when it cannot; the
+  names VTK writes for 64-bit and signed-char arrays were missing from the
+  table and are there now. An ASCII payload is unaffected: its values are
+  text whatever the header calls them.
+- A legacy ``.vtk`` geometry or section header spelling a count as
+  something that is not a number, or leaving it out, names the file and the
+  line it is on. ``POINTS``, ``CELLS``, ``CELL_TYPES``, ``POINT_DATA``,
+  ``CELL_DATA``, ``DIMENSIONS``, ``ORIGIN``, ``SPACING`` and the coordinate
+  arrays reached the caller as a bare ``ValueError`` or ``IndexError``,
+  which the attribute headers had already stopped doing.
+- A ``CELL_DATA`` array in a legacy ``STRUCTURED_GRID`` is measured against
+  the cells the mesh ends up with rather than the cells ``DIMENSIONS``
+  describes. A header its ``POINTS`` array does not cover leaves the mesh
+  with no cells, and the array was kept against the header's count, so the
+  read returned a ``PolyData`` that fails ``validate``.
+- An OBJ face index spelled with a superscript digit raises ``CodecError``
+  naming the line. ``str.isdigit`` admits ``²`` and ``int()`` then refuses
+  it, so the fast path let a bare ``ValueError`` out; the test is now
+  ``str.isdecimal``, which still admits the non-Latin digits ``int()``
+  reads.
+- A bare ``mtllib`` or ``o`` directive in an OBJ file names nothing rather
+  than the empty string, which used to be written back as a directive with
+  nothing after it.
+- Writing an OBJ ``element_attrs['material']`` that does not cover the
+  faces drops it with a warning naming its length, the way the vertex
+  attributes already were. Indexed per face it ran off the end partway
+  through, leaving a half-written file and an ``IndexError`` naming an
+  axis.
+- A ``.vtu`` or ``.vtp`` ``Piece`` whose ``NumberOfPoints`` is not a count,
+  and a ``.vti``, ``.vts`` or ``.vtr`` ``Extent`` that is not six whole
+  numbers, raise ``CodecError`` naming the file. They reached the caller as
+  a bare ``ValueError`` about ``int()`` or about unpacking.
+- A ``<DataArray>`` whose ``NumberOfComponents`` is not a count is read
+  flat with a warning naming it, rather than raising a bare ``ValueError``
+  from ``int()``.
 
 Optimizations
 ~~~~~~~~~~~~~
@@ -398,6 +438,12 @@ Optimizations
   1.0 s, and every value is written exactly as before.
 - Reading an OBJ file no longer names its source once per line. The name
   costs a path walk and was only ever used to spell an error message.
+- A Nastran real field below one drops its leading zero when the column it
+  costs is a significant digit. Bulk data reads ``.5`` as ``0.5``, so a
+  third in an eight-column field goes out as ``.3333333`` rather than
+  ``0.333333``.
+- Writing an OBJ file looks its material attribute up once rather than once
+  per face.
 - Stepping past a binary payload in a structured legacy ``.vtk`` file is a
   binary search over the line offsets rather than a walk. A binary payload
   carries a newline every few values, so the lines it is cut into number in

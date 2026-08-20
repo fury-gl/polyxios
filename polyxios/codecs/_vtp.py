@@ -11,6 +11,7 @@ from polyxios.codecs._vtk_xml import (
     format_da,
     join_piece_attrs,
     parse_xml,
+    piece_count,
     shaped_da,
     undecodable_type,
     vtk_type_to_np,
@@ -92,7 +93,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     all_element_attrs: dict[str, list[np.ndarray]] = {}
 
     for index, piece in enumerate(pd_elem.findall("Piece")):
-        n_points = int(piece.get("NumberOfPoints", "0"))
+        n_points = piece_count(piece, "NumberOfPoints", fmt=".vtp")
 
         # Where this piece's points land in the joined array: its cells
         # index its own points from zero. Carried along rather than summed

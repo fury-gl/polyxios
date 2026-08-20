@@ -80,7 +80,7 @@ Quirks worth knowing
   here - a numeric table whose first row happens to read ``SOL 1.0 2.0`` does not.
   ``px.read("model.dat", fmt=".bdf")`` still forces the issue, and writing to ``.dat`` needs
   ``fmt=".bdf"`` because an output file has no content to inspect.
-- A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (``1.234-10`` for ``1.234E-10``, ``1.2346+7`` for ``1.2346E+07``), which buys two or three significant digits in an eight-column field. A spelling that reads back as the value itself is always preferred to a longer one that does not, so ``1e7`` goes out as ``1.E+07`` rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.
+- A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (``1.234-10`` for ``1.234E-10``, ``1.2346+7`` for ``1.2346E+07``), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads ``.5`` as ``0.5``. A spelling that reads back as the value itself is always preferred to a longer one that does not, so ``1e7`` goes out as ``1.E+07`` rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.
 - Property ids become element tags, so the deck's grouping is preserved.
 
 .. seealso::

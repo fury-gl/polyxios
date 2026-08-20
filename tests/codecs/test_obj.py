@@ -374,3 +374,39 @@ def test_a_corner_the_fast_path_cannot_take_still_names_the_line(
 
     with pytest.raises(CodecError, match=match):
         read(path)
+
+
+@pytest.mark.parametrize("token", ["²", "¹"])
+def test_a_superscript_face_index_names_the_line(tmp_path, token: str) -> None:
+    """str.isdigit admits superscripts and int() then refuses them."""
+    path = tmp_path / "super.obj"
+    path.write_text(f"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 {token}\n")
+
+    with pytest.raises(CodecError, match="is not a number"):
+        read(path)
+
+
+def test_a_directive_with_no_argument_names_nothing(tmp_path) -> None:
+    """Kept as the empty string, 'mtllib' wrote back a line naming no file."""
+    path = tmp_path / "bare.obj"
+    path.write_text("mtllib\no\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+
+    poly = read(path)
+
+    assert "mtl_file" not in poly.global_attrs
+    assert "object_name" not in poly.global_attrs
+
+
+def test_a_material_that_does_not_cover_the_faces_is_not_written(tmp_path) -> None:
+    """Indexed per face, a short attribute ran off the end mid-write."""
+    poly = make_polydata(
+        np.zeros((6, 3)),
+        [("triangle", np.array([[0, 1, 2], [3, 4, 5]]))],
+        element_attrs={"material": np.array(["a"], dtype=object)},
+    )
+    path = tmp_path / "short.obj"
+
+    with pytest.warns(UserWarning, match="1 value"):
+        write(poly, path)
+
+    assert "usemtl" not in path.read_text()

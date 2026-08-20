@@ -7,7 +7,7 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios.codecs._vtr import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
 
 
 def _synthetic_rectilinear() -> object:
@@ -199,3 +199,34 @@ def test_an_attribute_that_covers_no_mesh_is_dropped(tmp_path) -> None:
         back = read(path)
 
     assert "half" not in back.vertex_attrs
+
+
+@pytest.mark.parametrize(
+    ("extent", "match"),
+    [
+        ("0 1 0 1", "holds 4 indices"),
+        ("a b c d e f", "not a run of whole numbers"),
+    ],
+)
+def test_an_extent_that_is_not_six_numbers_names_the_file(
+    tmp_path, extent: str, match: str
+) -> None:
+    """Unpacked into six names it failed with a message about unpacking."""
+    path = tmp_path / "bad.vtr"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian">\n'
+        ' <RectilinearGrid WholeExtent="0 1 0 1 0 0">\n'
+        f'  <Piece Extent="{extent}">\n'
+        "   <Coordinates>\n"
+        '    <DataArray type="Float64" format="ascii">0 1</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0 1</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0</DataArray>\n'
+        "   </Coordinates>\n"
+        "  </Piece>\n"
+        " </RectilinearGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match=match):
+        read(path)

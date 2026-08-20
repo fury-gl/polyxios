@@ -994,7 +994,7 @@ def _spellings(mantissa: str, sep: str, exponent: str) -> list[str]:
         keeps the first that fits its field and still reads back finite.
     """
     if not sep:
-        return [mantissa]
+        return [mantissa, *_dot_form(mantissa)]
 
     # An exponent with no sign is positive; the shorthand needs the sign to
     # mark where the mantissa ends, so it is spelled back in.
@@ -1002,10 +1002,40 @@ def _spellings(mantissa: str, sep: str, exponent: str) -> list[str]:
     # %E pads the exponent to two digits; nothing reads '+07' differently
     # from '+7', and the column the padding costs is a significant digit.
     trimmed = f"{signed[0]}{signed[1:].lstrip('0') or '0'}"
-    forms = [f"{mantissa}{sep}{exponent}", f"{mantissa}{signed}"]
+    tails = [f"{sep}{exponent}", signed]
     if trimmed != signed:
-        forms.append(f"{mantissa}{trimmed}")
-    return forms
+        tails.append(trimmed)
+    heads = [mantissa, *_dot_form(mantissa)]
+    # Longest first, and the leading-zero spelling ahead of the dot one at
+    # the same length: a caller keeps the first that fits, so the plain form
+    # wins whenever the column is there for it.
+    return [f"{head}{tail}" for tail in tails for head in heads]
+
+
+def _dot_form(mantissa: str) -> list[str]:
+    """Spell a mantissa below one without its leading zero, if it has one.
+
+    Bulk data reads ``.5`` as ``0.5``, and the column the zero costs is a
+    significant digit - which in an eight-character field is the difference
+    between ``0.333333`` and ``.3333333``.
+
+    Parameters
+    ----------
+    mantissa
+        A mantissa as a float format spells it, sign and decimal point
+        included.
+
+    Returns
+    -------
+    list of str
+        The shortened spelling, or nothing when the mantissa has no leading
+        zero to drop or nothing left after the point - ``.`` names no value.
+    """
+    sign = "-" if mantissa.startswith("-") else ""
+    body = mantissa[len(sign) :]
+    if not body.startswith("0.") or len(body) == 2:
+        return []
+    return [f"{sign}{body[1:]}"]
 
 
 def _toward_zero(mantissa: str) -> str | None:

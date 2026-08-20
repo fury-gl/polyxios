@@ -1440,3 +1440,23 @@ def test_an_exact_spelling_is_taken_whenever_one_fits(width: int) -> None:
             f"{value!r} -> {text!r} is not exact, but an exact spelling of"
             f" {shortest} characters fits {width}"
         )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (1 / 3, ".3333333"),
+        (-1 / 3, "-.333333"),
+    ],
+)
+def test_a_field_below_one_drops_its_leading_zero(value: float, expected: str) -> None:
+    """Bulk data reads '.5' as '0.5', and the column buys a digit."""
+    text = _fmt_real(value, width=8)
+
+    assert text == expected
+    assert _parse_real(text) == pytest.approx(value, rel=1e-6)
+
+
+def test_a_field_that_fits_keeps_its_leading_zero() -> None:
+    """The zero goes only when the column it costs is needed."""
+    assert _fmt_real(0.5, width=8) == "0.5"

@@ -127,10 +127,15 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 current_material = parts[1] if len(parts) > 1 else ""
 
             elif directive == "mtllib":
-                mtl_file = " ".join(parts[1:])
+                # A bare directive names no library; kept as the empty
+                # string it would be written back as 'mtllib ' with nothing
+                # after it, which is a line no reader has a use for.
+                if len(parts) > 1:
+                    mtl_file = " ".join(parts[1:])
 
             elif directive == "o":
-                object_name = " ".join(parts[1:])
+                if len(parts) > 1:
+                    object_name = " ".join(parts[1:])
 
     if not vertices:
         return PolyData(
@@ -276,7 +281,17 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
     # dropped above must not leave the faces indexing it.
     has_normals = vn_rows is not None
     has_uv = uv_rows is not None
-    has_material = "material" in poly.element_attrs
+    # Looked up once rather than per face, and only when it names every one
+    # of them: a shorter attribute runs off the end partway through the
+    # write, leaving a half-written file and an IndexError naming an axis.
+    materials = poly.element_attrs.get("material")
+    if materials is not None and len(materials) != n_elems:
+        warnings.warn(
+            f".obj: element attribute 'material' holds {len(materials)}"
+            f" value(s) for {n_elems} face(s); not written.",
+            stacklevel=3,
+        )
+        materials = None
 
     current_groups: list[str] | None = None
     current_material: str | None = None
@@ -295,8 +310,8 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
             current_groups = groups
 
         # Emit material changes
-        if has_material:
-            mat = str(poly.element_attrs["material"][i])
+        if materials is not None:
+            mat = str(materials[i])
             if mat != current_material:
                 lines.append(f"usemtl {mat}")
                 current_material = mat
@@ -545,8 +560,11 @@ def _parse_face(
         # number, past the end - goes to _resolve_index, which is where the
         # message naming the line lives; a mesh of any size has millions of
         # corners, and the call this saves is most of what reading them cost.
+        # The test is isdecimal rather than isdigit: isdigit admits the
+        # superscripts, which int() then refuses, and the ValueError that
+        # escapes from here names neither the file nor the line.
         token = parts[0]
-        value = int(token) if token.isdigit() else 0
+        value = int(token) if token.isdecimal() else 0
         v_idx.append(
             value - 1
             if 0 < value <= n_vertices
@@ -563,7 +581,7 @@ def _parse_face(
         if not token:
             vt_idx.append(None)
         else:
-            value = int(token) if token.isdigit() else 0
+            value = int(token) if token.isdecimal() else 0
             vt_idx.append(
                 value - 1
                 if 0 < value <= n_texcoords
@@ -580,7 +598,7 @@ def _parse_face(
         if not token:
             vn_idx.append(None)
         else:
-            value = int(token) if token.isdigit() else 0
+            value = int(token) if token.isdecimal() else 0
             vn_idx.append(
                 value - 1
                 if 0 < value <= n_normals
