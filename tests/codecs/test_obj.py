@@ -350,3 +350,27 @@ def test_a_wider_attribute_says_what_it_leaves_out(tmp_path) -> None:
         write(poly, path)
 
     assert "vt 0 1" in path.read_text()
+
+
+@pytest.mark.parametrize(
+    "face,match",
+    [
+        ("f 0 1 2", "index 0 is not valid"),
+        ("f a 2 3", "index 'a' is not a number"),
+        ("f 1/9 2/1 3/1", "texture coordinate index 9"),
+        ("f 1//9 2//1 3//1", "normal index 9"),
+    ],
+)
+def test_a_corner_the_fast_path_cannot_take_still_names_the_line(
+    tmp_path, face: str, match: str
+) -> None:
+    """A plain in-range index is resolved inline; the rest keep the message."""
+    path = tmp_path / "corner.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 0 1\n"
+        "vn 0 0 1\nvn 0 0 1\nvn 0 0 1\n" + face + "\n"
+    )
+
+    with pytest.raises(CodecError, match=match):
+        read(path)

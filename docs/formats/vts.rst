@@ -72,6 +72,7 @@ Quirks worth knowing
 - That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`.
 - Header counts are validated against the file size before any array is allocated.
+- Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 
 .. seealso::
 

@@ -9,6 +9,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._vtk import read, write
 from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.validate import validate
 
 
 def _synthetic_mesh() -> object:
@@ -1183,3 +1184,157 @@ def test_a_section_declaring_more_than_the_file_holds_costs_the_section() -> Non
 
     np.testing.assert_array_equal(poly.vertex_attrs["p"], [1, 2, 3, 4, 5, 6, 7, 8])
     assert "c" not in poly.element_attrs
+
+
+def test_a_structured_grid_whose_header_outruns_its_points_keeps_the_points() -> None:
+    """The cells DIMENSIONS describes indexed points the file never held."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 3 3 1\nPOINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+        b"POINT_DATA 4\nSCALARS s float 1\nLOOKUP_TABLE default\n1 2 3 4\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="DIMENSIONS says 3 3 1"):
+        poly = read(tmp)
+
+    assert len(poly.vertices) == 4
+    assert len(poly.element_types) == 0
+    assert len(poly.connectivity) == 0
+    np.testing.assert_array_equal(poly.vertex_attrs["s"], [1, 2, 3, 4])
+    assert poly.global_attrs["vtk_dimensions"] == [3, 3, 1]
+    validate(poly)
+
+
+def test_a_structured_grid_point_section_is_read_by_its_own_count() -> None:
+    """Reading by the mesh's count walked one array into the next header."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 2 2 1\nPOINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+        b"POINT_DATA 6\nSCALARS s float 1\nLOOKUP_TABLE default\n1 2 3 4 5 6\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="covers 6 of 4 points"):
+        poly = read(tmp)
+
+    assert "s" not in poly.vertex_attrs
+    assert len(poly.element_types) == 1
+
+
+def test_an_unstructured_point_section_is_read_by_its_own_count() -> None:
+    """Read by the mesh's count, the first array walks into the next header.
+
+    The arrays here belong to no point of this mesh and are dropped, but the
+    section is still walked by the length it declares, so the CELL_DATA
+    after it is found rather than parsed as more of the last array.
+    """
+    content = (
+        b"# vtk DataFile Version 4.2\nu\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        b"POINT_DATA 5\nSCALARS s float 1\nLOOKUP_TABLE default\n1 2 3 4 5\n"
+        b"VECTORS v float\n1 0 0\n0 1 0\n0 0 1\n1 1 0\n0 1 1\n"
+        b"CELL_DATA 1\nSCALARS c float 1\nLOOKUP_TABLE default\n7\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="covers 5 of 3 points"):
+        poly = read(tmp)
+
+    assert poly.vertex_attrs == {}
+    np.testing.assert_array_equal(poly.element_attrs["c"], [7.0])
+
+
+def test_a_binary_scalars_without_a_lookup_table_reads_its_own_values() -> None:
+    """The line skipped unconditionally was payload up to its first newline."""
+    content = (
+        b"# vtk DataFile Version 4.2\nb\nBINARY\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        + np.array([0, 0, 0, 1, 0, 0, 0, 1, 0], dtype=">f4").tobytes()
+        + b"\nCELLS 1 4\n"
+        + np.array([3, 0, 1, 2], dtype=">i4").tobytes()
+        + b"\nCELL_TYPES 1\n"
+        + np.array([5], dtype=">i4").tobytes()
+        + b"\nPOINT_DATA 3\nSCALARS s double 1\n"
+        + np.array([10.0, 20.0, 30.0], dtype=">f8").tobytes()
+        + b"\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["s"], [10.0, 20.0, 30.0])
+
+
+@pytest.mark.parametrize("dataset", [b"UNSTRUCTURED_GRID", b"POLYDATA"])
+def test_a_truncated_binary_points_block_names_itself(dataset: bytes) -> None:
+    """The whole-file bound clears a block that still runs off the end."""
+    content = (
+        b"# vtk DataFile Version 4.2\np\nBINARY\nDATASET " + dataset + b"\n"
+        b"# " + b"x" * 5000 + b"\n"
+        b"POINTS 10 double\n" + np.zeros(12, dtype=">f8").tobytes()
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match="POINTS"):
+        read(tmp)
+
+
+@pytest.mark.parametrize(
+    ("header", "match"),
+    [
+        (b"SCALARS", "no array name"),
+        (b"VECTORS", "no array name"),
+        (b"TENSORS", "no array name"),
+        (b"COLOR_SCALARS", "no array name"),
+        (b"SCALARS s float x", "is not a number"),
+        (b"FIELD FieldData", "no field 2"),
+    ],
+)
+def test_a_malformed_attribute_header_names_the_line(header: bytes, match: str) -> None:
+    """These fell out of parts[1] and int() naming neither file nor line."""
+    content = (
+        b"# vtk DataFile Version 4.2\nu\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        b"POINT_DATA 3\n" + header + b"\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match=match):
+        read(tmp)
+
+
+def test_a_malformed_binary_attribute_header_names_the_byte() -> None:
+    """A binary file has no line to name, so the offset stands in for one."""
+    content = (
+        b"# vtk DataFile Version 4.2\nb\nBINARY\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        + np.array([0, 0, 0, 1, 0, 0, 0, 1, 0], dtype=">f4").tobytes()
+        + b"\nCELLS 1 4\n"
+        + np.array([3, 0, 1, 2], dtype=">i4").tobytes()
+        + b"\nCELL_TYPES 1\n"
+        + np.array([5], dtype=">i4").tobytes()
+        + b"\nPOINT_DATA 3\nSCALARS\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match="no array name"):
+        read(tmp)
+
+
+def test_a_malformed_structured_header_costs_its_section_only() -> None:
+    """The geometry was whole before the scan reached the bad header."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 2 1 1\nORIGIN 0 0 0\nSPACING 1 1 1\n"
+        b"POINT_DATA 2\nSCALARS\n1 2\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="no array name"):
+        poly = read(tmp)
+
+    assert len(poly.vertices) == 2
+    assert poly.vertex_attrs == {}
