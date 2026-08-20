@@ -58,6 +58,10 @@ _VTK_DTYPE_MAP: dict[str, str] = {
     "unsigned_char": "u1",
 }
 
+# A binary COLOR_SCALARS component is an unsigned char standing for the 0..1
+# float an ASCII file writes; dividing puts both flavours on one scale.
+_COLOR_SCALE: float = 255.0
+
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK legacy file (UNSTRUCTURED_GRID or POLYDATA) and return a PolyData.
@@ -762,6 +766,50 @@ def _parse_v51_cells_ascii(
     return np.array(conn_vals, dtype=np.int32), np.array(off_vals, dtype=np.int32)
 
 
+def _read_ascii_values(
+    lines: list[str], i: int, count: int, *, name: str
+) -> tuple[int, list[float]]:
+    """Read ``count`` numbers from an ASCII attribute section.
+
+    A legacy file wraps an array over as many lines as it likes, so the only
+    way to know an array has ended is to have counted its values. A file that
+    ends first is truncated, which is worth saying: reading off the end of the
+    line list is an IndexError naming nothing.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first line of values.
+    count
+        How many numbers the section declares.
+    name
+        Array name, for the error message.
+
+    Returns
+    -------
+    tuple[int, list of float]
+        The line index just past the values, and the values.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before ``count`` values have been read.
+    """
+    n_lines = len(lines)
+    vals: list[float] = []
+    while len(vals) < count:
+        if i >= n_lines:
+            raise CodecError(
+                f".vtk: array {name!r} declares {count} values but the file ends"
+                f" after {len(vals)}."
+            )
+        vals.extend(float(x) for x in lines[i].split())
+        i += 1
+    return i, vals
+
+
 def _parse_vtk_data_attrs(
     lines: list[str], i: int, n_declared: int, n_items: int
 ) -> tuple[int, dict[str, np.ndarray]]:
@@ -791,31 +839,34 @@ def _parse_vtk_data_attrs(
             # Skip LOOKUP_TABLE line
             if i < n_lines and "LOOKUP_TABLE" in lines[i].upper():
                 i += 1
-            vals: list[float] = []
-            while len(vals) < n_items * n_comp:
-                vals.extend(float(x) for x in lines[i].split())
-                i += 1
+            i, vals = _read_ascii_values(lines, i, n_items * n_comp, name=name)
             arr = np.array(vals, dtype=np.float64)
             attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
 
-        elif upper.startswith("VECTORS"):
+        elif upper.startswith("COLOR_SCALARS"):
+            # An ASCII COLOR_SCALARS line holds one float per component in
+            # 0..1; the binary flavour holds one unsigned char instead, which
+            # is why this cannot share the SCALARS branch.
+            parts = line.split()
+            name = parts[1]
+            n_comp = int(parts[2]) if len(parts) > 2 else 1
+            i += 1
+            i, vals = _read_ascii_values(lines, i, n_items * n_comp, name=name)
+            arr = np.array(vals, dtype=np.float64)
+            attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+
+        elif upper.startswith("VECTORS") or upper.startswith("NORMALS"):
             parts = line.split()
             name = parts[1]
             i += 1
-            vals = []
-            while len(vals) < n_items * 3:
-                vals.extend(float(x) for x in lines[i].split())
-                i += 1
+            i, vals = _read_ascii_values(lines, i, n_items * 3, name=name)
             attrs[name] = np.array(vals, dtype=np.float64).reshape(n_items, 3)
 
         elif upper.startswith("TENSORS"):
             parts = line.split()
             name = parts[1]
             i += 1
-            vals = []
-            while len(vals) < n_items * 9:
-                vals.extend(float(x) for x in lines[i].split())
-                i += 1
+            i, vals = _read_ascii_values(lines, i, n_items * 9, name=name)
             attrs[name] = np.array(vals, dtype=np.float64).reshape(n_items, 3, 3)
 
         elif upper.startswith("FIELD"):
@@ -825,13 +876,15 @@ def _parse_vtk_data_attrs(
             for _ in range(n_arrays):
                 while i < n_lines and not lines[i].strip():
                     i += 1
+                if i >= n_lines:
+                    raise CodecError(
+                        f".vtk: FIELD declares {n_arrays} arrays but the file"
+                        " ends before their headers."
+                    )
                 fparts = lines[i].strip().split()
                 fname, n_comp_f, n_tuples = fparts[0], int(fparts[1]), int(fparts[2])
                 i += 1
-                vals = []
-                while len(vals) < n_tuples * n_comp_f:
-                    vals.extend(float(x) for x in lines[i].split())
-                    i += 1
+                i, vals = _read_ascii_values(lines, i, n_tuples * n_comp_f, name=fname)
                 arr = np.array(vals, dtype=np.float64)
                 attrs[fname] = arr.reshape(n_tuples, n_comp_f) if n_comp_f > 1 else arr
 
@@ -1065,7 +1118,27 @@ def _parse_binary_attrs(
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw
 
-        elif upper.startswith("VECTORS"):
+        elif upper.startswith("COLOR_SCALARS"):
+            # Binary COLOR_SCALARS is one unsigned char per component - the
+            # only attribute section whose type is not named on its line. The
+            # ASCII flavour of the same colour is a float in 0..1, so the
+            # byte is scaled onto that range: the same file in its two
+            # encodings must not read back as two different arrays.
+            parts = line.split()
+            name = parts[1]
+            n_comp = int(parts[2]) if len(parts) > 2 else 1
+            n_bytes = n_items * n_comp
+            raw = (
+                np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np.uint8).astype(
+                    np.float64
+                )
+                / _COLOR_SCALE
+            )
+            pos += n_bytes
+            pos = _skip_newline(mv, pos, file_size)
+            attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw
+
+        elif upper.startswith("VECTORS") or upper.startswith("NORMALS"):
             parts = line.split()
             name = parts[1]
             vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
@@ -1339,6 +1412,10 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
 
+    # The grid the file described is not recoverable from the point array it
+    # was expanded into, so what the header said is kept alongside it.
+    grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
+
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
     if len(cells) == 0:
         return PolyData(
@@ -1347,6 +1424,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             offsets=np.array([0], dtype=np.int32),
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
+            global_attrs=grid_meta,
         )
 
     n_cells = len(cells)
@@ -1361,6 +1439,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+        global_attrs=grid_meta,
     )
 
 
@@ -1534,6 +1613,10 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             continue
         i += 1
 
+    # The grid the file described is not recoverable from the point array it
+    # was expanded into, so what the header said is kept alongside it.
+    grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
+
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
     if len(cells) == 0:
         return PolyData(
@@ -1542,6 +1625,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             offsets=np.array([0], dtype=np.int32),
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
+            global_attrs=grid_meta,
         )
 
     n_cells = len(cells)
@@ -1556,6 +1640,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+        global_attrs=grid_meta,
     )
 
 
@@ -1786,9 +1871,13 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             if is_binary:
                 data_pos = offsets[i] if i < len(offsets) else len(raw)
                 n_bytes = n_points * n_comp  # unsigned_char = 1 byte each
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np.uint8
-                ).astype(np.float64)
+                # Scaled onto 0..1, which is what the ASCII flavour holds.
+                arr = (
+                    np.frombuffer(
+                        raw[data_pos : data_pos + n_bytes], dtype=np.uint8
+                    ).astype(np.float64)
+                    / _COLOR_SCALE
+                )
                 vertex_attrs[name] = (
                     arr.reshape(n_points, n_comp) if n_comp > 1 else arr
                 )
@@ -1873,6 +1962,14 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
     xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
 
+    # A STRUCTURED_POINTS file is its header: without origin and spacing the
+    # expanded points cannot be written back as the image they came from.
+    grid_meta: dict[str, object] = {
+        "vtk_dimensions": [nx, ny, nz],
+        "vtk_origin": [ox, oy, oz],
+        "vtk_spacing": [sx, sy, sz],
+    }
+
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
     if len(cells) == 0:
         return PolyData(
@@ -1881,6 +1978,7 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             offsets=np.array([0], dtype=np.int32),
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
+            global_attrs=grid_meta,
         )
 
     n_cells = len(cells)
@@ -1895,4 +1993,5 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+        global_attrs=grid_meta,
     )

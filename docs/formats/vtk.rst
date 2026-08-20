@@ -80,6 +80,9 @@ Quirks worth knowing
 - Binary files can be memory-mapped with ``lazy=True``; ASCII files must be parsed end to end before any value is available.
 - Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
 - Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.
+- ``SCALARS``, ``VECTORS``, ``NORMALS``, ``TENSORS``, ``COLOR_SCALARS`` and ``FIELD`` sections are all read. ``COLOR_SCALARS`` is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.
+- An attribute section that declares more values than the file holds raises ``CodecError`` naming the array, rather than an ``IndexError`` naming nothing.
+- ``STRUCTURED_POINTS`` keeps ``DIMENSIONS``, ``ORIGIN`` and ``SPACING`` in ``global_attrs`` (``vtk_dimensions``, ``vtk_origin``, ``vtk_spacing``); ``STRUCTURED_GRID`` and ``RECTILINEAR_GRID`` keep ``DIMENSIONS``. The points are expanded into an explicit array, so without those the grid behind them would be lost.
 
 .. seealso::
 
