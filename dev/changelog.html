@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.4.0 (upcoming): New features: Extensions several unrelated formats share are now resolved by looking inside the file. A codec declares SNIFF_EXTENSIONS, a sniff(head) -&gt; bool test and a SNIFF_..." />
+<meta property="og:description" content="0.4.0 (upcoming): New features: read() and write() now take an open binary file object wherever they take a path, so a mesh round-trips through io.BytesIO, a socket or a file inside an archive with..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_542913f4.png" />
-<meta property="og:image:alt" content="0.4.0 (upcoming): New features: Extensions several unrelated formats share are now resolved by looking inside the file. A codec declares SNIFF_EXTENSIONS, a sniff(head) -&gt; bool test and a SNIFF_..." />
-<meta name="description" content="0.4.0 (upcoming): New features: Extensions several unrelated formats share are now resolved by looking inside the file. A codec declares SNIFF_EXTENSIONS, a sniff(head) -&gt; bool test and a SNIFF_..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_400ff6f2.png" />
+<meta property="og:image:alt" content="0.4.0 (upcoming): New features: read() and write() now take an open binary file object wherever they take a path, so a mesh round-trips through io.BytesIO, a socket or a file inside an archive with..." />
+<meta name="description" content="0.4.0 (upcoming): New features: read() and write() now take an open binary file object wherever they take a path, so a mesh round-trips through io.BytesIO, a socket or a file inside an archive with..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=4af3ee2f"></script>
+    <script src="_static/documentation_options.js?v=20e32236"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-18"/>
+    <meta name="docbuild:last-update" content="2026-08-20"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -539,6 +539,55 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">read()</span></code> and <code class="docutils literal notranslate"><span class="pre">write()</span></code> now take an open binary file object wherever
+they take a path, so a mesh round-trips through <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code>, a socket
+or a file inside an archive without touching disk. A handle polyxios was
+given is read or written where it stands and is never closed. A buffer
+with no file name cannot have its format inferred, so <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> is
+required there; a handle from <code class="docutils literal notranslate"><span class="pre">open()</span></code> carries its own extension and
+does not need it. TetGen is the exception: a <code class="docutils literal notranslate"><span class="pre">.node</span></code>/<code class="docutils literal notranslate"><span class="pre">.ele</span></code> pair is
+two files and still needs a path.</p></li>
+<li><p>Lazy reads over a file object work when the handle is backed by a real
+file and stands at its start - mmap needs a descriptor and addresses a
+file from byte zero - and raise <code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming the reason for an
+in-memory buffer or a handle part-way into a file. Only the formats whose
+lazy read hands back arrays viewing the mapping ask for that. Binary STL’s
+lazy mode copies what it reads - it skips vertex deduplication and nothing
+else - so it takes a buffer like any other read rather than sending the
+caller to an eager read that would merge the vertices it was asked to keep.</p></li>
+<li><p>gzip is now transparent for every format: a file opening with the gzip
+magic is decompressed on the way in, whatever it is named, and a
+destination named <code class="docutils literal notranslate"><span class="pre">.gz</span></code> is compressed on the way out. <code class="docutils literal notranslate"><span class="pre">.vol.gz</span></code> is
+read as Netgen rather than refused, <code class="docutils literal notranslate"><span class="pre">.gz</span></code> names the compression rather
+than the format when a codec is chosen - in <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> as well as in a file
+name - and the compressed output is byte-reproducible (no timestamp, no
+embedded name). <code class="docutils literal notranslate"><span class="pre">fmt=&quot;.obj.gz&quot;</span></code> is how a nameless buffer asks for
+compression, since it has no name to end in <code class="docutils literal notranslate"><span class="pre">.gz</span></code>. A compressed member
+need not run to the end of what it sits in, so a mesh gzipped into the
+middle of an archive reads without the bytes after it becoming an error,
+and a file holding several members back to back - what <code class="docutils literal notranslate"><span class="pre">cat</span> <span class="pre">a.gz</span> <span class="pre">b.gz</span></code>
+leaves - is read and measured as the whole it decompresses to. A path and
+a file object go through the same reader, so one compressed file reads the
+same way and fails the same way whichever it was handed over as. A
+destination that compresses on its own, such as a handle from
+<code class="docutils literal notranslate"><span class="pre">gzip.open()</span></code>, is written to as it is rather than compressed a second
+time. Lazy reads still need an uncompressed file and say so, and TetGen -
+which opens its own sibling files rather than going through this layer -
+refuses a compressed file rather than parsing it as text, by its content on
+the way in and by its name on the way out, and for whichever half of the
+pair carries it rather than only for the one the caller named. Whether a
+source is compressed is decided by the whole four-byte gzip header rather
+than by the two magic bytes alone: those open one file in every 65536 by
+chance,
+and in a headerless binary format they are an ordinary coordinate’s low
+mantissa bytes - a <code class="docutils literal notranslate"><span class="pre">.splat</span></code> whose first x is 10.658965 opens with exactly
+them and is a mesh, not an archive.</p></li>
+<li><p>The formats that check a header against the size of the file it came from
+now take that size from the read they were already making rather than
+measuring the source separately. Measuring a compressed one cost a whole
+decompression pass that the read then repeated, and a stream that cannot
+seek could not be measured at all, so legacy VTK, the VTK XML formats and
+<code class="docutils literal notranslate"><span class="pre">.splat</span></code> read one pass faster and from more kinds of source than before.</p></li>
 <li><p>Extensions several unrelated formats share are now resolved by looking
 inside the file. A codec declares <code class="docutils literal notranslate"><span class="pre">SNIFF_EXTENSIONS</span></code>, a
 <code class="docutils literal notranslate"><span class="pre">sniff(head)</span> <span class="pre">-&gt;</span> <span class="pre">bool</span></code> test and a <code class="docutils literal notranslate"><span class="pre">SNIFF_PRIORITY</span></code>; the contested
@@ -552,6 +601,38 @@ Tecplot codec, a bulk data card to the Nastran one. It no longer needs
 <li><p><code class="docutils literal notranslate"><span class="pre">.plt</span></code> is registered to the Tecplot codec so a binary Tecplot file is
 told what is wrong instead of resolving nowhere. Reading it is not
 supported.</p></li>
+</ul>
+</section>
+<section id="behaviour-changes">
+<h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Text formats are written with <code class="docutils literal notranslate"><span class="pre">\n</span></code> line endings on every platform.
+Writing used to go through <code class="docutils literal notranslate"><span class="pre">Path.write_text</span></code>, which turned them into
+<code class="docutils literal notranslate"><span class="pre">\r\n</span></code> on Windows; every write now goes through the same binary path a
+buffer does, so the bytes a path receives and the bytes a <code class="docutils literal notranslate"><span class="pre">BytesIO</span></code>
+receives are the same ones. Every reader already accepted either ending.</p></li>
+</ul>
+</section>
+<section id="bug-fixes">
+<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>A broken binary file now reports what is wrong with it rather than
+<code class="docutils literal notranslate"><span class="pre">BufferError:</span> <span class="pre">cannot</span> <span class="pre">close</span> <span class="pre">exported</span> <span class="pre">pointers</span> <span class="pre">exist</span></code>. The formats that
+parse over a mapping - <code class="docutils literal notranslate"><span class="pre">.ply</span></code>, legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> - build their
+arrays as views of it, and a parse that gives up half-way leaves one of
+those alive in the traceback carrying the failure; unmapping underneath it
+then raised, and that error replaced the codec’s own. The mapping is left
+to the last view of it instead, so a corrupt file says the same thing read
+from a path as it does read from a buffer, where there was never a mapping
+to unmap.</p></li>
+<li><p>A source that answers a read with less than it was asked for is now read to
+the end of the request. A bare <code class="docutils literal notranslate"><span class="pre">read</span></code> is allowed to come up short - a
+socket hands back what has arrived, not what was wanted - and the wrapper
+put in front of a duck-typed handle passed that straight through, so a
+codec asking for n bytes could silently get fewer and parse the gap as
+data. A handle from <code class="docutils literal notranslate"><span class="pre">open()</span></code> never came up short, so no codec guarded
+against it. Nothing is read past what was asked for, so a handle the caller
+shares still ends up where the codec’s reading left it.</p></li>
 </ul>
 </section>
 <section id="tests">
@@ -614,8 +695,8 @@ and resolves destination paths defensively.</p></li>
 as errors.</p></li>
 </ul>
 </section>
-<section id="bug-fixes">
-<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<section id="id5">
+<h3>Bug fixes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
@@ -676,10 +757,10 @@ multiblock partial loading and visualization colours.</p></li>
 </section>
 </section>
 <section id="changes-0-2-0">
-<span id="id5"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id6"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id6">
-<h3>New features<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<section id="id7">
+<h3>New features<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -772,17 +853,19 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.4.0 (upcoming)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">New features</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">New features</a></li>
 </ul>
 </li>
 </ul>
@@ -842,7 +925,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-18.
+  Last updated on 2026-08-20.
   <br/>
 </p></div>
       

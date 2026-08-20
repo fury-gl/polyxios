@@ -269,6 +269,101 @@ print(len(mesh.element_types))  # number of elements
 px.write(mesh, "brain.ply")
 px.write(mesh, "brain.vtp")
 
+Files, buffers and streams
+
+Anything with a read or a write works where a path does, so a mesh
+never has to touch disk:
+
+import io
+
+buf = io.BytesIO()
+px.write(mesh, buf, fmt=".ply")     # fmt= names the format
+
+buf.seek(0)
+same = px.read(buf, fmt=".ply")
+
+with open("brain.vtk", "rb") as fh:
+    mesh = px.read(fh)              # a named handle needs no fmt=
+
+Two rules hold everywhere:
+
+a handle polyxios is given is read or written where it stands, and is
+never closed - the caller keeps control of its own file;
+
+a buffer with no file name has no extension to infer a format from, so
+fmt= is required for one; open() gives a handle a name, and that
+is enough.
+
+A source has to offer a binary read and a destination a binary
+write; everything else a codec reaches for - readline, seek,
+seekable - is supplied for a handle that lacks it. A handle that cannot
+seek is still read, except by the formats that need to measure a file before
+parsing it and by the extensions several formats share, both of which say so
+rather than guess.
+
+Reading lazily needs a real file behind the handle wherever the arrays that
+come back view the file itself - binary PLY and binary VTK - since mmap
+maps a file descriptor: an io.BytesIO raises LazyReadError rather
+than quietly loading eagerly. It also needs the handle to stand at the start
+of that file - a mapping addresses a file from byte zero - so a handle
+part-way into one is refused for a lazy read and read eagerly without
+complaint. A format whose lazy mode only skips work, such as binary STL
+skipping vertex deduplication, copies what it reads and so takes a buffer
+like any other read. TetGen is the one format a buffer cannot carry - a mesh
+is a .node and an .ele file found beside each other by name.
+
+Text formats are written with \n line endings on every platform, so the
+bytes a path receives and the bytes a buffer receives are the same ones.
+
+Compressed files
+
+gzip is handled by the same layer, for every format at once:
+
+mesh = px.read("brain.vol.gz")      # decompressed on the way in
+px.write(mesh, "brain.vtk.gz")      # compressed on the way out
+
+Reading looks at the content: a file compressed without being renamed
+reads just as well as one ending in .gz, and a .gz name over plain
+bytes is read as the plain file it is. The whole four-byte gzip header is
+what decides, not the two magic bytes alone - those open one file in every
+65536 by chance, and inside a headerless binary format they are an ordinary
+coordinate’s low bytes. Writing looks at the name, since
+an output file has no content to inspect yet - a destination ending .gz
+is compressed, and nothing else is. A nameless buffer has no name to end in
+.gz, so fmt= says it there instead:
+
+buf = io.BytesIO()
+px.write(mesh, buf, fmt=".obj.gz")  # compressed into the buffer
+
+.gz names the compression rather than the format wherever it appears, in
+a file name and in fmt= alike, so ".obj.gz" picks the same codec
+brain.obj.gz does.
+
+A member does not have to run to the end of what it sits in. Reading stops
+where the member stops, so a mesh compressed into the middle of an archive
+is read without the archive’s own bytes after it turning into an error;
+members written back to back are still read as the one stream they spell.
+
+The compressed output carries no timestamp and no embedded file name, so the
+same mesh always produces the same bytes. Lazy reads are the one thing gzip
+takes away, in the formats that map: mmap maps a file as it is stored, so
+a format whose lazy read hands back arrays viewing the mapping raises
+LazyReadError over a compressed file rather than handing back compressed
+bytes. A lazy read that copies what it reads - binary STL’s, which skips
+vertex deduplication and nothing else - takes a compressed file like any
+other read.
+
+TetGen is outside all of this for the same reason it cannot take a buffer: it
+opens its own sibling files rather than going through the layer that unwraps
+gzip. A .node.gz is refused with a message saying so, rather than read as
+text or written uncompressed under a name promising otherwise.
+
+A compressed handle is the one exception to “left where the codec left it”:
+a decompressor reads ahead, so where it stops says nothing about how much of
+the mesh was consumed. The handle is put back at the front of the member
+instead, which is the only position over compressed bytes that means
+anything to whatever reads next.
+
 Format-specific options
 
 px.write(mesh, "brain.vtk", binary=True)
@@ -2547,6 +2642,47 @@ mesh = px.read("model.abc")   # works out of the box
 Extensions are resolved in lower case, so register ".abc" rather than
 ".ABC" - a key the resolver cannot reach is worse than none.
 
+Reading a path or a buffer
+
+path is whatever the caller passed read() or write(): a path, or
+an open file object. Opening it yourself would refuse the second, so use the
+helpers in polyxios._io, which take either:
+
+from polyxios._io import read_text, write_text
+
+def read(path, *, lazy=False) -> PolyData:
+    text = read_text(path, encoding="utf-8", errors="replace")
+    ...
+
+def write(poly: PolyData, path, **opts) -> None:
+    write_text(path, "\n".join(lines), encoding="utf-8")
+
+read_bytes / write_bytes are the binary pair, open_read /
+open_write yield a binary handle for a codec that streams, open_text
+yields one to iterate line by line, and open_block gives a binary parser
+the whole file at once - mapped for a path, read into memory for a buffer.
+source_name and source_suffix are what an error message should quote,
+since a buffer has no Path to ask.
+
+Going through the helpers is also what gives a codec gzip for free: the
+decompression happens inside them, so a codec that opened the path itself
+would be the only format in the library that cannot read a .gz.
+
+A codec that genuinely needs a file on disk - a format split across sibling
+files, say - calls require_path(path, fmt=..., reason=...), which returns
+a Path or refuses the buffer with a message naming why. It refuses a
+compressed one too: a codec opening its own files is not going through the
+layer that unwraps gzip, so a .gz there would be parsed as text.
+
+Pass reading=True on the way in, where the file already holds bytes to
+look at, so a file compressed without being renamed is caught by its content
+the way it is everywhere else. Leave it unset on the way out: a destination
+holds either nothing or the file about to be replaced, and reading that one
+would refuse a plain write for the sake of whatever happened to be sitting
+there. require_path only ever sees the path the caller named, so a codec
+that then opens siblings of its own has to check those itself - is_gzip
+takes a path and answers in four bytes.
+
 ## API Reference
 
 Source: https://polyxios.org/stable/api/index.html
@@ -3217,6 +3353,59 @@ Changelog
 
 New features
 
+read() and write() now take an open binary file object wherever
+they take a path, so a mesh round-trips through io.BytesIO, a socket
+or a file inside an archive without touching disk. A handle polyxios was
+given is read or written where it stands and is never closed. A buffer
+with no file name cannot have its format inferred, so fmt= is
+required there; a handle from open() carries its own extension and
+does not need it. TetGen is the exception: a .node/.ele pair is
+two files and still needs a path.
+
+Lazy reads over a file object work when the handle is backed by a real
+file and stands at its start - mmap needs a descriptor and addresses a
+file from byte zero - and raise LazyReadError naming the reason for an
+in-memory buffer or a handle part-way into a file. Only the formats whose
+lazy read hands back arrays viewing the mapping ask for that. Binary STL’s
+lazy mode copies what it reads - it skips vertex deduplication and nothing
+else - so it takes a buffer like any other read rather than sending the
+caller to an eager read that would merge the vertices it was asked to keep.
+
+gzip is now transparent for every format: a file opening with the gzip
+magic is decompressed on the way in, whatever it is named, and a
+destination named .gz is compressed on the way out. .vol.gz is
+read as Netgen rather than refused, .gz names the compression rather
+than the format when a codec is chosen - in fmt= as well as in a file
+name - and the compressed output is byte-reproducible (no timestamp, no
+embedded name). fmt=".obj.gz" is how a nameless buffer asks for
+compression, since it has no name to end in .gz. A compressed member
+need not run to the end of what it sits in, so a mesh gzipped into the
+middle of an archive reads without the bytes after it becoming an error,
+and a file holding several members back to back - what cat a.gz b.gz
+leaves - is read and measured as the whole it decompresses to. A path and
+a file object go through the same reader, so one compressed file reads the
+same way and fails the same way whichever it was handed over as. A
+destination that compresses on its own, such as a handle from
+gzip.open(), is written to as it is rather than compressed a second
+time. Lazy reads still need an uncompressed file and say so, and TetGen -
+which opens its own sibling files rather than going through this layer -
+refuses a compressed file rather than parsing it as text, by its content on
+the way in and by its name on the way out, and for whichever half of the
+pair carries it rather than only for the one the caller named. Whether a
+source is compressed is decided by the whole four-byte gzip header rather
+than by the two magic bytes alone: those open one file in every 65536 by
+chance,
+and in a headerless binary format they are an ordinary coordinate’s low
+mantissa bytes - a .splat whose first x is 10.658965 opens with exactly
+them and is a mesh, not an archive.
+
+The formats that check a header against the size of the file it came from
+now take that size from the read they were already making rather than
+measuring the source separately. Measuring a compressed one cost a whole
+decompression pass that the read then repeated, and a stream that cannot
+seek could not be measured at all, so legacy VTK, the VTK XML formats and
+.splat read one pass faster and from more kinds of source than before.
+
 Extensions several unrelated formats share are now resolved by looking
 inside the file. A codec declares SNIFF_EXTENSIONS, a
 sniff(head) -> bool test and a SNIFF_PRIORITY; the contested
@@ -3232,6 +3421,35 @@ fmt=, which still works for the cases sniffing cannot settle.
 .plt is registered to the Tecplot codec so a binary Tecplot file is
 told what is wrong instead of resolving nowhere. Reading it is not
 supported.
+
+Behaviour changes
+
+Text formats are written with \n line endings on every platform.
+Writing used to go through Path.write_text, which turned them into
+\r\n on Windows; every write now goes through the same binary path a
+buffer does, so the bytes a path receives and the bytes a BytesIO
+receives are the same ones. Every reader already accepted either ending.
+
+Bug fixes
+
+A broken binary file now reports what is wrong with it rather than
+BufferError: cannot close exported pointers exist. The formats that
+parse over a mapping - .ply, legacy .vtk, .meshb - build their
+arrays as views of it, and a parse that gives up half-way leaves one of
+those alive in the traceback carrying the failure; unmapping underneath it
+then raised, and that error replaced the codec’s own. The mapping is left
+to the last view of it instead, so a corrupt file says the same thing read
+from a path as it does read from a buffer, where there was never a mapping
+to unmap.
+
+A source that answers a read with less than it was asked for is now read to
+the end of the request. A bare read is allowed to come up short - a
+socket hands back what has arrived, not what was wanted - and the wrapper
+put in front of a duck-typed handle passed that straight through, so a
+codec asking for n bytes could silently get fewer and parse the gap as
+data. A handle from open() never came up short, so no codec guarded
+against it. Nothing is read past what was asked for, so a handle the caller
+shares still ends up where the codec’s reading left it.
 
 Tests
 
@@ -3249,7 +3467,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:46: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:125: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -3297,7 +3515,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:77: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:156: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -3311,6 +3529,8 @@ ASCII writing is vectorised, and the docs build now treats Sphinx warnings
 as errors.
 
 Bug fixes
+
+../CHANGES.rst:168: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -3416,7 +3636,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:162: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:241: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

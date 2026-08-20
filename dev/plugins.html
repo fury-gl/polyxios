@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=4af3ee2f"></script>
+    <script src="_static/documentation_options.js?v=20e32236"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-18"/>
+    <meta name="docbuild:last-update" content="2026-08-20"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -572,6 +572,44 @@ configuration, no restart needed:</p>
 <code class="docutils literal notranslate"><span class="pre">&quot;.ABC&quot;</span></code> - a key the resolver cannot reach is worse than none.</p>
 </div>
 </section>
+<section id="reading-a-path-or-a-buffer">
+<h2>Reading a path or a buffer<a class="headerlink" href="#reading-a-path-or-a-buffer" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">path</span></code> is whatever the caller passed <code class="docutils literal notranslate"><span class="pre">read()</span></code> or <code class="docutils literal notranslate"><span class="pre">write()</span></code>: a path, or
+an open file object. Opening it yourself would refuse the second, so use the
+helpers in <code class="xref py py-mod docutils literal notranslate"><span class="pre">polyxios._io</span></code>, which take either:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._io</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_text</span><span class="p">,</span> <span class="n">write_text</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PolyData</span><span class="p">:</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">read_text</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span>
+    <span class="o">...</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="n">poly</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">write_text</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">read_bytes</span></code> / <code class="docutils literal notranslate"><span class="pre">write_bytes</span></code> are the binary pair, <code class="docutils literal notranslate"><span class="pre">open_read</span></code> /
+<code class="docutils literal notranslate"><span class="pre">open_write</span></code> yield a binary handle for a codec that streams, <code class="docutils literal notranslate"><span class="pre">open_text</span></code>
+yields one to iterate line by line, and <code class="docutils literal notranslate"><span class="pre">open_block</span></code> gives a binary parser
+the whole file at once - mapped for a path, read into memory for a buffer.
+<code class="docutils literal notranslate"><span class="pre">source_name</span></code> and <code class="docutils literal notranslate"><span class="pre">source_suffix</span></code> are what an error message should quote,
+since a buffer has no <code class="docutils literal notranslate"><span class="pre">Path</span></code> to ask.</p>
+<p>Going through the helpers is also what gives a codec gzip for free: the
+decompression happens inside them, so a codec that opened the path itself
+would be the only format in the library that cannot read a <code class="docutils literal notranslate"><span class="pre">.gz</span></code>.</p>
+<p>A codec that genuinely needs a file on disk - a format split across sibling
+files, say - calls <code class="docutils literal notranslate"><span class="pre">require_path(path,</span> <span class="pre">fmt=...,</span> <span class="pre">reason=...)</span></code>, which returns
+a <code class="docutils literal notranslate"><span class="pre">Path</span></code> or refuses the buffer with a message naming why. It refuses a
+compressed one too: a codec opening its own files is not going through the
+layer that unwraps gzip, so a <code class="docutils literal notranslate"><span class="pre">.gz</span></code> there would be parsed as text.</p>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">reading=True</span></code> on the way in, where the file already holds bytes to
+look at, so a file compressed without being renamed is caught by its content
+the way it is everywhere else. Leave it unset on the way out: a destination
+holds either nothing or the file about to be replaced, and reading that one
+would refuse a plain write for the sake of whatever happened to be sitting
+there. <code class="docutils literal notranslate"><span class="pre">require_path</span></code> only ever sees the path the caller named, so a codec
+that then opens siblings of its own has to check those itself - <code class="docutils literal notranslate"><span class="pre">is_gzip</span></code>
+takes a path and answers in four bytes.</p>
+</section>
 </section>
 
 
@@ -623,6 +661,7 @@ configuration, no restart needed:</p>
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-write-a-codec">Step 1 - write a codec</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-declare-an-entry-point">Step 2 - declare an entry point</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading-a-path-or-a-buffer">Reading a path or a buffer</a></li>
 </ul>
   </nav></div>
 
@@ -680,7 +719,7 @@ configuration, no restart needed:</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-18.
+  Last updated on 2026-08-20.
   <br/>
 </p></div>
       

@@ -12,11 +12,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/usage.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="Basic I/O: Format-specific options: Every codec’s own options are listed on its page under Supported formats. Where to go next: Supported formats- the twenty-five supported formats, one page each, ..." />
+<meta property="og:description" content="Basic I/O: Files, buffers and streams: Anything with a read or a write works where a path does, so a mesh never has to touch disk: Two rules hold everywhere: a handle polyxios is given is read or w..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_usage_ba512dd2.png" />
-<meta property="og:image:alt" content="Basic I/O: Format-specific options: Every codec’s own options are listed on its page under Supported formats. Where to go next: Supported formats- the twenty-five supported formats, one page each, ..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_usage_8a588968.png" />
+<meta property="og:image:alt" content="Basic I/O: Files, buffers and streams: Anything with a read or a write works where a path does, so a mesh never has to touch disk: Two rules hold everywhere: a handle polyxios is given is read or w..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=4af3ee2f"></script>
+    <script src="_static/documentation_options.js?v=20e32236"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-18"/>
+    <meta name="docbuild:last-update" content="2026-08-20"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -551,6 +551,94 @@
 </pre></div>
 </div>
 </section>
+<section id="files-buffers-and-streams">
+<h2>Files, buffers and streams<a class="headerlink" href="#files-buffers-and-streams" title="Link to this heading">#</a></h2>
+<p>Anything with a <code class="docutils literal notranslate"><span class="pre">read</span></code> or a <code class="docutils literal notranslate"><span class="pre">write</span></code> works where a path does, so a mesh
+never has to touch disk:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+
+<span class="n">buf</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">()</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">buf</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">".ply"</span><span class="p">)</span>     <span class="c1"># fmt= names the format</span>
+
+<span class="n">buf</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">same</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">".ply"</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"brain.vtk"</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+    <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>              <span class="c1"># a named handle needs no fmt=</span>
+</pre></div>
+</div>
+<p>Two rules hold everywhere:</p>
+<ul class="simple">
+<li><p>a handle polyxios is given is read or written <strong>where it stands</strong>, and is
+never closed - the caller keeps control of its own file;</p></li>
+<li><p>a buffer with no file name has no extension to infer a format from, so
+<code class="docutils literal notranslate"><span class="pre">fmt=</span></code> is required for one; <code class="docutils literal notranslate"><span class="pre">open()</span></code> gives a handle a name, and that
+is enough.</p></li>
+</ul>
+<p>A source has to offer a binary <code class="docutils literal notranslate"><span class="pre">read</span></code> and a destination a binary
+<code class="docutils literal notranslate"><span class="pre">write</span></code>; everything else a codec reaches for - <code class="docutils literal notranslate"><span class="pre">readline</span></code>, <code class="docutils literal notranslate"><span class="pre">seek</span></code>,
+<code class="docutils literal notranslate"><span class="pre">seekable</span></code> - is supplied for a handle that lacks it. A handle that cannot
+seek is still read, except by the formats that need to measure a file before
+parsing it and by the extensions several formats share, both of which say so
+rather than guess.</p>
+<p>Reading lazily needs a real file behind the handle wherever the arrays that
+come back view the file itself - binary PLY and binary VTK - since <code class="docutils literal notranslate"><span class="pre">mmap</span></code>
+maps a file descriptor: an <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code> raises <code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> rather
+than quietly loading eagerly. It also needs the handle to stand at the start
+of that file - a mapping addresses a file from byte zero - so a handle
+part-way into one is refused for a lazy read and read eagerly without
+complaint. A format whose lazy mode only skips work, such as binary STL
+skipping vertex deduplication, copies what it reads and so takes a buffer
+like any other read. TetGen is the one format a buffer cannot carry - a mesh
+is a <code class="docutils literal notranslate"><span class="pre">.node</span></code> and an <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file found beside each other by name.</p>
+<p>Text formats are written with <code class="docutils literal notranslate"><span class="pre">\n</span></code> line endings on every platform, so the
+bytes a path receives and the bytes a buffer receives are the same ones.</p>
+</section>
+<section id="compressed-files">
+<h2>Compressed files<a class="headerlink" href="#compressed-files" title="Link to this heading">#</a></h2>
+<p>gzip is handled by the same layer, for every format at once:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"brain.vol.gz"</span><span class="p">)</span>      <span class="c1"># decompressed on the way in</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"brain.vtk.gz"</span><span class="p">)</span>      <span class="c1"># compressed on the way out</span>
+</pre></div>
+</div>
+<p>Reading looks at the <strong>content</strong>: a file compressed without being renamed
+reads just as well as one ending in <code class="docutils literal notranslate"><span class="pre">.gz</span></code>, and a <code class="docutils literal notranslate"><span class="pre">.gz</span></code> name over plain
+bytes is read as the plain file it is. The whole four-byte gzip header is
+what decides, not the two magic bytes alone - those open one file in every
+65536 by chance, and inside a headerless binary format they are an ordinary
+coordinate’s low bytes. Writing looks at the <strong>name</strong>, since
+an output file has no content to inspect yet - a destination ending <code class="docutils literal notranslate"><span class="pre">.gz</span></code>
+is compressed, and nothing else is. A nameless buffer has no name to end in
+<code class="docutils literal notranslate"><span class="pre">.gz</span></code>, so <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> says it there instead:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">buf</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">()</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">buf</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">".obj.gz"</span><span class="p">)</span>  <span class="c1"># compressed into the buffer</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">.gz</span></code> names the compression rather than the format wherever it appears, in
+a file name and in <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> alike, so <code class="docutils literal notranslate"><span class="pre">&quot;.obj.gz&quot;</span></code> picks the same codec
+<code class="docutils literal notranslate"><span class="pre">brain.obj.gz</span></code> does.</p>
+<p>A member does not have to run to the end of what it sits in. Reading stops
+where the member stops, so a mesh compressed into the middle of an archive
+is read without the archive’s own bytes after it turning into an error;
+members written back to back are still read as the one stream they spell.</p>
+<p>The compressed output carries no timestamp and no embedded file name, so the
+same mesh always produces the same bytes. Lazy reads are the one thing gzip
+takes away, in the formats that map: <code class="docutils literal notranslate"><span class="pre">mmap</span></code> maps a file as it is stored, so
+a format whose lazy read hands back arrays viewing the mapping raises
+<code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> over a compressed file rather than handing back compressed
+bytes. A lazy read that copies what it reads - binary STL’s, which skips
+vertex deduplication and nothing else - takes a compressed file like any
+other read.</p>
+<p>TetGen is outside all of this for the same reason it cannot take a buffer: it
+opens its own sibling files rather than going through the layer that unwraps
+gzip. A <code class="docutils literal notranslate"><span class="pre">.node.gz</span></code> is refused with a message saying so, rather than read as
+text or written uncompressed under a name promising otherwise.</p>
+<p>A compressed handle is the one exception to “left where the codec left it”:
+a decompressor reads ahead, so where it stops says nothing about how much of
+the mesh was consumed. The handle is put back at the front of the member
+instead, which is the only position over compressed bytes that means
+anything to whatever reads next.</p>
+</section>
 <section id="format-specific-options">
 <h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"brain.vtk"</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -620,6 +708,8 @@
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-i-o">Basic I/O</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#files-buffers-and-streams">Files, buffers and streams</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#compressed-files">Compressed files</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-go-next">Where to go next</a></li>
 </ul>
@@ -679,7 +769,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-18.
+  Last updated on 2026-08-20.
   <br/>
 </p></div>
       
