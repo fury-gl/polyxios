@@ -73,6 +73,7 @@ Quirks worth knowing
 - A ``<Piece>`` may restate a sub-extent of ``WholeExtent``; the piece's own extent is what gets expanded.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`.
 - Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+- An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every ``CellData`` array belonging to nothing.
 
 .. seealso::
 

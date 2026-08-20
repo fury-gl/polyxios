@@ -7,6 +7,7 @@ import pytest
 
 from polyxios.codecs._vti import read, write
 from polyxios.exceptions import LazyReadError
+from polyxios.validate import validate
 
 
 def _synthetic_vti() -> object:
@@ -107,3 +108,26 @@ def test_cell_data_roundtrip() -> None:
     np.testing.assert_allclose(
         poly2.element_attrs["pressure"], np.arange(8, dtype=np.float64), atol=1e-6
     )
+
+
+def test_a_flat_extent_is_a_sheet_of_quads_with_its_cell_data(tmp_path) -> None:
+    """An image one voxel deep held no cells, so its CellData was dropped."""
+    path = tmp_path / "flat.vti"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        ' <ImageData WholeExtent="0 2 0 2 0 0" Origin="0 0 0" Spacing="1 1 1">\n'
+        '  <Piece Extent="0 2 0 2 0 0">\n'
+        '   <CellData><DataArray type="Float64" Name="c"'
+        ' format="ascii">1 2 3 4</DataArray></CellData>\n'
+        "  </Piece>\n"
+        " </ImageData>\n"
+        "</VTKFile>\n"
+    )
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 4
+    np.testing.assert_array_equal(poly.offsets, [0, 4, 8, 12, 16])
+    np.testing.assert_allclose(poly.element_attrs["c"], [1.0, 2.0, 3.0, 4.0])
+    validate(poly)

@@ -35,10 +35,23 @@ _VTK_TO_NP: dict[str, str] = {
 
 _NP_TO_VTK: dict[str, str] = {np_str: name for name, np_str in _VTK_TO_NP.items()}
 
-# What a dtype no VTK type names is written as. Every numpy kind this package
-# can hold - bool, float16, a datetime - reads back as a double, and the bytes
-# have to be that double or the header lies about them.
+# What a numeric dtype no VTK type names is written as - bool, float16, a
+# datetime all read back as a double, and the bytes have to be that double or
+# the header lies about them. A kind that is not numeric at all reaches the
+# same fallback and then fails to convert, which format_attr_da names.
 _FALLBACK_TYPE: str = "Float64"
+
+# Points per cell and element type name, by how many axes the grid extends
+# along. Which axes those are decides nothing but the stride: an x-z plane is
+# as much a sheet of quads as an x-y one.
+_STRUCTURED_KINDS: dict[int, tuple[str, int]] = {
+    1: ("line", 2),
+    2: ("quad", 4),
+    3: ("hexahedron", 8),
+}
+
+# The widest point index an int32 connectivity array can name.
+_INT32_MAX: int = int(np.iinfo(np.int32).max)
 
 
 def np_to_vtk_type(dt: np.dtype) -> tuple[str, np.dtype]:
@@ -46,8 +59,10 @@ def np_to_vtk_type(dt: np.dtype) -> tuple[str, np.dtype]:
 
     The two are handed back together because they have to agree: a header
     naming ``Int32`` over the bytes of a double is a file no reader can take.
-    A dtype no VTK type names - bool, float16, a datetime - has no header of
-    its own, so it is written as the double it converts to.
+    A numeric dtype no VTK type names - bool, float16, a datetime - has no
+    header of its own, so it is written as the double it converts to. A kind
+    that is no number at all is named the same way and refused by the caller
+    when the conversion fails, which is where the array's name is known.
 
     Parameters
     ----------
@@ -134,7 +149,8 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
     ``element_attrs``, and casting it all to a double is a header that
     agrees with the bytes but not with the data: an ``int64`` identifier
     past 2**53 comes back a different number. The dtype names the VTK type,
-    and a kind no VTK type names falls back to the double it converts to.
+    and a numeric kind no VTK type names - bool, float16, a datetime - falls
+    back to the double it converts to.
 
     Parameters
     ----------
@@ -153,17 +169,30 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
     -------
     str
         The ``<DataArray>`` line.
+
+    Raises
+    ------
+    CodecError
+        If the values are of a kind no ``DataArray`` can hold - strings, or
+        objects. The conversion answers that with a ValueError about one
+        element, which names neither the array nor the format refusing it.
     """
     vtk_type, dtype = np_to_vtk_type(arr.dtype)
-    return format_da(
-        name,
-        arr,
-        vtk_type=vtk_type,
-        dtype=dtype,
-        binary=binary,
-        n_comp=components(arr),
-        indent=indent,
-    )
+    try:
+        return format_da(
+            name,
+            arr,
+            vtk_type=vtk_type,
+            dtype=dtype,
+            binary=binary,
+            n_comp=components(arr),
+            indent=indent,
+        )
+    except (TypeError, ValueError) as exc:
+        raise CodecError(
+            f"VTK XML: attribute '{name}' holds {arr.dtype!s} values, which"
+            " a DataArray has no numeric type for."
+        ) from exc
 
 
 def spell_values(arr: np.ndarray) -> str:
@@ -227,47 +256,136 @@ def components(arr: np.ndarray) -> int:
     return count
 
 
-def structured_hexahedra(nx: int, ny: int, nz: int) -> np.ndarray:
-    """Build the connectivity of a structured grid of hexahedra.
+def structured_cell_shape(nx: int, ny: int, nz: int) -> tuple[int, int, str]:
+    """Say what cells a structured grid of this shape holds, without building them.
+
+    A header has to be validated before an array the size of the grid is
+    allocated, so the count comes first and the connectivity second. An
+    extent flat along an axis - ``0 4 0 4 0 0``, an image one voxel deep -
+    extends along the other two and is a sheet of quads, not a grid of no
+    cells at all; reading it as the latter drops every ``CellData`` array it
+    carries.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Cells along each axis, as an extent's spans give them; the grid
+        holds one more point than that along each.
+
+    Returns
+    -------
+    tuple[int, int, str]
+        Cells the grid holds, points per cell, and the element type name. A
+        grid that extends along no axis is a single point and has no cells,
+        which is ``(0, 0, 'vertex')``.
+
+    Examples
+    --------
+    >>> structured_cell_shape(2, 3, 4)
+    (24, 8, 'hexahedron')
+    >>> structured_cell_shape(2, 3, 0)
+    (6, 4, 'quad')
+    >>> structured_cell_shape(0, 0, 0)
+    (0, 0, 'vertex')
+    """
+    spans = [span for span in (nx, ny, nz) if span > 0]
+    if not spans:
+        return 0, 0, "vertex"
+
+    n_cells = 1
+    for span in spans:
+        n_cells *= span
+    kind, per_cell = _STRUCTURED_KINDS[len(spans)]
+    return n_cells, per_cell, kind
+
+
+def structured_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, int, str]:
+    """Build the connectivity of a structured grid.
 
     The three XML grids that expand into an explicit mesh - ``.vti``,
     ``.vts`` and ``.vtr`` - all index their points the same way, so they all
     build the same cells. Done a cell at a time this is one Python loop per
     cell, which on a grid of any size is where the read spends itself; the
     corners are strides from the cell's own origin, so the whole array is
-    eight adds over the origins instead.
+    one add per corner over the origins instead.
 
     Parameters
     ----------
     nx, ny, nz
-        Cells along each axis; the grid holds one more point than that.
+        Cells along each axis; the grid holds one more point than that. An
+        axis with none is one the grid does not extend along, which drops
+        the cells from hexahedra to quads to lines rather than to nothing.
 
     Returns
     -------
-    numpy.ndarray
-        Flat connectivity, eight point indices per cell, in the order VTK
-        numbers a hexahedron's corners. Cells run with ``x`` fastest.
+    tuple[numpy.ndarray, int, str]
+        Flat connectivity, points per cell, and the element type name. The
+        corners of each cell are in the order VTK numbers them, and cells
+        run with ``x`` fastest.
 
     Examples
     --------
-    >>> structured_hexahedra(1, 1, 1)
+    >>> structured_cells(1, 1, 1)[0]
     array([0, 1, 3, 2, 4, 5, 7, 6], dtype=int32)
+    >>> structured_cells(1, 1, 0)
+    (array([0, 1, 3, 2], dtype=int32), 4, 'quad')
     """
-    nxp1, nyp1 = nx + 1, ny + 1
-    sj, sk = nxp1, nxp1 * nyp1
-    # Broadcast the three axes against each other rather than meshgrid them:
-    # the sum is the only array of cell size this builds.
-    origins = (
-        np.arange(nz, dtype=np.int64)[:, None, None] * sk
-        + np.arange(ny, dtype=np.int64)[None, :, None] * sj
-        + np.arange(nx, dtype=np.int64)[None, None, :]
-    ).ravel()
+    n_cells, per_cell, kind = structured_cell_shape(nx, ny, nz)
+    if not n_cells:
+        return np.zeros(0, dtype=np.int32), per_cell, kind
 
-    cells = np.empty((origins.size, 8), dtype=np.int32)
-    for corner, step in enumerate((0, 1, 1 + sj, sj)):
+    dims = (nx, ny, nz)
+    # A point's index is x + y * (nx + 1) + z * (nx + 1) * (ny + 1), so this
+    # is the step from one point to the next along each axis.
+    strides = (1, nx + 1, (nx + 1) * (ny + 1))
+    axes = [axis for axis in range(3) if dims[axis] > 0]
+
+    # Broadcast the extending axes against each other rather than meshgrid
+    # them: the sum is the only array of cell size this builds, and the
+    # slowest axis comes first so the cells run with x fastest.
+    origins = np.zeros((1,) * len(axes), dtype=np.int64)
+    for position, axis in enumerate(reversed(axes)):
+        shape = [1] * len(axes)
+        shape[position] = dims[axis]
+        origins = (
+            origins
+            + np.arange(dims[axis], dtype=np.int64).reshape(shape) * strides[axis]
+        )
+    origins = origins.ravel()
+
+    steps = _corner_steps([strides[axis] for axis in axes])
+    # An index only fits an int32 while the grid does; a bigger one is kept
+    # at the width that holds it rather than wrapped into a negative point.
+    n_points = (nx + 1) * (ny + 1) * (nz + 1)
+    dtype = np.int32 if n_points <= _INT32_MAX else np.int64
+
+    cells = np.empty((n_cells, per_cell), dtype=dtype)
+    for corner, step in enumerate(steps):
         cells[:, corner] = origins + step
-        cells[:, corner + 4] = origins + step + sk
-    return cells.ravel()
+    return cells.ravel(), per_cell, kind
+
+
+def _corner_steps(strides: list[int]) -> tuple[int, ...]:
+    """Offset each corner of a structured cell sits at from the cell's origin.
+
+    Parameters
+    ----------
+    strides
+        The point-index step along each axis the grid extends along, slowest
+        axis last.
+
+    Returns
+    -------
+    tuple of int
+        One offset per corner, in the order VTK numbers them.
+    """
+    if len(strides) == 1:
+        return 0, strides[0]
+    sa, sb = strides[0], strides[1]
+    if len(strides) == 2:
+        return 0, sa, sa + sb, sb
+    sc = strides[2]
+    return 0, sa, sa + sb, sb, sc, sa + sc, sa + sb + sc, sb + sc
 
 
 def vtk_type_to_np(vtk_type: str) -> str | None:
@@ -532,7 +650,7 @@ def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
             f" NumberOfComponents='{elem.get('NumberOfComponents')}', which"
             " is not a count; read flat.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=4,
         )
         return arr
     if n_comp > 1 and arr.size and arr.size % n_comp == 0:
@@ -605,7 +723,7 @@ def decode_da(
             f"VTK XML: DataArray '{elem.get('Name', 'unnamed')}' has type "
             f"'{vtk_type}', which holds no numbers; skipped.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=5,
         )
         return np.array([], dtype=np.float64)
     endian = ">" if big_endian else "<"
@@ -636,7 +754,7 @@ def decode_da(
     text = (elem.text or "").strip()
 
     if fmt == "ascii":
-        return parse_ascii_values(text, dtype_str)
+        return parse_ascii_values(text, dtype_str, name=elem.get("Name", "unnamed"))
 
     # inline binary / base64
     raw = base64.b64decode(text.encode())
@@ -645,7 +763,9 @@ def decode_da(
     return np.frombuffer(raw[4:], dtype=endian + dtype_str).copy().astype(dtype_str)
 
 
-def parse_ascii_values(text: str, dtype_str: str) -> np.ndarray:
+def parse_ascii_values(
+    text: str, dtype_str: str, *, name: str = "unnamed"
+) -> np.ndarray:
     """Read the ASCII body of a ``DataArray`` into the type it declares.
 
     Handing every token to ``float`` first rounds it to a double before the
@@ -661,6 +781,8 @@ def parse_ascii_values(text: str, dtype_str: str) -> np.ndarray:
         The element's text, whitespace separated.
     dtype_str
         The numpy dtype character the declared VTK type maps to.
+    name
+        Array name, for the messages.
 
     Returns
     -------
@@ -669,17 +791,66 @@ def parse_ascii_values(text: str, dtype_str: str) -> np.ndarray:
 
     Raises
     ------
-    ValueError
-        If a token names no number at all.
+    CodecError
+        If a token names no number at all. numpy answers that with a bare
+        ``ValueError`` about one token, which names neither the array nor
+        the file it came out of.
     """
     tokens = text.split()
     try:
         return np.array(tokens, dtype=dtype_str)
-    except ValueError:
-        # An integer array spelled with a decimal point is not something
-        # numpy parses, and not worth refusing either: read it as a double
-        # and truncate it the way the declared type would have held it.
-        return np.array([float(token) for token in tokens], dtype=dtype_str)
+    except (ValueError, OverflowError):
+        # Either an integer array spelled with a decimal point, which numpy
+        # will not parse, or a value the declared type is too narrow to
+        # hold. Neither is worth refusing a whole file over, so the tokens
+        # are read as doubles and narrowed the way a C reader would narrow
+        # them - which is what the file's own writer did to produce them.
+        return _narrow_ascii_values(tokens, dtype_str, name)
+
+
+def _narrow_ascii_values(tokens: list[str], dtype_str: str, name: str) -> np.ndarray:
+    """Read tokens as doubles and narrow them to the declared type.
+
+    Parameters
+    ----------
+    tokens
+        The element's whitespace-separated values.
+    dtype_str
+        The numpy dtype character the declared VTK type maps to.
+    name
+        Array name, for the messages.
+
+    Returns
+    -------
+    numpy.ndarray
+        The values, in ``dtype_str``. A value the type cannot hold wraps the
+        way a C reader wraps it, and is warned about rather than refused.
+
+    Raises
+    ------
+    CodecError
+        If a token names no number at all.
+    """
+    try:
+        wide = np.array(tokens, dtype=np.float64)
+    except ValueError as exc:
+        raise CodecError(
+            f"VTK XML: DataArray '{name}' holds a value that is not a number ({exc})."
+        ) from exc
+
+    narrow = wide.astype(dtype_str)
+    # Only the values that had to be narrowed are checked, and only on this
+    # path: the common array parsed straight into its own type above and
+    # never reaches here.
+    if narrow.dtype.kind in "iu" and not np.array_equal(narrow, wide):
+        warnings.warn(
+            f"VTK XML: DataArray '{name}' holds values its declared type"
+            f" '{narrow.dtype.name}' cannot hold; they wrap, as they do for"
+            " any reader of this file.",
+            UserWarning,
+            stacklevel=7,
+        )
+    return narrow
 
 
 def piece_count(piece: ET.Element, attr: str, *, fmt: str) -> int:
@@ -795,13 +966,13 @@ def join_piece_attrs(
                 f" one Piece to the next ({_shapes(arrays)}), so the pieces"
                 " cannot be joined; dropped.",
                 UserWarning,
-                stacklevel=3,
+                stacklevel=4,
             )
-    return sized_attrs(joined, expected=expected, kind=kind, stacklevel=4)
+    return sized_attrs(joined, expected=expected, kind=kind, stacklevel=5)
 
 
 def sized_attrs(
-    found: dict[str, np.ndarray], *, expected: int, kind: str, stacklevel: int = 3
+    found: dict[str, np.ndarray], *, expected: int, kind: str, stacklevel: int = 4
 ) -> dict[str, np.ndarray]:
     """Keep the arrays that cover the mesh, and name the ones that do not.
 

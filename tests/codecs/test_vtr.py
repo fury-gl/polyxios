@@ -8,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._vtr import read, write
 from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.validate import validate
 
 
 def _synthetic_rectilinear() -> object:
@@ -230,3 +231,30 @@ def test_an_extent_that_is_not_six_numbers_names_the_file(
 
     with pytest.raises(CodecError, match=match):
         read(path)
+
+
+def test_a_flat_extent_is_a_sheet_of_quads_with_its_cell_data(tmp_path) -> None:
+    """A grid one point deep held no cells, so its CellData was dropped."""
+    path = tmp_path / "flat.vtr"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian">\n'
+        ' <RectilinearGrid WholeExtent="0 2 0 2 0 0">\n'
+        '  <Piece Extent="0 2 0 2 0 0">\n'
+        "   <Coordinates>\n"
+        '    <DataArray type="Float64" format="ascii">0 1 2</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0 1 2</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0</DataArray>\n'
+        "   </Coordinates>\n"
+        '   <CellData><DataArray type="Float64" Name="c"'
+        ' format="ascii">1 2 3 4</DataArray></CellData>\n'
+        "  </Piece>\n"
+        " </RectilinearGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 4
+    np.testing.assert_allclose(poly.element_attrs["c"], [1.0, 2.0, 3.0, 4.0])
+    validate(poly)

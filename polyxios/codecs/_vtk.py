@@ -106,12 +106,20 @@ _ATTRS_STOP_KEYWORDS: tuple[str, ...] = (
     "CELL_TYPES",
 )
 
+# The keywords that open or continue a cell array. VTK follows one with a
+# METADATA block as it does an attribute, so a block sits inside a v5.1 CELLS
+# section between its offsets and its connectivity.
+_CELL_KEYWORDS: frozenset[str] = frozenset(
+    {"OFFSETS", "CONNECTIVITY", "POLYGONS", "LINES", "VERTICES", "TRIANGLE_STRIPS"}
+)
+
 # What ends a METADATA block that was written without its blank terminator.
 # The geometry keywords belong here as much as the attribute ones: a block
 # left open at the end of a POINT_DATA section would otherwise swallow the
-# CELLS that follows it and every line to the end of the file.
-_METADATA_STOP_KEYWORDS: frozenset[str] = _ATTRIBUTE_KEYWORDS | frozenset(
-    _ATTRS_STOP_KEYWORDS
+# CELLS that follows it and every line to the end of the file, and one left
+# open inside a CELLS section would swallow the connectivity.
+_METADATA_STOP_KEYWORDS: frozenset[str] = (
+    _ATTRIBUTE_KEYWORDS | frozenset(_ATTRS_STOP_KEYWORDS) | _CELL_KEYWORDS
 )
 
 
@@ -176,8 +184,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # read then repeats.
     with open_read(path) as fh:
         start = fh.tell()
-        header_line = fh.readline().decode("ascii", errors="replace").strip()
-        fh.readline()  # title line (unused)
+        # The banner declares a version no reader here consults: each asks the
+        # body which spelling it uses, which a file gets right more often
+        # than its own header does.
+        fh.readline()  # version banner
+        fh.readline()  # title line
         # VTK v1.0 files can have blank lines between the title and BINARY/ASCII marker.
         data_type = ""
         for _ in range(8):
@@ -198,15 +209,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             fh.seek(start)
 
     is_binary = data_type == "BINARY"
-    version = _parse_vtk_version(header_line)
 
     if "UNSTRUCTURED_GRID" in dataset_line:
         if is_binary:
-            return _read_binary(path, version, lazy=lazy)
+            return _read_binary(path, lazy=lazy)
         else:
             if lazy:
                 raise LazyReadError("VTK ASCII format does not support lazy reads.")
-            return _read_ascii(path, version)
+            return _read_ascii(path)
     elif "POLYDATA" in dataset_line:
         if lazy:
             raise LazyReadError("VTK POLYDATA format does not support lazy reads.")
@@ -231,7 +241,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 "VTK STRUCTURED_POINTS format does not support lazy reads."
             )
         return _read_structured_points(path, is_binary=is_binary)
-    elif dataset_line.startswith("FIELD"):
+    elif "FIELD" in dataset_line:
+        # The line still carries its 'DATASET ' keyword here, so asking what
+        # it starts with never matched and every field-data file was refused
+        # by the branch below instead of read.
+        if lazy:
+            raise LazyReadError("VTK FIELD format does not support lazy reads.")
         return _read_field_data(path)
     else:
         raise CodecError(
@@ -311,26 +326,16 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         if poly.vertex_attrs:
             fh.write(f"POINT_DATA {n_verts}\n".encode())
             for name, arr in poly.vertex_attrs.items():
-                _write_vtk_array(name, arr, "POINT_DATA", fh, binary, vtk_version)
+                _write_vtk_array(name, arr, fh, binary=binary)
 
         # CELL_DATA
         if poly.element_attrs:
             fh.write(f"CELL_DATA {n_elems}\n".encode())
             for name, arr in poly.element_attrs.items():
-                _write_vtk_array(name, arr, "CELL_DATA", fh, binary, vtk_version)
+                _write_vtk_array(name, arr, fh, binary=binary)
 
 
 # --- internal helpers ---
-
-
-def _parse_vtk_version(header_line: str) -> str:
-    """Extract version string from VTK header line."""
-    parts = header_line.split()
-    # "# vtk DataFile Version 4.2"
-    for i, p in enumerate(parts):
-        if p.lower() == "version" and i + 1 < len(parts):
-            return parts[i + 1]
-    return "4.2"
 
 
 def _polyxios_to_vtk_code(type_code: int) -> int:
@@ -395,15 +400,13 @@ def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
         fh.write((" ".join(str(x) for x in conn64) + "\n").encode())  # type: ignore[union-attr]
 
 
-def _write_vtk_array(
-    name: str,
-    arr: np.ndarray,
-    section: str,
-    fh: object,
-    binary: bool,
-    vtk_version: str,
-) -> None:
+def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) -> None:
     """Write a single attribute array to a VTK file (SCALARS/VECTORS/TENSORS).
+
+    An array's header says nothing about whether it belongs to the points or
+    the cells - the section it is written under does, and the caller has
+    already opened that. Nor does the file's version change how a section is
+    spelled: every version this writer emits spells them the same way.
 
     Parameters
     ----------
@@ -411,16 +414,10 @@ def _write_vtk_array(
         Array name.
     arr
         Values, one row per point or cell.
-    section
-        ``'POINT_DATA'`` or ``'CELL_DATA'``; the array's own header says
-        nothing about which it is, the section above it does.
     fh
         Open binary file object.
     binary
         Write the payload as big-endian doubles rather than spelling it.
-    vtk_version
-        The version the file declares. Attribute sections are spelled the
-        same way in every version the writer emits.
     """
     values = np.ascontiguousarray(arr, dtype=np.float64)
 
@@ -822,7 +819,7 @@ def _parse_binary_polydata_body(
     )
 
 
-def _read_ascii(path: Source, version: str) -> PolyData:
+def _read_ascii(path: Source) -> PolyData:
     raw = read_bytes(path)
     file_size = len(raw)
     content = raw.decode("ascii", errors="replace")
@@ -872,7 +869,11 @@ def _read_ascii(path: Source, version: str) -> PolyData:
             i += 1
             validate_header(n_verts, n_elems, total_size, file_size)
 
-            if version >= "5.1" and i < n_lines and "OFFSETS" in lines[i].upper():
+            # What follows the header says which spelling this is, not the
+            # version in the first line: those compare as strings, so a file
+            # declaring 10.0 sorts below 5.1 and its OFFSETS would be read as
+            # a v4.2 cell stream. The binary scan has always asked this way.
+            if i < n_lines and "OFFSETS" in lines[i].upper():
                 connectivity, offsets, i = _parse_v51_cells_ascii(lines, i)
                 # The first number on the CELLS line is the length of the
                 # offsets array, so the cells are one fewer - and older
@@ -969,6 +970,13 @@ def _parse_v51_cells_ascii(
     i += 1
     off_vals: list[int] = []
     while i < n_lines and "CONNECTIVITY" not in lines[i].upper():
+        # VTK follows a cell array with its own METADATA block, so one sits
+        # between the offsets and the connectivity as often as not. Read as
+        # offsets it is a line of words where numbers belong, which used to
+        # refuse a file every VTK release since 9.0 writes.
+        if lines[i].strip().upper().startswith("METADATA"):
+            i = _next_header(lines, i)
+            continue
         try:
             off_vals.extend(map(int, lines[i].split()))
         except ValueError as exc:
@@ -993,6 +1001,9 @@ def _parse_v51_cells_ascii(
                 f".vtk: a v5.1 CELLS section declares {conn_size} connectivity"
                 f" values but the file ends after {len(conn_vals)}."
             )
+        if lines[i].strip().upper().startswith("METADATA"):
+            i = _next_header(lines, i)
+            continue
         try:
             conn_vals.extend(map(int, lines[i].split()))
         except ValueError as exc:
@@ -1339,7 +1350,7 @@ def _parse_vtk_data_attrs(
             n_arrays = _attr_count(parts, 2, f"line {i + 1}")
             i += 1
             for _ in range(n_arrays):
-                i = _next_field_header(lines, i)
+                i = _next_header(lines, i)
                 if i >= n_lines:
                     raise CodecError(
                         f".vtk: FIELD declares {n_arrays} arrays but the file"
@@ -1365,10 +1376,10 @@ def _parse_vtk_data_attrs(
             _warn_unhandled_attr(line, unknown)
             i += 1
 
-    return i, _keep_sized_attrs(attrs, expected=n_items, kind=kind, stacklevel=5)
+    return i, _keep_sized_attrs(attrs, expected=n_items, kind=kind, stacklevel=6)
 
 
-def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 5) -> None:
+def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 6) -> None:
     """Say once that a data keyword with no branch here is being dropped.
 
     The readers walk their file a line at a time and skip what they do not
@@ -1405,12 +1416,14 @@ def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 5) -> N
     )
 
 
-def _next_field_header(lines: list[str], i: int) -> int:
-    """Find the next array header inside a FIELD block.
+def _next_header(lines: list[str], i: int) -> int:
+    """Find the next header, stepping past blank lines and METADATA blocks.
 
-    A FIELD array carries its own ``METADATA`` block, which sits between one
-    array and the next. Read as a header it is a name with no component
-    count, and the arrays after it are read as its components.
+    An array carries its own ``METADATA`` block, which sits between it and
+    whatever comes next - the following array inside a FIELD, or the
+    ``CONNECTIVITY`` keyword inside a v5.1 ``CELLS``. Read as data it is a
+    line of words where numbers belong, and read as a header it is a name
+    with no component count.
 
     Parameters
     ----------
@@ -1492,7 +1505,7 @@ def _looks_like_keyword(token: str) -> bool:
     return token.replace("_", "").isalpha() and token.isupper()
 
 
-def _read_binary(path: Source, version: str, *, lazy: bool) -> PolyData:
+def _read_binary(path: Source, *, lazy: bool) -> PolyData:
     """Read binary VTK file, using mmap (lazy) or direct reads."""
     # A lazy read hands back arrays that view the block, so it has to be a
     # mapping: reading a file object into memory would answer the call with
@@ -1506,7 +1519,7 @@ def _read_binary(path: Source, version: str, *, lazy: bool) -> PolyData:
         for _ in range(4):
             pos = mm.find(b"\n", pos) + 1
 
-        poly = _parse_binary_body(mm, mv, pos, file_size, version)
+        poly = _parse_binary_body(mm, mv, pos, file_size)
         del mv  # release the view before the mapping goes
         if not lazy:
             poly = _materialize(poly)
@@ -1534,7 +1547,6 @@ def _parse_binary_body(
     mv: memoryview,
     start_pos: int,
     file_size: int,
-    version: str,
 ) -> PolyData:
     """Parse binary data sections from an mmap object."""
     pos = start_pos
@@ -1686,7 +1698,9 @@ def _parse_v51_cells_binary(
     offsets_arr = np.frombuffer(bytes(mv[pos : pos + n_bytes_off]), dtype=">i8").astype(
         np.int64
     )
-    pos = _skip_newline(mv, pos + n_bytes_off, file_size)
+    pos = _next_binary_header(
+        mm, mv, _skip_newline(mv, pos + n_bytes_off, file_size), file_size
+    )
 
     # skip CONNECTIVITY keyword line
     conn_kw_end = mm.find(b"\n", pos)
@@ -1747,7 +1761,9 @@ def _v51_offset_count(
         end = pos + n_off * 8
         if end > file_size:
             continue
-        probe = _skip_newline(mv, end, file_size)
+        probe = _next_binary_header(
+            mm, mv, _skip_newline(mv, end, file_size), file_size
+        )
         line_end = mm.find(b"\n", probe)
         if line_end == -1:
             line_end = file_size
@@ -1845,10 +1861,10 @@ def _skip_binary_metadata(
     return pos
 
 
-def _skip_binary_field_metadata(
+def _next_binary_header(
     mm: "mmap.mmap | bytes", mv: memoryview, pos: int, file_size: int
 ) -> int:
-    """Step past blank lines and any METADATA block before a FIELD header.
+    """Step past blank lines and any METADATA block before the next header.
 
     Parameters
     ----------
@@ -2042,7 +2058,7 @@ def _parse_binary_attrs(
                 # A FIELD array carries its own METADATA block, which sits
                 # between one array and the next; read as a header it eats
                 # the array after it.
-                pos = _skip_binary_field_metadata(mm, mv, pos, file_size)
+                pos = _next_binary_header(mm, mv, pos, file_size)
                 hdr_start = pos
                 hdr_end = mm.find(b"\n", pos)
                 if hdr_end == -1:
@@ -2082,12 +2098,12 @@ def _parse_binary_attrs(
                 " reader knows; it and everything after it in this data"
                 " section are dropped.",
                 UserWarning,
-                stacklevel=4,
+                stacklevel=6,
             )
             pos = line_start  # back up and let the outer loop see the line
             break
 
-    return pos, _keep_sized_attrs(attrs, expected=expected, kind=kind, stacklevel=5)
+    return pos, _keep_sized_attrs(attrs, expected=expected, kind=kind, stacklevel=7)
 
 
 def _skip_lookup_table(
@@ -2316,7 +2332,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             f" hold {len(xs)} {len(ys)} {len(zs)}; the arrays are the grid"
             " and the header is ignored.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=4,
         )
     nx, ny, nz = len(xs), len(ys), len(zs)
 
@@ -2527,7 +2543,7 @@ def _read_field_data(path: Source) -> PolyData:
         f"{source_name(path)}: VTK FIELD dataset has no geometry. "
         "Returning empty PolyData with field arrays in global_attrs.",
         UserWarning,
-        stacklevel=3,
+        stacklevel=4,
     )
 
     raw = read_bytes(path)
@@ -2661,7 +2677,7 @@ def _read_structured_attr(
         warnings.warn(
             f"{exc} The rest of this data section is dropped.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=5,
         )
         return _skip_data_section(texts, i)
 
@@ -2669,7 +2685,7 @@ def _read_structured_attr(
         _warn_unhandled_attr(texts[i], unhandled)
         return i + 1
 
-    attrs.update(_keep_sized_attrs(found, expected=expected, kind=kind, stacklevel=5))
+    attrs.update(_keep_sized_attrs(found, expected=expected, kind=kind, stacklevel=6))
     return nxt
 
 
@@ -2782,7 +2798,7 @@ def _structured_cells_over(
             " would index points the file does not hold, so the points are"
             " handed back without them.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=5,
         )
     return np.zeros((0, 1), dtype=np.int32), "vertex"
 
@@ -3015,7 +3031,7 @@ def _scan_structured_attr(
         n_arrays = _attr_count(parts, 2, where)
         i += 1
         for _ in range(n_arrays):
-            i = _next_field_header(texts, i)
+            i = _next_header(texts, i)
             if i >= n_lines:
                 break
             fparts = texts[i].split()

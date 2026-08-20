@@ -7,6 +7,7 @@ import pytest
 
 from polyxios.codecs._vts import read, write
 from polyxios.exceptions import LazyReadError
+from polyxios.validate import validate
 
 
 def _synthetic_vts() -> object:
@@ -98,3 +99,28 @@ def test_vertex_attrs() -> None:
     poly2 = read(tmp)
     assert "pressure" in poly2.vertex_attrs
     np.testing.assert_allclose(poly2.vertex_attrs["pressure"], pressure, atol=1e-6)
+
+
+def test_a_flat_extent_is_a_sheet_of_quads_with_its_cell_data(tmp_path) -> None:
+    """A grid one point deep held no cells, so its CellData was dropped."""
+    path = tmp_path / "flat.vts"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="StructuredGrid" version="1.0" byte_order="LittleEndian">\n'
+        ' <StructuredGrid WholeExtent="0 2 0 2 0 0">\n'
+        '  <Piece Extent="0 2 0 2 0 0">\n'
+        '   <Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">0 0 0 1 0 0 2 0 0 0 1 0 1 1 0 2 1 0'
+        " 0 2 0 1 2 0 2 2 0</DataArray></Points>\n"
+        '   <CellData><DataArray type="Float64" Name="c"'
+        ' format="ascii">1 2 3 4</DataArray></CellData>\n'
+        "  </Piece>\n"
+        " </StructuredGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 4
+    np.testing.assert_allclose(poly.element_attrs["c"], [1.0, 2.0, 3.0, 4.0])
+    validate(poly)
