@@ -228,3 +228,99 @@ def test_a_short_texcoord_row_is_padded_not_indexed_past(tmp_path) -> None:
     write(poly, path)
 
     assert "vt 0.25 0" in path.read_text()
+
+
+def test_an_attribute_short_of_the_vertices_is_not_written(tmp_path) -> None:
+    """Faces indexing records the file does not hold are unreadable."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"texcoords": np.array([[0.0, 0.0]])},
+    )
+    path = tmp_path / "short.obj"
+
+    with pytest.warns(UserWarning, match="not one row per vertex"):
+        write(poly, path)
+
+    text = path.read_text()
+    assert "vt " not in text
+    # Without the check this was 'f 1/1 2/2 3/3' against a single vt record.
+    assert "f 1 2 3" in text
+    read(path)
+
+
+def test_a_one_dimensional_attribute_is_one_value_per_vertex(tmp_path) -> None:
+    """A flat array is a column of vertices, not a single wide row."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"texcoords": np.array([0.25, 0.5, 0.75])},
+    )
+    path = tmp_path / "flat.obj"
+
+    write(poly, path)
+
+    lines = [line for line in path.read_text().splitlines() if line.startswith("vt ")]
+    assert lines == ["vt 0.25 0", "vt 0.5 0", "vt 0.75 0"]
+
+
+@pytest.mark.parametrize(
+    "record,match",
+    [
+        ("v 0 0", "needs at least 3"),
+        ("vn 0 0", "needs at least 3"),
+        ("vt", "needs at least 1"),
+        ("v 0 0 x", "not a row of numbers"),
+    ],
+)
+def test_a_short_or_unreadable_record_names_the_line(
+    tmp_path, record: str, match: str
+) -> None:
+    """float() and list indexing answer these without naming file or line."""
+    path = tmp_path / "short.obj"
+    path.write_text(f"v 0 0 0\nv 1 0 0\nv 0 1 0\n{record}\n")
+
+    with pytest.raises(CodecError, match=match):
+        read(path)
+
+
+def test_a_volumetric_vt_keeps_the_two_components_a_surface_uses(tmp_path) -> None:
+    """A vt may carry a depth; texcoords holds u and v."""
+    path = tmp_path / "vt3.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0 0.5\nvt 1 0 0.5\nvt 0 1 0.5\nf 1/1 2/2 3/3\n"
+    )
+
+    poly = read(path)
+
+    assert poly.vertex_attrs["texcoords"].shape == (3, 2)
+    np.testing.assert_allclose(poly.vertex_attrs["texcoords"][1], [1, 0])
+
+
+def test_a_vt_with_one_component_means_zero_for_the_other(tmp_path) -> None:
+    """The format lets v go; a per-vertex array still needs both columns."""
+    path = tmp_path / "vt1.obj"
+    path.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0\nvt 1\nvt 0.5\nf 1/1 2/2 3/3\n")
+
+    poly = read(path)
+
+    np.testing.assert_allclose(
+        poly.vertex_attrs["texcoords"], [[0, 0], [1, 0], [0.5, 0]]
+    )
+
+
+def test_an_attribute_of_labels_is_dropped_rather_than_crashing(tmp_path) -> None:
+    """A vn record has no way to spell a string, and asarray raises on one."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"normals": np.array(["a", "b", "c"], dtype=object)},
+    )
+    path = tmp_path / "labels.obj"
+
+    with pytest.warns(UserWarning, match="not numbers"):
+        write(poly, path)
+
+    text = path.read_text()
+    assert "vn " not in text
+    assert "f 1 2 3" in text

@@ -28,7 +28,7 @@ Specification at a glance
    * - connectivity
      - CELLS <n> <size> followed by CELL_TYPES <n> integer codes
    * - attributes
-     - POINT_DATA / CELL_DATA with SCALARS, VECTORS, NORMALS, FIELD
+     - POINT_DATA / CELL_DATA with SCALARS, COLOR_SCALARS, VECTORS, NORMALS, TENSORS, TEXTURE_COORDINATES, FIELD
 
 .. rst-class:: px-speclink
 
@@ -80,9 +80,12 @@ Quirks worth knowing
 - Binary files can be memory-mapped with ``lazy=True``; ASCII files must be parsed end to end before any value is available.
 - Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
 - Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.
-- ``SCALARS``, ``VECTORS``, ``NORMALS``, ``TENSORS``, ``COLOR_SCALARS`` and ``FIELD`` sections are all read. ``COLOR_SCALARS`` is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.
-- An attribute section that declares more values than the file holds raises ``CodecError`` naming the array, rather than an ``IndexError`` naming nothing.
+- ``SCALARS``, ``VECTORS``, ``NORMALS``, ``TENSORS``, ``COLOR_SCALARS``, ``TEXTURE_COORDINATES`` and ``FIELD`` sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A ``LOOKUP_TABLE`` definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. ``COLOR_SCALARS`` is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.
+- An attribute section that declares more values than the file holds raises ``CodecError`` naming the array, rather than an ``IndexError`` naming nothing in ASCII or a reshape failure naming nothing in binary.
 - ``STRUCTURED_POINTS`` keeps ``DIMENSIONS``, ``ORIGIN`` and ``SPACING`` in ``global_attrs`` (``vtk_dimensions``, ``vtk_origin``, ``vtk_spacing``); ``STRUCTURED_GRID`` and ``RECTILINEAR_GRID`` keep ``DIMENSIONS``. The points are expanded into an explicit array, so without those the grid behind them would be lost.
+- Those ``vtk_*`` entries are read-only: ``write`` always emits an ``UNSTRUCTURED_GRID`` and does not consume them.
+- ``CELL_DATA`` is read from the structured datasets as well as the unstructured ones. An array whose declared length matches neither the points nor the cells of the grid the header describes is dropped with a warning naming it, rather than reaching ``PolyData`` as a validation error about lengths.
+- A structured grid extends along whichever axes its ``DIMENSIONS`` declare: ``3 1 3`` is a sheet of quads in the x-z plane, not a run of lines, and a column along ``y`` or ``z`` is indexed with its own stride.
 
 .. seealso::
 

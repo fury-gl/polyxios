@@ -355,6 +355,10 @@ def join_piece_attrs(
     tell which piece the missing rows belonged to, so the attribute is
     dropped and said out loud.
 
+    Pieces may also disagree about the array's shape, one calling it scalar
+    and the next a vector. There is no joined array to make of that either,
+    and it is the same answer: drop the array, name it.
+
     Parameters
     ----------
     parts
@@ -372,7 +376,16 @@ def join_piece_attrs(
     """
     joined: dict[str, np.ndarray] = {}
     for name, arrays in parts.items():
-        arr = np.concatenate(arrays)
+        try:
+            arr = np.concatenate(arrays)
+        except ValueError:
+            warnings.warn(
+                f"VTK XML: {kind} array '{name}' is shaped differently from"
+                f" one Piece to the next ({_shapes(arrays)}), so the pieces"
+                " cannot be joined; dropped.",
+                stacklevel=3,
+            )
+            continue
         if arr.shape[0] != expected:
             warnings.warn(
                 f"VTK XML: {kind} array '{name}' covers {arr.shape[0]} of"
@@ -383,3 +396,19 @@ def join_piece_attrs(
             continue
         joined[name] = arr
     return joined
+
+
+def _shapes(arrays: list[np.ndarray]) -> str:
+    """Spell the shapes of a piece's arrays for a warning.
+
+    Parameters
+    ----------
+    arrays
+        Arrays collected for one attribute, one per piece that carried it.
+
+    Returns
+    -------
+    str
+        The shapes, comma separated.
+    """
+    return ", ".join(str(arr.shape) for arr in arrays)

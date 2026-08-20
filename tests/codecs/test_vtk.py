@@ -683,3 +683,250 @@ def test_color_scalars_read_the_same_from_ascii_and_binary() -> None:
         read(binary).vertex_attrs["rgb"], read(ascii_).vertex_attrs["rgb"]
     )
     assert read(binary).vertex_attrs["rgb"].max() == 1.0
+
+
+def _ascii_grid(attributes: bytes) -> bytes:
+    """A one-triangle ASCII UNSTRUCTURED_GRID carrying the given POINT_DATA."""
+    return (
+        b"# vtk DataFile Version 4.2\n"
+        b"ascii attributes\n"
+        b"ASCII\n"
+        b"DATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n"
+        b"3 0 1 2\n"
+        b"CELL_TYPES 1\n"
+        b"5\n"
+        b"POINT_DATA 3\n" + attributes
+    )
+
+
+def test_ascii_texture_coordinates_are_read() -> None:
+    """TEXTURE_COORDINATES names its dimension, not its type, in column three."""
+    tmp = _write_tmp(_ascii_grid(b"TEXTURE_COORDINATES tc 2 float\n0 0\n1 0\n0 1\n"))
+
+    poly = read(tmp)
+
+    assert poly.vertex_attrs["tc"].shape == (3, 2)
+    np.testing.assert_allclose(poly.vertex_attrs["tc"][2], [0, 1])
+
+
+def test_a_lookup_table_does_not_hide_the_arrays_after_it() -> None:
+    """A palette is no attribute, but it must still be counted past."""
+    tmp = _write_tmp(
+        _ascii_grid(
+            b"LOOKUP_TABLE palette 2\n"
+            b"1 0 0 1\n0 1 0 1\n"
+            b"SCALARS after float 1\n"
+            b"LOOKUP_TABLE default\n"
+            b"7 8 9\n"
+        )
+    )
+
+    poly = read(tmp)
+
+    assert "palette" not in poly.vertex_attrs
+    np.testing.assert_allclose(poly.vertex_attrs["after"], [7, 8, 9])
+
+
+def test_binary_texture_coordinates_and_lookup_table_are_stepped_over() -> None:
+    """In binary an unhandled keyword loses every array after it."""
+    tc = np.array([[0, 0], [1, 0], [0, 1]], dtype=">f4").tobytes()
+    palette = bytes([255, 0, 0, 255, 0, 255, 0, 255])
+    after = np.array([7, 8, 9], dtype=">f4").tobytes()
+    extra = (
+        b"POINT_DATA 3\n"
+        b"TEXTURE_COORDINATES tc 2 float\n" + tc + b"\n"
+        b"LOOKUP_TABLE palette 2\n" + palette + b"\n"
+        b"SCALARS after float 1\nLOOKUP_TABLE default\n" + after + b"\n"
+    )
+    tmp = _write_tmp(_binary_grid(extra=extra))
+
+    poly = read(tmp)
+
+    assert poly.vertex_attrs["tc"].shape == (3, 2)
+    assert "palette" not in poly.vertex_attrs
+    np.testing.assert_allclose(poly.vertex_attrs["after"], [7, 8, 9])
+
+
+def test_an_unknown_binary_attribute_keyword_says_what_it_costs() -> None:
+    """The scan cannot go on past it; a short read must not be a silent one."""
+    after = np.array([7, 8, 9], dtype=">f4").tobytes()
+    extra = (
+        b"POINT_DATA 3\n"
+        b"WIDGETS w float\n" + after + b"\n"
+        b"SCALARS after float 1\nLOOKUP_TABLE default\n" + after + b"\n"
+    )
+    tmp = _write_tmp(_binary_grid(extra=extra))
+
+    with pytest.warns(UserWarning, match="WIDGETS"):
+        poly = read(tmp)
+
+    assert "after" not in poly.vertex_attrs
+
+
+def test_a_binary_attribute_running_past_the_file_names_itself() -> None:
+    """A short slice used to fail in a reshape that named nothing."""
+    extra = b"POINT_DATA 3\nNORMALS n float\n" + b"\x00\x00\x00\x00"
+    tmp = _write_tmp(_binary_grid(extra=extra))
+
+    with pytest.raises(CodecError, match="'n'"):
+        read(tmp)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        b"DATASET STRUCTURED_POINTS\nDIMENSIONS 2 2 1\nORIGIN 0 0 0\nSPACING 1 1 1\n",
+        b"DATASET RECTILINEAR_GRID\nDIMENSIONS 2 2 1\n"
+        b"X_COORDINATES 2 float\n0 1\n"
+        b"Y_COORDINATES 2 float\n0 1\n"
+        b"Z_COORDINATES 1 float\n0\n",
+        b"DATASET STRUCTURED_GRID\nDIMENSIONS 2 2 1\n"
+        b"POINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n",
+    ],
+    ids=["structured_points", "rectilinear_grid", "structured_grid"],
+)
+def test_structured_datasets_read_normals_and_colors(dataset: bytes) -> None:
+    """These three scan their attributes themselves and knew only three."""
+    content = (
+        b"# vtk DataFile Version 4.2\nstructured\nASCII\n" + dataset + b"POINT_DATA 4\n"
+        b"NORMALS n float\n0 0 1\n0 0 1\n0 0 1\n0 0 1\n"
+        b"COLOR_SCALARS rgb 3\n1 0 0\n0 1 0\n0 0 1\n1 1 1\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_allclose(poly.vertex_attrs["n"][0], [0, 0, 1])
+    np.testing.assert_allclose(poly.vertex_attrs["rgb"][1], [0, 1, 0])
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        b"DATASET STRUCTURED_POINTS\nDIMENSIONS 2 2 1\nORIGIN 0 0 0\nSPACING 1 1 1\n",
+        b"DATASET RECTILINEAR_GRID\nDIMENSIONS 2 2 1\n"
+        b"X_COORDINATES 2 float\n0 1\n"
+        b"Y_COORDINATES 2 float\n0 1\n"
+        b"Z_COORDINATES 1 float\n0\n",
+        b"DATASET STRUCTURED_GRID\nDIMENSIONS 2 2 1\n"
+        b"POINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n",
+    ],
+    ids=["structured_points", "rectilinear_grid", "structured_grid"],
+)
+def test_structured_datasets_read_cell_data(dataset: bytes) -> None:
+    """A CELL_DATA section used to fall past a chain that asked about points."""
+    content = (
+        b"# vtk DataFile Version 4.2\nstructured\nASCII\n" + dataset + b"CELL_DATA 1\n"
+        b"SCALARS region int\nLOOKUP_TABLE default\n7\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_allclose(poly.element_attrs["region"], [7])
+
+
+def test_structured_cell_data_of_the_wrong_length_is_dropped_out_loud() -> None:
+    """Rows that match no cell cannot be attached, and going quiet hides why."""
+    content = (
+        b"# vtk DataFile Version 4.2\nstructured\nASCII\n"
+        b"DATASET STRUCTURED_POINTS\nDIMENSIONS 2 2 1\nORIGIN 0 0 0\nSPACING 1 1 1\n"
+        b"CELL_DATA 3\nSCALARS region int\nLOOKUP_TABLE default\n7 8 9\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="covers 3 of 1 cells"):
+        poly = read(tmp)
+
+    assert "region" not in poly.element_attrs
+
+
+def test_an_unknown_ascii_attribute_keyword_says_it_is_dropping_the_array() -> None:
+    """The binary scan said so; the ASCII one skipped the lines in silence."""
+    content = (
+        b"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        b"POINT_DATA 3\nBOGUS foo 1\n1 2 3\n"
+        b"SCALARS good float\nLOOKUP_TABLE default\n7 8 9\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="'BOGUS'"):
+        poly = read(tmp)
+
+    # The arrays after the unknown one are still found.
+    np.testing.assert_allclose(poly.vertex_attrs["good"], [7, 8, 9])
+
+
+def test_an_unhandled_structured_keyword_says_it_is_dropping_the_array() -> None:
+    """Skipping a line does not step over a payload, so the array is gone."""
+    content = (
+        b"# vtk DataFile Version 4.2\nstructured\nASCII\n"
+        b"DATASET STRUCTURED_POINTS\nDIMENSIONS 2 2 1\nORIGIN 0 0 0\nSPACING 1 1 1\n"
+        b"POINT_DATA 4\nBOGUS foo 1\n1 2 3 4\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="'BOGUS'"):
+        read(tmp)
+
+
+def test_an_ascii_array_running_into_the_next_header_names_itself() -> None:
+    """float() alone answers a truncated array without naming it or the file."""
+    content = (
+        b"# vtk DataFile Version 3.0\nt\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        b"POINT_DATA 3\nSCALARS s float\nLOOKUP_TABLE default\n1 2\n"
+        b"VECTORS v float\n0 0 1\n0 0 1\n0 0 1\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match="'s'"):
+        read(tmp)
+
+
+@pytest.mark.parametrize(
+    "dims,expected_type,expected_cells",
+    [
+        ((3, 3, 3), "hexahedron", 8),
+        ((3, 3, 1), "quad", 4),
+        ((3, 1, 3), "quad", 4),
+        ((1, 3, 3), "quad", 4),
+        ((3, 1, 1), "line", 2),
+        ((1, 3, 1), "line", 2),
+        ((1, 1, 3), "line", 2),
+        ((1, 1, 1), "vertex", 0),
+    ],
+)
+def test_a_structured_grid_extends_along_whichever_axes_it_declares(
+    dims: tuple[int, int, int], expected_type: str, expected_cells: int
+) -> None:
+    """An x-z plane is as much a sheet of quads as an x-y one."""
+    from polyxios.codecs._vtk import _structured_cell_count, _structured_grid_cells
+
+    cells, etype = _structured_grid_cells(*dims)
+
+    assert etype == expected_type
+    assert len(cells) == expected_cells
+    # The count the attribute scan uses has to agree with the cells made.
+    assert _structured_cell_count(*dims) == expected_cells
+
+
+def test_a_y_z_plane_reads_as_quads_over_its_own_points() -> None:
+    """The old chain called it a run of lines and indexed the wrong points."""
+    content = (
+        b"# vtk DataFile Version 4.2\nplane\nASCII\n"
+        b"DATASET STRUCTURED_POINTS\nDIMENSIONS 1 3 3\nORIGIN 0 0 0\nSPACING 1 1 1\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert len(poly.vertices) == 9
+    assert len(poly.element_types) == 4
+    np.testing.assert_array_equal(poly.connectivity[:4], [0, 1, 4, 3])

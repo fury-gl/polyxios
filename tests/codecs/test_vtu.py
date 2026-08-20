@@ -268,3 +268,55 @@ def test_a_piece_that_withholds_its_points_is_refused(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="declares 3 points"):
         read(path)
+
+
+def test_a_piece_with_no_points_element_is_refused(tmp_path) -> None:
+    """A missing <Points> shifts every later piece as surely as a short one."""
+    pointless = (
+        '  <Piece NumberOfPoints="3" NumberOfCells="1">\n'
+        f"   <Cells>\n{_TRI_CELLS}   </Cells>\n"
+        "  </Piece>\n"
+    )
+    path = tmp_path / "pointless.vtu"
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1) + pointless))
+
+    with pytest.raises(CodecError, match="declares 3 points"):
+        read(path)
+
+
+def test_an_attribute_the_pieces_shape_differently_is_dropped(tmp_path) -> None:
+    """numpy refuses to join them, and the refusal named neither array."""
+    scalar = (
+        "   <PointData>\n"
+        '    <DataArray type="Float64" Name="q" NumberOfComponents="1"'
+        ' format="ascii">1 2 3</DataArray>\n'
+        "   </PointData>\n"
+    )
+    vector = (
+        "   <PointData>\n"
+        '    <DataArray type="Float64" Name="q" NumberOfComponents="3"'
+        ' format="ascii">1 2 3 4 5 6 7 8 9</DataArray>\n'
+        "   </PointData>\n"
+    )
+    path = tmp_path / "ragged.vtu"
+    path.write_text(
+        _vtu(
+            _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, scalar)
+            + _piece("2 0 0 3 0 0 2 1 0", 3, _TRI_CELLS, 1, vector)
+        )
+    )
+
+    with pytest.warns(UserWarning, match="shaped differently"):
+        poly = read(path)
+
+    assert "q" not in poly.vertex_attrs
+    assert poly.vertices.shape == (6, 3)
+
+
+def test_a_points_array_of_ragged_tuples_names_the_piece(tmp_path) -> None:
+    """reshape answers a size that is not whole tuples without naming a file."""
+    path = tmp_path / "ragged_points.vtu"
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0 9", 3, _TRI_CELLS, 1)))
+
+    with pytest.raises(CodecError, match="not 3 tuples of three or more"):
+        read(path)

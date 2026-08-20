@@ -32,7 +32,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         Always, if lazy=True.
     CodecError
         On a face index naming a vertex, texture coordinate or normal the
-        file has not declared.
+        file has not declared, or on a ``v``, ``vn`` or ``vt`` record that
+        does not carry the components its directive needs.
 
     Notes
     -----
@@ -44,6 +45,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     A negative index counts back from what the file has declared so far, as
     the format defines; ``f -3 -2 -1`` is the last three vertices.
+
+    A ``vt`` record may carry a third component, the depth of a volumetric
+    texture. ``texcoords`` holds the two a surface uses, and the third is
+    dropped.
     """
     if lazy:
         raise LazyReadError("OBJ format does not support lazy reads (ASCII only).")
@@ -66,6 +71,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     object_name: str | None = None
     current_material = ""
 
+    # Naming the source costs a path walk, so it is done once here rather
+    # than per line; a message is spelled only when one is raised.
+    source = source_name(path)
+
     with open_text(path, encoding="utf-8", errors="replace") as fh:
         for line_no, raw_line in enumerate(fh, start=1):
             line = raw_line.strip()
@@ -75,14 +84,20 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             directive = parts[0].lower()
 
             if directive == "v":
-                vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                vertices.append(
+                    _record(parts, width=3, needs=3, source=source, line_no=line_no)
+                )
 
             elif directive == "vn":
-                normals.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                normals.append(
+                    _record(parts, width=3, needs=3, source=source, line_no=line_no)
+                )
 
             elif directive == "vt":
+                # A vt carries one to three values; a surface uses the first
+                # two, and a missing v is the zero the format implies.
                 texcoords.append(
-                    [float(parts[1]), float(parts[2]) if len(parts) > 2 else 0.0]
+                    _record(parts, width=2, needs=1, source=source, line_no=line_no)
                 )
 
             elif directive == "f":
@@ -91,7 +106,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     n_vertices=len(vertices),
                     n_texcoords=len(texcoords),
                     n_normals=len(normals),
-                    where=f"'{source_name(path)}' line {line_no}",
+                    source=source,
+                    line_no=line_no,
                 )
                 face_vertices.append(v_idx)
                 face_normals.append(vn_idx)
@@ -231,14 +247,23 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
 
     lines.extend(f"v {v[0]:.10g} {v[1]:.10g} {v[2]:.10g}" for v in poly.vertices)
 
+    n_verts = len(poly.vertices)
+
+    vn_rows = None
     if "normals" in poly.vertex_attrs:
-        vn_rows = _record_rows(poly.vertex_attrs["normals"], width=3)
+        vn_rows = _record_rows(
+            poly.vertex_attrs["normals"], width=3, n_vertices=n_verts, what="vn"
+        )
+    if vn_rows is not None:
         lines.extend(f"vn {vn[0]:.10g} {vn[1]:.10g} {vn[2]:.10g}" for vn in vn_rows)
 
-    texcoords = poly.vertex_attrs.get("texcoords")
-    if texcoords is not None:
-        uv = _record_rows(texcoords, width=2)
-        lines.extend(f"vt {row[0]:.10g} {row[1]:.10g}" for row in uv)
+    uv_rows = None
+    if "texcoords" in poly.vertex_attrs:
+        uv_rows = _record_rows(
+            poly.vertex_attrs["texcoords"], width=2, n_vertices=n_verts, what="vt"
+        )
+    if uv_rows is not None:
+        lines.extend(f"vt {row[0]:.10g} {row[1]:.10g}" for row in uv_rows)
 
     # Build reverse tag map: element_idx - set of group names
     idx_to_groups: dict[int, list[str]] = {}
@@ -247,8 +272,10 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
             idx_to_groups.setdefault(int(i), []).append(g)
 
     n_elems = len(poly.element_types)
-    has_normals = "normals" in poly.vertex_attrs
-    has_uv = texcoords is not None
+    # A corner names a record only when the record was written; an attribute
+    # dropped above must not leave the faces indexing it.
+    has_normals = vn_rows is not None
+    has_uv = uv_rows is not None
     has_material = "material" in poly.element_attrs
 
     current_groups: list[str] | None = None
@@ -291,7 +318,9 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
     write_text(path, "\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _record_rows(values: object, *, width: int) -> np.ndarray:
+def _record_rows(
+    values: object, *, width: int, n_vertices: int, what: str
+) -> np.ndarray | None:
     """Shape a vertex attribute into rows an OBJ record can hold.
 
     Parameters
@@ -301,23 +330,111 @@ def _record_rows(values: object, *, width: int) -> np.ndarray:
     width
         Components an OBJ record of this kind carries: 3 for ``vn``, 2 for
         ``vt``.
+    n_vertices
+        Rows the mesh needs: a face corner names the record sharing its own
+        vertex index, so a shorter array leaves corners pointing past the
+        end of the record list.
+    what
+        ``'vn'`` or ``'vt'``, for the warning.
 
     Returns
     -------
-    numpy.ndarray
-        An ``(n, width)`` array. A row too short is padded with zeros rather
-        than indexed past its end, and a value the format cannot spell -
-        the NaN a reader leaves where no face named a record, an infinity -
-        is written as zero: nothing indexes those rows, and ``vt nan nan``
-        is not a record another reader takes.
+    numpy.ndarray or None
+        An ``(n_vertices, width)`` array. A row too short is padded with
+        zeros rather than indexed past its end, and a value the format
+        cannot spell - the NaN a reader leaves where no face named a
+        record, an infinity - is written as zero: nothing indexes those
+        rows, and ``vt nan nan`` is not a record another reader takes.
+
+        None when the attribute holds no usable row per vertex, or holds
+        something an OBJ record has no way to spell. Writing it anyway would
+        emit faces indexing records that are not in the file, which no
+        reader can take - this one included.
     """
-    arr = np.atleast_2d(np.asarray(values, dtype=np.float64))
+    try:
+        arr = np.asarray(values, dtype=np.float64)
+    except (TypeError, ValueError):
+        # An attribute of strings or objects is a real thing to be carrying
+        # - a label per vertex, say - and a vn record has no way to spell
+        # it. Dropping it is the same answer as a wrong shape.
+        warnings.warn(
+            f".obj: vertex attribute for {what} holds values that are not"
+            " numbers; not written.",
+            stacklevel=3,
+        )
+        return None
+    # A one-value-per-vertex attribute arrives one-dimensional; read it as a
+    # column, which np.atleast_2d would turn into a single row instead.
+    if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)
+    if arr.ndim != 2 or arr.shape[0] != n_vertices:
+        warnings.warn(
+            f".obj: vertex attribute for {what} has shape {arr.shape}, not one"
+            f" row per vertex ({n_vertices}); not written.",
+            stacklevel=3,
+        )
+        return None
     if arr.shape[1] < width:
         arr = np.pad(arr, ((0, 0), (0, width - arr.shape[1])))
     return np.nan_to_num(arr[:, :width], nan=0.0, posinf=0.0, neginf=0.0)
 
 
-def _resolve_index(token: str, *, declared: int, what: str, where: str) -> int:
+def _record(
+    parts: list[str], *, width: int, needs: int, source: str, line_no: int
+) -> list[float]:
+    """Read a ``v``, ``vn`` or ``vt`` record into a fixed-width row.
+
+    Parameters
+    ----------
+    parts
+        The line's whitespace-separated tokens, directive included.
+    width
+        Components the row must end up with, so every record of a kind is
+        the same width - which is what folding them into a per-vertex array
+        needs, and what keeps a ragged file from reaching numpy as a
+        broadcast error naming nothing.
+    needs
+        Components the directive cannot do without. A ``vt`` may carry one
+        value and mean zero for the other; a ``v`` carrying two is a
+        truncated file, not a point.
+    source
+        File name, for an error message.
+    line_no
+        Line the record is on, for an error message.
+
+    Returns
+    -------
+    list of float
+        Exactly ``width`` values, zero-padded when the record carried fewer
+        and truncated when it carried more - a ``vt`` may hold a third
+        component that a surface has no use for.
+
+    Raises
+    ------
+    CodecError
+        If the record carries fewer than ``needs`` values, or one of them is
+        not a number.
+    """
+    values = parts[1 : width + 1]
+    if len(values) < needs:
+        raise CodecError(
+            f".obj: '{source}' line {line_no}: {parts[0]!r} carries"
+            f" {len(parts) - 1} value(s); it needs at least {needs}."
+        )
+    try:
+        row = [float(text) for text in values]
+    except ValueError as exc:
+        raise CodecError(
+            f".obj: '{source}' line {line_no}: {parts[0]!r} carries"
+            f" {' '.join(values)!r}, which is not a row of numbers."
+        ) from exc
+    row.extend([0.0] * (width - len(row)))
+    return row
+
+
+def _resolve_index(
+    token: str, *, declared: int, what: str, source: str, line_no: int
+) -> int:
     """Turn one OBJ index token into a 0-based index into what it names.
 
     Parameters
@@ -329,8 +446,10 @@ def _resolve_index(token: str, *, declared: int, what: str, where: str) -> int:
         How many records of this kind the file has declared up to this line.
     what
         'vertex', 'texture coordinate' or 'normal', for the error message.
-    where
-        File and line, for the error message.
+    source
+        File name, for the error message.
+    line_no
+        Line the index is on, for the error message.
 
     Returns
     -------
@@ -348,20 +467,20 @@ def _resolve_index(token: str, *, declared: int, what: str, where: str) -> int:
         value = int(token)
     except ValueError as exc:
         raise CodecError(
-            f".obj: {where}: {what} index {token!r} is not a number."
+            f".obj: '{source}' line {line_no}: {what} index {token!r} is not a number."
         ) from exc
 
     if value == 0:
         raise CodecError(
-            f".obj: {where}: {what} index 0 is not valid; the format numbers"
-            " from 1, and counts back from -1."
+            f".obj: '{source}' line {line_no}: {what} index 0 is not valid;"
+            " the format numbers from 1, and counts back from -1."
         )
 
     idx = value - 1 if value > 0 else declared + value
     if not 0 <= idx < declared:
         raise CodecError(
-            f".obj: {where}: {what} index {value} names a record the file has"
-            f" not declared ({declared} so far)."
+            f".obj: '{source}' line {line_no}: {what} index {value} names a"
+            f" record the file has not declared ({declared} so far)."
         )
     return idx
 
@@ -372,7 +491,8 @@ def _parse_face(
     n_vertices: int,
     n_texcoords: int,
     n_normals: int,
-    where: str,
+    source: str,
+    line_no: int,
 ) -> tuple[list[int], list[int | None], list[int | None]]:
     """Parse OBJ face tokens into 0-based vertex, uv and normal index lists.
 
@@ -384,8 +504,10 @@ def _parse_face(
         How many of each record the file has declared so far, which is what
         a negative index counts back from and what an index is checked
         against.
-    where
-        File and line, for an error message.
+    source
+        File name, for an error message.
+    line_no
+        Line the face is on, for an error message.
 
     Returns
     -------
@@ -400,7 +522,13 @@ def _parse_face(
     for tok in tokens:
         parts = tok.split("/")
         v_idx.append(
-            _resolve_index(parts[0], declared=n_vertices, what="vertex", where=where)
+            _resolve_index(
+                parts[0],
+                declared=n_vertices,
+                what="vertex",
+                source=source,
+                line_no=line_no,
+            )
         )
         if len(parts) >= 2 and parts[1]:
             vt_idx.append(
@@ -408,14 +536,21 @@ def _parse_face(
                     parts[1],
                     declared=n_texcoords,
                     what="texture coordinate",
-                    where=where,
+                    source=source,
+                    line_no=line_no,
                 )
             )
         else:
             vt_idx.append(None)
         if len(parts) >= 3 and parts[2]:
             vn_idx.append(
-                _resolve_index(parts[2], declared=n_normals, what="normal", where=where)
+                _resolve_index(
+                    parts[2],
+                    declared=n_normals,
+                    what="normal",
+                    source=source,
+                    line_no=line_no,
+                )
             )
         else:
             vn_idx.append(None)
@@ -464,7 +599,7 @@ def _per_vertex(
             warnings.warn(
                 f".obj: {len(values)} {what}(s) for {n_vertices} vertices and no"
                 f" face indexes them, so they cannot be matched up; dropped.",
-                stacklevel=2,
+                stacklevel=3,
             )
             return None
         return np.array(values, dtype=np.float64)
@@ -484,6 +619,6 @@ def _per_vertex(
         warnings.warn(
             f".obj: a vertex is given more than one {what}, which a per-vertex"
             " array cannot hold; the last one written wins.",
-            stacklevel=2,
+            stacklevel=3,
         )
     return out

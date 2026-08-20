@@ -73,6 +73,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise ValueError("No <UnstructuredGrid> element found in VTU file.")
 
     all_vertices: list[np.ndarray] = []
+    n_joined_points = 0
     all_connectivity: list[np.ndarray] = []
     all_offsets: list[int] = [0]
     all_types: list[int] = []
@@ -82,25 +83,32 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     for piece in ug.findall("Piece"):
         n_points = int(piece.get("NumberOfPoints", "0"))
 
-        points_elem = piece.find("Points")
-        if points_elem is not None and n_points > 0:
-            da = points_elem.find("DataArray")
-            if da is not None:
-                flat = _decode(da)
-                # A piece that declares points and does not deliver them
-                # cannot be dropped quietly: its cells index those points,
-                # and every later piece is offset by how many there were.
-                if flat.size < n_points * 3:
-                    raise CodecError(
-                        f".vtu: a Piece declares {n_points} points but its"
-                        f" Points array holds {flat.size} values."
-                    )
-                verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
-                all_vertices.append(verts)
+        # Where this piece's points land in the joined array: its cells
+        # index its own points from zero. Carried along rather than summed
+        # per piece, which walks every piece read so far to answer the same
+        # question a running count already holds.
+        vert_offset = n_joined_points
 
-        vert_offset = (
-            sum(v.shape[0] for v in all_vertices[:-1]) if len(all_vertices) > 1 else 0
-        )
+        points_elem = piece.find("Points")
+        if n_points > 0:
+            # A piece that declares points and does not deliver them cannot
+            # be dropped quietly: its cells index those points, and every
+            # later piece is offset by how many there were.
+            da = None if points_elem is None else points_elem.find("DataArray")
+            flat = np.array([]) if da is None else _decode(da)
+            # The array has to hold whole tuples as well as enough of
+            # them: a size that is not a multiple of the point count has
+            # no shape to be read as, and reshape answers that with a
+            # ValueError naming neither the file nor the Piece.
+            if flat.size < n_points * 3 or flat.size % n_points:
+                raise CodecError(
+                    f".vtu: a Piece declares {n_points} points but its"
+                    f" Points array holds {flat.size} values, which is not"
+                    f" {n_points} tuples of three or more."
+                )
+            verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
+            all_vertices.append(verts)
+            n_joined_points += n_points
 
         cells_elem = piece.find("Cells")
         if cells_elem is not None:
