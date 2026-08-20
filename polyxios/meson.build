@@ -25,6 +25,7 @@ py.install_sources(
     '_core.pxd',
     '_core_fallback.py',
     '_element_types.py',
+    '_io.py',
     '_registry.py',
     '_types.py',
     'exceptions.py',

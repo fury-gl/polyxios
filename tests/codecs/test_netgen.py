@@ -465,13 +465,20 @@ def test_empty_file_raises(tmp_path: Path) -> None:
         read(path)
 
 
-def test_gzip_is_refused(tmp_path: Path) -> None:
+def test_a_gzipped_vol_reads_like_a_plain_one(tmp_path: Path) -> None:
+    """gzip is unwrapped by the IO layer, so the codec never sees it."""
     import gzip
 
-    path = tmp_path / "mesh.vol"
-    path.write_bytes(gzip.compress(_SAMPLE.encode()))
-    with pytest.raises(CodecError, match="gzip-compressed"):
-        read(path)
+    plain = tmp_path / "mesh.vol"
+    plain.write_text(_SAMPLE)
+    packed = tmp_path / "mesh.vol.gz"
+    packed.write_bytes(gzip.compress(_SAMPLE.encode()))
+
+    from_plain = px_read(plain)
+    from_gzip = px_read(packed)
+
+    np.testing.assert_array_equal(from_gzip.vertices, from_plain.vertices)
+    np.testing.assert_array_equal(from_gzip.connectivity, from_plain.connectivity)
 
 
 def test_missing_file_raises_codec_error(tmp_path: Path) -> None:

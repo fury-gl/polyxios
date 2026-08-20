@@ -15,7 +15,6 @@ Element types are spelled with the VTK type codes SU2 borrows, and node
 references are 0-based in both directions, so neither needs a shift.
 """
 
-from pathlib import Path
 import re
 from typing import Any
 import warnings
@@ -29,6 +28,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -427,7 +427,7 @@ def _read_markers(
     return conn, widths, codes, tags
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an SU2 mesh file and return a PolyData.
 
     Parameters
@@ -469,7 +469,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     # 'utf-8-sig' so a byte-order mark cannot glue itself to NDIME and hide the
     # first record; errors="replace" keeps a file written in some other 8-bit
     # encoding inside a CodecError, since only a marker name can be hurt.
-    text = Path(path).read_text(encoding="utf-8-sig", errors="replace")
+    text = read_text(path, encoding="utf-8-sig", errors="replace")
     records = _scan(text)
 
     ndim_idx = _find_key(records, "NDIME")
@@ -781,7 +781,7 @@ def _marker_groups(poly: PolyData, boundary: list[int]) -> dict[str, list[int]]:
     return groups
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to an SU2 mesh file.
 
     Parameters
@@ -829,7 +829,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
             f".su2 write: unrecognized options {set(opts)}; ignored.", stacklevel=2
         )
 
-    path = Path(path)
     n_verts = poly.vertices.shape[0]
 
     volume, boundary, names, mesh_dim = _split_by_dimension(poly)
@@ -873,4 +872,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
             node_str = " ".join(str(nid) for nid in nodes)
             lines.append(f"{_POLYXIOS_TO_SU2[names[i]]} {node_str}")
 
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_text(path, "\n".join(lines) + "\n", encoding="utf-8")

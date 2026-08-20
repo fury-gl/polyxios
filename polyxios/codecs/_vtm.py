@@ -1,13 +1,13 @@
-from pathlib import Path
 from typing import Any
 
+from polyxios._io import Source, source_name
 from polyxios._types import PolyData
 from polyxios.exceptions import UnsupportedFormatError
 
 EXTENSION: str = ".vtm"
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Raise UnsupportedFormatError - .vtm is a parallel/multi-block meta-file.
 
     Parameters
@@ -23,13 +23,13 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         Always. See examples/read_parallel_vtk.py for a loading tutorial.
     """
     raise UnsupportedFormatError(
-        f"'{Path(path).name}' is a parallel/multi-block meta-file (.vtm): it "
+        f"'{source_name(path)}' is a parallel/multi-block meta-file (.vtm): it "
         "contains no geometry, only references to sub-files. "
         "See examples/read_parallel_vtk.py for a step-by-step loading tutorial."
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Raise NotImplementedError - writing .vtm files is not supported.
 
     Parameters

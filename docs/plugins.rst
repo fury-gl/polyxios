@@ -49,3 +49,47 @@ configuration, no restart needed:
 
    Extensions are resolved in lower case, so register ``".abc"`` rather than
    ``".ABC"`` - a key the resolver cannot reach is worse than none.
+
+Reading a path or a buffer
+--------------------------
+
+``path`` is whatever the caller passed ``read()`` or ``write()``: a path, or
+an open file object. Opening it yourself would refuse the second, so use the
+helpers in :mod:`polyxios._io`, which take either:
+
+.. code-block:: python
+
+    from polyxios._io import read_text, write_text
+
+    def read(path, *, lazy=False) -> PolyData:
+        text = read_text(path, encoding="utf-8", errors="replace")
+        ...
+
+    def write(poly: PolyData, path, **opts) -> None:
+        write_text(path, "\n".join(lines), encoding="utf-8")
+
+``read_bytes`` / ``write_bytes`` are the binary pair, ``open_read`` /
+``open_write`` yield a binary handle for a codec that streams, ``open_text``
+yields one to iterate line by line, and ``open_block`` gives a binary parser
+the whole file at once - mapped for a path, read into memory for a buffer.
+``source_name`` and ``source_suffix`` are what an error message should quote,
+since a buffer has no ``Path`` to ask.
+
+Going through the helpers is also what gives a codec gzip for free: the
+decompression happens inside them, so a codec that opened the path itself
+would be the only format in the library that cannot read a ``.gz``.
+
+A codec that genuinely needs a file on disk - a format split across sibling
+files, say - calls ``require_path(path, fmt=..., reason=...)``, which returns
+a ``Path`` or refuses the buffer with a message naming why. It refuses a
+compressed one too: a codec opening its own files is not going through the
+layer that unwraps gzip, so a ``.gz`` there would be parsed as text.
+
+Pass ``reading=True`` on the way in, where the file already holds bytes to
+look at, so a file compressed without being renamed is caught by its content
+the way it is everywhere else. Leave it unset on the way out: a destination
+holds either nothing or the file about to be replaced, and reading that one
+would refuse a plain write for the sake of whatever happened to be sitting
+there. ``require_path`` only ever sees the path the caller named, so a codec
+that then opens siblings of its own has to check those itself - ``is_gzip``
+takes a path and answers in four bytes.

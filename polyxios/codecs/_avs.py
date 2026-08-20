@@ -1,12 +1,12 @@
 """AVS-UCD .avs ASCII codec - read + write."""
 
-from pathlib import Path
 from typing import Any
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -32,7 +32,7 @@ _POLYXIOS_TO_AVS: dict[str, str] = {
 }
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an AVS-UCD .avs file.
 
     Parameters
@@ -57,7 +57,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
         )
     data_lines = [
         ln
-        for ln in Path(path).read_text(encoding="utf-8").splitlines()
+        for ln in read_text(path, encoding="utf-8").splitlines()
         if ln.strip() and not ln.strip().startswith("#")
     ]
 
@@ -138,7 +138,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Write PolyData to AVS-UCD .avs ASCII format.
 
     Parameters
@@ -206,4 +206,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         lines.append(f"{out_idx + 1} {mat_id} {avs_type} {node_str}")
     lines.append("")
 
-    Path(path).write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")
