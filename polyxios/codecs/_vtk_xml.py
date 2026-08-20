@@ -126,6 +126,45 @@ def format_da(
     )
 
 
+def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> str:
+    """Render a point or cell attribute in the type the array is held in.
+
+    An attribute is whatever a caller put in ``vertex_attrs`` or
+    ``element_attrs``, and casting it all to a double is a header that
+    agrees with the bytes but not with the data: an ``int64`` identifier
+    past 2**53 comes back a different number. The dtype names the VTK type,
+    and a kind no VTK type names falls back to the double it converts to.
+
+    Parameters
+    ----------
+    name
+        Array name.
+    arr
+        Values, one tuple per row. Every dimension past the first belongs to
+        the tuple and is declared as the component count, which is what cuts
+        the flat run back into rows on the way in.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    indent
+        Spaces to prefix the line with.
+
+    Returns
+    -------
+    str
+        The ``<DataArray>`` line.
+    """
+    vtk_type, dtype = np_to_vtk_type(arr.dtype)
+    return format_da(
+        name,
+        arr,
+        vtk_type=vtk_type,
+        dtype=dtype,
+        binary=binary,
+        n_comp=components(arr),
+        indent=indent,
+    )
+
+
 def spell_values(arr: np.ndarray) -> str:
     """Spell an array as the ASCII body of a ``DataArray``.
 
@@ -146,7 +185,14 @@ def spell_values(arr: np.ndarray) -> str:
     str
         The values, space separated, in C order.
     """
-    return " ".join(map(repr, arr.ravel().tolist()))
+    flat = arr.ravel()
+    if flat.dtype.kind == "f" and flat.dtype.itemsize < 8:
+        # ``tolist`` widens a float32 to a double, and its shortest decimal
+        # is seventeen digits of a value that only carries seven: 0.1 goes
+        # out as 0.10000000149011612. numpy spells it at the width it is
+        # held at, which reads back as the same float32 in half the bytes.
+        return " ".join(flat.astype("U").tolist())
+    return " ".join(map(repr, flat.tolist()))
 
 
 def components(arr: np.ndarray) -> int:
@@ -574,13 +620,50 @@ def decode_da(
     text = (elem.text or "").strip()
 
     if fmt == "ascii":
-        return np.array([float(x) for x in text.split() if x], dtype=dtype_str)
+        return parse_ascii_values(text, dtype_str)
 
     # inline binary / base64
     raw = base64.b64decode(text.encode())
     if len(raw) <= 4:
         return np.array([], dtype=dtype_str)
     return np.frombuffer(raw[4:], dtype=endian + dtype_str).copy().astype(dtype_str)
+
+
+def parse_ascii_values(text: str, dtype_str: str) -> np.ndarray:
+    """Read the ASCII body of a ``DataArray`` into the type it declares.
+
+    Handing every token to ``float`` first rounds it to a double before the
+    declared type ever sees it, which an ``Int64`` identifier past 2**53
+    does not survive - ``9007199254740993`` reads back as
+    ``9007199254740992``. numpy parses the tokens into the target dtype
+    directly, which is exact for the whole integer range and faster than a
+    Python-level conversion per value besides.
+
+    Parameters
+    ----------
+    text
+        The element's text, whitespace separated.
+    dtype_str
+        The numpy dtype character the declared VTK type maps to.
+
+    Returns
+    -------
+    numpy.ndarray
+        The values, in ``dtype_str``.
+
+    Raises
+    ------
+    ValueError
+        If a token names no number at all.
+    """
+    tokens = text.split()
+    try:
+        return np.array(tokens, dtype=dtype_str)
+    except ValueError:
+        # An integer array spelled with a decimal point is not something
+        # numpy parses, and not worth refusing either: read it as a double
+        # and truncate it the way the declared type would have held it.
+        return np.array([float(token) for token in tokens], dtype=dtype_str)
 
 
 def join_piece_attrs(

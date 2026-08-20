@@ -6,14 +6,12 @@ from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
-    components,
     decode_da,
-    format_da,
+    format_attr_da,
     parse_xml,
     shaped_da,
     sized_attrs,
     structured_hexahedra,
-    vtk_type_to_np,
 )
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
@@ -185,19 +183,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            n_comp = components(arr)
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </PointData>")
 
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            n_comp = components(arr)
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
@@ -205,46 +197,3 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append("</VTKFile>")
 
     write_text(path, "\n".join(lines), encoding="utf-8")
-
-
-def _da(
-    name: str,
-    arr: np.ndarray,
-    vtk_type: str,
-    binary: bool,
-    n_comp: int,
-    indent: int,
-) -> str:
-    """Render one ``<DataArray>`` element.
-
-    Parameters
-    ----------
-    name
-        Array name; empty for the unnamed ``Points`` array.
-    arr
-        Values, flat or one row per tuple.
-    vtk_type
-        The type name the element declares. The values are cast to the dtype
-        it names, so the bytes are what the header says they are on a
-        big-endian machine as much as on a little-endian one.
-    binary
-        Base64 the raw bytes instead of spelling the numbers.
-    n_comp
-        Components per tuple.
-    indent
-        Spaces to prefix the line with.
-
-    Returns
-    -------
-    str
-        The ``<DataArray>`` line.
-    """
-    return format_da(
-        name,
-        arr,
-        vtk_type=vtk_type,
-        dtype=np.dtype("<" + (vtk_type_to_np(vtk_type) or "f8")),
-        binary=binary,
-        n_comp=n_comp,
-        indent=indent,
-    )

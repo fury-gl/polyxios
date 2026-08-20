@@ -369,3 +369,40 @@ def test_a_tensor_declares_every_component_it_holds(tmp_path, binary: bool) -> N
 
     assert back.vertex_attrs["tensor"].shape == (3, 9)
     np.testing.assert_array_equal(back.vertex_attrs["tensor"], tensor.reshape(3, 9))
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_an_integer_attribute_keeps_every_digit_it_holds(
+    tmp_path, binary: bool
+) -> None:
+    """Cast to a double, an id past 2**53 came back a different number."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    ids = np.array([2**53 + 1, 2**53 + 3, 7], dtype=np.int64)
+    poly.vertex_attrs["ids"] = ids
+    path = tmp_path / "ids.vtu"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.vertex_attrs["ids"].dtype == np.int64
+    np.testing.assert_array_equal(back.vertex_attrs["ids"], ids)
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_float32_attribute_is_declared_and_read_as_float32(
+    tmp_path, binary: bool
+) -> None:
+    """The header has to name the width the bytes are written at."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    values = np.array([0.1, 1 / 3, 3.4028235e38], dtype=np.float32)
+    poly.vertex_attrs["v"] = values
+    path = tmp_path / "f32.vtu"
+
+    write(poly, path, binary=binary)
+    assert 'type="Float32"' in path.read_text()
+    back = read(path)
+
+    assert back.vertex_attrs["v"].dtype == np.float32
+    np.testing.assert_array_equal(back.vertex_attrs["v"], values)

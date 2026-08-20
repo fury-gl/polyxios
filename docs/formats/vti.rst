@@ -72,6 +72,7 @@ Quirks worth knowing
 - ``Origin`` defaults to ``0 0 0`` and ``Spacing`` to ``1 1 1`` when the attributes are absent.
 - A ``<Piece>`` may restate a sub-extent of ``WholeExtent``; the piece's own extent is what gets expanded.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`.
+- Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 
 .. seealso::
 

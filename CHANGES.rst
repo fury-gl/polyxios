@@ -333,10 +333,60 @@ Bug fixes
   conflict on that vertex.
 - Writing an OBJ ``vn`` or ``vt`` attribute wider than the record says how
   many components are being left out, rather than truncating in silence.
+- A legacy ``STRUCTURED_GRID`` whose ``DIMENSIONS`` does not cover its
+  ``POINTS`` array hands the points back without cells, warning about the
+  two counts. The cells are strides through the layout the header
+  describes, so a header naming more points than the file delivered
+  generated connectivity indexing points that are not there: the read
+  returned a ``PolyData`` that fails ``validate``. ``RECTILINEAR_GRID``
+  already reconciled the two.
+- An attribute section is read by the count its own header declares rather
+  than by the count of the mesh. The two agree in a well-formed file, and
+  where they do not the section's is the only number that says where one
+  array ends and the next begins - reading by the mesh's walked an array
+  straight into the header after it. An array that then covers no point or
+  cell of the mesh is dropped with a warning naming it, as the structured
+  readers already did.
+- A binary legacy ``.vtk`` ``SCALARS`` section without a ``LOOKUP_TABLE``
+  line - which the format leaves optional - reads its own values. The line
+  was consumed unconditionally, so the payload up to its first ``0x0a``
+  byte was swallowed, and a payload holding none rewound the scan to the
+  top of the file.
+- A binary legacy ``.vtk`` ``POINTS``, ``CELLS`` or ``CELL_TYPES`` block is
+  checked against the end of the file before it is sliced, the way the
+  attribute blocks already were. The whole-file bound the header check
+  applies clears a block that still runs off the end - a file with a long
+  comment header, say - and the reshape after the short slice failed with a
+  ``ValueError`` naming neither the array nor the file.
+- A legacy ``.vtk`` attribute header missing a field, or spelling a count
+  as something that is not a number, names the file and the line it is on.
+  ``SCALARS`` with no array name reached the caller as ``IndexError: list
+  index out of range`` and ``SCALARS s float x`` as a bare ``ValueError``,
+  in the ASCII scan, the binary scan and the structured one alike. A binary
+  file has no line to name, so the byte offset stands in for one.
+- ``.vti``, ``.vts``, ``.vtp`` and ``.vtu`` write each attribute in the
+  type the array is held in, as ``.vtr`` does. Everything was cast to a
+  double under a ``Float64`` header, so an ``int64`` identifier past 2**53
+  came back a different number.
+- The ASCII body of a ``<DataArray>`` is parsed into the type the element
+  declares rather than through ``float()`` first. An ``Int64`` array was
+  rounded to a double before the declared type ever saw it, which the top
+  of the integer range does not survive.
 
 Optimizations
 ~~~~~~~~~~~~~
 
+- Reading an OBJ file resolves a face corner inline when it names a plain
+  index inside what has been declared, which is what nearly every corner
+  does; the rest still go the long way round, where the message naming the
+  line lives. A mesh of any size has millions of corners, and the call this
+  saves is most of what checking them cost. A ``v``, ``vn`` or ``vt`` record
+  carrying exactly the components its directive spells skips the padding and
+  the slice that feeds it.
+- A ``float32`` attribute is spelled at its own width in an ASCII
+  ``<DataArray>``. Widened to a double first, ``0.1`` went out as
+  ``0.10000000149011612`` - seventeen digits of a value carrying seven -
+  which is nearly twice the file for the same numbers.
 - Writing a Nastran large-field deck is roughly ten times faster. Sweeping
   for an exact spelling asked every precision from seventeen digits down,
   spelling and parsing candidates at each; rounding to fewer significant

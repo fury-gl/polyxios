@@ -89,6 +89,10 @@ Quirks worth knowing
 - VTK 5.1 cells - the default since VTK 9.0 - are read wherever they appear: ``CELLS`` in an unstructured grid and ``POLYGONS``, ``LINES``, ``VERTICES`` or ``TRIANGLE_STRIPS`` in polydata. The two numbers on such a line are the length of the ``OFFSETS`` array and the length of ``CONNECTIVITY``, so the mesh holds one cell fewer than the first of them; the offsets are counted up to the ``CONNECTIVITY`` keyword, so a file spelling that line either way is read. ``write(..., vtk_version="5.1")`` declares the offsets length, which is what VTK's own reader expects.
 - A ``METADATA`` block - component names and information keys, written after every array by VTK 4.2 and later - is stepped over rather than read as an array. It is text even in a binary file, and it appears between the entries of a ``FIELD`` block as well as after a section.
 - A ``RECTILINEAR_GRID`` takes its grid from its coordinate arrays: the points are their outer product, so a ``DIMENSIONS`` header that disagrees with them is warned about and ignored.
+- A ``STRUCTURED_GRID`` carries an explicit ``POINTS`` array, which its ``DIMENSIONS`` cannot be reconciled against the way a rectilinear grid's coordinates can. When the two disagree the points are handed back without cells, with a warning naming both counts: the cells the header describes would index points the file does not hold.
+- An attribute section is read by the count its own header declares, which is the only thing that says where one array ends and the next begins. An array that then covers no point or cell of the mesh is dropped with a warning naming it.
+- The ``LOOKUP_TABLE`` line after a ``SCALARS`` section is optional, and a binary file without one is read as such rather than losing the head of its payload.
+- A header missing a field, or spelling a count as something that is not a number, raises ``CodecError`` naming the line it is on - the byte offset, in a binary file.
 
 .. seealso::
 

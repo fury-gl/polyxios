@@ -6,10 +6,8 @@ from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
-    components,
     decode_da,
-    format_da,
-    np_to_vtk_type,
+    format_attr_da,
     parse_xml,
     shaped_da,
     sized_attrs,
@@ -214,13 +212,4 @@ def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) ->
     str
         The ``<DataArray>`` line.
     """
-    vtk_type, dtype = np_to_vtk_type(arr.dtype)
-    return format_da(
-        name,
-        arr,
-        vtk_type=vtk_type,
-        dtype=dtype,
-        binary=binary,
-        n_comp=components(arr),
-        indent=indent,
-    )
+    return format_attr_da(name, arr, binary=binary, indent=indent)

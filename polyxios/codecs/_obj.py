@@ -423,6 +423,15 @@ def _record(
         If the record carries fewer than ``needs`` values, or one of them is
         not a number.
     """
+    # A well-formed record carries exactly the components its directive
+    # spells, so the common line needs neither the padding below nor the
+    # slice that feeds it.
+    if len(parts) == width + 1:
+        try:
+            return [float(text) for text in parts[1:]]
+        except ValueError:
+            pass
+
     values = parts[1 : width + 1]
     if len(values) < needs:
         raise CodecError(
@@ -529,39 +538,60 @@ def _parse_face(
 
     for tok in tokens:
         parts = tok.split("/")
+        n_parts = len(parts)
+        # A corner is a plain 1-based index inside what has been declared far
+        # more often than it is anything else, and settling that is a digit
+        # test and a comparison. Every other shape - negative, zero, not a
+        # number, past the end - goes to _resolve_index, which is where the
+        # message naming the line lives; a mesh of any size has millions of
+        # corners, and the call this saves is most of what reading them cost.
+        token = parts[0]
+        value = int(token) if token.isdigit() else 0
         v_idx.append(
-            _resolve_index(
-                parts[0],
+            value - 1
+            if 0 < value <= n_vertices
+            else _resolve_index(
+                token,
                 declared=n_vertices,
                 what="vertex",
                 source=source,
                 line_no=line_no,
             )
         )
-        if len(parts) >= 2 and parts[1]:
+
+        token = parts[1] if n_parts >= 2 else ""
+        if not token:
+            vt_idx.append(None)
+        else:
+            value = int(token) if token.isdigit() else 0
             vt_idx.append(
-                _resolve_index(
-                    parts[1],
+                value - 1
+                if 0 < value <= n_texcoords
+                else _resolve_index(
+                    token,
                     declared=n_texcoords,
                     what="texture coordinate",
                     source=source,
                     line_no=line_no,
                 )
             )
+
+        token = parts[2] if n_parts >= 3 else ""
+        if not token:
+            vn_idx.append(None)
         else:
-            vt_idx.append(None)
-        if len(parts) >= 3 and parts[2]:
+            value = int(token) if token.isdigit() else 0
             vn_idx.append(
-                _resolve_index(
-                    parts[2],
+                value - 1
+                if 0 < value <= n_normals
+                else _resolve_index(
+                    token,
                     declared=n_normals,
                     what="normal",
                     source=source,
                     line_no=line_no,
                 )
             )
-        else:
-            vn_idx.append(None)
 
     return v_idx, vt_idx, vn_idx
 

@@ -6,8 +6,8 @@ from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
-    components,
     decode_da,
+    format_attr_da,
     format_da,
     join_piece_attrs,
     parse_xml,
@@ -278,19 +278,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            n_comp = components(arr)
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </PointData>")
 
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            n_comp = components(arr)
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
