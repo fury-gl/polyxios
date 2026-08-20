@@ -341,10 +341,12 @@ def _record_rows(
     -------
     numpy.ndarray or None
         An ``(n_vertices, width)`` array. A row too short is padded with
-        zeros rather than indexed past its end, and a value the format
-        cannot spell - the NaN a reader leaves where no face named a
-        record, an infinity - is written as zero: nothing indexes those
-        rows, and ``vt nan nan`` is not a record another reader takes.
+        zeros rather than indexed past its end, a row too long keeps the
+        components the record carries and warns about the rest, and a value
+        the format cannot spell - the NaN a reader leaves where no face
+        named a record, an infinity - is written as zero: nothing indexes
+        those rows, and ``vt nan nan`` is not a record another reader
+        takes.
 
         None when the attribute holds no usable row per vertex, or holds
         something an OBJ record has no way to spell. Writing it anyway would
@@ -376,6 +378,12 @@ def _record_rows(
         return None
     if arr.shape[1] < width:
         arr = np.pad(arr, ((0, 0), (0, width - arr.shape[1])))
+    elif arr.shape[1] > width:
+        warnings.warn(
+            f".obj: vertex attribute for {what} has {arr.shape[1]} components;"
+            f" a {what} record carries {width}, so the rest are not written.",
+            stacklevel=3,
+        )
     return np.nan_to_num(arr[:, :width], nan=0.0, posinf=0.0, neginf=0.0)
 
 
@@ -591,10 +599,20 @@ def _per_vertex(
         line them up, and inventing one is how a mesh ends up with someone
         else's texture.
     """
-    width = len(values[0])
-    indexed = any(idx is not None for face in face_indices for idx in face)
+    records = np.asarray(values, dtype=np.float64)
+    width = records.shape[1]
 
-    if not indexed:
+    # One flat pass over the corners rather than a numpy assignment per
+    # corner: a mesh of any size has millions of them, and indexing a row at
+    # a time is where a read of one used to go.
+    named = np.fromiter(
+        (-1 if idx is None else idx for face in face_indices for idx in face),
+        dtype=np.intp,
+        count=sum(map(len, face_indices)),
+    )
+    keeps = named >= 0
+
+    if not keeps.any():
         if len(values) != n_vertices:
             warnings.warn(
                 f".obj: {len(values)} {what}(s) for {n_vertices} vertices and no"
@@ -602,20 +620,26 @@ def _per_vertex(
                 stacklevel=3,
             )
             return None
-        return np.array(values, dtype=np.float64)
+        return records
+
+    corners = np.fromiter(
+        (vi for face in face_vertices for vi in face),
+        dtype=np.intp,
+        count=sum(map(len, face_vertices)),
+    )[keeps]
+    rows = records[named[keeps]]
 
     out = np.full((n_vertices, width), np.nan, dtype=np.float64)
-    conflicting = False
-    for face_v, face_i in zip(face_vertices, face_indices):
-        for vi, idx in zip(face_v, face_i):
-            if idx is None:
-                continue
-            row = values[idx]
-            if not conflicting and not np.isnan(out[vi, 0]):
-                conflicting = bool(np.any(out[vi] != row))
-            out[vi] = row
+    # Duplicate indices resolve in order, so the last corner to name a
+    # vertex is the one whose value stays - which is the rule this documents.
+    out[corners] = rows
 
-    if conflicting:
+    # A vertex named twice with the same value is not a conflict, so the
+    # question is whether what survived is what each corner asked for. NaN
+    # never equals itself, and a record may legitimately hold one.
+    final = out[corners]
+    differs = final != rows
+    if bool(np.any(differs & ~(np.isnan(final) & np.isnan(rows)))):
         warnings.warn(
             f".obj: a vertex is given more than one {what}, which a per-vertex"
             " array cannot hold; the last one written wins.",

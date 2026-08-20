@@ -140,3 +140,62 @@ def test_a_binary_integer_attribute_is_written_as_the_type_it_declares(
     back = read(path)
 
     np.testing.assert_array_equal(back.vertex_attrs["ints"], np.arange(27))
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_dtype_no_vtk_type_names_is_written_as_the_one_declared(
+    tmp_path, binary: bool
+) -> None:
+    """Only the header fell back to Float64; the bytes stayed booleans."""
+    poly = _grid()
+    poly.vertex_attrs["mask"] = np.arange(27) % 2 == 0
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    np.testing.assert_array_equal(
+        back.vertex_attrs["mask"], poly.vertex_attrs["mask"].astype(np.float64)
+    )
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_tensor_declares_every_component_it_holds(tmp_path, binary: bool) -> None:
+    """shape[1] of an (n, 3, 3) array is three, and the tuple is nine."""
+    poly = _grid()
+    tensor = np.arange(27 * 9, dtype=np.float64).reshape(27, 3, 3)
+    poly.vertex_attrs["tensor"] = tensor
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.vertex_attrs["tensor"].shape == (27, 9)
+    np.testing.assert_array_equal(back.vertex_attrs["tensor"], tensor.reshape(27, 9))
+
+
+def test_an_attribute_that_covers_no_mesh_is_dropped(tmp_path) -> None:
+    """It used to reach PolyData and fail validate with a length message."""
+    path = tmp_path / "short.vtr"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian">\n'
+        '  <RectilinearGrid WholeExtent="0 1 0 1 0 1">\n'
+        '    <Piece Extent="0 1 0 1 0 1">\n'
+        "      <Coordinates>\n"
+        '        <DataArray type="Float64" Name="x" format="ascii">0 1</DataArray>\n'
+        '        <DataArray type="Float64" Name="y" format="ascii">0 1</DataArray>\n'
+        '        <DataArray type="Float64" Name="z" format="ascii">0 1</DataArray>\n'
+        "      </Coordinates>\n"
+        "      <PointData>\n"
+        '        <DataArray type="Float64" Name="half" format="ascii">1 2 3</DataArray>\n'
+        "      </PointData>\n"
+        "    </Piece>\n"
+        "  </RectilinearGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.warns(UserWarning, match="covers 3 of 8 points"):
+        back = read(path)
+
+    assert "half" not in back.vertex_attrs

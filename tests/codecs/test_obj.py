@@ -324,3 +324,29 @@ def test_an_attribute_of_labels_is_dropped_rather_than_crashing(tmp_path) -> Non
     text = path.read_text()
     assert "vn " not in text
     assert "f 1 2 3" in text
+
+
+def test_a_conflict_is_seen_in_whichever_component_it_is_in(tmp_path) -> None:
+    """The check asked about the first component, which may itself be NaN."""
+    path = tmp_path / "seam.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt nan 0\nvt nan 1\nf 1/1 2/1 3/1\nf 1/2 2/1 3/1\n"
+    )
+
+    with pytest.warns(UserWarning, match="more than one texture coordinate"):
+        read(path)
+
+
+def test_a_wider_attribute_says_what_it_leaves_out(tmp_path) -> None:
+    """A vt record carries two components; the rest went in silence."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"texcoords": np.arange(9, dtype=np.float64).reshape(3, 3)},
+    )
+    path = tmp_path / "wide.obj"
+
+    with pytest.warns(UserWarning, match="3 components"):
+        write(poly, path)
+
+    assert "vt 0 1" in path.read_text()

@@ -288,6 +288,51 @@ Bug fixes
   ``type="String"``, or any type this reader does not know - raises
   ``CodecError`` naming the type. It warned that the array was skipped and
   then blamed the point count for the zero values that left.
+- A ``.vtr`` attribute of a dtype no VTK type names - a boolean mask, a
+  float16 - is written as the ``Float64`` its header declares. Only the
+  header fell back; the bytes stayed the dtype's own, so eight booleans
+  went out as eight bytes under a ``Float64`` header and read back as one
+  garbage double.
+- Every XML writer declares the whole width of a tuple, not the second
+  dimension of the array holding it. A ``(n, 3, 3)`` tensor attribute -
+  what a legacy ``TENSORS`` section reads back as - was declared as one
+  component in ``.vti``, ``.vts``, ``.vtp`` and ``.vtu`` and as three in
+  ``.vtr``, so nine times the rows came back and belonged to no mesh.
+- The XML writers cast to little endian before taking the bytes, which is
+  what the ``byte_order`` they all declare says those bytes are. On a
+  big-endian machine every binary array went out reversed.
+- ``.vti``, ``.vts`` and ``.vtr`` drop an attribute whose rows cannot be
+  matched to the mesh, with a warning naming it, as ``.vtu`` and ``.vtp``
+  already did. It used to reach ``PolyData`` and fail ``validate`` with a
+  message about lengths rather than about the file.
+- A binary legacy ``.vtk`` file holds its ``TENSORS`` as binary. Both
+  tensor branches of the writer - the 3x3 one and the Voigt 6-component
+  one - spelled their numbers whatever was asked for, so a binary file
+  carrying either had a run of ASCII in the middle of it and came back as
+  a ``CodecError`` about a short block.
+- The ASCII writers spell a value as the shortest decimal that reads back
+  as it, rather than to ten significant digits. A legacy ``.vtk``,
+  ``.vti``, ``.vts``, ``.vtp`` or ``.vtr`` file declaring ``double`` or
+  ``Float64`` held seven digits fewer than that, so coordinates came back
+  about 1e-10 off what was written; they are now exact.
+- A ``METADATA`` block written without its blank terminator ends at the
+  geometry keyword after it as well as at an attribute one. Left open at
+  the end of a ``POINT_DATA`` section it swallowed the ``CELLS`` that
+  followed and every line to the end of the file - the failure the
+  terminator search was added to prevent.
+- A malformed attribute section in a structured legacy ``.vtk`` file costs
+  the section rather than the mesh. A count running past the end of the
+  file raised ``CodecError`` out of a read whose geometry was already
+  whole, and those sections were skipped entirely before they were read at
+  all, so files that used to load stopped loading.
+- A ``.vtu`` or ``.vtp`` ``Piece`` that cannot be read is named by its
+  index. A file of forty pieces gave no way to find the one at fault.
+- An OBJ vertex named twice with different values is warned about whichever
+  component they differ in. The check asked whether the first component had
+  been written yet, so a record whose first component is NaN hid every
+  conflict on that vertex.
+- Writing an OBJ ``vn`` or ``vt`` attribute wider than the record says how
+  many components are being left out, rather than truncating in silence.
 
 Optimizations
 ~~~~~~~~~~~~~
@@ -308,9 +353,29 @@ Optimizations
   carries a newline every few values, so the lines it is cut into number in
   the thousands for a grid of any size; a 5 MB ``STRUCTURED_POINTS`` file
   reads about a fifth faster.
+- ``.vti``, ``.vts`` and ``.vtr`` build their hexahedra with array
+  arithmetic instead of a Python loop per cell. The corners of a cell are
+  strides from its own origin, so the whole connectivity is eight adds over
+  the origins; a 40x40x40 grid builds about nine times faster.
+- The structured legacy ``.vtk`` readers cut their file into lines in one
+  pass rather than a ``find`` per line, and they all do it in the same
+  place. The lines are byte-identical to what the walk produced.
+- Folding OBJ ``vt`` and ``vn`` records onto their vertices is one pass over
+  the corners rather than a numpy row assignment per corner.
+- A legacy ``.vtk`` ASCII payload is spelled and written in one pass instead
+  of a formatted write per point, which was a syscall per line.
 
 Tests
 ~~~~~
+
+- Regression tests for the dtype a ``.vtr`` header declares against the
+  bytes under it, the component count of a tensor attribute in every XML
+  writer, a binary legacy ``TENSORS`` section, an unterminated ``METADATA``
+  block followed by geometry, an attribute section declaring more than its
+  file holds, an OBJ conflict hiding behind a NaN first component, and the
+  ``Piece`` index in a ``.vtu`` error.
+- ``test_a_double_section_holds_every_digit_of_a_double`` writes a
+  coordinate no ten-digit spelling can hold and asks for it back unchanged.
 
 - ``test_a_power_of_ten_is_written_exactly`` spells its powers as literals
   rather than computing them with ``**``. ``pow`` is not correctly rounded

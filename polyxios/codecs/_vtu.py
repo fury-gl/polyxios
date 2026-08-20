@@ -1,4 +1,3 @@
-import base64
 from typing import Any
 
 import numpy as np
@@ -12,11 +11,14 @@ from polyxios._element_types import (
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
+    components,
     decode_da,
+    format_da,
     join_piece_attrs,
     parse_xml,
     shaped_da,
     undecodable_type,
+    vtk_type_to_np,
 )
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
@@ -82,7 +84,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
 
-    for piece in ug.findall("Piece"):
+    for index, piece in enumerate(ug.findall("Piece")):
         n_points = int(piece.get("NumberOfPoints", "0"))
 
         # Where this piece's points land in the joined array: its cells
@@ -102,9 +104,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             bad_type = None if da is None else undecodable_type(da)
             if bad_type is not None:
                 raise CodecError(
-                    f".vtu: a Piece declares {n_points} points but its"
-                    f" Points array has type '{bad_type}', which holds no"
-                    " numbers."
+                    f".vtu: Piece {index} declares {n_points} points but"
+                    f" its Points array has type '{bad_type}', which holds"
+                    " no numbers."
                 )
             flat = np.array([]) if da is None else _decode(da)
             # The array has to hold whole tuples as well as enough of
@@ -113,9 +115,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             # ValueError naming neither the file nor the Piece.
             if flat.size < n_points * 3 or flat.size % n_points:
                 raise CodecError(
-                    f".vtu: a Piece declares {n_points} points but its"
-                    f" Points array holds {flat.size} values, which is not"
-                    f" {n_points} tuples of three or more."
+                    f".vtu: Piece {index} declares {n_points} points but"
+                    f" its Points array holds {flat.size} values, which is"
+                    f" not {n_points} tuples of three or more."
                 )
             verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
             all_vertices.append(verts)
@@ -253,7 +255,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            n_comp = arr.shape[1] if arr.ndim == 2 else 1
+            n_comp = components(arr)
             lines.append(
                 _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
             )
@@ -262,7 +264,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            n_comp = arr.shape[1] if arr.ndim == 2 else 1
+            n_comp = components(arr)
             lines.append(
                 _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
             )
@@ -283,20 +285,36 @@ def _da(
     n_comp: int,
     indent: int,
 ) -> str:
-    pad = " " * indent
-    name_attr = f' Name="{name}"' if name else ""
-    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
+    """Render one ``<DataArray>`` element.
 
-    if binary:
-        raw = arr.tobytes()
-        header = np.array([len(raw)], dtype="<u4").tobytes()
-        encoded = base64.b64encode(header + raw).decode()
-        return (
-            f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-            f'format="binary">{encoded}</DataArray>'
-        )
-    vals = " ".join(str(v) for v in arr.ravel())
-    return (
-        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-        f'format="ascii">{vals}</DataArray>'
+    Parameters
+    ----------
+    name
+        Array name; empty for the unnamed ``Points`` array.
+    arr
+        Values, flat or one row per tuple.
+    vtk_type
+        The type name the element declares. The values are cast to the dtype
+        it names, so the bytes are what the header says they are on a
+        big-endian machine as much as on a little-endian one.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    n_comp
+        Components per tuple.
+    indent
+        Spaces to prefix the line with.
+
+    Returns
+    -------
+    str
+        The ``<DataArray>`` line.
+    """
+    return format_da(
+        name,
+        arr,
+        vtk_type=vtk_type,
+        dtype=np.dtype("<" + (vtk_type_to_np(vtk_type) or "f8")),
+        binary=binary,
+        n_comp=n_comp,
+        indent=indent,
     )

@@ -1116,3 +1116,70 @@ def test_a_rectilinear_grid_follows_its_coordinates_not_its_header() -> None:
     np.testing.assert_array_equal(poly.vertex_attrs["s"], [1.0, 2.0, 3.0, 4.0])
     # The cells have to index points that exist.
     assert int(poly.connectivity.max()) < len(poly.vertices)
+
+
+@pytest.mark.parametrize("shape", [(4, 3, 3), (4, 6)])
+def test_a_binary_tensor_is_written_as_binary(shape: tuple[int, ...]) -> None:
+    """Both tensor branches spelled their numbers into a binary file."""
+    poly = _synthetic_mesh()
+    poly.vertex_attrs["T"] = np.arange(int(np.prod(shape)), dtype=np.float64).reshape(
+        shape
+    )
+    with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
+        tmp = f.name
+
+    write(poly, tmp, binary=True)
+    back = read(tmp)
+
+    assert back.vertex_attrs["T"].shape == (4, 3, 3)
+    assert b"TENSORS T double\n0.0" not in Path(tmp).read_bytes()
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_double_section_holds_every_digit_of_a_double(binary: bool) -> None:
+    """Ten significant digits is seven short of what a double carries."""
+    verts = np.array([[1 / 3, 2 / 7, 1 / 9]] * 3, dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.vertex_attrs["s"] = np.array([1 / 3, 2 / 7, 1 / 9])
+    with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
+        tmp = f.name
+
+    write(poly, tmp, binary=binary)
+    back = read(tmp)
+
+    np.testing.assert_array_equal(back.vertices, verts)
+    np.testing.assert_array_equal(back.vertex_attrs["s"], poly.vertex_attrs["s"])
+
+
+def test_an_unterminated_metadata_block_ends_at_the_geometry() -> None:
+    """Left open it swallowed the CELLS after it and the rest of the file."""
+    content = (
+        b"# vtk DataFile Version 4.2\nm\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"POINT_DATA 3\nSCALARS s float 1\nLOOKUP_TABLE default\n1 2 3\n"
+        b"METADATA\nINFORMATION 1\n"
+        b"CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert len(poly.element_types) == 1
+    np.testing.assert_array_equal(poly.vertex_attrs["s"], [1.0, 2.0, 3.0])
+
+
+def test_a_section_declaring_more_than_the_file_holds_costs_the_section() -> None:
+    """The geometry was already whole; refusing it lost more than it saved."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 2 2 2\nORIGIN 0 0 0\nSPACING 1 1 1\n"
+        b"POINT_DATA 8\nSCALARS p float 1\nLOOKUP_TABLE default\n1 2 3 4 5 6 7 8\n"
+        b"CELL_DATA 99\nSCALARS c float 1\nLOOKUP_TABLE default\n9\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="declares 99 values"):
+        poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["p"], [1, 2, 3, 4, 5, 6, 7, 8])
+    assert "c" not in poly.element_attrs
