@@ -1,8 +1,8 @@
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from polyxios._io import Source, read_bytes, source_name, write_bytes
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
@@ -47,7 +47,7 @@ _ATTR_NAMES = (
 )
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a binary 3D Gaussian Splat file (.splat) and return a PolyData.
 
     Parameters
@@ -69,19 +69,23 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     CodecError
         If the file size is not a multiple of 32 bytes.
     """
-    path = Path(path)
-    file_size = path.stat().st_size
+    # The size is the length of what was read, not a separate measurement of
+    # the source: measuring a compressed one costs a whole decompression pass
+    # that the read about to follow would only repeat, and a stream that
+    # cannot seek can be read even though it cannot be measured.
+    data = read_bytes(path)
+    file_size = len(data)
 
     if file_size % 32 != 0:
         raise CodecError(
-            f"'{path.name}' has size {file_size} bytes which is not a multiple "
-            "of 32. Not a valid .splat file."
+            f"'{source_name(path)}' has size {file_size} bytes which is not a "
+            "multiple of 32. Not a valid .splat file."
         )
 
     n_splats = file_size // 32
     validate_header(n_splats, 0, 0, file_size)
 
-    raw = np.frombuffer(path.read_bytes(), dtype=_SPLAT_DTYPE)
+    raw = np.frombuffer(data, dtype=_SPLAT_DTYPE)
 
     vertices = np.column_stack(
         [
@@ -103,7 +107,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise a Gaussian-splat PolyData to a .splat binary file.
 
     Parameters
@@ -116,7 +120,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     path
         Output file path.
     """
-    path = Path(path)
     n = poly.vertices.shape[0]
 
     out = np.zeros(n, dtype=_SPLAT_DTYPE)
@@ -128,4 +131,4 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
         if name in poly.vertex_attrs:
             out[name] = poly.vertex_attrs[name].astype(_SPLAT_DTYPE[name])
 
-    path.write_bytes(out.tobytes())
+    write_bytes(path, out.tobytes())

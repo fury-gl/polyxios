@@ -1,10 +1,10 @@
 import base64
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import decode_da, parse_xml
 from polyxios.exceptions import LazyReadError
@@ -13,7 +13,7 @@ from polyxios.validate import validate_header
 EXTENSION: str = ".vts"
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK StructuredGrid XML file (.vts) and return a PolyData.
 
     Parameters
@@ -36,10 +36,18 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     if lazy:
         raise LazyReadError("VTS lazy reads are not supported with frozen PolyData.")
 
-    path = Path(path)
-    file_size = path.stat().st_size
-
-    root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
+    # The size comes back from the read itself: measuring the source
+    # separately costs a whole decompression pass over a compressed one,
+    # and a stream that cannot seek cannot be measured at all.
+    (
+        root,
+        appended,
+        header_type,
+        big_endian,
+        compressed,
+        is_base64,
+        file_size,
+    ) = parse_xml(path)
 
     def _decode(elem):
         return decode_da(
@@ -128,7 +136,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise a hex PolyData to a VTK StructuredGrid XML file (.vts).
 
     Parameters
@@ -140,7 +148,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     binary
         If True (default), encode data as base64 binary.
     """
-    path = Path(path)
     binary: bool = bool(opts.get("binary", True))
 
     ga = poly.global_attrs or {}
@@ -189,7 +196,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     lines.append("  </StructuredGrid>")
     lines.append("</VTKFile>")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")
 
 
 def _da(

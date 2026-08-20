@@ -1,10 +1,10 @@
 import base64
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import decode_da, parse_xml
 from polyxios.exceptions import LazyReadError
@@ -13,7 +13,7 @@ from polyxios.validate import validate_header
 EXTENSION: str = ".vtr"
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK rectilinear grid XML file (.vtr) and return a PolyData.
 
     Parameters
@@ -41,10 +41,18 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
             "VTR lazy reads require mutable array proxies; not supported with frozen PolyData."
         )
 
-    path = Path(path)
-    file_size = path.stat().st_size
-
-    root, appended, header_type, big_endian, compressed, is_base64 = parse_xml(path)
+    # The size comes back from the read itself: measuring the source
+    # separately costs a whole decompression pass over a compressed one,
+    # and a stream that cannot seek cannot be measured at all.
+    (
+        root,
+        appended,
+        header_type,
+        big_endian,
+        compressed,
+        is_base64,
+        file_size,
+    ) = parse_xml(path)
 
     def _decode(elem):
         return decode_da(
@@ -140,7 +148,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     )
 
 
-def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """Serialise PolyData to a VTK rectilinear grid XML file (.vtr).
 
     Parameters
@@ -153,7 +161,6 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     binary
         If True (default: False), encode data as base64 binary.
     """
-    path = Path(path)
     binary: bool = bool(opts.get("binary", False))
 
     x_coords = np.unique(poly.vertices[:, 0])
@@ -194,7 +201,7 @@ def write(poly: PolyData, path: Path | str, **opts: Any) -> None:
     lines.append("  </RectilinearGrid>")
     lines.append("</VTKFile>")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    write_text(path, "\n".join(lines), encoding="utf-8")
 
 
 def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) -> str:

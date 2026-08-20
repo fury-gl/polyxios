@@ -13,7 +13,6 @@ forces the issue.
 import bisect
 from collections.abc import Iterator
 import math
-from pathlib import Path
 import re
 from typing import Any
 import warnings
@@ -21,6 +20,7 @@ import warnings
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -548,7 +548,7 @@ def sniff(head: bytes) -> bool:
     return False
 
 
-def read(path: Path | str, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a Nastran .bdf file.
 
     Free-field, small-field and large-field cards are supported, in any
@@ -609,7 +609,7 @@ def read(path: Path | str, *, lazy: bool = False) -> PolyData:
     includes = 0
     skipped: dict[str, int] = {}
 
-    text = Path(path).read_text(encoding=_READ_ENCODING, errors="replace")
+    text = read_text(path, encoding=_READ_ENCODING, errors="replace")
     for fields in _bulk_cards(text):
         # The large-field star only has to sit somewhere in the eight column
         # name field, so 'GRID   *' names the same card as 'GRID*'. Strip the
@@ -1054,7 +1054,7 @@ def _element_pids(poly: PolyData) -> np.ndarray:
 
 def write(
     poly: PolyData,
-    path: Path | str,
+    path: Source,
     *,
     field_format: str = "free",
     **opts: Any,
@@ -1208,4 +1208,4 @@ def write(
 
     lines.append("ENDDATA")
     lines.append("")
-    Path(path).write_text("\n".join(lines), encoding=_WRITE_ENCODING)
+    write_text(path, "\n".join(lines), encoding=_WRITE_ENCODING)

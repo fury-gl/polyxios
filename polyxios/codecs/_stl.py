@@ -1,11 +1,18 @@
 """STL (Stereolithography) codec - binary and ASCII, read + write."""
 
-import mmap
-from pathlib import Path
-
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._io import (
+    Source,
+    can_seek,
+    open_block,
+    open_read,
+    open_write,
+    read_bytes,
+    source_size,
+    write_text,
+)
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -17,7 +24,7 @@ _BINARY_FACET_SIZE: int = 50  # 3*float32 normal + 3*3*float32 verts + uint16 at
 
 
 def read(
-    path: Path | str,
+    path: Source,
     *,
     lazy: bool = False,
     merge_vertices: bool = True,
@@ -48,18 +55,21 @@ def read(
     CodecError
         On malformed STL data.
     """
-    path = Path(path)
-
     if lazy:
-        with open(path, "rb") as fh:
+        file_size = source_size(path)
+        with open_read(path) as fh:
+            here = fh.tell()
             peek = fh.read(_HEADER_SIZE + 4)
-            fh.seek(0, 2)
-            file_size = fh.tell()
+            # A caller's handle is left where it was found: the lazy path
+            # maps the file from its start, and a moved handle would leave
+            # the caller reading from the middle of a file it never read.
+            if can_seek(fh):
+                fh.seek(here)
         if _is_ascii(peek, file_size=file_size):
             raise LazyReadError("STL ASCII format does not support lazy reads.")
         return _read_binary_lazy(path)
 
-    raw = path.read_bytes()
+    raw = read_bytes(path)
 
     if _is_ascii(raw):
         vertices, normals = _read_ascii(raw)
@@ -102,7 +112,7 @@ def read(
     )
 
 
-def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
+def write(poly: PolyData, path: Source, *, binary: bool = True) -> None:
     """Serialise PolyData to an STL file (triangles only).
 
     Non-triangle surface elements are skipped. Volume/line elements are
@@ -117,8 +127,6 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
     binary
         If True (default), write binary STL.
     """
-    path = Path(path)
-
     tri_code = ELEMENT_TYPES["triangle"]
     tri_indices = np.where(poly.element_types == tri_code)[0]
 
@@ -149,11 +157,16 @@ def write(poly: PolyData, path: Path | str, *, binary: bool = True) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _read_binary_lazy(path: Path) -> PolyData:
+def _read_binary_lazy(path: Source) -> PolyData:
     """Read a binary STL without vertex deduplication.
 
     Skips merge_vertices step - useful for large files where deduplication
     overhead is significant. Data is eagerly copied; file is closed on return.
+
+    The facets are copied out rather than handed back as a view, so nothing
+    here needs a mapping to outlive the call: a file object with no
+    descriptor is read into memory instead of being refused for a lazy read
+    it would have served the same way.
 
     Normals are the values stored in the STL file (may be all-zero - the STL
     spec allows writers to omit them). Callers requiring unit normals should
@@ -162,26 +175,23 @@ def _read_binary_lazy(path: Path) -> PolyData:
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
     )
-    with open(path, "rb") as fh:
-        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-            if len(mm) < _HEADER_SIZE + 4:
-                raise CodecError("Binary STL too short.")
-            n_tris = int(
-                np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0]
+    with open_block(path, fmt=".stl") as mm:
+        if len(mm) < _HEADER_SIZE + 4:
+            raise CodecError("Binary STL too short.")
+        n_tris = int(np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
+        data_start = _HEADER_SIZE + 4
+        expected = data_start + n_tris * _BINARY_FACET_SIZE
+        if len(mm) < expected:
+            raise CodecError(
+                f"Binary STL truncated: expected {expected} bytes, got {len(mm)}."
             )
-            data_start = _HEADER_SIZE + 4
-            expected = data_start + n_tris * _BINARY_FACET_SIZE
-            if len(mm) < expected:
-                raise CodecError(
-                    f"Binary STL truncated: expected {expected} bytes, got {len(mm)}."
-                )
-            facets = np.frombuffer(
-                memoryview(mm)[data_start : data_start + n_tris * _BINARY_FACET_SIZE],
-                dtype=facet_dt,
-            )
-            normals = facets["normal"].copy()
-            vertices = facets["verts"].reshape(-1, 3).copy()
-            del facets  # release memoryview before mm closes
+        facets = np.frombuffer(
+            memoryview(mm)[data_start : data_start + n_tris * _BINARY_FACET_SIZE],
+            dtype=facet_dt,
+        )
+        normals = facets["normal"].copy()
+        vertices = facets["verts"].reshape(-1, 3).copy()
+        del facets  # release the view before the block goes
 
     tri_code = ELEMENT_TYPES["triangle"]
     connectivity = np.arange(n_tris * 3, dtype=np.int32)
@@ -338,7 +348,7 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
     return result
 
 
-def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
+def _write_binary(path: Source, facet_verts: np.ndarray, normals: np.ndarray) -> None:
     n_tris = facet_verts.shape[0]
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
@@ -346,14 +356,14 @@ def _write_binary(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> N
     facets = np.zeros(n_tris, dtype=facet_dt)
     facets["normal"] = normals.astype("<f4")
     facets["verts"] = facet_verts.astype("<f4")
-    with open(path, "wb") as fh:
+    with open_write(path) as fh:
         hdr = b"Written by polyxios"
         fh.write(hdr + b"\x00" * (_HEADER_SIZE - len(hdr)))
         fh.write(np.array(n_tris, dtype="<u4").tobytes())
         fh.write(facets.tobytes())
 
 
-def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> None:
+def _write_ascii(path: Source, facet_verts: np.ndarray, normals: np.ndarray) -> None:
     n_tris = facet_verts.shape[0]
     n = normals.astype(np.float32)
     v = facet_verts.astype(np.float32)
@@ -374,10 +384,10 @@ def _write_ascii(path: Path, facet_verts: np.ndarray, normals: np.ndarray) -> No
     blocks[:, 5] = "    endloop\n"
     blocks[:, 6] = "  endfacet\n"
 
-    with open(path, "w", encoding="ascii", newline="\n") as fh:
-        fh.write("solid polyxios\n")
-        fh.write("".join(blocks.ravel().tolist()))
-        fh.write("endsolid polyxios\n")
+    text = "".join(
+        ["solid polyxios\n", *blocks.ravel().tolist(), "endsolid polyxios\n"]
+    )
+    write_text(path, text, encoding="ascii")
 
 
 def _unique_rows_stable(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
