@@ -1338,3 +1338,91 @@ def test_a_malformed_structured_header_costs_its_section_only() -> None:
 
     assert len(poly.vertices) == 2
     assert poly.vertex_attrs == {}
+
+
+def test_cell_data_is_dropped_when_the_grid_leaves_the_mesh_no_cells() -> None:
+    """Kept against DIMENSIONS, the array outlived the cells it belonged to."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 2 2 2\nPOINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+        b"CELL_DATA 1\nSCALARS q float 1\nLOOKUP_TABLE default\n7\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning) as caught:
+        poly = read(tmp)
+
+    assert any("covers 1 of 0 cells" in str(w.message) for w in caught)
+    assert len(poly.element_types) == 0
+    assert poly.element_attrs == {}
+    validate(poly)
+
+
+def test_binary_points_are_read_as_the_type_they_declare() -> None:
+    """'POINTS n int' read at four bytes a float gave coordinates from nowhere."""
+    pts = np.array([[0, 0, 0], [2, 0, 0], [0, 3, 0]], dtype=">i4").tobytes()
+    content = (
+        b"# vtk DataFile Version 4.2\np\nBINARY\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 int\n" + pts + b"\nCELLS 1 4\n"
+        b"" + np.array([3, 0, 1, 2], dtype=">i4").tobytes() + b"\nCELL_TYPES 1\n"
+        b"" + np.array([5], dtype=">i4").tobytes() + b"\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.vertices, [[0, 0, 0], [2, 0, 0], [0, 3, 0]])
+
+
+def test_a_binary_array_of_an_unknown_type_names_it() -> None:
+    """Guessing a width reads numbers the file never held."""
+    content = _binary_grid(
+        extra=b"POINT_DATA 3\nSCALARS s quadruple 1\n" + b"\x00" * 24
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match="'quadruple'"):
+        read(tmp)
+
+
+@pytest.mark.parametrize(
+    ("header", "match"),
+    [
+        (b"POINT_DATA x\nSCALARS s float 1\n1 2 3\n", "count 'x' is not a number"),
+        (b"POINT_DATA\n", "no field 1"),
+    ],
+)
+def test_a_data_section_count_that_is_not_a_count_names_the_line(
+    header: bytes, match: str
+) -> None:
+    """int() on the header answered with a ValueError naming nothing."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n" + header
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match=match):
+        read(tmp)
+
+
+@pytest.mark.parametrize(
+    ("header", "match"),
+    [
+        (b"DIMENSIONS 2 2\nORIGIN 0 0 0\nSPACING 1 1 1\n", "no field 3"),
+        (b"DIMENSIONS 2 2 1\nORIGIN a b c\nSPACING 1 1 1\n", "not all numbers"),
+        (b"DIMENSIONS 2 2 1\nORIGIN 0 0\nSPACING 1 1 1\n", "fewer than 3 values"),
+    ],
+)
+def test_a_structured_points_header_that_is_not_numbers_names_the_line(
+    header: bytes, match: str
+) -> None:
+    """A short ORIGIN was an IndexError naming an axis, not a file."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nASCII\nDATASET STRUCTURED_POINTS\n" + header
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.raises(CodecError, match=match):
+        read(tmp)

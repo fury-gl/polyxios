@@ -52,13 +52,24 @@ _VTK_DTYPE_MAP: dict[str, str] = {
     "double": "f8",
     "int": "i4",
     "long": "i8",
+    "long_long": "i8",
     "unsigned_int": "u4",
     "unsigned_long": "u8",
+    "unsigned_long_long": "u8",
     "short": "i2",
     "unsigned_short": "u2",
     "char": "i1",
+    "signed_char": "i1",
     "unsigned_char": "u1",
+    "vtkidtype": "i8",
+    "idtype": "i8",
 }
+
+# What a binary header is read as when it leaves its type field out. The
+# format makes the field mandatory, so this only ever answers a malformed
+# one - but every reader here has to answer it the same way, or the same
+# file reads back as two different arrays depending on which one opened it.
+_DEFAULT_VTK_DTYPE: str = "float"
 
 # A binary COLOR_SCALARS component is an unsigned char standing for the 0..1
 # float an ASCII file writes; dividing puts both flavours on one scale.
@@ -132,10 +143,15 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Notes
     -----
     A structured dataset is expanded into an explicit point array, which the
-    grid it came from cannot be read back out of, so the header is kept in
+    grid it came from cannot be read back out of, so the grid is kept in
     ``global_attrs`` as ``vtk_dimensions`` and - for ``STRUCTURED_POINTS`` -
-    ``vtk_origin`` and ``vtk_spacing``. These are read-only: ``write``
-    always emits an ``UNSTRUCTURED_GRID`` and does not consume them.
+    ``vtk_origin`` and ``vtk_spacing``. It is the grid the reader used: a
+    ``RECTILINEAR_GRID`` is laid out by its coordinate arrays, so a
+    ``DIMENSIONS`` that disagrees with them is warned about and the array
+    lengths are what is kept, while a ``STRUCTURED_GRID`` and a
+    ``STRUCTURED_POINTS`` have nothing but their header and keep it as
+    written. These are read-only: ``write`` always emits an
+    ``UNSTRUCTURED_GRID`` and does not consume them.
 
     Binary ``COLOR_SCALARS`` holds one unsigned char per component where the
     ASCII flavour holds a float in 0..1. The byte is scaled onto that range,
@@ -546,7 +562,7 @@ def _read_polydata_ascii(path: Source) -> PolyData:
 
         if upper.startswith("POINTS"):
             parts = line.split()
-            n_verts = int(parts[1])
+            n_verts = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             validate_header(n_verts, 0, 0, file_size)
             if _HAS_CYTHON:
@@ -561,8 +577,9 @@ def _read_polydata_ascii(path: Source) -> PolyData:
 
         elif (kind := _polydata_section(upper)) is not None:
             parts = line.split()
-            n_cells = int(parts[1])
-            total_vals = int(parts[2])
+            where = f"line {i + 1}"
+            n_cells = _attr_count(parts, 1, where)
+            total_vals = _attr_count(parts, 2, where)
             i += 1
 
             if i < n_lines and lines[i].strip().upper().startswith("OFFSETS"):
@@ -600,14 +617,14 @@ def _read_polydata_ascii(path: Source) -> PolyData:
                 i += 1
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = int(line.split()[1])
+            n_pd = _attr_count(line.split(), 1, f"line {i + 1}")
             i += 1
             i, vertex_attrs = _parse_vtk_data_attrs(
                 lines, i, n_pd, n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = int(line.split()[1])
+            n_cd = _attr_count(line.split(), 1, f"line {i + 1}")
             i += 1
             i, element_attrs = _parse_vtk_data_attrs(
                 lines, i, n_cd, n_elems, kind="cell"
@@ -704,6 +721,7 @@ def _parse_binary_polydata_body(
     n_elems = 0
 
     while pos < file_size:
+        line_start = pos
         line_end = mm.find(b"\n", pos)
         if line_end == -1:
             break
@@ -717,9 +735,11 @@ def _parse_binary_polydata_body(
         parts = line.split()
 
         if upper.startswith("POINTS"):
-            n_verts = int(parts[1])
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            np_dt = ">f8" if vtk_dt == "double" else ">f4"
+            n_verts = _attr_count(parts, 1, f"byte {line_start}")
+            # The header names the type the block holds, and it is not always
+            # a float: reading a POINTS written as 'int' or 'short' at four
+            # bytes a value hands back coordinates the file never held.
+            np_dt = _binary_dtype(parts, 2, f"byte {line_start}")
             n_bytes = n_verts * 3 * np.dtype(np_dt).itemsize
             validate_header(n_verts, 0, 0, file_size)
             # validate_header bounds the block against the whole file, which a
@@ -733,8 +753,9 @@ def _parse_binary_polydata_body(
             pos = _skip_newline(mv, pos, file_size)
 
         elif (kind := _polydata_section(upper)) is not None:
-            n_cells = int(parts[1])
-            total_vals = int(parts[2])
+            where = f"byte {line_start}"
+            n_cells = _attr_count(parts, 1, where)
+            total_vals = _attr_count(parts, 2, where)
 
             next_end = mm.find(b"\n", pos)
             next_line = (
@@ -775,13 +796,13 @@ def _parse_binary_polydata_body(
             n_elems += n_cells
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = int(parts[1])
+            n_pd = _attr_count(parts, 1, f"byte {line_start}")
             pos, vertex_attrs = _parse_binary_attrs(
                 mm, mv, pos, n_pd, file_size, expected=n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = int(parts[1])
+            n_cd = _attr_count(parts, 1, f"byte {line_start}")
             pos, element_attrs = _parse_binary_attrs(
                 mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell"
             )
@@ -830,7 +851,7 @@ def _read_ascii(path: Source, version: str) -> PolyData:
 
         if upper.startswith("POINTS"):
             parts = line.split()
-            n_verts = int(parts[1])
+            n_verts = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             validate_header(n_verts, 0, 0, file_size)
             if _HAS_CYTHON:
@@ -845,8 +866,9 @@ def _read_ascii(path: Source, version: str) -> PolyData:
 
         elif upper.startswith("CELLS") and not upper.startswith("CELL_TYPES"):
             parts = line.split()
-            n_elems = int(parts[1])
-            total_size = int(parts[2])
+            where = f"line {i + 1}"
+            n_elems = _attr_count(parts, 1, where)
+            total_size = _attr_count(parts, 2, where)
             i += 1
             validate_header(n_verts, n_elems, total_size, file_size)
 
@@ -873,7 +895,7 @@ def _read_ascii(path: Source, version: str) -> PolyData:
                 offsets = np.array(off_list, dtype=np.int32)
 
         elif upper.startswith("CELL_TYPES"):
-            n_ct = int(line.split()[1])
+            n_ct = _attr_count(line.split(), 1, f"line {i + 1}")
             i += 1
             ct_raw: list[int] = []
             while len(ct_raw) < n_ct:
@@ -887,14 +909,14 @@ def _read_ascii(path: Source, version: str) -> PolyData:
             element_types_arr = np.array(type_codes, dtype=np.uint8)
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = int(line.split()[1])
+            n_pd = _attr_count(line.split(), 1, f"line {i + 1}")
             i += 1
             i, vertex_attrs = _parse_vtk_data_attrs(
                 lines, i, n_pd, n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = int(line.split()[1])
+            n_cd = _attr_count(line.split(), 1, f"line {i + 1}")
             i += 1
             i, element_attrs = _parse_vtk_data_attrs(
                 lines, i, n_cd, n_elems, kind="cell"
@@ -1117,6 +1139,85 @@ def _attr_count(
             f".vtk: {where} holds {' '.join(parts)!r}, whose {parts[0]}"
             f" count {parts[index]!r} is not a number."
         ) from exc
+
+
+def _attr_reals(parts: list[str], where: str, count: int) -> list[float]:
+    """Read a run of numbers off a header.
+
+    ``ORIGIN`` and ``SPACING`` carry three each, and a header short of one
+    or spelling it wrong answers ``float(parts[i])`` with an IndexError or a
+    ValueError naming neither the file nor the line.
+
+    Parameters
+    ----------
+    parts
+        The header line's whitespace-separated tokens, keyword included.
+    where
+        Where the header sits, for the error message.
+    count
+        How many numbers follow the keyword.
+
+    Returns
+    -------
+    list of float
+        The values, in the order the header spells them.
+
+    Raises
+    ------
+    CodecError
+        If the header is short, or one of the fields names no number.
+    """
+    if len(parts) <= count:
+        raise CodecError(
+            f".vtk: {where} holds {' '.join(parts)!r}, a {parts[0]} header"
+            f" with fewer than {count} values."
+        )
+    try:
+        return [float(text) for text in parts[1 : count + 1]]
+    except ValueError as exc:
+        raise CodecError(
+            f".vtk: {where} holds {' '.join(parts)!r}, whose {parts[0]}"
+            " values are not all numbers."
+        ) from exc
+
+
+def _binary_dtype(parts: list[str], index: int, where: str) -> str:
+    """Read a binary payload's numpy dtype off its header.
+
+    A binary block is bytes until its declared type says how wide a value
+    is and how to read it, so guessing at a name this reader has no
+    equivalent for does not produce a short array or a wrong shape - it
+    produces numbers that were never in the file. Refusing is the only
+    answer that says what happened.
+
+    Parameters
+    ----------
+    parts
+        The header line's whitespace-separated tokens, keyword included.
+    index
+        Which field names the type.
+    where
+        Where the header sits, for the error message.
+
+    Returns
+    -------
+    str
+        Big-endian numpy dtype string, which is what a legacy binary file
+        holds whatever the machine writing it was.
+
+    Raises
+    ------
+    CodecError
+        If the field names a type this reader has no numpy equivalent for.
+    """
+    name = parts[index].lower() if len(parts) > index else _DEFAULT_VTK_DTYPE
+    base = _VTK_DTYPE_MAP.get(name)
+    if base is None:
+        raise CodecError(
+            f".vtk: {where} holds {' '.join(parts)!r}, whose data type"
+            f" {name!r} is not one this reader can read as numbers."
+        )
+    return ">" + base
 
 
 def _parse_vtk_data_attrs(
@@ -1447,6 +1548,7 @@ def _parse_binary_body(
     n_elems = 0
 
     while pos < file_size:
+        line_start = pos
         line_end = mm.find(b"\n", pos)
         if line_end == -1:
             break
@@ -1460,9 +1562,11 @@ def _parse_binary_body(
 
         if upper.startswith("POINTS"):
             parts = line.split()
-            n_verts = int(parts[1])
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
-            np_dt = ">f8" if vtk_dt == "double" else ">f4"
+            n_verts = _attr_count(parts, 1, f"byte {line_start}")
+            # The header names the type the block holds, and it is not always
+            # a float: reading a POINTS written as 'int' or 'short' at four
+            # bytes a value hands back coordinates the file never held.
+            np_dt = _binary_dtype(parts, 2, f"byte {line_start}")
             n_bytes = n_verts * 3 * np.dtype(np_dt).itemsize
             validate_header(n_verts, 0, 0, file_size)
             # validate_header bounds the block against the whole file, which a
@@ -1477,8 +1581,9 @@ def _parse_binary_body(
 
         elif upper.startswith("CELLS") and not upper.startswith("CELL_TYPES"):
             parts = line.split()
-            n_elems = int(parts[1])
-            total_size = int(parts[2])
+            where = f"byte {line_start}"
+            n_elems = _attr_count(parts, 1, where)
+            total_size = _attr_count(parts, 2, where)
             validate_header(n_verts, n_elems, total_size, file_size)
 
             line_end2 = mm.find(b"\n", pos)
@@ -1506,7 +1611,7 @@ def _parse_binary_body(
                 connectivity, offsets_arr = _unpack_v42_cells(raw, n_elems)
 
         elif upper.startswith("CELL_TYPES"):
-            n_ct = int(line.split()[1])
+            n_ct = _attr_count(line.split(), 1, f"byte {line_start}")
             n_bytes_ct = n_ct * 4
             _check_block(pos, n_bytes_ct, file_size, name="CELL_TYPES")
             raw_ct = np.frombuffer(
@@ -1523,13 +1628,13 @@ def _parse_binary_body(
             element_types_arr = np.array(type_codes, dtype=np.uint8)
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = int(line.split()[1])
+            n_pd = _attr_count(line.split(), 1, f"byte {line_start}")
             pos, vertex_attrs = _parse_binary_attrs(
                 mm, mv, pos, n_pd, file_size, expected=n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = int(line.split()[1])
+            n_cd = _attr_count(line.split(), 1, f"byte {line_start}")
             pos, element_attrs = _parse_binary_attrs(
                 mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell"
             )
@@ -1841,9 +1946,8 @@ def _parse_binary_attrs(
         elif upper.startswith("SCALARS"):
             parts = line.split()
             name = _attr_name(parts, where)
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
             n_comp = _attr_count(parts, 3, where, default=1)
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
+            np_dt = _binary_dtype(parts, 2, where)
             # Skip the LOOKUP_TABLE line, if the section carries one: the
             # format leaves it optional, and swallowing a line that is not
             # there swallows binary payload up to its first 0x0a byte -
@@ -1883,8 +1987,7 @@ def _parse_binary_attrs(
         elif upper.startswith("VECTORS") or upper.startswith("NORMALS"):
             parts = line.split()
             name = _attr_name(parts, where)
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
+            np_dt = _binary_dtype(parts, 2, where)
             n_bytes = n_items * 3 * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
@@ -1898,8 +2001,7 @@ def _parse_binary_attrs(
             parts = line.split()
             name = _attr_name(parts, where)
             n_comp = _attr_count(parts, 2, where, default=2)
-            vtk_dt = parts[3].lower() if len(parts) > 3 else "float"
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            np_dt = _binary_dtype(parts, 3, where)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
@@ -1924,8 +2026,7 @@ def _parse_binary_attrs(
         elif upper.startswith("TENSORS"):
             parts = line.split()
             name = _attr_name(parts, where)
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
+            np_dt = _binary_dtype(parts, 2, where)
             n_bytes = n_items * 9 * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
@@ -1942,6 +2043,7 @@ def _parse_binary_attrs(
                 # between one array and the next; read as a header it eats
                 # the array after it.
                 pos = _skip_binary_field_metadata(mm, mv, pos, file_size)
+                hdr_start = pos
                 hdr_end = mm.find(b"\n", pos)
                 if hdr_end == -1:
                     break
@@ -1950,12 +2052,14 @@ def _parse_binary_attrs(
                 hparts = hdr.split()
                 if len(hparts) < 4:
                     continue
-                fwhere = f"byte {pos}"
+                # Where the header sits, not where its payload does: taken
+                # after the step past it, the message would point a reader
+                # at the bytes rather than at the line that is wrong.
+                fwhere = f"byte {hdr_start}"
                 arr_name = hparts[0]
                 n_comp_f = _attr_count(hparts, 1, fwhere)
                 n_tuples_f = _attr_count(hparts, 2, fwhere)
-                vtk_dt_f = hparts[3].lower()
-                np_dt_f = ">" + _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
+                np_dt_f = _binary_dtype(hparts, 3, fwhere)
                 n_bytes_f = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
                 _check_block(pos, n_bytes_f, file_size, name=arr_name)
                 raw_f = np.frombuffer(
@@ -2100,13 +2204,16 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         parts = line.split()
 
         if upper.startswith("DIMENSIONS"):
-            nx, ny, nz = int(parts[1]), int(parts[2]), int(parts[3])
+            where = f"line {i + 1}"
+            nx = _attr_count(parts, 1, where)
+            ny = _attr_count(parts, 2, where)
+            nz = _attr_count(parts, 3, where)
         elif upper.startswith("X_COORDINATES"):
-            n_coord = int(parts[1])
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            where = f"line {i + 1}"
+            n_coord = _attr_count(parts, 1, where)
             i += 1
             if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+                np_dt = _binary_dtype(parts, 2, where)
                 data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
                 n_bytes = n_coord * np.dtype(np_dt).itemsize
                 _check_block(data_pos, n_bytes, len(raw), name=parts[0])
@@ -2123,11 +2230,11 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 xs = np.array(vals, dtype=np.float64)
                 continue
         elif upper.startswith("Y_COORDINATES"):
-            n_coord = int(parts[1])
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            where = f"line {i + 1}"
+            n_coord = _attr_count(parts, 1, where)
             i += 1
             if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+                np_dt = _binary_dtype(parts, 2, where)
                 data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
                 n_bytes = n_coord * np.dtype(np_dt).itemsize
                 _check_block(data_pos, n_bytes, len(raw), name=parts[0])
@@ -2144,11 +2251,11 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 ys = np.array(vals, dtype=np.float64)
                 continue
         elif upper.startswith("Z_COORDINATES"):
-            n_coord = int(parts[1])
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            where = f"line {i + 1}"
+            n_coord = _attr_count(parts, 1, where)
             i += 1
             if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+                np_dt = _binary_dtype(parts, 2, where)
                 data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
                 n_bytes = n_coord * np.dtype(np_dt).itemsize
                 _check_block(data_pos, n_bytes, len(raw), name=parts[0])
@@ -2165,11 +2272,11 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 zs = np.array(vals, dtype=np.float64)
                 continue
         elif upper.startswith("POINT_DATA"):
-            n_points = int(parts[1])
+            n_points = _attr_count(parts, 1, f"line {i + 1}")
             in_point_data = True
             in_data_section = True
         elif upper.startswith("CELL_DATA"):
-            n_cells_declared = int(parts[1]) if len(parts) > 1 else 0
+            n_cells_declared = _attr_count(parts, 1, f"line {i + 1}", default=0)
             in_point_data = False
             in_data_section = True
         elif in_data_section:
@@ -2213,8 +2320,11 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         )
     nx, ny, nz = len(xs), len(ys), len(zs)
 
-    # The grid the file described is not recoverable from the point array it
-    # was expanded into, so what the header said is kept alongside it.
+    # The grid is not recoverable from the point array it was expanded into,
+    # so it is kept alongside it - the grid the points are actually laid out
+    # on, which above is the coordinate arrays rather than the header they
+    # may disagree with. A consumer rebuilding the image from a number the
+    # points do not honour rebuilds a different mesh.
     grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
 
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
@@ -2295,13 +2405,16 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
         parts = line.split()
 
         if upper.startswith("DIMENSIONS"):
-            nx, ny, nz = int(parts[1]), int(parts[2]), int(parts[3])
+            where = f"line {i + 1}"
+            nx = _attr_count(parts, 1, where)
+            ny = _attr_count(parts, 2, where)
+            nz = _attr_count(parts, 3, where)
         elif upper.startswith("POINTS") and not upper.startswith("POINT_DATA"):
-            n_points = int(parts[1])
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+            where = f"line {i + 1}"
+            n_points = _attr_count(parts, 1, where)
             i += 1
             if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+                np_dt = _binary_dtype(parts, 2, where)
                 data_pos = offsets[i] if i < len(offsets) else len(raw)
                 n_bytes = n_points * 3 * np.dtype(np_dt).itemsize
                 _check_block(data_pos, n_bytes, len(raw), name=parts[0])
@@ -2326,16 +2439,21 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             # POINTS array is what they have to line up with, and a file that
             # spells the two differently is read by the first and kept by the
             # second.
-            n_points_declared = int(parts[1]) if len(parts) > 1 else n_points
+            n_points_declared = _attr_count(parts, 1, f"line {i + 1}", default=n_points)
             in_point_data = True
             in_data_section = True
             i += 1
             continue
         elif upper.startswith("CELL_DATA"):
-            n_cells_declared = int(parts[1]) if len(parts) > 1 else 0
+            n_cells_declared = _attr_count(parts, 1, f"line {i + 1}", default=0)
             in_point_data = False
             in_data_section = True
         elif in_data_section:
+            # The cells are the ones _structured_cells_over will build, not
+            # the ones DIMENSIONS describes: a header the POINTS array does
+            # not cover leaves the mesh with none, and a CELL_DATA array
+            # kept against the count the header named is one validate then
+            # refuses.
             i = _read_structured_attr(
                 texts,
                 offsets,
@@ -2347,7 +2465,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
                 expected=(
                     len(vertices)
                     if in_point_data
-                    else _structured_cell_count(nx, ny, nz)
+                    else _structured_cell_count_over(nx, ny, nz, len(vertices))
                 ),
                 kind="point" if in_point_data else "cell",
                 unhandled=unhandled,
@@ -2355,8 +2473,11 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             continue
         i += 1
 
-    # The grid the file described is not recoverable from the point array it
-    # was expanded into, so what the header said is kept alongside it.
+    # The grid is not recoverable from the point array, so what the header
+    # said is kept alongside it. A STRUCTURED_GRID lays its points out by
+    # DIMENSIONS and nothing else, so the header is the only description
+    # there is: it is handed back even when the POINTS array does not cover
+    # it, which the cells above have already been dropped over.
     grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
 
     cells, etype_name = _structured_cells_over(nx, ny, nz, len(vertices))
@@ -2690,6 +2811,32 @@ def _structured_cell_count(nx: int, ny: int, nz: int) -> int:
     return count if spans else 0
 
 
+def _structured_cell_count_over(nx: int, ny: int, nz: int, n_verts: int) -> int:
+    """Count the cells a structured grid will end up with.
+
+    ``_structured_cells_over`` hands back no cells at all when the points
+    the file delivered do not cover the grid its header describes. A
+    ``CELL_DATA`` section read before that is settled has to be measured
+    against the same answer, or its arrays are kept against cells the mesh
+    will not have and ``validate`` refuses the result.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Points along each axis, as ``DIMENSIONS`` declares them.
+    n_verts
+        Points the file actually delivered.
+
+    Returns
+    -------
+    int
+        Cells the mesh will hold; zero when the grid is not covered.
+    """
+    if nx * ny * nz != n_verts:
+        return 0
+    return _structured_cell_count(nx, ny, nz)
+
+
 def _scan_structured_attr(
     texts: list[str],
     offsets: list[int],
@@ -2763,14 +2910,15 @@ def _scan_structured_attr(
 
     if upper.startswith("SCALARS"):
         name = _attr_name(parts, where)
-        vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
         n_comp = _attr_count(parts, 3, where, default=1)
         i += 1
         if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
             i += 1
-        np_dt_base = _VTK_DTYPE_MAP.get(vtk_dt, "f4")
         if is_binary:
-            np_dt = ">" + np_dt_base
+            # Resolved inside the binary branch: an ASCII payload is read as
+            # text whatever its header names, so refusing a type this reader
+            # has no numpy equivalent for would cost an array it can read.
+            np_dt = _binary_dtype(parts, 2, where)
             data_pos = offsets[i] if i < len(offsets) else len(raw)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(data_pos, n_bytes, len(raw), name=name)
@@ -2812,10 +2960,9 @@ def _scan_structured_attr(
         # NORMALS spells its header the way VECTORS does and holds the same
         # three components, so one branch reads both.
         name = _attr_name(parts, where)
-        vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
         i += 1
         if is_binary:
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            np_dt = _binary_dtype(parts, 2, where)
             data_pos = offsets[i] if i < len(offsets) else len(raw)
             n_bytes = n_items * 3 * np.dtype(np_dt).itemsize
             _check_block(data_pos, n_bytes, len(raw), name=name)
@@ -2831,10 +2978,9 @@ def _scan_structured_attr(
     if upper.startswith("TEXTURE_COORDINATES"):
         name = _attr_name(parts, where)
         n_comp = _attr_count(parts, 2, where, default=2)
-        vtk_dt = parts[3].lower() if len(parts) > 3 else "float"
         i += 1
         if is_binary:
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            np_dt = _binary_dtype(parts, 3, where)
             data_pos = offsets[i] if i < len(offsets) else len(raw)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(data_pos, n_bytes, len(raw), name=name)
@@ -2850,10 +2996,9 @@ def _scan_structured_attr(
 
     if upper.startswith("TENSORS"):
         name = _attr_name(parts, where)
-        vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
         i += 1
         if is_binary:
-            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
+            np_dt = _binary_dtype(parts, 2, where)
             data_pos = offsets[i] if i < len(offsets) else len(raw)
             n_bytes = n_items * 9 * np.dtype(np_dt).itemsize
             _check_block(data_pos, n_bytes, len(raw), name=name)
@@ -2878,11 +3023,9 @@ def _scan_structured_attr(
             arr_name = fparts[0]
             n_comp_f = _attr_count(fparts, 1, fwhere)
             n_tuples_f = _attr_count(fparts, 2, fwhere)
-            vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
             i += 1
-            np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
             if is_binary:
-                np_dt_f = ">" + np_dt_base_f
+                np_dt_f = _binary_dtype(fparts, 3, fwhere)
                 data_pos = offsets[i] if i < len(offsets) else len(raw)
                 n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
                 _check_block(data_pos, n_bytes, len(raw), name=arr_name)
@@ -3033,17 +3176,20 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
         parts = line.split()
 
         if upper.startswith("DIMENSIONS"):
-            nx, ny, nz = int(parts[1]), int(parts[2]), int(parts[3])
+            where = f"line {i + 1}"
+            nx = _attr_count(parts, 1, where)
+            ny = _attr_count(parts, 2, where)
+            nz = _attr_count(parts, 3, where)
         elif upper.startswith("ORIGIN"):
-            ox, oy, oz = float(parts[1]), float(parts[2]), float(parts[3])
+            ox, oy, oz = _attr_reals(parts, f"line {i + 1}", 3)
         elif upper.startswith(("SPACING", "ASPECT_RATIO")):
-            sx, sy, sz = float(parts[1]), float(parts[2]), float(parts[3])
+            sx, sy, sz = _attr_reals(parts, f"line {i + 1}", 3)
         elif upper.startswith("POINT_DATA"):
-            n_points = int(parts[1])
+            n_points = _attr_count(parts, 1, f"line {i + 1}")
             in_point_data = True
             in_data_section = True
         elif upper.startswith("CELL_DATA"):
-            n_cells_declared = int(parts[1]) if len(parts) > 1 else 0
+            n_cells_declared = _attr_count(parts, 1, f"line {i + 1}", default=0)
             in_point_data = False
             in_data_section = True
         elif in_data_section:

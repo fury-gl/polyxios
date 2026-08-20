@@ -406,3 +406,22 @@ def test_a_float32_attribute_is_declared_and_read_as_float32(
 
     assert back.vertex_attrs["v"].dtype == np.float32
     np.testing.assert_array_equal(back.vertex_attrs["v"], values)
+
+
+def test_a_piece_count_that_is_not_a_count_names_the_file(tmp_path) -> None:
+    """int() on the attribute answered with a ValueError naming nothing."""
+    path = tmp_path / "bad.vtu"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">\n'
+        " <UnstructuredGrid>\n"
+        '  <Piece NumberOfPoints="many" NumberOfCells="1">\n'
+        '   <Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">0 0 0 1 0 0 0 1 0</DataArray></Points>\n'
+        "  </Piece>\n"
+        " </UnstructuredGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match="NumberOfPoints='many'"):
+        read(path)

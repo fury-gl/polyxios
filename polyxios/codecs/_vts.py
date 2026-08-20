@@ -14,6 +14,7 @@ from polyxios.codecs._vtk_xml import (
     sized_attrs,
     structured_hexahedra,
     vtk_type_to_np,
+    xml_extent,
 )
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
@@ -76,7 +77,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise ValueError("No <Piece> element found.")
 
     extent_str = piece.get("Extent", sg.get("WholeExtent", "0 1 0 1 0 1"))
-    extent = [int(v) for v in extent_str.split()]
+    extent = xml_extent(extent_str, fmt=".vts", where="Extent")
     i0, i1, j0, j1, k0, k1 = extent
     nx, ny, nz = i1 - i0, j1 - j0, k1 - k0
     n_verts = (nx + 1) * (ny + 1) * (nz + 1)

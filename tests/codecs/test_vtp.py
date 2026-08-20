@@ -148,3 +148,22 @@ def test_a_points_array_of_ragged_tuples_names_the_piece(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="not 3 tuples of three or more"):
         read(path)
+
+
+def test_a_piece_count_that_is_not_a_count_names_the_file(tmp_path) -> None:
+    """int() on the attribute answered with a ValueError naming nothing."""
+    path = tmp_path / "bad.vtp"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">\n'
+        " <PolyData>\n"
+        '  <Piece NumberOfPoints="many" NumberOfPolys="1">\n'
+        '   <Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">0 0 0 1 0 0 0 1 0</DataArray></Points>\n'
+        "  </Piece>\n"
+        " </PolyData>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match="NumberOfPoints='many'"):
+        read(path)

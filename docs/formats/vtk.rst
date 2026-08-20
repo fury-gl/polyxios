@@ -92,7 +92,8 @@ Quirks worth knowing
 - A ``STRUCTURED_GRID`` carries an explicit ``POINTS`` array, which its ``DIMENSIONS`` cannot be reconciled against the way a rectilinear grid's coordinates can. When the two disagree the points are handed back without cells, with a warning naming both counts: the cells the header describes would index points the file does not hold.
 - An attribute section is read by the count its own header declares, which is the only thing that says where one array ends and the next begins. An array that then covers no point or cell of the mesh is dropped with a warning naming it.
 - The ``LOOKUP_TABLE`` line after a ``SCALARS`` section is optional, and a binary file without one is read as such rather than losing the head of its payload.
-- A header missing a field, or spelling a count as something that is not a number, raises ``CodecError`` naming the line it is on - the byte offset, in a binary file.
+- A header missing a field, or spelling a count as something that is not a number, raises ``CodecError`` naming the line it is on - the byte offset, in a binary file. This covers the geometry headers - ``POINTS``, ``CELLS``, ``CELL_TYPES``, ``DIMENSIONS``, ``ORIGIN``, ``SPACING``, the coordinate arrays - as well as the attribute ones.
+- A binary block is read as the type its header names, ``POINTS`` included: an integer point array is not read at the width of a float. A type name with no numpy equivalent raises ``CodecError`` naming it rather than being guessed at, since a guessed width reads numbers the file never held. An ASCII payload is text whatever its header calls it, so it is read either way.
 
 .. seealso::
 
