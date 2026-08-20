@@ -178,7 +178,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
-    lines.append('<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">')
+    lines.append('<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">')
     lines.append(
         f'  <ImageData WholeExtent="{ext_str}" Origin="{orig_str}" Spacing="{spac_str}">'
     )

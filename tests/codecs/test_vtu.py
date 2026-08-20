@@ -7,7 +7,7 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios.codecs._vtu import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.fetcher import fetch
 
 
@@ -98,3 +98,173 @@ def test_real_files(filename: str, expected_verts: int, expected_cells: int) -> 
     assert len(poly.element_types) == expected_cells
     assert poly.vertices.shape[1] == 3
     assert poly.vertices.dtype == np.float64
+
+
+# ---------------------------------------------------------------------------
+# P1.5 - VTU reader/writer hardening
+# ---------------------------------------------------------------------------
+
+
+def _vtu(body: str) -> str:
+    return (
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">\n'
+        " <UnstructuredGrid>\n"
+        f"{body}"
+        " </UnstructuredGrid>\n"
+        "</VTKFile>\n"
+    )
+
+
+def _piece(
+    points: str, n_points: int, cells: str, n_cells: int, extra: str = ""
+) -> str:
+    return (
+        f'  <Piece NumberOfPoints="{n_points}" NumberOfCells="{n_cells}">\n'
+        "   <Points>\n"
+        '    <DataArray type="Float64" NumberOfComponents="3" format="ascii">'
+        f"{points}</DataArray>\n"
+        "   </Points>\n"
+        "   <Cells>\n"
+        f"{cells}"
+        "   </Cells>\n"
+        f"{extra}"
+        "  </Piece>\n"
+    )
+
+
+_TRI_CELLS = (
+    '    <DataArray type="Int32" Name="connectivity" format="ascii">0 1 2</DataArray>\n'
+    '    <DataArray type="Int32" Name="offsets" format="ascii">3</DataArray>\n'
+    '    <DataArray type="UInt8" Name="types" format="ascii">5</DataArray>\n'
+)
+
+
+def test_two_pieces_are_both_read(tmp_path) -> None:
+    path = tmp_path / "two.vtu"
+    path.write_text(
+        _vtu(
+            _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1)
+            + _piece("2 0 0 3 0 0 2 1 0", 3, _TRI_CELLS, 1)
+        )
+    )
+
+    poly = read(path)
+
+    assert poly.vertices.shape == (6, 3)
+    assert len(poly.element_types) == 2
+    # The second piece's cell indexes the second piece's points.
+    np.testing.assert_array_equal(poly.connectivity[3:], [3, 4, 5])
+
+
+def test_the_writer_declares_a_real_vtk_version(tmp_path) -> None:
+    path = tmp_path / "mesh.vtu"
+
+    write(_tet_mesh(), path)
+
+    header = next(line for line in path.read_text().splitlines() if "<VTKFile" in line)
+    assert 'version="1.0"' in header
+
+
+def test_a_file_with_no_points_reads_empty(tmp_path) -> None:
+    path = tmp_path / "empty.vtu"
+    empty_cells = (
+        '    <DataArray type="Int32" Name="connectivity" format="ascii"></DataArray>\n'
+        '    <DataArray type="Int32" Name="offsets" format="ascii"></DataArray>\n'
+        '    <DataArray type="UInt8" Name="types" format="ascii"></DataArray>\n'
+    )
+    path.write_text(_vtu(_piece("", 0, empty_cells, 0)))
+
+    poly = read(path)
+
+    assert poly.vertices.shape == (0, 3)
+    assert len(poly.element_types) == 0
+
+
+def test_a_string_data_array_is_skipped_with_a_warning(tmp_path) -> None:
+    """A String array holds labels, not numbers; it cannot become an attr."""
+    path = tmp_path / "string.vtu"
+    extra = (
+        "   <PointData>\n"
+        '    <DataArray type="String" Name="labels" format="ascii">'
+        "97 98 99</DataArray>\n"
+        '    <DataArray type="Float64" Name="s" format="ascii">1 2 3</DataArray>\n'
+        "   </PointData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    with pytest.warns(UserWarning, match="String"):
+        poly = read(path)
+
+    assert "labels" not in poly.vertex_attrs
+    np.testing.assert_allclose(poly.vertex_attrs["s"], [1, 2, 3])
+
+
+def test_an_unreadable_array_does_not_take_the_rest_with_it(
+    tmp_path,
+) -> None:
+    path = tmp_path / "unknown.vtu"
+    extra = (
+        "   <PointData>\n"
+        '    <DataArray type="Float128" Name="odd" format="ascii">1 2 3</DataArray>\n'
+        '    <DataArray type="Float64" Name="s" format="ascii">4 5 6</DataArray>\n'
+        "   </PointData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    with pytest.warns(UserWarning, match="Float128"):
+        poly = read(path)
+
+    assert "odd" not in poly.vertex_attrs
+    np.testing.assert_allclose(poly.vertex_attrs["s"], [4, 5, 6])
+
+
+def test_vertex_order_survives_a_round_trip(tmp_path) -> None:
+    """A renumbered point array silently invalidates every external index."""
+    verts = np.array(
+        [[3, 0, 0], [0, 0, 0], [2, 1, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[4, 1, 3], [0, 2, 3]]))])
+    path = tmp_path / "order.vtu"
+
+    write(poly, path)
+    back = read(path)
+
+    np.testing.assert_array_equal(back.vertices, verts)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+
+
+# ---------------------------------------------------------------------------
+# Pieces that do not line up
+# ---------------------------------------------------------------------------
+
+
+def test_an_attribute_covering_one_piece_of_two_is_dropped(tmp_path) -> None:
+    """Joined short, its rows would sit against the second piece's points."""
+    path = tmp_path / "partial.vtu"
+    extra = (
+        "   <PointData>\n"
+        '    <DataArray type="Float64" Name="s" format="ascii">1 2 3</DataArray>\n'
+        "   </PointData>\n"
+    )
+    path.write_text(
+        _vtu(
+            _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)
+            + _piece("2 0 0 3 0 0 2 1 0", 3, _TRI_CELLS, 1)
+        )
+    )
+
+    with pytest.warns(UserWarning, match="covers 3 of 6"):
+        poly = read(path)
+
+    assert "s" not in poly.vertex_attrs
+    assert poly.vertices.shape == (6, 3)
+
+
+def test_a_piece_that_withholds_its_points_is_refused(tmp_path) -> None:
+    """Its cells index those points, and later pieces are offset by them."""
+    path = tmp_path / "short.vtu"
+    path.write_text(_vtu(_piece("0 0 0 1 0 0", 3, _TRI_CELLS, 1)))
+
+    with pytest.raises(CodecError, match="declares 3 points"):
+        read(path)
