@@ -61,6 +61,8 @@ Quirks worth knowing
 
 - Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
 - Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
+- A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
+- A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
 
 .. seealso::
 

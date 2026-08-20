@@ -10,6 +10,7 @@ For appended data:
 
 import base64
 import math
+import warnings
 import xml.etree.ElementTree as ET
 import zlib
 
@@ -292,8 +293,18 @@ def decode_da(
         Decoded 1-D array.
     """
     fmt = elem.get("format", "ascii")
-    dtype_str = vtk_type_to_np(elem.get("type", "Float64"))
+    vtk_type = elem.get("type", "Float64")
+    dtype_str = vtk_type_to_np(vtk_type)
     if dtype_str is None:
+        # 'String' is the common case - a label array, which has no numeric
+        # form to become an attribute. Whatever it is, the array is skipped
+        # and the rest of the piece is read; saying so is what keeps it from
+        # looking like the file never held it.
+        warnings.warn(
+            f"VTK XML: DataArray '{elem.get('Name', 'unnamed')}' has type "
+            f"'{vtk_type}', which holds no numbers; skipped.",
+            stacklevel=3,
+        )
         return np.array([], dtype=np.float64)
     endian = ">" if big_endian else "<"
 
@@ -330,3 +341,45 @@ def decode_da(
     if len(raw) <= 4:
         return np.array([], dtype=dtype_str)
     return np.frombuffer(raw[4:], dtype=endian + dtype_str).copy().astype(dtype_str)
+
+
+def join_piece_attrs(
+    parts: dict[str, list[np.ndarray]], *, expected: int, kind: str
+) -> dict[str, np.ndarray]:
+    """Concatenate per-piece attribute arrays, dropping any that fall short.
+
+    A multi-piece file may carry an attribute on some pieces and not on
+    others - or skip one because polyxios cannot decode its type. Joining
+    what is there gives an array shorter than the mesh, whose rows then line
+    up against the wrong points from the second piece on. There is no way to
+    tell which piece the missing rows belonged to, so the attribute is
+    dropped and said out loud.
+
+    Parameters
+    ----------
+    parts
+        Arrays collected per piece, keyed by array name.
+    expected
+        Rows the joined array must have: points for point data, cells for
+        cell data.
+    kind
+        ``'point'`` or ``'cell'``, for the warning.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The arrays that cover the whole mesh.
+    """
+    joined: dict[str, np.ndarray] = {}
+    for name, arrays in parts.items():
+        arr = np.concatenate(arrays)
+        if arr.shape[0] != expected:
+            warnings.warn(
+                f"VTK XML: {kind} array '{name}' covers {arr.shape[0]} of"
+                f" {expected} {kind}s, so its rows cannot be matched to the"
+                " mesh; dropped.",
+                stacklevel=3,
+            )
+            continue
+        joined[name] = arr
+    return joined

@@ -6,8 +6,16 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml
-from polyxios.exceptions import LazyReadError, UnsupportedFormatError
+from polyxios.codecs._vtk_xml import (
+    decode_da,
+    join_piece_attrs,
+    parse_xml,
+)
+from polyxios.exceptions import (
+    CodecError,
+    LazyReadError,
+    UnsupportedFormatError,
+)
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtp"
@@ -86,9 +94,16 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             da = points_elem.find("DataArray")
             if da is not None:
                 flat = _decode(da)
-                if flat.size >= n_points * 3:
-                    verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
-                    all_vertices.append(verts)
+                # A piece that declares points and does not deliver them
+                # cannot be dropped quietly: its cells index those points,
+                # and every later piece is offset by how many there were.
+                if flat.size < n_points * 3:
+                    raise CodecError(
+                        f".vtp: a Piece declares {n_points} points but its"
+                        f" Points array holds {flat.size} values."
+                    )
+                verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
+                all_vertices.append(verts)
 
         vert_offset = (
             sum(v.shape[0] for v in all_vertices[:-1]) if len(all_vertices) > 1 else 0
@@ -177,8 +192,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         compressed=compressed,
     )
 
-    vertex_attrs = {k: np.concatenate(v) for k, v in all_vertex_attrs.items()}
-    element_attrs = {k: np.concatenate(v) for k, v in all_element_attrs.items()}
+    vertex_attrs = join_piece_attrs(
+        all_vertex_attrs, expected=vertices.shape[0], kind="point"
+    )
+    element_attrs = join_piece_attrs(
+        all_element_attrs, expected=len(element_types), kind="cell"
+    )
 
     return PolyData(
         vertices=vertices,
@@ -211,7 +230,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
-    lines.append('<VTKFile type="PolyData" version="0.1" byte_order="LittleEndian">')
+    lines.append('<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">')
     lines.append("  <PolyData>")
 
     n_polys = n_elems  # write all as Polys for generality

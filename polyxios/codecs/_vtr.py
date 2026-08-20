@@ -176,7 +176,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
     bo = "LittleEndian"
-    lines.append(f'<VTKFile type="RectilinearGrid" version="0.1" byte_order="{bo}">')
+    lines.append(f'<VTKFile type="RectilinearGrid" version="1.0" byte_order="{bo}">')
     lines.append(f'  <RectilinearGrid WholeExtent="{extent_str}">')
     lines.append(f'    <Piece Extent="{extent_str}">')
     lines.append("      <Coordinates>")

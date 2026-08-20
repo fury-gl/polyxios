@@ -137,11 +137,26 @@ Bug fixes
   than running off the end of the line list with an ``IndexError`` that
   names nothing. This covers ``SCALARS``, ``COLOR_SCALARS``, ``VECTORS``,
   ``NORMALS``, ``TENSORS`` and ``FIELD``.
+- The XML writers declare ``version="1.0"`` in the ``<VTKFile>`` header
+  rather than ``version="0.1"``, which no VTK release ever defined.
+  Reading a file that declares ``0.1`` is unchanged.
+- A ``<DataArray>`` polyxios cannot decode - a ``type="String"`` label
+  array, or any type it does not know - is skipped with a warning naming
+  it, and the arrays around it are still read. It used to vanish without
+  a word.
 - A legacy ``STRUCTURED_POINTS`` file keeps its ``DIMENSIONS``, ``ORIGIN``
   and ``SPACING`` in ``global_attrs`` as ``vtk_dimensions`` /
   ``vtk_origin`` / ``vtk_spacing``, and ``STRUCTURED_GRID`` /
   ``RECTILINEAR_GRID`` keep their ``DIMENSIONS``. Expanding the header into
   a point array used to throw the grid away.
+- A ``.vtu`` or ``.vtp`` ``Piece`` that declares points and does not
+  deliver them raises ``CodecError``. It used to be skipped, leaving the
+  piece's cells indexing points that are not there and every later piece
+  shifted by the count that never arrived.
+- A point or cell array that covers only some of a multi-piece ``.vtu`` or
+  ``.vtp`` file is dropped with a warning naming it. Joining the pieces
+  that carried it gave an array shorter than the mesh, whose rows then sat
+  against the wrong points from the second piece on.
 
 Tests
 ~~~~~
