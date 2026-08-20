@@ -67,6 +67,7 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- Multi-component attributes are cut into tuples with ``NumberOfComponents``, so an ``(n, 3)`` vector reads back with its shape rather than as ``3n`` rows.
 - The implicit grid is expanded to explicit hexahedral connectivity on read, so the resulting :class:`~polyxios.PolyData` carries real elements rather than an extent.
 - That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`.

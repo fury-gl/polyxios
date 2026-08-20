@@ -1,3 +1,4 @@
+from bisect import bisect_left
 import mmap
 from typing import Any
 import warnings
@@ -66,6 +67,32 @@ _COLOR_SCALE: float = 255.0
 # one. They fall through the same branch an unhandled array does, and are no
 # more dropped than the section they announce.
 _SECTION_KEYWORDS: frozenset[str] = frozenset({"POINT_DATA", "CELL_DATA"})
+
+# The keywords that name an array inside an attribute section. Used to stop a
+# METADATA block that was written without its blank terminator, so a
+# malformed one costs its own array rather than every array after it.
+_ATTRIBUTE_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "SCALARS",
+        "COLOR_SCALARS",
+        "VECTORS",
+        "NORMALS",
+        "TEXTURE_COORDINATES",
+        "TENSORS",
+        "FIELD",
+        "LOOKUP_TABLE",
+    }
+)
+
+# Every keyword that ends an attribute section, whether it opens another one
+# or returns to the geometry.
+_ATTRS_STOP_KEYWORDS: tuple[str, ...] = (
+    "POINT_DATA",
+    "CELL_DATA",
+    "POINTS",
+    "CELLS",
+    "CELL_TYPES",
+)
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
@@ -315,13 +342,19 @@ def _write_cells_v42(poly: PolyData, fh: object, binary: bool) -> None:
 
 
 def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
-    """Write v5.1 OFFSETS + CONNECTIVITY sections."""
-    n_elems = len(poly.element_types)
-    conn_size = len(poly.connectivity)
+    """Write v5.1 OFFSETS + CONNECTIVITY sections.
 
-    fh.write(f"CELLS {n_elems} {conn_size}\n".encode())  # type: ignore[union-attr]
-    fh.write(b"OFFSETS vtktypeint64\n")
+    The two numbers on a v5.1 ``CELLS`` line are the length of the OFFSETS
+    array and the length of the CONNECTIVITY array - not the cell count,
+    which is one less than the first of them. VTK's own reader takes the
+    first number literally and stops with "Error reading cell array
+    connectivity header" when it does not match the values that follow.
+    """
+    conn_size = len(poly.connectivity)
     offsets64 = poly.offsets.astype(np.int64)
+
+    fh.write(f"CELLS {len(offsets64)} {conn_size}\n".encode())  # type: ignore[union-attr]
+    fh.write(b"OFFSETS vtktypeint64\n")
     if binary:
         fh.write(offsets64.astype(np.dtype(">i8")).tobytes())  # type: ignore[union-attr]
     else:
@@ -459,18 +492,26 @@ def _read_polydata_ascii(path: Source) -> PolyData:
                     i += 1
                 vertices = np.array(verts_raw, dtype=np.float64).reshape(n_verts, 3)
 
-        elif (
-            upper.startswith("POLYGONS")
-            or upper.startswith("LINES")
-            or upper.startswith("VERTICES")
-            or upper.startswith("TRIANGLE_STRIPS")
-        ):
+        elif (kind := _polydata_section(upper)) is not None:
             parts = line.split()
             n_cells = int(parts[1])
             total_vals = int(parts[2])
+            i += 1
+
+            if i < n_lines and lines[i].strip().upper().startswith("OFFSETS"):
+                # v5.1, which every VTK release since 9.0 writes by default:
+                # the cells are an offsets array and a flat connectivity one,
+                # and the first number on the header line counts the offsets.
+                conn_v51, off_v51, i = _parse_v51_cells_ascii(lines, i)
+                base = off_list[-1]
+                conn_list.extend(conn_v51.tolist())
+                off_list.extend((base + off_v51[1:]).tolist())
+                counts = np.diff(off_v51)
+                type_list.extend(_polydata_cell_type(kind, int(cnt)) for cnt in counts)
+                n_elems += len(counts)
+                continue
 
             tokens = parts[3:]
-            i += 1
             while len(tokens) < total_vals and i < n_lines:
                 tokens.extend(lines[i].split())
                 if len(tokens) >= total_vals:
@@ -486,26 +527,7 @@ def _read_polydata_ascii(path: Source) -> PolyData:
 
                 idx += cnt
                 off_list.append(off_list[-1] + cnt)
-
-                if upper.startswith("POLYGONS"):
-                    if cnt == 3:
-                        type_list.append(ELEMENT_TYPES["triangle"])
-                    elif cnt == 4:
-                        type_list.append(ELEMENT_TYPES["quad"])
-                    else:
-                        type_list.append(ELEMENT_TYPES["polygon"])
-                elif upper.startswith("LINES"):
-                    if cnt == 2:
-                        type_list.append(ELEMENT_TYPES["line"])
-                    else:
-                        type_list.append(ELEMENT_TYPES["poly_line"])
-                elif upper.startswith("VERTICES"):
-                    if cnt == 1:
-                        type_list.append(ELEMENT_TYPES["vertex"])
-                    else:
-                        type_list.append(ELEMENT_TYPES["poly_vertex"])
-                elif upper.startswith("TRIANGLE_STRIPS"):
-                    type_list.append(ELEMENT_TYPES["triangle_strip"])
+                type_list.append(_polydata_cell_type(kind, cnt))
             n_elems += n_cells
             if len(tokens) >= total_vals:
                 i += 1
@@ -531,6 +553,53 @@ def _read_polydata_ascii(path: Source) -> PolyData:
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
     )
+
+
+_POLYDATA_CELL_TYPES: dict[str, tuple[dict[int, str], str]] = {
+    "POLYGONS": ({3: "triangle", 4: "quad"}, "polygon"),
+    "LINES": ({2: "line"}, "poly_line"),
+    "VERTICES": ({1: "vertex"}, "poly_vertex"),
+    "TRIANGLE_STRIPS": ({}, "triangle_strip"),
+}
+
+
+def _polydata_cell_type(kind: str, count: int) -> int:
+    """Name the element a POLYDATA cell of this size in this section is.
+
+    Parameters
+    ----------
+    kind
+        The section keyword, upper case: ``'POLYGONS'``, ``'LINES'``,
+        ``'VERTICES'`` or ``'TRIANGLE_STRIPS'``.
+    count
+        Points the cell holds.
+
+    Returns
+    -------
+    int
+        The polyxios element type code.
+    """
+    special, general = _POLYDATA_CELL_TYPES[kind]
+    return ELEMENT_TYPES[special.get(count, general)]
+
+
+def _polydata_section(upper: str) -> str | None:
+    """Name the POLYDATA cell section a line opens, if it opens one.
+
+    Parameters
+    ----------
+    upper
+        The line, upper case.
+
+    Returns
+    -------
+    str or None
+        The section keyword, or None when the line opens no cell section.
+    """
+    for kind in _POLYDATA_CELL_TYPES:
+        if upper.startswith(kind):
+            return kind
+    return None
 
 
 def _read_polydata_binary(path: Source) -> PolyData:
@@ -587,15 +656,31 @@ def _parse_binary_polydata_body(
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
 
-        elif (
-            upper.startswith("POLYGONS")
-            or upper.startswith("LINES")
-            or upper.startswith("VERTICES")
-            or upper.startswith("TRIANGLE_STRIPS")
-        ):
+        elif (kind := _polydata_section(upper)) is not None:
             n_cells = int(parts[1])
             total_vals = int(parts[2])
+
+            next_end = mm.find(b"\n", pos)
+            next_line = (
+                ""
+                if next_end == -1
+                else bytes(mv[pos:next_end]).decode("ascii", errors="replace").strip()
+            )
+            if next_line.upper().startswith("OFFSETS"):
+                # v5.1, as every VTK release since 9.0 writes it.
+                conn_v51, off_v51, pos = _parse_v51_cells_binary(
+                    mm, mv, next_end + 1, n_cells, file_size
+                )
+                base = all_offs[-1]
+                all_conn.append(conn_v51.astype(np.int32))
+                all_offs.extend((base + off_v51[1:]).tolist())
+                counts = np.diff(off_v51)
+                all_types.extend(_polydata_cell_type(kind, int(cnt)) for cnt in counts)
+                n_elems += len(counts)
+                continue
+
             n_bytes_cells = total_vals * 4
+            _check_block(pos, n_bytes_cells, file_size, name=kind)
             raw_cells = np.frombuffer(
                 bytes(mv[pos : pos + n_bytes_cells]), dtype=">i4"
             ).astype(np.int32)
@@ -610,25 +695,7 @@ def _parse_binary_polydata_body(
                 idx += cnt
                 all_conn.append(cell)
                 all_offs.append(all_offs[-1] + cnt)
-                if upper.startswith("POLYGONS"):
-                    if cnt == 3:
-                        all_types.append(ELEMENT_TYPES["triangle"])
-                    elif cnt == 4:
-                        all_types.append(ELEMENT_TYPES["quad"])
-                    else:
-                        all_types.append(ELEMENT_TYPES["polygon"])
-                elif upper.startswith("LINES"):
-                    if cnt == 2:
-                        all_types.append(ELEMENT_TYPES["line"])
-                    else:
-                        all_types.append(ELEMENT_TYPES["poly_line"])
-                elif upper.startswith("VERTICES"):
-                    if cnt == 1:
-                        all_types.append(ELEMENT_TYPES["vertex"])
-                    else:
-                        all_types.append(ELEMENT_TYPES["poly_vertex"])
-                elif upper.startswith("TRIANGLE_STRIPS"):
-                    all_types.append(ELEMENT_TYPES["triangle_strip"])
+                all_types.append(_polydata_cell_type(kind, cnt))
             n_elems += n_cells
 
         elif upper.startswith("POINT_DATA"):
@@ -704,14 +771,12 @@ def _read_ascii(path: Source, version: str) -> PolyData:
             validate_header(n_verts, n_elems, total_size, file_size)
 
             if version >= "5.1" and i < n_lines and "OFFSETS" in lines[i].upper():
-                connectivity, offsets = _parse_v51_cells_ascii(lines, i, n_elems)
-                # advance past OFFSETS + CONNECTIVITY sections
-                i += 2 + (n_elems + 1) + 1 + len(connectivity)
-                # simpler: skip until CELL_TYPES
-                i2 = i
-                while i2 < n_lines and "CELL_TYPES" not in lines[i2].upper():
-                    i2 += 1
-                i = i2
+                connectivity, offsets, i = _parse_v51_cells_ascii(lines, i)
+                # The first number on the CELLS line is the length of the
+                # offsets array, so the cells are one fewer - and older
+                # polyxios files, which put the cell count there, are read
+                # by the same count of what OFFSETS actually held.
+                n_elems = len(offsets) - 1
             elif _HAS_CYTHON:
                 connectivity, offsets = parse_ascii_cells_v42(lines, i, n_elems)
                 i += n_elems
@@ -765,23 +830,76 @@ def _read_ascii(path: Source, version: str) -> PolyData:
 
 
 def _parse_v51_cells_ascii(
-    lines: list[str], i: int, n_elems: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """Parse v5.1 OFFSETS + CONNECTIVITY from ASCII lines starting at index i."""
+    lines: list[str], i: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Parse v5.1 OFFSETS + CONNECTIVITY from ASCII lines starting at index i.
+
+    The offsets are counted rather than taken from the ``CELLS`` line, which
+    older polyxios releases wrote as the cell count where VTK writes the
+    length of the offsets array. Reading to the ``CONNECTIVITY`` keyword
+    takes both spellings without having to tell them apart.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the ``OFFSETS`` keyword line.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, int]
+        Connectivity, offsets, and the line just past the section. The mesh
+        has one cell fewer than the offsets array holds values.
+
+    Raises
+    ------
+    CodecError
+        If the ``CONNECTIVITY`` section is missing, or the offsets are not
+        a run of integers.
+    """
+    n_lines = len(lines)
     # line i: "OFFSETS vtktypeint64" or similar
     i += 1
     off_vals: list[int] = []
-    while len(off_vals) < n_elems + 1:
-        off_vals.extend(int(x) for x in lines[i].split())
+    while i < n_lines and "CONNECTIVITY" not in lines[i].upper():
+        try:
+            off_vals.extend(map(int, lines[i].split()))
+        except ValueError as exc:
+            raise CodecError(
+                f".vtk: line {i + 1} holds {lines[i].strip()!r} where the"
+                " OFFSETS of a v5.1 CELLS section should be."
+            ) from exc
         i += 1
+    if i >= n_lines or not off_vals:
+        raise CodecError(
+            ".vtk: a v5.1 CELLS section declares OFFSETS but no CONNECTIVITY"
+            " follows them."
+        )
+
     # Skip CONNECTIVITY keyword line
     i += 1
     conn_size = off_vals[-1]
     conn_vals: list[int] = []
     while len(conn_vals) < conn_size:
-        conn_vals.extend(int(x) for x in lines[i].split())
+        if i >= n_lines:
+            raise CodecError(
+                f".vtk: a v5.1 CELLS section declares {conn_size} connectivity"
+                f" values but the file ends after {len(conn_vals)}."
+            )
+        try:
+            conn_vals.extend(map(int, lines[i].split()))
+        except ValueError as exc:
+            raise CodecError(
+                f".vtk: line {i + 1} holds {lines[i].strip()!r} where the"
+                " CONNECTIVITY of a v5.1 CELLS section should be."
+            ) from exc
         i += 1
-    return np.array(conn_vals, dtype=np.int32), np.array(off_vals, dtype=np.int32)
+    return (
+        np.array(conn_vals, dtype=np.int32),
+        np.array(off_vals, dtype=np.int32),
+        i,
+    )
 
 
 def _read_ascii_values(
@@ -828,13 +946,17 @@ def _read_ascii_values(
                 f" after {len(vals)}."
             )
         try:
-            vals.extend(float(x) for x in lines[i].split())
+            # Parsed whole before it is kept: extending from a generator
+            # leaves the good half of a bad line in ``vals``, which the
+            # message below would then count as read.
+            row = list(map(float, lines[i].split()))
         except ValueError as exc:
             raise CodecError(
                 f".vtk: array {name!r} declares {count} values but line"
                 f" {i + 1} holds {lines[i].strip()!r}, which is not a row of"
                 f" numbers; {len(vals)} were read before it."
             ) from exc
+        vals.extend(row)
         i += 1
     return i, vals
 
@@ -855,13 +977,16 @@ def _parse_vtk_data_attrs(
         upper = line.upper()
 
         # Stop at next top-level section
-        if any(
-            upper.startswith(kw)
-            for kw in ("POINT_DATA", "CELL_DATA", "POINTS", "CELLS", "CELL_TYPES")
-        ):
+        if upper.startswith(_ATTRS_STOP_KEYWORDS):
             break
 
-        if upper.startswith("SCALARS"):
+        if upper.startswith("METADATA"):
+            # Every VTK writer since 4.2 puts one of these after each array.
+            # It is component names and information keys, not values, and
+            # the block ends at a blank line.
+            i = _skip_metadata(lines, i)
+
+        elif upper.startswith("SCALARS"):
             parts = line.split()
             name = parts[1]
             n_comp = int(parts[3]) if len(parts) > 3 else 1
@@ -923,8 +1048,7 @@ def _parse_vtk_data_attrs(
             n_arrays = int(parts[2])
             i += 1
             for _ in range(n_arrays):
-                while i < n_lines and not lines[i].strip():
-                    i += 1
+                i = _next_field_header(lines, i)
                 if i >= n_lines:
                     raise CodecError(
                         f".vtk: FIELD declares {n_arrays} arrays but the file"
@@ -944,28 +1068,20 @@ def _parse_vtk_data_attrs(
             # knowable, so they are skipped too, and the array is gone.
             # Saying so once per keyword is the difference between a short
             # read and a silent one.
-            keyword = line.split()[0]
-            if _looks_like_keyword(keyword) and keyword not in unknown:
-                unknown.add(keyword)
-                warnings.warn(
-                    f".vtk: attribute keyword {keyword!r} is not one this"
-                    " reader knows; it and its values are dropped.",
-                    stacklevel=3,
-                )
+            _warn_unhandled_attr(line, unknown, stacklevel=5)
             i += 1
 
     return i, attrs
 
 
-def _warn_unhandled_attr(line: str, seen: set[str]) -> None:
+def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 4) -> None:
     """Say once that a data keyword with no branch here is being dropped.
 
-    The structured readers walk their file a line at a time and skip what
-    they do not recognise. In a binary file that skip does not step over the
-    keyword's payload, so the scan carries on inside it and can read the
-    bytes as further keywords - a dropped array is the good outcome. Either
-    way the file held something the mesh does not, which is worth a
-    sentence.
+    The readers walk their file a line at a time and skip what they do not
+    recognise. In a binary file that skip does not step over the keyword's
+    payload, so the scan carries on inside it and can read the bytes as
+    further keywords - a dropped array is the good outcome. Either way the
+    file held something the mesh does not, which is worth a sentence.
 
     Parameters
     ----------
@@ -974,6 +1090,11 @@ def _warn_unhandled_attr(line: str, seen: set[str]) -> None:
     seen
         Keywords already warned about in this file; added to in place, so
         an array wrapped over many lines is named once rather than per line.
+    stacklevel
+        Frames between here and the caller of ``read``, so the warning is
+        blamed on the code that asked for the file rather than on this
+        module. The structured readers sit one frame closer to ``read``
+        than the section parsers do.
     """
     tokens = line.split()
     keyword = tokens[0] if tokens else ""
@@ -983,10 +1104,78 @@ def _warn_unhandled_attr(line: str, seen: set[str]) -> None:
         return
     seen.add(keyword)
     warnings.warn(
-        f".vtk: attribute keyword {keyword!r} is not one this reader handles"
-        " for a structured dataset; it and its values are dropped.",
-        stacklevel=3,
+        f".vtk: attribute keyword {keyword!r} is not one this reader knows;"
+        " it and its values are dropped.",
+        UserWarning,
+        stacklevel=stacklevel,
     )
+
+
+def _next_field_header(lines: list[str], i: int) -> int:
+    """Find the next array header inside a FIELD block.
+
+    A FIELD array carries its own ``METADATA`` block, which sits between one
+    array and the next. Read as a header it is a name with no component
+    count, and the arrays after it are read as its components.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index to start looking from.
+
+    Returns
+    -------
+    int
+        Index of the next header line, or past the end when there is none.
+    """
+    n_lines = len(lines)
+    while i < n_lines:
+        line = lines[i].strip()
+        if not line:
+            i += 1
+        elif line.upper().startswith("METADATA"):
+            i = _skip_metadata(lines, i)
+        else:
+            break
+    return i
+
+
+def _skip_metadata(lines: list[str], i: int) -> int:
+    """Step past a ``METADATA`` block.
+
+    Every VTK writer since 4.2 follows an array with one of these: component
+    names and information keys, terminated by a blank line. It holds no
+    values, so there is nothing to keep - but it has to be stepped over, or
+    the keywords inside it read as arrays this reader does not know and the
+    scan says so about a block that is perfectly ordinary.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the ``METADATA`` line itself.
+
+    Returns
+    -------
+    int
+        The line just past the block: past its blank terminator, or at the
+        keyword that ended it when the terminator is missing, so a malformed
+        block costs its own array rather than every array after it.
+    """
+    n_lines = len(lines)
+    i += 1
+    while i < n_lines:
+        line = lines[i].strip()
+        if not line:
+            return i + 1
+        keyword = line.split()[0].upper()
+        if keyword in _ATTRIBUTE_KEYWORDS or keyword in _SECTION_KEYWORDS:
+            return i
+        i += 1
+    return i
 
 
 def _looks_like_keyword(token: str) -> bool:
@@ -1103,25 +1292,10 @@ def _parse_binary_body(
             )
 
             if "OFFSETS" in next_line:
-                # v5.1: OFFSETS keyword line, then int64 data, then CONNECTIVITY keyword, then int64 data
-                pos = line_end2 + 1  # skip OFFSETS keyword line
-                n_off = n_elems + 1
-                n_bytes_off = n_off * 8
-                off_raw = np.frombuffer(bytes(mv[pos : pos + n_bytes_off]), dtype=">i8")
-                offsets_arr = off_raw.astype(np.int64)
-                pos += n_bytes_off
-                pos = _skip_newline(mv, pos, file_size)
-                # skip CONNECTIVITY keyword line
-                conn_kw_end = mm.find(b"\n", pos)
-                pos = conn_kw_end + 1
-                conn_size = int(offsets_arr[-1])
-                n_bytes_conn = conn_size * 8
-                conn_raw = np.frombuffer(
-                    bytes(mv[pos : pos + n_bytes_conn]), dtype=">i8"
+                connectivity, offsets_arr, pos = _parse_v51_cells_binary(
+                    mm, mv, line_end2 + 1, n_elems, file_size
                 )
-                connectivity = conn_raw.astype(np.int64)
-                pos += n_bytes_conn
-                pos = _skip_newline(mv, pos, file_size)
+                n_elems = len(offsets_arr) - 1
             else:
                 # v4.2: interleaved [count, idx0, ...] int32
                 n_bytes_cells = total_size * 4
@@ -1173,6 +1347,110 @@ def _skip_newline(mv: memoryview, pos: int, file_size: int) -> int:
     return pos
 
 
+def _parse_v51_cells_binary(
+    mm: mmap.mmap | bytes, mv: memoryview, pos: int, declared: int, file_size: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Read a binary v5.1 OFFSETS + CONNECTIVITY pair.
+
+    Parameters
+    ----------
+    mm
+        The mapping or buffer, for finding line ends.
+    mv
+        A memoryview of the same bytes, for slicing.
+    pos
+        Byte offset just past the ``OFFSETS`` keyword line.
+    declared
+        The first number on the section's header line.
+    file_size
+        Size of the file.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, int]
+        Connectivity, offsets, and the byte offset just past the section.
+        The section holds one cell fewer than the offsets array has values.
+    """
+    n_off = _v51_offset_count(mm, mv, pos, declared, file_size)
+    n_bytes_off = n_off * 8
+    _check_block(pos, n_bytes_off, file_size, name="OFFSETS")
+    offsets_arr = np.frombuffer(bytes(mv[pos : pos + n_bytes_off]), dtype=">i8").astype(
+        np.int64
+    )
+    pos = _skip_newline(mv, pos + n_bytes_off, file_size)
+
+    # skip CONNECTIVITY keyword line
+    conn_kw_end = mm.find(b"\n", pos)
+    if conn_kw_end == -1:
+        raise CodecError(
+            ".vtk: a v5.1 cell section declares OFFSETS but no CONNECTIVITY"
+            " follows them."
+        )
+    pos = conn_kw_end + 1
+    n_bytes_conn = int(offsets_arr[-1]) * 8
+    _check_block(pos, n_bytes_conn, file_size, name="CONNECTIVITY")
+    connectivity = np.frombuffer(
+        bytes(mv[pos : pos + n_bytes_conn]), dtype=">i8"
+    ).astype(np.int64)
+    pos = _skip_newline(mv, pos + n_bytes_conn, file_size)
+    return connectivity, offsets_arr, pos
+
+
+def _v51_offset_count(
+    mm: "mmap.mmap | bytes", mv: memoryview, pos: int, declared: int, file_size: int
+) -> int:
+    """Count the int64 offsets a binary v5.1 CELLS section holds.
+
+    The first number on the ``CELLS`` line is the length of the OFFSETS
+    array, but polyxios wrote the cell count there until this release, so
+    the two spellings differ by one and a file gives no other sign of which
+    it used. The block is followed by the ``CONNECTIVITY`` keyword, so the
+    length that puts that keyword where it belongs is the length the file
+    meant.
+
+    Parameters
+    ----------
+    mm
+        The mapping or buffer, for finding line ends.
+    mv
+        A memoryview of the same bytes, for slicing.
+    pos
+        Byte offset of the first offset value.
+    declared
+        The first number on the ``CELLS`` line.
+    file_size
+        Size of the file.
+
+    Returns
+    -------
+    int
+        Values in the OFFSETS array. The spelling VTK writes is tried first,
+        so a file that fits both is read the way VTK would read it.
+
+    Raises
+    ------
+    CodecError
+        If neither length is followed by a ``CONNECTIVITY`` keyword.
+    """
+    for n_off in (declared, declared + 1):
+        if n_off < 1:
+            continue
+        end = pos + n_off * 8
+        if end > file_size:
+            continue
+        probe = _skip_newline(mv, end, file_size)
+        line_end = mm.find(b"\n", probe)
+        if line_end == -1:
+            line_end = file_size
+        keyword = bytes(mv[probe:line_end]).decode("ascii", errors="replace").strip()
+        if keyword.upper().startswith("CONNECTIVITY"):
+            return n_off
+    raise CodecError(
+        f".vtk: a v5.1 CELLS section declares {declared} but no CONNECTIVITY"
+        " keyword follows either the offsets it names or one more."
+    )
+
+
 def _unpack_v42_cells(raw: np.ndarray, n_elems: int) -> tuple[np.ndarray, np.ndarray]:
     """Convert v4.2 interleaved cell array to CSR connectivity + offsets."""
     conn_list: list[int] = []
@@ -1217,6 +1495,82 @@ def _check_block(pos: int, n_bytes: int, file_size: int, *, name: str) -> None:
         )
 
 
+def _skip_binary_metadata(
+    mm: mmap.mmap | bytes, mv: memoryview, pos: int, file_size: int
+) -> int:
+    """Step past a ``METADATA`` block in a binary file.
+
+    The block is text even here, so it is read the way the ASCII reader
+    reads it: line by line to the blank one that ends it. Left alone it
+    would end the attribute scan and take every array after it.
+
+    Parameters
+    ----------
+    mm
+        The mapping or buffer, for finding line ends.
+    mv
+        A memoryview of the same bytes, for slicing.
+    pos
+        Byte offset just past the ``METADATA`` line.
+    file_size
+        Size of the file.
+
+    Returns
+    -------
+    int
+        Byte offset just past the block: past its blank terminator, or at
+        the keyword that ended it when the terminator is missing.
+    """
+    while pos < file_size:
+        line_start = pos
+        line_end = mm.find(b"\n", pos)
+        if line_end == -1:
+            return file_size
+        line = bytes(mv[pos:line_end]).decode("ascii", errors="replace").strip()
+        pos = line_end + 1
+        if not line:
+            return pos
+        keyword = line.split()[0].upper()
+        if keyword in _ATTRIBUTE_KEYWORDS or keyword in _SECTION_KEYWORDS:
+            return line_start
+    return pos
+
+
+def _skip_binary_field_metadata(
+    mm: "mmap.mmap | bytes", mv: memoryview, pos: int, file_size: int
+) -> int:
+    """Step past blank lines and any METADATA block before a FIELD header.
+
+    Parameters
+    ----------
+    mm
+        The mapping or buffer, for finding line ends.
+    mv
+        A memoryview of the same bytes, for slicing.
+    pos
+        Byte offset to start looking from.
+    file_size
+        Size of the file.
+
+    Returns
+    -------
+    int
+        Byte offset of the next array header.
+    """
+    while pos < file_size:
+        line_end = mm.find(b"\n", pos)
+        if line_end == -1:
+            return pos
+        line = bytes(mv[pos:line_end]).decode("ascii", errors="replace").strip()
+        if not line:
+            pos = line_end + 1
+        elif line.upper().startswith("METADATA"):
+            pos = _skip_binary_metadata(mm, mv, line_end + 1, file_size)
+        else:
+            return pos
+    return pos
+
+
 def _parse_binary_attrs(
     mm: mmap.mmap | bytes,
     mv: memoryview,
@@ -1239,14 +1593,17 @@ def _parse_binary_attrs(
             continue
 
         upper = line.upper()
-        if any(
-            upper.startswith(kw)
-            for kw in ("POINT_DATA", "CELL_DATA", "POINTS", "CELLS", "CELL_TYPES")
-        ):
+        if upper.startswith(_ATTRS_STOP_KEYWORDS):
             pos = line_start  # back up so outer loop re-reads this line
             break
 
-        if upper.startswith("SCALARS"):
+        if upper.startswith("METADATA"):
+            # Written after every array by VTK 4.2 and later, and written as
+            # text even in a binary file. Left to the branch below it would
+            # end the scan and take every array after it with it.
+            pos = _skip_binary_metadata(mm, mv, pos, file_size)
+
+        elif upper.startswith("SCALARS"):
             parts = line.split()
             name = parts[1]
             vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
@@ -1342,6 +1699,10 @@ def _parse_binary_attrs(
         elif upper.startswith("FIELD"):
             n_arrays = int(line.split()[2])
             for _ in range(n_arrays):
+                # A FIELD array carries its own METADATA block, which sits
+                # between one array and the next; read as a header it eats
+                # the array after it.
+                pos = _skip_binary_field_metadata(mm, mv, pos, file_size)
                 hdr_end = mm.find(b"\n", pos)
                 if hdr_end == -1:
                     break
@@ -1375,7 +1736,8 @@ def _parse_binary_attrs(
                 f".vtk: attribute keyword {line.split()[0]!r} is not one this"
                 " reader knows; it and everything after it in this data"
                 " section are dropped.",
-                stacklevel=3,
+                UserWarning,
+                stacklevel=4,
             )
             pos = line_start  # back up and let the outer loop see the line
             break
@@ -1454,9 +1816,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 xs = np.frombuffer(
                     raw[data_pos : data_pos + n_bytes], dtype=np_dt
                 ).astype(np.float64)
-                data_end = data_pos + n_bytes
-                while i < n_lines and line_offsets[i] < data_end:
-                    i += 1
+                i = _skip_payload(line_offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
                 vals: list[float] = []
@@ -1477,9 +1837,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 ys = np.frombuffer(
                     raw[data_pos : data_pos + n_bytes], dtype=np_dt
                 ).astype(np.float64)
-                data_end = data_pos + n_bytes
-                while i < n_lines and line_offsets[i] < data_end:
-                    i += 1
+                i = _skip_payload(line_offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
                 vals = []
@@ -1500,9 +1858,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 zs = np.frombuffer(
                     raw[data_pos : data_pos + n_bytes], dtype=np_dt
                 ).astype(np.float64)
-                data_end = data_pos + n_bytes
-                while i < n_lines and line_offsets[i] < data_end:
-                    i += 1
+                i = _skip_payload(line_offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
                 vals = []
@@ -1537,13 +1893,18 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 _warn_unhandled_attr(line, unhandled)
                 i += 1
                 continue
+            # The coordinate arrays are the grid, not what DIMENSIONS said
+            # about it: the points are their outer product, so a header that
+            # disagrees would drop an attribute that covers every point
+            # there is.
+            gx, gy, gz = len(xs), len(ys), len(zs)
             _keep_structured_attrs(
                 found,
                 vertex_attrs if in_point_data else element_attrs,
                 expected=(
-                    nx * ny * nz
+                    gx * gy * gz
                     if in_point_data
-                    else _structured_cell_count(nx, ny, nz)
+                    else _structured_cell_count(gx, gy, gz)
                 ),
                 kind="point" if in_point_data else "cell",
             )
@@ -1553,6 +1914,19 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
 
     xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+
+    # As above: the cells have to index the points that exist, so they are
+    # generated over the coordinate arrays. A file whose header disagrees
+    # with them says two things, and only one of them is the data.
+    if (nx, ny, nz) != (len(xs), len(ys), len(zs)):
+        warnings.warn(
+            f".vtk: DIMENSIONS says {nx} {ny} {nz} but the coordinate arrays"
+            f" hold {len(xs)} {len(ys)} {len(zs)}; the arrays are the grid"
+            " and the header is ignored.",
+            UserWarning,
+            stacklevel=3,
+        )
+    nx, ny, nz = len(xs), len(ys), len(zs)
 
     # The grid the file described is not recoverable from the point array it
     # was expanded into, so what the header said is kept alongside it.
@@ -1655,12 +2029,12 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
                 _check_block(data_pos, n_bytes, len(raw), name=parts[0])
                 raw_pts = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt)
                 vertices = raw_pts.astype(np.float64).reshape(n_points, 3)
-                data_end = data_pos + n_bytes
-                while i < n_lines and offsets[i] < data_end:
-                    i += 1
-                pos = data_end
-                if pos < len(raw) and raw[pos : pos + 1] == b"\n":
-                    i += 1
+                # The walk already lands on the first line that starts at
+                # or after the payload; the separator newline it ends on
+                # belongs to the payload's own last line, so stepping over
+                # it again cost the section that followed - which is how a
+                # CELL_DATA written before POINT_DATA went missing.
+                i = _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
                 vals: list[float] = []
@@ -1940,6 +2314,26 @@ def _scan_structured_attr(
     parts = line.split()
     n_lines = len(texts)
 
+    if upper.startswith("METADATA"):
+        # Component names and information keys, written after every array by
+        # VTK 4.2 and later. No values to keep, but stepping over it is what
+        # keeps an ordinary file from being reported as holding keywords this
+        # reader does not know.
+        return _skip_metadata(texts, i)
+
+    if upper.startswith("LOOKUP_TABLE") and len(parts) > 2:
+        # A table definition, not the 'LOOKUP_TABLE name' line a SCALARS
+        # section carries - that one is consumed below. It is a palette
+        # rather than a value per point or cell, so there is no array to
+        # hang it on; its rgba rows are stepped over so the arrays after it
+        # are still found.
+        n_rows = int(parts[2])
+        if is_binary:
+            data_pos = offsets[i + 1] if i + 1 < len(offsets) else len(raw)
+            _check_block(data_pos, n_rows * 4, len(raw), name=parts[1])
+            return _skip_payload(offsets, i + 1, n_lines, data_pos + n_rows * 4)
+        return _read_ascii_values(texts, i + 1, n_rows * 4, name=parts[1])[0]
+
     if upper.startswith("SCALARS"):
         name = parts[1]
         vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
@@ -1958,7 +2352,7 @@ def _scan_structured_attr(
             )
             attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
             return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
-        i, values = _ascii_values(texts, i, n_items * n_comp, n_lines)
+        i, values = _read_ascii_values(texts, i, n_items * n_comp, name=name)
         arr = np.array(values, dtype=np.float64)
         attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
         return i
@@ -1982,7 +2376,7 @@ def _scan_structured_attr(
             )
             attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
             return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
-        i, values = _ascii_values(texts, i, n_items * n_comp, n_lines)
+        i, values = _read_ascii_values(texts, i, n_items * n_comp, name=name)
         arr = np.array(values, dtype=np.float64)
         attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
         return i
@@ -2003,7 +2397,7 @@ def _scan_structured_attr(
             )
             attrs[name] = arr.reshape(n_items, 3)
             return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
-        i, values = _ascii_values(texts, i, n_items * 3, n_lines)
+        i, values = _read_ascii_values(texts, i, n_items * 3, name=name)
         attrs[name] = np.array(values, dtype=np.float64).reshape(n_items, 3)
         return i
 
@@ -2022,7 +2416,7 @@ def _scan_structured_attr(
             )
             attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
             return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
-        i, values = _ascii_values(texts, i, n_items * n_comp, n_lines)
+        i, values = _read_ascii_values(texts, i, n_items * n_comp, name=name)
         arr = np.array(values, dtype=np.float64)
         attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
         return i
@@ -2041,7 +2435,7 @@ def _scan_structured_attr(
             )
             attrs[name] = arr.reshape(n_items, 3, 3)
             return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
-        i, values = _ascii_values(texts, i, n_items * 9, n_lines)
+        i, values = _read_ascii_values(texts, i, n_items * 9, name=name)
         attrs[name] = np.array(values, dtype=np.float64).reshape(n_items, 3, 3)
         return i
 
@@ -2049,8 +2443,7 @@ def _scan_structured_attr(
         n_arrays = int(parts[2])
         i += 1
         for _ in range(n_arrays):
-            while i < n_lines and not texts[i]:
-                i += 1
+            i = _next_field_header(texts, i)
             if i >= n_lines:
                 break
             fparts = texts[i].split()
@@ -2069,7 +2462,9 @@ def _scan_structured_attr(
                 ).astype(np.float64)
                 i = _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
             else:
-                i, fvalues = _ascii_values(texts, i, n_tuples_f * n_comp_f, n_lines)
+                i, fvalues = _read_ascii_values(
+                    texts, i, n_tuples_f * n_comp_f, name=arr_name
+                )
                 arr = np.array(fvalues, dtype=np.float64)
             attrs[arr_name] = arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
         return i
@@ -2096,38 +2491,10 @@ def _skip_payload(offsets: list[int], i: int, n_lines: int, data_end: int) -> in
     int
         The first line that starts at or after the end of the payload.
     """
-    while i < n_lines and offsets[i] < data_end:
-        i += 1
-    return i
-
-
-def _ascii_values(
-    texts: list[str], i: int, count: int, n_lines: int
-) -> tuple[int, list[float]]:
-    """Read ``count`` numbers from the lines of an ASCII payload.
-
-    Parameters
-    ----------
-    texts
-        The file's lines, stripped.
-    i
-        Index of the first line of values.
-    count
-        How many numbers the section declares.
-    n_lines
-        How many lines there are.
-
-    Returns
-    -------
-    tuple[int, list of float]
-        The line index just past the values, and the values; short when the
-        file ends first, which the caller's reshape refuses.
-    """
-    values: list[float] = []
-    while len(values) < count and i < n_lines:
-        values.extend(float(x) for x in texts[i].split())
-        i += 1
-    return i, values
+    # A binary payload holds a newline every few values, so the lines it was
+    # cut into number in the thousands for a mesh of any size; the offsets
+    # ascend, so the end of it is a search rather than a walk.
+    return min(bisect_left(offsets, data_end, i), n_lines)
 
 
 def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:

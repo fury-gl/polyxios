@@ -5,6 +5,7 @@ import tempfile
 import numpy as np
 import pytest
 
+from polyxios import make_polydata
 from polyxios.codecs._vtr import read, write
 from polyxios.exceptions import LazyReadError
 
@@ -102,3 +103,40 @@ def test_unsupported_lazy() -> None:
     _, tmp = _synthetic_rectilinear()
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def _grid() -> object:
+    xs = np.array([0.0, 1.0, 2.0])
+    verts = np.stack(
+        [g.ravel() for g in np.meshgrid(xs, xs, xs, indexing="ij")], axis=1
+    )
+    quads = np.array([[0, 1, 4, 3]], dtype=np.int32)
+    return make_polydata(verts, [("quad", quads)])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_vector_attribute_keeps_its_components(tmp_path, binary: bool) -> None:
+    """Without NumberOfComponents a reader has no way to cut the flat run."""
+    poly = _grid()
+    poly.vertex_attrs["vector"] = np.arange(27 * 3, dtype=np.float64).reshape(27, 3)
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.vertex_attrs["vector"].shape == (27, 3)
+    np.testing.assert_allclose(back.vertex_attrs["vector"], poly.vertex_attrs["vector"])
+
+
+def test_a_binary_integer_attribute_is_written_as_the_type_it_declares(
+    tmp_path,
+) -> None:
+    """It was cast to float64 under an Int32 header and read back as noise."""
+    poly = _grid()
+    poly.vertex_attrs["ints"] = np.arange(27, dtype=np.int32)
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=True)
+    back = read(path)
+
+    np.testing.assert_array_equal(back.vertex_attrs["ints"], np.arange(27))

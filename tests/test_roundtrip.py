@@ -598,11 +598,10 @@ def test_the_vtk_family_keeps_tags_it_has_room_for(tmp_path, ext: str) -> None:
     assert set(back.vertex_tags) == {"vgroup"}
 
 
-@pytest.mark.xfail(strict=True, reason="structured readers ignore the component count")
 @pytest.mark.parametrize("ext", [".vti", ".vts", ".vtr"])
 def test_a_structured_reader_keeps_a_vector_attribute_2d(tmp_path, ext: str) -> None:
-    """(27, 3) goes in and (81,) comes out, while .vtu and .vtk of the same
-    XML family return the shape intact - so this is an oversight, not a limit."""
+    """A component count declared on the way out is honoured on the way back,
+    the way the .vtu and .vtk of the same XML family already did."""
     poly = _structured()
     path = tmp_path / f"mesh{ext}"
     polyxios.write(poly, path)

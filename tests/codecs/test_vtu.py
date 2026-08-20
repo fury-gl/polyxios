@@ -320,3 +320,24 @@ def test_a_points_array_of_ragged_tuples_names_the_piece(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="not 3 tuples of three or more"):
         read(path)
+
+
+def test_a_points_array_of_a_type_with_no_numbers_names_the_type() -> None:
+    """Decoding it empty and blaming the count says nothing about the cause."""
+    content = """<?xml version="1.0"?>
+<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">
+  <UnstructuredGrid>
+    <Piece NumberOfPoints="2" NumberOfCells="0">
+      <Points>
+        <DataArray type="String" Name="Points" format="ascii">a b</DataArray>
+      </Points>
+    </Piece>
+  </UnstructuredGrid>
+</VTKFile>
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".vtu", delete=False) as f:
+        f.write(content)
+        tmp = f.name
+
+    with pytest.raises(CodecError, match="String"):
+        read(tmp)

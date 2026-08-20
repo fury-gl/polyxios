@@ -10,6 +10,8 @@ from polyxios.codecs._vtk_xml import (
     decode_da,
     join_piece_attrs,
     parse_xml,
+    shaped_da,
+    undecodable_type,
 )
 from polyxios.exceptions import (
     CodecError,
@@ -102,6 +104,15 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             # be dropped quietly: its cells index those points, and every
             # later piece is offset by how many there were.
             da = None if points_elem is None else points_elem.find("DataArray")
+            # Asked before decoding, so an array of a type this reader has no
+            # numbers for is reported as that rather than as an empty one.
+            bad_type = None if da is None else undecodable_type(da)
+            if bad_type is not None:
+                raise CodecError(
+                    f".vtp: a Piece declares {n_points} points but its"
+                    f" Points array has type '{bad_type}', which holds no"
+                    " numbers."
+                )
             flat = np.array([]) if da is None else _decode(da)
             # The array has to hold whole tuples as well as enough of
             # them: a size that is not a multiple of the point count has
@@ -164,9 +175,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             for da in pd_data:
                 name = da.get("Name", "unknown")
                 arr = _decode(da)
-                n_comp = int(da.get("NumberOfComponents", "1"))
-                if n_comp > 1:
-                    arr = arr.reshape(-1, n_comp)
+                if arr.size == 0:
+                    continue
+                arr = shaped_da(da, arr)
                 all_vertex_attrs.setdefault(name, []).append(arr)
 
         cd_data = piece.find("CellData")
@@ -174,9 +185,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             for da in cd_data:
                 name = da.get("Name", "unknown")
                 arr = _decode(da)
-                n_comp = int(da.get("NumberOfComponents", "1"))
-                if n_comp > 1:
-                    arr = arr.reshape(-1, n_comp)
+                if arr.size == 0:
+                    continue
+                arr = shaped_da(da, arr)
                 all_element_attrs.setdefault(name, []).append(arr)
 
     vertices = (

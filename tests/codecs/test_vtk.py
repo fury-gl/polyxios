@@ -930,3 +930,189 @@ def test_a_y_z_plane_reads_as_quads_over_its_own_points() -> None:
     assert len(poly.vertices) == 9
     assert len(poly.element_types) == 4
     np.testing.assert_array_equal(poly.connectivity[:4], [0, 1, 4, 3])
+
+
+def test_a_metadata_block_does_not_end_the_attribute_scan_in_ascii() -> None:
+    """Every VTK writer since 4.2 puts one after each array."""
+    content = (
+        b"# vtk DataFile Version 4.2\nm\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 2 float\n0 0 0\n1 0 0\n"
+        b"METADATA\nINFORMATION 0\n\n"
+        b"CELLS 1 3\n2 0 1\nCELL_TYPES 1\n3\n"
+        b"POINT_DATA 2\n"
+        b"SCALARS a float 1\nLOOKUP_TABLE default\n1 2\n"
+        b"METADATA\nINFORMATION 0\n\n"
+        b"SCALARS b float 1\nLOOKUP_TABLE default\n3 4\n"
+    )
+    tmp = _write_tmp(content)
+
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["a"], [1.0, 2.0])
+    np.testing.assert_array_equal(poly.vertex_attrs["b"], [3.0, 4.0])
+
+
+def test_a_metadata_block_does_not_end_the_attribute_scan_in_binary() -> None:
+    """The block is text even in a binary file, and used to end the scan."""
+    content = (
+        b"# vtk DataFile Version 4.2\nm\nBINARY\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 2 float\n"
+        + np.array([0, 0, 0, 1, 0, 0], dtype=">f4").tobytes()
+        + b"\nCELLS 1 3\n"
+        + np.array([2, 0, 1], dtype=">i4").tobytes()
+        + b"\nCELL_TYPES 1\n"
+        + np.array([3], dtype=">i4").tobytes()
+        + b"\nPOINT_DATA 2\nSCALARS a float 1\nLOOKUP_TABLE default\n"
+        + np.array([1, 2], dtype=">f4").tobytes()
+        + b"\nMETADATA\nINFORMATION 0\n\n"
+        b"SCALARS b float 1\nLOOKUP_TABLE default\n"
+        + np.array([3, 4], dtype=">f4").tobytes()
+        + b"\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["a"], [1.0, 2.0])
+    np.testing.assert_array_equal(poly.vertex_attrs["b"], [3.0, 4.0])
+
+
+def test_a_metadata_block_inside_a_field_does_not_eat_the_next_array() -> None:
+    """A FIELD array carries its own block, between one array and the next."""
+    content = (
+        b"# vtk DataFile Version 4.2\nm\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 2 float\n0 0 0\n1 0 0\n"
+        b"CELLS 1 3\n2 0 1\nCELL_TYPES 1\n3\n"
+        b"POINT_DATA 2\nFIELD FieldData 2\n"
+        b"first 1 2 double\n1 2\n"
+        b"METADATA\nCOMPONENT_NAMES\ncx\n\n"
+        b"second 1 2 double\n3 4\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.vertex_attrs["first"], [1.0, 2.0])
+    np.testing.assert_array_equal(poly.vertex_attrs["second"], [3.0, 4.0])
+
+
+def test_a_v51_cells_line_counting_offsets_reads_every_cell() -> None:
+    """VTK puts the length of the offsets array there, not the cell count."""
+    content = (
+        b"# vtk DataFile Version 5.1\nv\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+        b"CELLS 3 6\nOFFSETS vtktypeint64\n0 3 6\n"
+        b"CONNECTIVITY vtktypeint64\n0 1 2 1 3 2\n"
+        b"CELL_TYPES 2\n5 5\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert len(poly.element_types) == 2
+    np.testing.assert_array_equal(poly.offsets, [0, 3, 6])
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 1, 3, 2])
+
+
+def test_a_v51_cells_line_counting_cells_still_reads() -> None:
+    """Files older polyxios wrote put the cell count on that line."""
+    content = (
+        b"# vtk DataFile Version 5.1\nv\nASCII\nDATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 4 float\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+        b"CELLS 2 6\nOFFSETS vtktypeint64\n0 3 6\n"
+        b"CONNECTIVITY vtktypeint64\n0 1 2 1 3 2\n"
+        b"CELL_TYPES 2\n5 5\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert len(poly.element_types) == 2
+    np.testing.assert_array_equal(poly.offsets, [0, 3, 6])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_v51_write_declares_the_length_of_its_offsets_array(binary: bool) -> None:
+    """VTK's own reader takes that number literally and finds no cells."""
+    poly = _synthetic_mesh()
+    with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
+        tmp = f.name
+    write(poly, tmp, vtk_version="5.1", binary=binary)
+
+    header = Path(tmp).read_bytes().split(b"OFFSETS")[0].split(b"CELLS ")[1]
+    assert header.split()[0] == str(len(poly.offsets)).encode()
+
+    back = read(tmp)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+
+
+@pytest.mark.parametrize("section", [b"POLYGONS", b"LINES", b"VERTICES"])
+def test_v51_polydata_cell_sections_are_read(section: bytes) -> None:
+    """Every VTK release since 9.0 writes polydata cells this way."""
+    counts = {b"POLYGONS": 3, b"LINES": 2, b"VERTICES": 1}
+    n = counts[section]
+    conn = " ".join(str(k) for k in range(n)).encode()
+    content = (
+        b"# vtk DataFile Version 5.1\np\nASCII\nDATASET POLYDATA\n"
+        b"POINTS 3 float\n0 0 0\n1 0 0\n0 1 0\n"
+        + section
+        + b" 2 "
+        + str(n).encode()
+        + b"\nOFFSETS vtktypeint64\n0 "
+        + str(n).encode()
+        + b"\nCONNECTIVITY vtktypeint64\n"
+        + conn
+        + b"\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert len(poly.element_types) == 1
+    np.testing.assert_array_equal(poly.connectivity, list(range(n)))
+
+
+def test_a_binary_structured_grid_keeps_a_cell_data_written_first() -> None:
+    """The line after the POINTS payload was stepped over twice."""
+    content = (
+        b"# vtk DataFile Version 4.2\ns\nBINARY\nDATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 2 2 1\nPOINTS 4 float\n"
+        + np.array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0], dtype=">f4").tobytes()
+        + b"\nCELL_DATA 1\nSCALARS c float 1\nLOOKUP_TABLE default\n"
+        + np.array([7], dtype=">f4").tobytes()
+        + b"\nPOINT_DATA 4\nSCALARS p float 1\nLOOKUP_TABLE default\n"
+        + np.array([1, 2, 3, 4], dtype=">f4").tobytes()
+        + b"\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_array_equal(poly.element_attrs["c"], [7.0])
+    np.testing.assert_array_equal(poly.vertex_attrs["p"], [1.0, 2.0, 3.0, 4.0])
+
+
+def test_a_rectilinear_grid_follows_its_coordinates_not_its_header() -> None:
+    """The points are the outer product of the coordinate arrays."""
+    content = (
+        b"# vtk DataFile Version 4.2\nr\nASCII\nDATASET RECTILINEAR_GRID\n"
+        b"DIMENSIONS 3 2 1\n"
+        b"X_COORDINATES 2 float\n0 1\n"
+        b"Y_COORDINATES 2 float\n0 1\n"
+        b"Z_COORDINATES 1 float\n0\n"
+        b"POINT_DATA 4\nSCALARS s float 1\nLOOKUP_TABLE default\n1 2 3 4\n"
+    )
+    tmp = _write_tmp(content)
+
+    with pytest.warns(UserWarning, match="DIMENSIONS"):
+        poly = read(tmp)
+
+    assert len(poly.vertices) == 4
+    np.testing.assert_array_equal(poly.vertex_attrs["s"], [1.0, 2.0, 3.0, 4.0])
+    # The cells have to index points that exist.
+    assert int(poly.connectivity.max()) < len(poly.vertices)

@@ -260,6 +260,54 @@ def _read_raw_block(
     return np.frombuffer(b"".join(parts), dtype=endian + dtype_str).copy()
 
 
+def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
+    """Fold a decoded DataArray into one row per tuple.
+
+    A DataArray is written flat whatever its width, and ``NumberOfComponents``
+    is the only thing that says how to cut it. Left flat, a three-component
+    array on n points is 3n rows long and belongs to no mesh.
+
+    Parameters
+    ----------
+    elem
+        The ``DataArray`` element the values came from.
+    arr
+        Its decoded values, one dimensional.
+
+    Returns
+    -------
+    numpy.ndarray
+        An ``(n_tuples, n_comp)`` array, or the input unchanged when the
+        array is scalar or does not hold whole tuples - which the caller
+        then sees as a row count that does not match the mesh.
+    """
+    n_comp = int(elem.get("NumberOfComponents", "1"))
+    if n_comp > 1 and arr.size and arr.size % n_comp == 0:
+        return arr.reshape(-1, n_comp)
+    return arr
+
+
+def undecodable_type(elem: ET.Element) -> str | None:
+    """Name the type of a DataArray this reader cannot turn into numbers.
+
+    Lets a caller that has no way to carry on - a Points array, whose
+    absence would silently shift every later Piece - say what was wrong
+    with the array rather than that it held nothing.
+
+    Parameters
+    ----------
+    elem
+        A ``DataArray`` element.
+
+    Returns
+    -------
+    str or None
+        The VTK type name, or None when it decodes to a numpy dtype.
+    """
+    vtk_type = elem.get("type", "Float64")
+    return None if vtk_type_to_np(vtk_type) is not None else vtk_type
+
+
 def decode_da(
     elem: ET.Element,
     *,
@@ -303,7 +351,8 @@ def decode_da(
         warnings.warn(
             f"VTK XML: DataArray '{elem.get('Name', 'unnamed')}' has type "
             f"'{vtk_type}', which holds no numbers; skipped.",
-            stacklevel=3,
+            UserWarning,
+            stacklevel=4,
         )
         return np.array([], dtype=np.float64)
     endian = ">" if big_endian else "<"
@@ -383,6 +432,7 @@ def join_piece_attrs(
                 f"VTK XML: {kind} array '{name}' is shaped differently from"
                 f" one Piece to the next ({_shapes(arrays)}), so the pieces"
                 " cannot be joined; dropped.",
+                UserWarning,
                 stacklevel=3,
             )
             continue
@@ -391,6 +441,7 @@ def join_piece_attrs(
                 f"VTK XML: {kind} array '{name}' covers {arr.shape[0]} of"
                 f" {expected} {kind}s, so its rows cannot be matched to the"
                 " mesh; dropped.",
+                UserWarning,
                 stacklevel=3,
             )
             continue

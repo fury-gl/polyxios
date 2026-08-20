@@ -86,6 +86,9 @@ Quirks worth knowing
 - Those ``vtk_*`` entries are read-only: ``write`` always emits an ``UNSTRUCTURED_GRID`` and does not consume them.
 - ``CELL_DATA`` is read from the structured datasets as well as the unstructured ones. An array whose declared length matches neither the points nor the cells of the grid the header describes is dropped with a warning naming it, rather than reaching ``PolyData`` as a validation error about lengths.
 - A structured grid extends along whichever axes its ``DIMENSIONS`` declare: ``3 1 3`` is a sheet of quads in the x-z plane, not a run of lines, and a column along ``y`` or ``z`` is indexed with its own stride.
+- VTK 5.1 cells - the default since VTK 9.0 - are read wherever they appear: ``CELLS`` in an unstructured grid and ``POLYGONS``, ``LINES``, ``VERTICES`` or ``TRIANGLE_STRIPS`` in polydata. The two numbers on such a line are the length of the ``OFFSETS`` array and the length of ``CONNECTIVITY``, so the mesh holds one cell fewer than the first of them; the offsets are counted up to the ``CONNECTIVITY`` keyword, so a file spelling that line either way is read. ``write(..., vtk_version="5.1")`` declares the offsets length, which is what VTK's own reader expects.
+- A ``METADATA`` block - component names and information keys, written after every array by VTK 4.2 and later - is stepped over rather than read as an array. It is text even in a binary file, and it appears between the entries of a ``FIELD`` block as well as after a section.
+- A ``RECTILINEAR_GRID`` takes its grid from its coordinate arrays: the points are their outer product, so a ``DIMENSIONS`` header that disagrees with them is warned about and ignored.
 
 .. seealso::
 
