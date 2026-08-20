@@ -409,3 +409,277 @@ def test_binary_polydata_real_files(fname: str) -> None:
     poly = read(path)
     assert len(poly.vertices) > 0
     assert len(poly.element_types) > 0
+
+
+# ---------------------------------------------------------------------------
+# P1.3 - legacy binary read failures
+# ---------------------------------------------------------------------------
+
+
+def _binary_grid(
+    *,
+    newline: bytes = b"\n",
+    point_dtype: str = ">f8",
+    point_type: bytes = b"double",
+    trailer: bytes = b"",
+    extra: bytes = b"",
+) -> bytes:
+    """A one-triangle binary UNSTRUCTURED_GRID, with the quirks dialled in."""
+    pts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=point_dtype).tobytes()
+    cells = np.array([3, 0, 1, 2], dtype=">i4").tobytes()
+    types = np.array([5], dtype=">i4").tobytes()
+    header = newline.join(
+        [
+            b"# vtk DataFile Version 4.2",
+            b"binary quirks",
+            b"BINARY",
+            b"DATASET UNSTRUCTURED_GRID",
+            b"POINTS 3 " + point_type + trailer,
+            b"",
+        ]
+    )
+    return (
+        header
+        + pts
+        + b"\nCELLS 1 4\n"
+        + cells
+        + b"\nCELL_TYPES 1\n"
+        + types
+        + b"\n"
+        + extra
+    )
+
+
+def test_binary_grid_with_crlf_header_reads() -> None:
+    """A file written on Windows carries CRLF in the ASCII header."""
+    tmp = _write_tmp(_binary_grid(newline=b"\r\n"))
+
+    poly = read(tmp)
+
+    assert len(poly.vertices) == 3
+    assert len(poly.element_types) == 1
+
+
+def test_trailing_space_after_the_points_keyword_reads() -> None:
+    """Some writers pad the keyword line; the data still starts after it."""
+    tmp = _write_tmp(_binary_grid(trailer=b"  "))
+
+    poly = read(tmp)
+
+    np.testing.assert_allclose(poly.vertices[2], [0, 1, 0])
+
+
+def test_binary_float32_points_read_as_written() -> None:
+    tmp = _write_tmp(_binary_grid(point_dtype=">f4", point_type=b"float"))
+
+    poly = read(tmp)
+
+    np.testing.assert_allclose(poly.vertices[1], [1, 0, 0])
+
+
+def test_color_scalars_are_read_not_refused() -> None:
+    """COLOR_SCALARS is unsigned char per component, not a double array."""
+    colors = np.array([[255, 0, 0], [0, 255, 0], [0, 0, 255]], dtype=np.uint8)
+    extra = b"POINT_DATA 3\nCOLOR_SCALARS rgb 3\n" + colors.tobytes() + b"\n"
+    tmp = _write_tmp(_binary_grid(extra=extra))
+
+    poly = read(tmp)
+
+    assert "rgb" in poly.vertex_attrs
+    assert poly.vertex_attrs["rgb"].shape == (3, 3)
+
+
+def test_ascii_color_scalars_and_normals_are_read() -> None:
+    """The ASCII flavour holds floats in 0..1, and NORMALS is a vector."""
+    content = (
+        b"# vtk DataFile Version 4.2\n"
+        b"ascii attributes\n"
+        b"ASCII\n"
+        b"DATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n"
+        b"3 0 1 2\n"
+        b"CELL_TYPES 1\n"
+        b"5\n"
+        b"POINT_DATA 3\n"
+        b"COLOR_SCALARS rgb 3\n"
+        b"1 0 0\n0 1 0\n0 0 1\n"
+        b"NORMALS n float\n"
+        b"0 0 1\n0 0 1\n0 0 1\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    np.testing.assert_allclose(poly.vertex_attrs["rgb"][2], [0, 0, 1])
+    np.testing.assert_allclose(poly.vertex_attrs["n"][0], [0, 0, 1])
+
+
+def test_binary_normals_are_read() -> None:
+    normals = np.array([[0, 0, 1], [0, 0, 1], [0, 0, 1]], dtype=">f4")
+    extra = b"POINT_DATA 3\nNORMALS n float\n" + normals.tobytes() + b"\n"
+    tmp = _write_tmp(_binary_grid(extra=extra))
+
+    poly = read(tmp)
+
+    np.testing.assert_allclose(poly.vertex_attrs["n"][1], [0, 0, 1])
+
+
+# ---------------------------------------------------------------------------
+# P1.4 - POLYDATA sections and the legacy structured datasets
+# ---------------------------------------------------------------------------
+
+
+def test_polydata_reads_all_four_cell_sections() -> None:
+    """VERTICES, LINES, POLYGONS and TRIANGLE_STRIPS in one file."""
+    content = (
+        b"# vtk DataFile Version 4.2\n"
+        b"every section\n"
+        b"ASCII\n"
+        b"DATASET POLYDATA\n"
+        b"POINTS 5 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n1 1 0\n2 0 0\n"
+        b"VERTICES 1 2\n"
+        b"1 4\n"
+        b"LINES 1 3\n"
+        b"2 0 1\n"
+        b"POLYGONS 1 4\n"
+        b"3 0 1 2\n"
+        b"TRIANGLE_STRIPS 1 5\n"
+        b"4 0 1 2 3\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    from polyxios._element_types import ELEMENT_TYPES
+
+    kinds = [int(t) for t in poly.element_types]
+    assert ELEMENT_TYPES["vertex"] in kinds
+    assert ELEMENT_TYPES["line"] in kinds
+    assert ELEMENT_TYPES["triangle"] in kinds
+    assert ELEMENT_TYPES["triangle_strip"] in kinds
+
+
+def test_structured_points_keeps_origin_spacing_dimensions() -> None:
+    """The grid the file describes is lost the moment the points are built."""
+    content = (
+        b"# vtk DataFile Version 4.2\n"
+        b"image\n"
+        b"ASCII\n"
+        b"DATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 2 3 1\n"
+        b"ORIGIN 1 2 3\n"
+        b"SPACING 0.5 0.25 1\n"
+        b"POINT_DATA 6\n"
+        b"SCALARS s float 1\n"
+        b"LOOKUP_TABLE default\n"
+        b"0 1 2 3 4 5\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert list(poly.global_attrs["vtk_dimensions"]) == [2, 3, 1]
+    np.testing.assert_allclose(poly.global_attrs["vtk_origin"], [1, 2, 3])
+    np.testing.assert_allclose(poly.global_attrs["vtk_spacing"], [0.5, 0.25, 1])
+
+
+def test_legacy_structured_grid_keeps_its_dimensions() -> None:
+    content = (
+        b"# vtk DataFile Version 4.2\n"
+        b"curvilinear\n"
+        b"ASCII\n"
+        b"DATASET STRUCTURED_GRID\n"
+        b"DIMENSIONS 2 2 1\n"
+        b"POINTS 4 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert list(poly.global_attrs["vtk_dimensions"]) == [2, 2, 1]
+
+
+def test_legacy_rectilinear_grid_keeps_its_dimensions() -> None:
+    content = (
+        b"# vtk DataFile Version 4.2\n"
+        b"rect\n"
+        b"ASCII\n"
+        b"DATASET RECTILINEAR_GRID\n"
+        b"DIMENSIONS 2 2 1\n"
+        b"X_COORDINATES 2 float\n"
+        b"0 1\n"
+        b"Y_COORDINATES 2 float\n"
+        b"0 1\n"
+        b"Z_COORDINATES 1 float\n"
+        b"0\n"
+    )
+    tmp = _write_tmp(content)
+
+    poly = read(tmp)
+
+    assert list(poly.global_attrs["vtk_dimensions"]) == [2, 2, 1]
+
+
+# ---------------------------------------------------------------------------
+# Attribute sections that run out, and the one whose scale differs by flavour
+# ---------------------------------------------------------------------------
+
+
+def _ascii_grid(attrs: bytes) -> bytes:
+    return (
+        b"# vtk DataFile Version 4.2\n"
+        b"attrs\n"
+        b"ASCII\n"
+        b"DATASET UNSTRUCTURED_GRID\n"
+        b"POINTS 3 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n"
+        b"3 0 1 2\n"
+        b"CELL_TYPES 1\n"
+        b"5\n"
+        b"POINT_DATA 3\n" + attrs
+    )
+
+
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        b"COLOR_SCALARS rgb 3\n1 0 0\n",
+        b"SCALARS s float 1\nLOOKUP_TABLE default\n1 2\n",
+        b"NORMALS n float\n0 0 1\n",
+        b"VECTORS v float\n0 0 1\n",
+        b"TENSORS t float\n1 0 0 0 1 0 0 0 1\n",
+        b"FIELD FieldData 1\nf 1 3 float\n1 2\n",
+    ],
+)
+def test_a_truncated_attribute_is_named_not_an_index_error(attrs: bytes) -> None:
+    """Reading off the end of the line list names nothing; say what ran out."""
+    tmp = _write_tmp(_ascii_grid(attrs))
+
+    with pytest.raises(CodecError, match="the file ends"):
+        read(tmp)
+
+
+def test_a_field_header_that_never_arrives_is_named() -> None:
+    tmp = _write_tmp(_ascii_grid(b"FIELD FieldData 2\nf 1 3 float\n1 2 3\n"))
+
+    with pytest.raises(CodecError, match="FIELD declares"):
+        read(tmp)
+
+
+def test_color_scalars_read_the_same_from_ascii_and_binary() -> None:
+    """One byte stands for the 0..1 float the ASCII flavour spells out."""
+    colors = np.array([[255, 0, 0], [0, 255, 0], [0, 0, 255]], dtype=np.uint8)
+    binary = _write_tmp(
+        _binary_grid(extra=b"POINT_DATA 3\nCOLOR_SCALARS rgb 3\n" + colors.tobytes())
+    )
+    ascii_ = _write_tmp(_ascii_grid(b"COLOR_SCALARS rgb 3\n1 0 0\n0 1 0\n0 0 1\n"))
+
+    np.testing.assert_allclose(
+        read(binary).vertex_attrs["rgb"], read(ascii_).vertex_attrs["rgb"]
+    )
+    assert read(binary).vertex_attrs["rgb"].max() == 1.0

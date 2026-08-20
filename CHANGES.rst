@@ -126,6 +126,22 @@ Bug fixes
   carries NaN out of the reader, and ``vt nan nan`` is not a record another
   reader takes; the row nothing indexes is written as zero. A ``vt`` array
   narrower than two columns is padded rather than indexed past its end.
+- Legacy ``.vtk`` files now read ``COLOR_SCALARS`` and ``NORMALS``, in both
+  the ASCII and the binary flavour. Both used to stop the attribute scan,
+  dropping the array and everything after it without a word. A binary
+  ``COLOR_SCALARS`` component is an unsigned char standing for the 0..1
+  float an ASCII file writes, and is scaled onto that range, so the same
+  colour reads back the same from either flavour.
+- A legacy ``.vtk`` attribute section that declares more values than the
+  file holds raises ``CodecError`` naming the array and the count, rather
+  than running off the end of the line list with an ``IndexError`` that
+  names nothing. This covers ``SCALARS``, ``COLOR_SCALARS``, ``VECTORS``,
+  ``NORMALS``, ``TENSORS`` and ``FIELD``.
+- A legacy ``STRUCTURED_POINTS`` file keeps its ``DIMENSIONS``, ``ORIGIN``
+  and ``SPACING`` in ``global_attrs`` as ``vtk_dimensions`` /
+  ``vtk_origin`` / ``vtk_spacing``, and ``STRUCTURED_GRID`` /
+  ``RECTILINEAR_GRID`` keep their ``DIMENSIONS``. Expanding the header into
+  a point array used to throw the grid away.
 
 Tests
 ~~~~~
