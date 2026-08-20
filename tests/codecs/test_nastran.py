@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import warnings
 
 import numpy as np
@@ -8,7 +9,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
-from polyxios.codecs._nastran import read, sniff, write
+from polyxios.codecs._nastran import _fmt_real, _parse_real, read, sniff, write
 from polyxios.exceptions import CodecError
 
 
@@ -1305,3 +1306,137 @@ def test_sniff_accepts_a_deck(head: bytes) -> None:
 )
 def test_sniff_rejects_what_is_not_a_deck(head: bytes) -> None:
     assert sniff(head) is False
+
+
+# ---------------------------------------------------------------------------
+# P1.6 - real fields fit, whatever the value
+# ---------------------------------------------------------------------------
+
+_EXTREME_VALUES: tuple[float, ...] = (
+    0.0,
+    -0.0,
+    5e-324,  # the smallest denormal
+    2.2250738585072014e-308,  # the smallest normal
+    1.7976931348623157e308,  # the largest finite double
+    -1.7976931348623157e308,
+    -1.234567e-10,  # needs the implicit-exponent form to fit
+)
+
+
+@pytest.mark.parametrize("width", [8, 16])
+def test_every_finite_value_fits_the_field(width: int) -> None:
+    """A coordinate is written or it is not; the writer never asserts."""
+    values = [
+        *_EXTREME_VALUES,
+        *(
+            mantissa * 10.0**exponent
+            for exponent in range(-30, 31)
+            for mantissa in (1.0, 1.2345678901234, -1.2345678901234, -9.999999999)
+        ),
+    ]
+
+    for value in values:
+        text = _fmt_real(value, width=width)
+        assert len(text) <= width, f"{value!r} -> {text!r}"
+        assert "e" not in text, f"{value!r} -> {text!r}: bulk data spells it E"
+        back = _parse_real(text)
+        assert math.isfinite(back), f"{value!r} -> {text!r} reads back {back!r}"
+        assert (back >= 0) == (value >= 0) or value == 0
+
+
+@pytest.mark.parametrize("width", [8, 16])
+def test_a_written_value_reads_back_close(width: int) -> None:
+    """Dropping digits costs precision; it must not cost the magnitude."""
+    tolerance = 1e-2 if width == 8 else 1e-8
+
+    for exponent in range(-30, 31):
+        for mantissa in (1.2345678901234, -1.2345678901234, -9.999999999):
+            value = mantissa * 10.0**exponent
+            back = _parse_real(_fmt_real(value, width=width))
+            assert abs(back - value) <= tolerance * abs(value)
+
+
+def test_the_largest_double_still_fits_a_small_field() -> None:
+    """Rounding up at the top of the range steps off it; round down instead."""
+    text = _fmt_real(1.7976931348623157e308, width=8)
+
+    assert len(text) <= 8
+    assert math.isfinite(_parse_real(text))
+    assert _parse_real(text) <= 1.7976931348623157e308
+
+
+def test_a_tight_field_uses_the_implicit_exponent_form() -> None:
+    """Nastran lets the E go, which is two more digits in eight columns."""
+    text = _fmt_real(-1.234567e-10, width=8)
+
+    assert len(text) <= 8
+    assert abs(_parse_real(text) + 1.234567e-10) <= 1e-2 * 1.234567e-10
+
+
+def test_an_exact_spelling_beats_a_longer_inexact_one() -> None:
+    """Precision is not the point; reading back the same value is."""
+    # '9999999.' carries seven digits and fits, but names a different number
+    # than the '1.E+07' two columns shorter.
+    assert _parse_real(_fmt_real(1e7, width=8)) == 1e7
+    assert _parse_real(_fmt_real(1e15, width=16)) == 1e15
+
+
+@pytest.mark.parametrize("width", [8, 16])
+def test_a_power_of_ten_is_written_exactly(width: int) -> None:
+    """The magnitudes a mesh is most likely to hold must not be approximated.
+
+    The power is spelled as a literal rather than computed with ``**``.
+    ``pow`` is not correctly rounded everywhere - glibc and MSVC answer
+    ``10.0 ** 23`` with the double one unit above ``1e23``, macOS with
+    ``1e23`` itself - and that neighbour needs seventeen significant digits,
+    which no eight or sixteen character field can hold. Asking for it back
+    exactly is asking the writer for a field wider than the format has.
+    """
+    for exponent in range(-30, 31):
+        power = float(f"1e{exponent}")
+        for value in (power, -power):
+            text = _fmt_real(value, width=width)
+            assert _parse_real(text) == value, f"{value!r} -> {text!r}"
+
+
+def test_the_exponent_keeps_no_padding_it_does_not_need() -> None:
+    """'+07' and '+7' name the same exponent; the column is a digit."""
+    text = _fmt_real(12345678.0, width=8)
+
+    assert len(text) <= 8
+    # Four significant digits is what the padded form could carry.
+    assert abs(_parse_real(text) - 12345678.0) < 1e-4 * 12345678.0
+
+
+@pytest.mark.parametrize("width", [8, 16])
+def test_an_exact_spelling_is_taken_whenever_one_fits(width: int) -> None:
+    """The search skips precisions that cannot be exact; none that can be."""
+    values = [
+        *_EXTREME_VALUES,
+        *(
+            mantissa * 10.0**exponent
+            for exponent in range(-30, 31)
+            for mantissa in (1.0, 1.5, 1.2345678901234, -9.999999999, -0.00012345678)
+        ),
+    ]
+
+    for value in values:
+        text = _fmt_real(value, width=width)
+        if _parse_real(text) == float(value):
+            continue
+        # Nothing shorter than repr reads back as the double, so an exact
+        # field can only be one of the spellings of that same rounding.
+        mantissa, sep, exponent = repr(float(value)).partition("e")
+        if "." not in mantissa:
+            mantissa += "."
+        shortest = min(
+            len(form)
+            for form in (
+                f"{mantissa}{sep.upper()}{exponent}",
+                f"{mantissa}{exponent}" if sep else f"{mantissa}",
+            )
+        )
+        assert shortest > width, (
+            f"{value!r} -> {text!r} is not exact, but an exact spelling of"
+            f" {shortest} characters fits {width}"
+        )

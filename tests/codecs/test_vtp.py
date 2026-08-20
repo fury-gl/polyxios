@@ -139,3 +139,12 @@ def test_a_point_array_shorter_than_the_mesh_is_dropped(tmp_path) -> None:
         poly = read(path)
 
     assert "s" not in poly.vertex_attrs
+
+
+def test_a_points_array_of_ragged_tuples_names_the_piece(tmp_path) -> None:
+    """reshape answers a size that is not whole tuples without naming a file."""
+    path = tmp_path / "ragged_points.vtp"
+    path.write_text(_polydata_file("0 0 0 1 0 0 0 1 0 9", 3))
+
+    with pytest.raises(CodecError, match="not 3 tuples of three or more"):
+        read(path)

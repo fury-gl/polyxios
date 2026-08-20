@@ -62,6 +62,11 @@ _VTK_DTYPE_MAP: dict[str, str] = {
 # float an ASCII file writes; dividing puts both flavours on one scale.
 _COLOR_SCALE: float = 255.0
 
+# The keywords that open an attribute section rather than name an array in
+# one. They fall through the same branch an unhandled array does, and are no
+# more dropped than the section they announce.
+_SECTION_KEYWORDS: frozenset[str] = frozenset({"POINT_DATA", "CELL_DATA"})
+
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a VTK legacy file (UNSTRUCTURED_GRID or POLYDATA) and return a PolyData.
@@ -87,6 +92,19 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         On unsupported dataset type or malformed data.
     UnknownElementTypeError
         If the file contains a VTK cell type not in _element_types.VTK_TO_POLYXIOS.
+
+    Notes
+    -----
+    A structured dataset is expanded into an explicit point array, which the
+    grid it came from cannot be read back out of, so the header is kept in
+    ``global_attrs`` as ``vtk_dimensions`` and - for ``STRUCTURED_POINTS`` -
+    ``vtk_origin`` and ``vtk_spacing``. These are read-only: ``write``
+    always emits an ``UNSTRUCTURED_GRID`` and does not consume them.
+
+    Binary ``COLOR_SCALARS`` holds one unsigned char per component where the
+    ASCII flavour holds a float in 0..1. The byte is scaled onto that range,
+    so the same colour reads back the same way whichever encoding the file
+    used.
     """
     # The dataset keyword lives in the header and decides which reader runs,
     # and that reader starts again from the top of the file. A stream that
@@ -795,7 +813,11 @@ def _read_ascii_values(
     Raises
     ------
     CodecError
-        If the file ends before ``count`` values have been read.
+        If the file ends before ``count`` values have been read, or a line
+        holds something that is not a number - an array that declares more
+        values than it lists runs into the header of the next one, and
+        ``float()`` answering that with a bare ``ValueError`` names neither
+        the array nor the file.
     """
     n_lines = len(lines)
     vals: list[float] = []
@@ -805,7 +827,14 @@ def _read_ascii_values(
                 f".vtk: array {name!r} declares {count} values but the file ends"
                 f" after {len(vals)}."
             )
-        vals.extend(float(x) for x in lines[i].split())
+        try:
+            vals.extend(float(x) for x in lines[i].split())
+        except ValueError as exc:
+            raise CodecError(
+                f".vtk: array {name!r} declares {count} values but line"
+                f" {i + 1} holds {lines[i].strip()!r}, which is not a row of"
+                f" numbers; {len(vals)} were read before it."
+            ) from exc
         i += 1
     return i, vals
 
@@ -815,6 +844,7 @@ def _parse_vtk_data_attrs(
 ) -> tuple[int, dict[str, np.ndarray]]:
     """Parse POINT_DATA or CELL_DATA attribute sections."""
     attrs: dict[str, np.ndarray] = {}
+    unknown: set[str] = set()
     n_lines = len(lines)
 
     while i < n_lines:
@@ -862,6 +892,25 @@ def _parse_vtk_data_attrs(
             i, vals = _read_ascii_values(lines, i, n_items * 3, name=name)
             attrs[name] = np.array(vals, dtype=np.float64).reshape(n_items, 3)
 
+        elif upper.startswith("TEXTURE_COORDINATES"):
+            parts = line.split()
+            name = parts[1]
+            n_comp = int(parts[2]) if len(parts) > 2 else 2
+            i += 1
+            i, vals = _read_ascii_values(lines, i, n_items * n_comp, name=name)
+            arr = np.array(vals, dtype=np.float64)
+            attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+
+        elif upper.startswith("LOOKUP_TABLE") and len(line.split()) > 2:
+            # A table definition, not the 'LOOKUP_TABLE name' line a SCALARS
+            # section carries - that one is consumed above. It is a palette
+            # rather than a value per point or cell, so there is no array to
+            # hang it on; its rgba rows are counted past so the arrays after
+            # it are still found.
+            i, _ = _read_ascii_values(
+                lines, i + 1, int(line.split()[2]) * 4, name=line.split()[1]
+            )
+
         elif upper.startswith("TENSORS"):
             parts = line.split()
             name = parts[1]
@@ -889,9 +938,75 @@ def _parse_vtk_data_attrs(
                 attrs[fname] = arr.reshape(n_tuples, n_comp_f) if n_comp_f > 1 else arr
 
         else:
+            # A keyword no version defines. Text can be stepped over a line
+            # at a time, so the scan goes on and the arrays after it are
+            # still found - but how many lines this one's values fill is not
+            # knowable, so they are skipped too, and the array is gone.
+            # Saying so once per keyword is the difference between a short
+            # read and a silent one.
+            keyword = line.split()[0]
+            if _looks_like_keyword(keyword) and keyword not in unknown:
+                unknown.add(keyword)
+                warnings.warn(
+                    f".vtk: attribute keyword {keyword!r} is not one this"
+                    " reader knows; it and its values are dropped.",
+                    stacklevel=3,
+                )
             i += 1
 
     return i, attrs
+
+
+def _warn_unhandled_attr(line: str, seen: set[str]) -> None:
+    """Say once that a data keyword with no branch here is being dropped.
+
+    The structured readers walk their file a line at a time and skip what
+    they do not recognise. In a binary file that skip does not step over the
+    keyword's payload, so the scan carries on inside it and can read the
+    bytes as further keywords - a dropped array is the good outcome. Either
+    way the file held something the mesh does not, which is worth a
+    sentence.
+
+    Parameters
+    ----------
+    line
+        The unhandled line, stripped.
+    seen
+        Keywords already warned about in this file; added to in place, so
+        an array wrapped over many lines is named once rather than per line.
+    """
+    tokens = line.split()
+    keyword = tokens[0] if tokens else ""
+    if keyword in _SECTION_KEYWORDS or keyword in seen:
+        return
+    if not _looks_like_keyword(keyword):
+        return
+    seen.add(keyword)
+    warnings.warn(
+        f".vtk: attribute keyword {keyword!r} is not one this reader handles"
+        " for a structured dataset; it and its values are dropped.",
+        stacklevel=3,
+    )
+
+
+def _looks_like_keyword(token: str) -> bool:
+    """Tell a section keyword from a line of values it wraps onto.
+
+    An unknown keyword's values are skipped by the same branch that skipped
+    the keyword, so warning on every line would name the numbers as often as
+    the array. A legacy keyword is upper case letters and underscores.
+
+    Parameters
+    ----------
+    token
+        First whitespace-separated token of the line.
+
+    Returns
+    -------
+    bool
+        True when the token reads as a keyword rather than as data.
+    """
+    return token.replace("_", "").isalpha() and token.isupper()
 
 
 def _read_binary(path: Source, version: str, *, lazy: bool) -> PolyData:
@@ -1072,6 +1187,36 @@ def _unpack_v42_cells(raw: np.ndarray, n_elems: int) -> tuple[np.ndarray, np.nda
     return np.array(conn_list, dtype=np.int32), np.array(off_list, dtype=np.int32)
 
 
+def _check_block(pos: int, n_bytes: int, file_size: int, *, name: str) -> None:
+    """Refuse a binary block the file is too short to hold.
+
+    A slice past the end of a mapping is silently short, and the reshape
+    that follows fails with a ValueError naming neither the array nor the
+    file. Asking first turns a truncated file into a sentence about it.
+
+    Parameters
+    ----------
+    pos
+        Byte offset the block starts at.
+    n_bytes
+        Bytes the header says the block holds.
+    file_size
+        Size of the file.
+    name
+        Array name, for the error message.
+
+    Raises
+    ------
+    CodecError
+        If the block runs past the end of the file.
+    """
+    if pos + n_bytes > file_size:
+        raise CodecError(
+            f".vtk: array {name!r} declares {n_bytes} bytes but only"
+            f" {max(0, file_size - pos)} remain in the file."
+        )
+
+
 def _parse_binary_attrs(
     mm: mmap.mmap | bytes,
     mv: memoryview,
@@ -1111,6 +1256,7 @@ def _parse_binary_attrs(
             lt_end = mm.find(b"\n", pos)
             pos = lt_end + 1
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
+            _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
                 np.float64
             )
@@ -1128,6 +1274,7 @@ def _parse_binary_attrs(
             name = parts[1]
             n_comp = int(parts[2]) if len(parts) > 2 else 1
             n_bytes = n_items * n_comp
+            _check_block(pos, n_bytes, file_size, name=name)
             raw = (
                 np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np.uint8).astype(
                     np.float64
@@ -1144,6 +1291,7 @@ def _parse_binary_attrs(
             vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
             np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
             n_bytes = n_items * 3 * np.dtype(np_dt).itemsize
+            _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
                 np.float64
             )
@@ -1151,12 +1299,39 @@ def _parse_binary_attrs(
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, 3)
 
+        elif upper.startswith("TEXTURE_COORDINATES"):
+            parts = line.split()
+            name = parts[1]
+            n_comp = int(parts[2]) if len(parts) > 2 else 2
+            vtk_dt = parts[3].lower() if len(parts) > 3 else "float"
+            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
+            _check_block(pos, n_bytes, file_size, name=name)
+            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
+                np.float64
+            )
+            pos += n_bytes
+            pos = _skip_newline(mv, pos, file_size)
+            attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw
+
+        elif upper.startswith("LOOKUP_TABLE") and len(line.split()) > 2:
+            # A table definition, not the 'LOOKUP_TABLE name' line a SCALARS
+            # section carries - that one is consumed above. It is a palette
+            # rather than a value per point or cell, so there is no array to
+            # hang it on; its rgba bytes are stepped over so the arrays after
+            # it are still found.
+            n_bytes = int(line.split()[2]) * 4
+            _check_block(pos, n_bytes, file_size, name=line.split()[1])
+            pos += n_bytes
+            pos = _skip_newline(mv, pos, file_size)
+
         elif upper.startswith("TENSORS"):
             parts = line.split()
             name = parts[1]
             vtk_dt = parts[2].lower() if len(parts) > 2 else "double"
             np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
             n_bytes = n_items * 9 * np.dtype(np_dt).itemsize
+            _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
                 np.float64
             )
@@ -1180,6 +1355,7 @@ def _parse_binary_attrs(
                 vtk_dt_f = hparts[3].lower()
                 np_dt_f = ">" + _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
                 n_bytes_f = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
+                _check_block(pos, n_bytes_f, file_size, name=arr_name)
                 raw_f = np.frombuffer(
                     bytes(mv[pos : pos + n_bytes_f]), dtype=np_dt_f
                 ).astype(np.float64)
@@ -1190,7 +1366,18 @@ def _parse_binary_attrs(
                 )
 
         else:
-            pos = line_start  # unknown keyword - back up and let outer loop handle
+            # Every legacy attribute keyword is handled above, so this is one
+            # no version defines. Its payload is binary of unknown length, so
+            # there is no stepping over it: the scan ends here, and what the
+            # file holds after it is lost. Saying so is the difference
+            # between a short read and a silent one.
+            warnings.warn(
+                f".vtk: attribute keyword {line.split()[0]!r} is not one this"
+                " reader knows; it and everything after it in this data"
+                " section are dropped.",
+                stacklevel=3,
+            )
+            pos = line_start  # back up and let the outer loop see the line
             break
 
     return pos, attrs
@@ -1230,7 +1417,17 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     zs: np.ndarray = np.zeros(1)
     n_points = 0
     in_point_data = False
+    # POINT_DATA and CELL_DATA both open a section of attributes; the
+    # flag is what tells an unhandled keyword inside one from the
+    # header lines above, which are skipped on purpose.
+    in_data_section = False
+    unhandled: set[str] = set()
     vertex_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = {}
+    # What a CELL_DATA section says it holds, against what the grid the
+    # header describes actually has; a section is read with the first and
+    # kept only when it matches the second.
+    n_cells_declared = 0
 
     i = 0
     n_lines = len(texts)
@@ -1253,6 +1450,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
                 data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
                 n_bytes = n_coord * np.dtype(np_dt).itemsize
+                _check_block(data_pos, n_bytes, len(raw), name=parts[0])
                 xs = np.frombuffer(
                     raw[data_pos : data_pos + n_bytes], dtype=np_dt
                 ).astype(np.float64)
@@ -1275,6 +1473,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
                 data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
                 n_bytes = n_coord * np.dtype(np_dt).itemsize
+                _check_block(data_pos, n_bytes, len(raw), name=parts[0])
                 ys = np.frombuffer(
                     raw[data_pos : data_pos + n_bytes], dtype=np_dt
                 ).astype(np.float64)
@@ -1297,6 +1496,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
                 data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
                 n_bytes = n_coord * np.dtype(np_dt).itemsize
+                _check_block(data_pos, n_bytes, len(raw), name=parts[0])
                 zs = np.frombuffer(
                     raw[data_pos : data_pos + n_bytes], dtype=np_dt
                 ).astype(np.float64)
@@ -1314,98 +1514,40 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         elif upper.startswith("POINT_DATA"):
             n_points = int(parts[1])
             in_point_data = True
+            in_data_section = True
         elif upper.startswith("CELL_DATA"):
+            n_cells_declared = int(parts[1]) if len(parts) > 1 else 0
             in_point_data = False
-        elif in_point_data and upper.startswith("SCALARS"):
-            name = parts[1]
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            n_comp = int(parts[3]) if len(parts) > 3 else 1
-            i += 1
-            if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
+            in_data_section = True
+        elif in_data_section:
+            # A CELL_DATA section reads the same way a POINT_DATA one does,
+            # only against the cells; the chain that used to sit here asked
+            # about points and let everything else fall past it.
+            found: dict[str, np.ndarray] = {}
+            nxt = _scan_structured_attr(
+                texts,
+                line_offsets,
+                raw,
+                i,
+                n_items=n_points if in_point_data else n_cells_declared,
+                is_binary=is_binary,
+                attrs=found,
+            )
+            if nxt is None:
+                _warn_unhandled_attr(line, unhandled)
                 i += 1
-            np_dt_base = _VTK_DTYPE_MAP.get(vtk_dt, "f4")
-            if is_binary:
-                np_dt = ">" + np_dt_base
-                data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
-                n_bytes = n_points * n_comp * np.dtype(np_dt).itemsize
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
-                ).astype(np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                data_end = data_pos + n_bytes
-                while i < n_lines and line_offsets[i] < data_end:
-                    i += 1
                 continue
-            else:
-                svals: list[float] = []
-                while len(svals) < n_points * n_comp and i < n_lines:
-                    svals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                arr = np.array(svals, dtype=np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                continue
-        elif in_point_data and upper.startswith("VECTORS"):
-            name = parts[1]
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            i += 1
-            if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
-                data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
-                n_bytes = n_points * 3 * np.dtype(np_dt).itemsize
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
-                ).astype(np.float64)
-                vertex_attrs[name] = arr.reshape(n_points, 3)
-                data_end = data_pos + n_bytes
-                while i < n_lines and line_offsets[i] < data_end:
-                    i += 1
-                continue
-            else:
-                vvals: list[float] = []
-                while len(vvals) < n_points * 3 and i < n_lines:
-                    vvals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                vertex_attrs[name] = np.array(vvals, dtype=np.float64).reshape(
-                    n_points, 3
-                )
-                continue
-        elif in_point_data and upper.startswith("FIELD"):
-            n_arrays = int(parts[2])
-            i += 1
-            for _ in range(n_arrays):
-                while i < n_lines and not texts[i]:
-                    i += 1
-                if i >= n_lines:
-                    break
-                fparts = texts[i].split()
-                arr_name = fparts[0]
-                n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
-                vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
-                i += 1
-                np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
-                if is_binary:
-                    np_dt_f = ">" + np_dt_base_f
-                    data_pos = line_offsets[i] if i < len(line_offsets) else len(raw)
-                    n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
-                    arr = np.frombuffer(
-                        raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
-                    ).astype(np.float64)
-                    data_end = data_pos + n_bytes
-                    while i < n_lines and line_offsets[i] < data_end:
-                        i += 1
-                else:
-                    fvals: list[float] = []
-                    while len(fvals) < n_tuples_f * n_comp_f and i < n_lines:
-                        fvals.extend(float(x) for x in texts[i].split())
-                        i += 1
-                    arr = np.array(fvals, dtype=np.float64)
-                vertex_attrs[arr_name] = (
-                    arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
-                )
+            _keep_structured_attrs(
+                found,
+                vertex_attrs if in_point_data else element_attrs,
+                expected=(
+                    nx * ny * nz
+                    if in_point_data
+                    else _structured_cell_count(nx, ny, nz)
+                ),
+                kind="point" if in_point_data else "cell",
+            )
+            i = nxt
             continue
         i += 1
 
@@ -1424,6 +1566,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             offsets=np.array([0], dtype=np.int32),
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
+            element_attrs=element_attrs,
             global_attrs=grid_meta,
         )
 
@@ -1439,6 +1582,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
         global_attrs=grid_meta,
     )
 
@@ -1475,7 +1619,17 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
     n_points = 0
     vertices = np.zeros((0, 3), dtype=np.float64)
     in_point_data = False
+    # POINT_DATA and CELL_DATA both open a section of attributes; the
+    # flag is what tells an unhandled keyword inside one from the
+    # header lines above, which are skipped on purpose.
+    in_data_section = False
+    unhandled: set[str] = set()
     vertex_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = {}
+    # What a CELL_DATA section says it holds, against what the grid the
+    # header describes actually has; a section is read with the first and
+    # kept only when it matches the second.
+    n_cells_declared = 0
 
     i = 0
     n_lines = len(texts)
@@ -1498,6 +1652,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
                 np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
                 data_pos = offsets[i] if i < len(offsets) else len(raw)
                 n_bytes = n_points * 3 * np.dtype(np_dt).itemsize
+                _check_block(data_pos, n_bytes, len(raw), name=parts[0])
                 raw_pts = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt)
                 vertices = raw_pts.astype(np.float64).reshape(n_points, 3)
                 data_end = data_pos + n_bytes
@@ -1516,100 +1671,40 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
                 continue
         elif upper.startswith("POINT_DATA"):
             in_point_data = True
+            in_data_section = True
             i += 1
             continue
         elif upper.startswith("CELL_DATA"):
+            n_cells_declared = int(parts[1]) if len(parts) > 1 else 0
             in_point_data = False
-        elif in_point_data and upper.startswith("SCALARS"):
-            name = parts[1]
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            n_comp = int(parts[3]) if len(parts) > 3 else 1
-            i += 1
-            if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
+            in_data_section = True
+        elif in_data_section:
+            # A CELL_DATA section reads the same way a POINT_DATA one does,
+            # only against the cells; the chain that used to sit here asked
+            # about points and let everything else fall past it.
+            found: dict[str, np.ndarray] = {}
+            nxt = _scan_structured_attr(
+                texts,
+                offsets,
+                raw,
+                i,
+                n_items=n_points if in_point_data else n_cells_declared,
+                is_binary=is_binary,
+                attrs=found,
+            )
+            if nxt is None:
+                _warn_unhandled_attr(line, unhandled)
                 i += 1
-            np_dt_base = _VTK_DTYPE_MAP.get(vtk_dt, "f4")
-            if is_binary:
-                np_dt = ">" + np_dt_base
-                data_pos = offsets[i] if i < len(offsets) else len(raw)
-                n_bytes = n_points * n_comp * np.dtype(np_dt).itemsize
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
-                ).astype(np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                data_end = data_pos + n_bytes
-                while i < n_lines and offsets[i] < data_end:
-                    i += 1
                 continue
-            else:
-                svals: list[float] = []
-                while len(svals) < n_points * n_comp and i < n_lines:
-                    svals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                arr = np.array(svals, dtype=np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                continue
-        elif in_point_data and upper.startswith("VECTORS"):
-            name = parts[1]
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            i += 1
-            if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
-                data_pos = offsets[i] if i < len(offsets) else len(raw)
-                n_bytes = n_points * 3 * np.dtype(np_dt).itemsize
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
-                ).astype(np.float64)
-                vertex_attrs[name] = arr.reshape(n_points, 3)
-                data_end = data_pos + n_bytes
-                while i < n_lines and offsets[i] < data_end:
-                    i += 1
-                continue
-            else:
-                vvals: list[float] = []
-                while len(vvals) < n_points * 3 and i < n_lines:
-                    vvals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                vertex_attrs[name] = np.array(vvals, dtype=np.float64).reshape(
-                    n_points, 3
-                )
-                continue
-        elif in_point_data and upper.startswith("FIELD"):
-            n_arrays = int(parts[2])
-            i += 1
-            for _ in range(n_arrays):
-                while i < n_lines and not texts[i]:
-                    i += 1
-                if i >= n_lines:
-                    break
-                fparts = texts[i].split()
-                arr_name = fparts[0]
-                n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
-                vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
-                i += 1
-                np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
-                if is_binary:
-                    np_dt_f = ">" + np_dt_base_f
-                    data_pos = offsets[i] if i < len(offsets) else len(raw)
-                    n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
-                    arr = np.frombuffer(
-                        raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
-                    ).astype(np.float64)
-                    data_end = data_pos + n_bytes
-                    while i < n_lines and offsets[i] < data_end:
-                        i += 1
-                else:
-                    fvals: list[float] = []
-                    while len(fvals) < n_tuples_f * n_comp_f and i < n_lines:
-                        fvals.extend(float(x) for x in texts[i].split())
-                        i += 1
-                    arr = np.array(fvals, dtype=np.float64)
-                vertex_attrs[arr_name] = (
-                    arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
-                )
+            _keep_structured_attrs(
+                found,
+                vertex_attrs if in_point_data else element_attrs,
+                expected=(
+                    n_points if in_point_data else _structured_cell_count(nx, ny, nz)
+                ),
+                kind="point" if in_point_data else "cell",
+            )
+            i = nxt
             continue
         i += 1
 
@@ -1625,6 +1720,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             offsets=np.array([0], dtype=np.int32),
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
+            element_attrs=element_attrs,
             global_attrs=grid_meta,
         )
 
@@ -1640,6 +1736,7 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
         global_attrs=grid_meta,
     )
 
@@ -1732,46 +1829,362 @@ def _read_field_data(path: Source) -> PolyData:
     )
 
 
+def _keep_structured_attrs(
+    found: dict[str, np.ndarray],
+    attrs: dict[str, np.ndarray],
+    *,
+    expected: int,
+    kind: str,
+) -> None:
+    """Keep the arrays that cover the mesh, and name the ones that do not.
+
+    A section declares its own tuple count, and the grid the header
+    describes says how many points and cells there really are. When the two
+    disagree the array's rows cannot be matched to anything, and attaching
+    it anyway is a PolyData that fails validation with a message about
+    lengths rather than about the file.
+
+    Parameters
+    ----------
+    found
+        Arrays just read out of one attribute section.
+    attrs
+        Destination, written in place.
+    expected
+        Rows an array must have to belong to this mesh.
+    kind
+        ``'point'`` or ``'cell'``, for the warning.
+    """
+    for name, arr in found.items():
+        if arr.shape[0] != expected:
+            warnings.warn(
+                f".vtk: {kind} array {name!r} covers {arr.shape[0]} of"
+                f" {expected} {kind}s, so its rows cannot be matched to the"
+                " mesh; dropped.",
+                stacklevel=4,
+            )
+            continue
+        attrs[name] = arr
+
+
+def _structured_cell_count(nx: int, ny: int, nz: int) -> int:
+    """Count the cells ``_structured_grid_cells`` will make for a grid.
+
+    The attribute scan needs this before the cells themselves exist, because
+    a ``CELL_DATA`` section declares its own count and the two have to be
+    the same for its arrays to belong to this mesh.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Points along each axis, as ``DIMENSIONS`` declares them.
+
+    Returns
+    -------
+    int
+        Cells the grid holds; zero when it extends along no axis.
+    """
+    spans = [dim - 1 for dim in (nx, ny, nz) if dim > 1]
+    count = 1
+    for span in spans:
+        count *= span
+    return count if spans else 0
+
+
+def _scan_structured_attr(
+    texts: list[str],
+    offsets: list[int],
+    raw: bytes,
+    i: int,
+    *,
+    n_items: int,
+    is_binary: bool,
+    attrs: dict[str, np.ndarray],
+) -> int | None:
+    """Read one attribute of a structured dataset, wherever its section is.
+
+    The three structured readers walk their file themselves rather than
+    handing the body to ``_parse_vtk_data_attrs``, because a structured
+    dataset has no explicit point array to anchor a byte offset to. They all
+    walked it the same way, so they walk it here instead - which is also
+    what lets a ``CELL_DATA`` section be read by the code that reads
+    ``POINT_DATA``, rather than falling past a chain that only ever asked
+    about points.
+
+    Parameters
+    ----------
+    texts
+        The file's lines, stripped.
+    offsets
+        Byte offset of each line, for finding a binary payload.
+    raw
+        The whole file.
+    i
+        Index of the attribute's header line.
+    n_items
+        Tuples the section declares: points for ``POINT_DATA``, cells for
+        ``CELL_DATA``.
+    is_binary
+        Whether the payload is binary rather than ASCII.
+    attrs
+        Destination, written in place.
+
+    Returns
+    -------
+    int or None
+        The line index just past the attribute, or None when the header is
+        not one this reader knows - which leaves the caller to say so.
+    """
+    line = texts[i]
+    upper = line.upper()
+    parts = line.split()
+    n_lines = len(texts)
+
+    if upper.startswith("SCALARS"):
+        name = parts[1]
+        vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+        n_comp = int(parts[3]) if len(parts) > 3 else 1
+        i += 1
+        if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
+            i += 1
+        np_dt_base = _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+        if is_binary:
+            np_dt = ">" + np_dt_base
+            data_pos = offsets[i] if i < len(offsets) else len(raw)
+            n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
+            _check_block(data_pos, n_bytes, len(raw), name=name)
+            arr = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt).astype(
+                np.float64
+            )
+            attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+            return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+        i, values = _ascii_values(texts, i, n_items * n_comp, n_lines)
+        arr = np.array(values, dtype=np.float64)
+        attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+        return i
+
+    if upper.startswith("COLOR_SCALARS"):
+        # One unsigned char per component in binary against one float in
+        # 0..1 in ASCII; the byte is scaled so the same colour reads back
+        # the same way whichever encoding the file used.
+        name = parts[1]
+        n_comp = int(parts[2]) if len(parts) > 2 else 1
+        i += 1
+        if is_binary:
+            data_pos = offsets[i] if i < len(offsets) else len(raw)
+            n_bytes = n_items * n_comp  # unsigned_char = 1 byte each
+            _check_block(data_pos, n_bytes, len(raw), name=name)
+            arr = (
+                np.frombuffer(
+                    raw[data_pos : data_pos + n_bytes], dtype=np.uint8
+                ).astype(np.float64)
+                / _COLOR_SCALE
+            )
+            attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+            return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+        i, values = _ascii_values(texts, i, n_items * n_comp, n_lines)
+        arr = np.array(values, dtype=np.float64)
+        attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+        return i
+
+    if upper.startswith(("VECTORS", "NORMALS")):
+        # NORMALS spells its header the way VECTORS does and holds the same
+        # three components, so one branch reads both.
+        name = parts[1]
+        vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+        i += 1
+        if is_binary:
+            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            data_pos = offsets[i] if i < len(offsets) else len(raw)
+            n_bytes = n_items * 3 * np.dtype(np_dt).itemsize
+            _check_block(data_pos, n_bytes, len(raw), name=name)
+            arr = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt).astype(
+                np.float64
+            )
+            attrs[name] = arr.reshape(n_items, 3)
+            return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+        i, values = _ascii_values(texts, i, n_items * 3, n_lines)
+        attrs[name] = np.array(values, dtype=np.float64).reshape(n_items, 3)
+        return i
+
+    if upper.startswith("TEXTURE_COORDINATES"):
+        name = parts[1]
+        n_comp = int(parts[2]) if len(parts) > 2 else 2
+        vtk_dt = parts[3].lower() if len(parts) > 3 else "float"
+        i += 1
+        if is_binary:
+            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
+            data_pos = offsets[i] if i < len(offsets) else len(raw)
+            n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
+            _check_block(data_pos, n_bytes, len(raw), name=name)
+            arr = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt).astype(
+                np.float64
+            )
+            attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+            return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+        i, values = _ascii_values(texts, i, n_items * n_comp, n_lines)
+        arr = np.array(values, dtype=np.float64)
+        attrs[name] = arr.reshape(n_items, n_comp) if n_comp > 1 else arr
+        return i
+
+    if upper.startswith("TENSORS"):
+        name = parts[1]
+        vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
+        i += 1
+        if is_binary:
+            np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f8")
+            data_pos = offsets[i] if i < len(offsets) else len(raw)
+            n_bytes = n_items * 9 * np.dtype(np_dt).itemsize
+            _check_block(data_pos, n_bytes, len(raw), name=name)
+            arr = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt).astype(
+                np.float64
+            )
+            attrs[name] = arr.reshape(n_items, 3, 3)
+            return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+        i, values = _ascii_values(texts, i, n_items * 9, n_lines)
+        attrs[name] = np.array(values, dtype=np.float64).reshape(n_items, 3, 3)
+        return i
+
+    if upper.startswith("FIELD"):
+        n_arrays = int(parts[2])
+        i += 1
+        for _ in range(n_arrays):
+            while i < n_lines and not texts[i]:
+                i += 1
+            if i >= n_lines:
+                break
+            fparts = texts[i].split()
+            arr_name = fparts[0]
+            n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
+            vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
+            i += 1
+            np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
+            if is_binary:
+                np_dt_f = ">" + np_dt_base_f
+                data_pos = offsets[i] if i < len(offsets) else len(raw)
+                n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
+                _check_block(data_pos, n_bytes, len(raw), name=arr_name)
+                arr = np.frombuffer(
+                    raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
+                ).astype(np.float64)
+                i = _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+            else:
+                i, fvalues = _ascii_values(texts, i, n_tuples_f * n_comp_f, n_lines)
+                arr = np.array(fvalues, dtype=np.float64)
+            attrs[arr_name] = arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
+        return i
+
+    return None
+
+
+def _skip_payload(offsets: list[int], i: int, n_lines: int, data_end: int) -> int:
+    """Step the line cursor past a binary payload.
+
+    Parameters
+    ----------
+    offsets
+        Byte offset of each line.
+    i
+        Index of the first line the payload starts on.
+    n_lines
+        How many lines there are.
+    data_end
+        Byte offset just past the payload.
+
+    Returns
+    -------
+    int
+        The first line that starts at or after the end of the payload.
+    """
+    while i < n_lines and offsets[i] < data_end:
+        i += 1
+    return i
+
+
+def _ascii_values(
+    texts: list[str], i: int, count: int, n_lines: int
+) -> tuple[int, list[float]]:
+    """Read ``count`` numbers from the lines of an ASCII payload.
+
+    Parameters
+    ----------
+    texts
+        The file's lines, stripped.
+    i
+        Index of the first line of values.
+    count
+        How many numbers the section declares.
+    n_lines
+        How many lines there are.
+
+    Returns
+    -------
+    tuple[int, list of float]
+        The line index just past the values, and the values; short when the
+        file ends first, which the caller's reshape refuses.
+    """
+    values: list[float] = []
+    while len(values) < count and i < n_lines:
+        values.extend(float(x) for x in texts[i].split())
+        i += 1
+    return i, values
+
+
 def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:
-    """Generate hex/quad/line cell connectivity for a structured grid."""
-    if nx > 1 and ny > 1 and nz > 1:
-        i = np.arange(nx - 1)
-        j = np.arange(ny - 1)
-        k = np.arange(nz - 1)
-        ii, jj, kk = np.meshgrid(i, j, k, indexing="ij")
-        ii, jj, kk = ii.ravel(), jj.ravel(), kk.ravel()
-        sj, sk = nx, nx * ny
-        v0 = ii + jj * sj + kk * sk
-        cells = np.column_stack(
-            [
-                v0,
-                v0 + 1,
-                v0 + 1 + sj,
-                v0 + sj,
-                v0 + sk,
-                v0 + 1 + sk,
-                v0 + 1 + sj + sk,
-                v0 + sj + sk,
-            ]
-        )
-        return cells, "hexahedron"
-    elif nx > 1 and ny > 1:
-        i = np.arange(nx - 1)
-        j = np.arange(ny - 1)
-        ii, jj = np.meshgrid(i, j, indexing="ij")
-        ii, jj = ii.ravel(), jj.ravel()
-        v0 = ii + jj * nx
-        return np.column_stack([v0, v0 + 1, v0 + 1 + nx, v0 + nx]), "quad"
-    elif nx > 1:
-        i = np.arange(nx - 1)
-        return np.column_stack([i, i + 1]), "line"
-    elif ny > 1:
-        i = np.arange(ny - 1)
-        return np.column_stack([i, i + 1]), "line"
-    elif nz > 1:
-        i = np.arange(nz - 1)
-        return np.column_stack([i, i + 1]), "line"
-    return np.zeros((0, 1), dtype=np.int32), "vertex"
+    """Generate hex/quad/line cell connectivity for a structured grid.
+
+    A dimension of one is a dimension the grid does not extend along, and
+    which of the three that is decides nothing but the stride: an ``x``-``z``
+    plane is as much a sheet of quads as an ``x``-``y`` one, and a column
+    along ``y`` is a run of lines the same way a row along ``x`` is. The
+    axes that extend are picked out first, so the cell type follows how many
+    there are rather than which ones they happen to be.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Points along each axis, as ``DIMENSIONS`` declares them.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, str]
+        One row of point indices per cell, and the element type name. A grid
+        that extends along no axis is a single point and has no cells.
+    """
+    dims = (nx, ny, nz)
+    # A point's index is x + y * nx + z * nx * ny, so this is the step along
+    # each axis.
+    strides = (1, nx, nx * ny)
+    axes = [axis for axis in range(3) if dims[axis] > 1]
+
+    if not axes:
+        return np.zeros((0, 1), dtype=np.int32), "vertex"
+
+    spans = np.meshgrid(*(np.arange(dims[a] - 1) for a in axes), indexing="ij")
+    v0 = sum(span.ravel() * strides[a] for span, a in zip(spans, axes))
+
+    if len(axes) == 1:
+        step = strides[axes[0]]
+        return np.column_stack([v0, v0 + step]), "line"
+
+    if len(axes) == 2:
+        sa, sb = strides[axes[0]], strides[axes[1]]
+        return np.column_stack([v0, v0 + sa, v0 + sa + sb, v0 + sb]), "quad"
+
+    sa, sb, sc = strides
+    cells = np.column_stack(
+        [
+            v0,
+            v0 + sa,
+            v0 + sa + sb,
+            v0 + sb,
+            v0 + sc,
+            v0 + sa + sc,
+            v0 + sa + sb + sc,
+            v0 + sb + sc,
+        ]
+    )
+    return cells, "hexahedron"
 
 
 def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
@@ -1808,7 +2221,17 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
     sx, sy, sz = 1.0, 1.0, 1.0
     n_points = 0
     in_point_data = False
+    # POINT_DATA and CELL_DATA both open a section of attributes; the
+    # flag is what tells an unhandled keyword inside one from the
+    # header lines above, which are skipped on purpose.
+    in_data_section = False
+    unhandled: set[str] = set()
     vertex_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = {}
+    # What a CELL_DATA section says it holds, against what the grid the
+    # header describes actually has; a section is read with the first and
+    # kept only when it matches the second.
+    n_cells_declared = 0
 
     i = 0
     n_lines = len(texts)
@@ -1830,129 +2253,40 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
         elif upper.startswith("POINT_DATA"):
             n_points = int(parts[1])
             in_point_data = True
+            in_data_section = True
         elif upper.startswith("CELL_DATA"):
+            n_cells_declared = int(parts[1]) if len(parts) > 1 else 0
             in_point_data = False
-        elif in_point_data and upper.startswith("SCALARS"):
-            name = parts[1]
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            n_comp = int(parts[3]) if len(parts) > 3 else 1
-            i += 1
-            if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
+            in_data_section = True
+        elif in_data_section:
+            # A CELL_DATA section reads the same way a POINT_DATA one does,
+            # only against the cells; the chain that used to sit here asked
+            # about points and let everything else fall past it.
+            found: dict[str, np.ndarray] = {}
+            nxt = _scan_structured_attr(
+                texts,
+                offsets,
+                raw,
+                i,
+                n_items=n_points if in_point_data else n_cells_declared,
+                is_binary=is_binary,
+                attrs=found,
+            )
+            if nxt is None:
+                _warn_unhandled_attr(line, unhandled)
                 i += 1
-            np_dt_base = _VTK_DTYPE_MAP.get(vtk_dt, "f4")
-            if is_binary:
-                np_dt = ">" + np_dt_base
-                data_pos = offsets[i] if i < len(offsets) else len(raw)
-                n_bytes = n_points * n_comp * np.dtype(np_dt).itemsize
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
-                ).astype(np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                data_end = data_pos + n_bytes
-                while i < n_lines and offsets[i] < data_end:
-                    i += 1
                 continue
-            else:
-                vals: list[float] = []
-                while len(vals) < n_points * n_comp and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                arr = np.array(vals, dtype=np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                continue
-        elif in_point_data and upper.startswith("COLOR_SCALARS"):
-            name = parts[1]
-            n_comp = int(parts[2])
-            i += 1
-            if is_binary:
-                data_pos = offsets[i] if i < len(offsets) else len(raw)
-                n_bytes = n_points * n_comp  # unsigned_char = 1 byte each
-                # Scaled onto 0..1, which is what the ASCII flavour holds.
-                arr = (
-                    np.frombuffer(
-                        raw[data_pos : data_pos + n_bytes], dtype=np.uint8
-                    ).astype(np.float64)
-                    / _COLOR_SCALE
-                )
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                data_end = data_pos + n_bytes
-                while i < n_lines and offsets[i] < data_end:
-                    i += 1
-                continue
-            else:
-                vals = []
-                while len(vals) < n_points * n_comp and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                arr = np.array(vals, dtype=np.float64)
-                vertex_attrs[name] = (
-                    arr.reshape(n_points, n_comp) if n_comp > 1 else arr
-                )
-                continue
-        elif in_point_data and upper.startswith("VECTORS"):
-            name = parts[1]
-            vtk_dt = parts[2].lower() if len(parts) > 2 else "float"
-            i += 1
-            if is_binary:
-                np_dt = ">" + _VTK_DTYPE_MAP.get(vtk_dt, "f4")
-                data_pos = offsets[i] if i < len(offsets) else len(raw)
-                n_bytes = n_points * 3 * np.dtype(np_dt).itemsize
-                arr = np.frombuffer(
-                    raw[data_pos : data_pos + n_bytes], dtype=np_dt
-                ).astype(np.float64)
-                vertex_attrs[name] = arr.reshape(n_points, 3)
-                data_end = data_pos + n_bytes
-                while i < n_lines and offsets[i] < data_end:
-                    i += 1
-                continue
-            else:
-                vals = []
-                while len(vals) < n_points * 3 and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                vertex_attrs[name] = np.array(vals, dtype=np.float64).reshape(
-                    n_points, 3
-                )
-                continue
-        elif in_point_data and upper.startswith("FIELD"):
-            n_arrays = int(parts[2])
-            i += 1
-            for _ in range(n_arrays):
-                while i < n_lines and not texts[i]:
-                    i += 1
-                if i >= n_lines:
-                    break
-                fparts = texts[i].split()
-                arr_name = fparts[0]
-                n_comp_f, n_tuples_f = int(fparts[1]), int(fparts[2])
-                vtk_dt_f = fparts[3].lower() if len(fparts) > 3 else "float"
-                i += 1
-                np_dt_base_f = _VTK_DTYPE_MAP.get(vtk_dt_f, "f4")
-                if is_binary:
-                    np_dt_f = ">" + np_dt_base_f
-                    data_pos = offsets[i] if i < len(offsets) else len(raw)
-                    n_bytes = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
-                    arr = np.frombuffer(
-                        raw[data_pos : data_pos + n_bytes], dtype=np_dt_f
-                    ).astype(np.float64)
-                    data_end = data_pos + n_bytes
-                    while i < n_lines and offsets[i] < data_end:
-                        i += 1
-                else:
-                    fvals: list[float] = []
-                    while len(fvals) < n_tuples_f * n_comp_f and i < n_lines:
-                        fvals.extend(float(x) for x in texts[i].split())
-                        i += 1
-                    arr = np.array(fvals, dtype=np.float64)
-                vertex_attrs[arr_name] = (
-                    arr.reshape(n_tuples_f, n_comp_f) if n_comp_f > 1 else arr
-                )
+            _keep_structured_attrs(
+                found,
+                vertex_attrs if in_point_data else element_attrs,
+                expected=(
+                    nx * ny * nz
+                    if in_point_data
+                    else _structured_cell_count(nx, ny, nz)
+                ),
+                kind="point" if in_point_data else "cell",
+            )
+            i = nxt
             continue
         i += 1
 
@@ -1978,6 +2312,7 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             offsets=np.array([0], dtype=np.int32),
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
+            element_attrs=element_attrs,
             global_attrs=grid_meta,
         )
 
@@ -1993,5 +2328,6 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
         offsets=offsets_arr,
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
         global_attrs=grid_meta,
     )
