@@ -244,6 +244,50 @@ Bug fixes
 - Writing an OBJ ``vertex_attrs`` entry that holds no numbers - a label per
   vertex, say - drops it with a warning instead of raising out of
   ``numpy.asarray``.
+- Legacy ``.vtk`` files written by VTK 5.1 - the default since VTK 9.0 -
+  are read. The two numbers on a v5.1 ``CELLS`` line are the length of the
+  ``OFFSETS`` array and the length of ``CONNECTIVITY``, not the cell count;
+  reading the first as a cell count ran the offsets into the
+  ``CONNECTIVITY`` keyword and answered with a bare ``ValueError``. The
+  offsets are now counted up to that keyword, so files spelling the line
+  either way are read. ``POLYDATA`` gained the layout altogether: its
+  ``POLYGONS``, ``LINES``, ``VERTICES`` and ``TRIANGLE_STRIPS`` sections
+  knew only the v4.2 form, so no polydata file VTK 9 writes could be read
+  at all.
+- Writing a v5.1 legacy ``.vtk`` file declares the length of its
+  ``OFFSETS`` array on the ``CELLS`` line. It declared the cell count,
+  which VTK's own reader takes literally: it stopped with "Error reading
+  cell array connectivity header" and returned a mesh with no cells.
+  Files polyxios wrote before this still read.
+- A ``METADATA`` block is stepped over. Every VTK writer since 4.2 puts one
+  after each array, and it is text even in a binary file. In ASCII it
+  warned twice about keywords it named as dropped; in binary it ended the
+  attribute scan, so a file with two arrays came back with one. Inside a
+  ``FIELD`` block it was read as an array header, which took the array
+  after it with it.
+- A binary ``STRUCTURED_GRID`` keeps the section that follows its points.
+  The line cursor was stepped past the payload and then once more over the
+  newline that ended it, so whichever section came next - a ``CELL_DATA``
+  written before ``POINT_DATA``, as VTK writes it - was skipped.
+- A ``RECTILINEAR_GRID`` follows its coordinate arrays rather than its
+  ``DIMENSIONS`` header. The points are the outer product of the three
+  arrays, so a header that disagreed with them generated cells indexing
+  points that do not exist and dropped attributes that covered every point
+  there is. The header is now checked against them, warned about when it
+  differs, and the arrays win.
+- ``.vti``, ``.vts`` and ``.vtr`` honour ``NumberOfComponents`` when
+  reading an attribute. A three-component array on 27 points came back as
+  81 rows, which belongs to no mesh and fails ``validate``; ``.vtu`` and
+  ``.vtp`` of the same family already cut it into tuples.
+- ``.vtr`` declares the component count of the attributes it writes, so a
+  vector survives a round trip, and writes each array in the type its
+  ``<DataArray>`` declares. Everything was cast to float64 under whatever
+  header the original dtype produced, so an ``Int32`` attribute read back
+  as the bit pattern of a double.
+- A ``.vtu`` or ``.vtp`` ``Points`` array of a type that holds no numbers -
+  ``type="String"``, or any type this reader does not know - raises
+  ``CodecError`` naming the type. It warned that the array was skipped and
+  then blamed the point count for the zero values that left.
 
 Optimizations
 ~~~~~~~~~~~~~
@@ -259,6 +303,11 @@ Optimizations
   1.0 s, and every value is written exactly as before.
 - Reading an OBJ file no longer names its source once per line. The name
   costs a path walk and was only ever used to spell an error message.
+- Stepping past a binary payload in a structured legacy ``.vtk`` file is a
+  binary search over the line offsets rather than a walk. A binary payload
+  carries a newline every few values, so the lines it is cut into number in
+  the thousands for a grid of any size; a 5 MB ``STRUCTURED_POINTS`` file
+  reads about a fifth faster.
 
 Tests
 ~~~~~

@@ -72,6 +72,7 @@ Quirks worth knowing
 - Multiple ``<Piece>`` elements are concatenated into one :class:`~polyxios.PolyData`, with each piece's connectivity shifted by the running vertex count.
 - A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
 - A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
+- A ``Points`` array of a type that holds no numbers - ``type="String"``, or any type this reader does not know - raises :class:`~polyxios.exceptions.CodecError` naming the type.
 - VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
 - Header counts are validated against the file size before any array is allocated.

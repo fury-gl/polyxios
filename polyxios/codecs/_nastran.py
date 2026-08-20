@@ -790,7 +790,7 @@ def _fmt_real(value: float, *, width: int | None = None) -> str:
     # a sign if the value has one, so a precision past that cannot be spelled
     # here however the exponent is written. Starting the sweep at the widest
     # precision the field could hold skips the ones it never could.
-    ceiling = min(_MAX_DIGITS, width - (number < 0))
+    ceiling = min(_MAX_DIGITS, width - 1 - (number < 0))
     spellings: dict[int, tuple[list[str], list[tuple[str, str, str]]]] = {}
     for exact_only in (True, False):
         floor = exact_digits if exact_only else 1

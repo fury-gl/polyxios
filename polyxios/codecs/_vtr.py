@@ -6,7 +6,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml
+from polyxios.codecs._vtk_xml import decode_da, parse_xml, shaped_da
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
@@ -123,14 +123,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         for da in pd:
             arr = _decode(da)
             name = da.get("Name", "unknown")
-            vertex_attrs[name] = arr
+            vertex_attrs[name] = shaped_da(da, arr)
 
     cd = piece.find("CellData")
     if cd is not None:
         for da in cd:
             arr = _decode(da)
             name = da.get("Name", "unknown")
-            element_attrs[name] = arr
+            element_attrs[name] = shaped_da(da, arr)
 
     global_attrs: dict[str, Any] = {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
@@ -188,13 +188,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            lines.append(_format_data_array(name, arr.ravel(), binary, 8))
+            lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </PointData>")
 
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            lines.append(_format_data_array(name, arr.ravel(), binary, 8))
+            lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
@@ -205,17 +205,47 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
 
 def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) -> str:
+    """Render one DataArray element.
+
+    Parameters
+    ----------
+    name
+        Array name.
+    arr
+        Values. A second dimension is the component count, which the element
+        has to declare or a reader has no way to cut the flat run back into
+        tuples.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    indent
+        Spaces to prefix the line with.
+
+    Returns
+    -------
+    str
+        The ``<DataArray>`` line.
+    """
     pad = " " * indent
     vtk_type = _np_to_vtk_type(arr.dtype)
+    n_comp = arr.shape[1] if arr.ndim > 1 else 1
+    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
 
     if binary:
-        raw = arr.astype("<f8").tobytes()
+        # The bytes have to be the type the element declares; casting them
+        # to float64 under an Int32 header is how an integer attribute came
+        # back as the bit pattern of a double.
+        raw = arr.astype(arr.dtype.newbyteorder("<"), copy=False).tobytes()
         length = np.array([len(raw)], dtype="<u4").tobytes()
         encoded = base64.b64encode(length + raw).decode()
-        return f'{pad}<DataArray type="{vtk_type}" Name="{name}" format="binary">{encoded}</DataArray>'
-    else:
-        vals = " ".join(f"{v:.10g}" for v in arr.ravel())
-        return f'{pad}<DataArray type="{vtk_type}" Name="{name}" format="ascii">{vals}</DataArray>'
+        return (
+            f'{pad}<DataArray type="{vtk_type}" Name="{name}"{comp_attr}'
+            f' format="binary">{encoded}</DataArray>'
+        )
+    vals = " ".join(f"{v:.10g}" for v in arr.ravel())
+    return (
+        f'{pad}<DataArray type="{vtk_type}" Name="{name}"{comp_attr}'
+        f' format="ascii">{vals}</DataArray>'
+    )
 
 
 def _np_to_vtk_type(dt: np.dtype) -> str:

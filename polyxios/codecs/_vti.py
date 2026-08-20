@@ -6,7 +6,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml
+from polyxios.codecs._vtk_xml import decode_da, parse_xml, shaped_da
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
@@ -115,14 +115,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         for da in pd:
             arr = _decode(da)
             if arr.size > 0:
-                vertex_attrs[da.get("Name", "unknown")] = arr
+                vertex_attrs[da.get("Name", "unknown")] = shaped_da(da, arr)
 
     cd = piece.find("CellData")
     if cd is not None:
         for da in cd:
             arr = _decode(da)
             if arr.size > 0:
-                element_attrs[da.get("Name", "unknown")] = arr
+                element_attrs[da.get("Name", "unknown")] = shaped_da(da, arr)
 
     global_attrs: dict[str, Any] = {
         "vti_origin": origin,
