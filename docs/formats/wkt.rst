@@ -62,6 +62,8 @@ Quirks worth knowing
 - 2D geometry is padded to z = 0 so the vertex array is always (n, 3).
 - Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
 - An EWKT ``SRID=`` prefix is parsed and then dropped - polyxios carries no coordinate reference system.
+- The ISO/SQL-MM surface family reads too: ``TRIANGLE`` as one triangle, ``TIN`` as a set of them, ``POLYHEDRALSURFACE`` as a set of polygons. A ``TIN`` patch that is not a triangle, or a ``TRIANGLE`` carrying an interior ring, is refused rather than read as something else.
+- ``EMPTY`` is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.
 
 .. seealso::
 

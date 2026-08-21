@@ -1285,3 +1285,33 @@ def test_reads_what_meshio_writes(tmp_path: Path) -> None:
     np.testing.assert_array_equal(
         poly.element_types, [ELEMENT_TYPES["triangle"], ELEMENT_TYPES["tetra"]]
     )
+
+
+def test_issue_1369_a_facedescriptors_section_is_stepped_over(tmp_path) -> None:
+    """Netgen writes one per surface; a second-order mesh always has them."""
+    path = tmp_path / "fd.vol"
+    path.write_text(
+        "mesh3d\n\ndimension\n3\n\ngeomtype\n0\n\n"
+        "facedescriptors\n1\n1 1 0 0\n\n"
+        "surfaceelements\n0\n\n"
+        "volumeelements\n1\n1 4 1 3 2 4\n\n"
+        "points\n4\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n\nendmesh\n"
+    )
+    # A known section holding data polyxios has no home for is reported as
+    # such, rather than as a section nobody recognised.
+    with pytest.warns(UserWarning, match="'facedescriptors' section holds"):
+        poly = read(path)
+    assert poly.vertices.shape == (4, 3)
+    assert len(poly.element_types) == 1
+
+
+def test_issue_1369_an_empty_facedescriptors_section_is_silent(tmp_path) -> None:
+    path = tmp_path / "fd0.vol"
+    path.write_text(
+        "mesh3d\n\ndimension\n3\n\ngeomtype\n0\n\n"
+        "facedescriptors\n0\n\n"
+        "surfaceelements\n0\n\n"
+        "volumeelements\n1\n1 4 1 3 2 4\n\n"
+        "points\n4\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n\nendmesh\n"
+    )
+    assert len(read(path).element_types) == 1

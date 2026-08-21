@@ -62,6 +62,7 @@ Quirks worth knowing
 - Both zones and faces are read, so a file's volume mesh and its boundary surface arrive as separate element groups.
 - ``ZGROUP`` and ``FGROUP`` names become element tags; a zone in several groups stays in all of them.
 - Gridpoint ids are sparse in practice and are remapped to a dense 0-based index on read.
+- Coordinates and connectivity accumulate into machine-number arrays rather than Python lists while a file is read, which is what keeps a large grid's peak memory a small multiple of the file rather than a large one.
 
 .. seealso::
 
