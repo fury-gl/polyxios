@@ -598,9 +598,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     }
 
     n_verts = len(coords) // 3
-    # A view rather than a copy: the array is the only other reference to
-    # these bytes and it dies with the call, so copying them would double the
-    # peak for the largest array a grid holds and hand back the same numbers.
+    # A view rather than a copy: copying would double the peak for the largest
+    # array a grid holds and hand back the same numbers. The view keeps the
+    # array alive as its base and pins it against resizing for as long as the
+    # mesh lives, which costs nothing here - nothing appends to it again.
     vertices = np.frombuffer(coords, dtype=np.float64).reshape(n_verts, 3)
 
     return PolyData(

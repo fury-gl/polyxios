@@ -19,7 +19,11 @@ import warnings
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    ELEMENT_TYPES_INV,
+    NODES_PER_ELEMENT,
+)
 from polyxios._io import Source, read_text, write_text
 from polyxios._tags import group_by_value
 from polyxios._types import PolyData
@@ -224,11 +228,6 @@ _POLYXIOS_TO_CARD: dict[str, str] = {
     "quadratic_wedge": "CPENTA",
     "hexahedron": "CHEXA",
     "quadratic_hexahedron": "CHEXA",
-}
-
-# Node count per polyxios type, from the shapes the cards declare.
-_NODE_COUNT: dict[str, int] = {
-    name: n for shapes in _CARD_SHAPES.values() for n, name in shapes
 }
 
 # Cards starting with 'C' that are not element connectivity cards; used to
@@ -1768,7 +1767,7 @@ def write(
             raise CodecError(f".bdf: no write mapping for element type '{name}'")
 
         start, end = int(poly.offsets[ei]), int(poly.offsets[ei + 1])
-        expected = _NODE_COUNT[name]
+        expected = NODES_PER_ELEMENT[name]
         if end - start != expected:
             raise CodecError(
                 f".bdf: element {ei} of type '{name}' has {end - start} grid"

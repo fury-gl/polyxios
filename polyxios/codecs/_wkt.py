@@ -465,8 +465,20 @@ class _Parser:
             raise self._error("LINESTRING must have at least 2 points.")
         self._add_element("poly_line", indices)
 
-    def _parse_ring(self, suffix: str, *, what: str) -> list[int]:
-        """Parse one polygon ring and strip its closing duplicate."""
+    def _parse_ring(self, suffix: str, *, what: str, keyword: str) -> list[int]:
+        """Parse one ring and strip its closing duplicate.
+
+        Parameters
+        ----------
+        suffix
+            The ``Z`` / ``M`` / ``ZM`` dimension suffix in force.
+        what
+            Which ring of its geometry this is, named in the error.
+        keyword
+            The geometry the ring belongs to, named in the error: a TRIANGLE
+            reporting a POLYGON's complaint names a geometry the file does
+            not hold.
+        """
         indices = self._parse_coord_list(suffix)
         # Some writers repeat the closing point more than once; strip every
         # trailing copy so a ring is always stored in its open form.
@@ -475,7 +487,7 @@ class _Parser:
         # Vertices are interned, so distinct indices are distinct points:
         # a ring collapsed onto one or two points encloses no area.
         if len(indices) < 3 or len(set(indices)) < 3:
-            raise self._error(f"POLYGON {what} must have at least 3 distinct points.")
+            raise self._error(f"{keyword} {what} must have at least 3 distinct points.")
         return indices
 
     def _parse_polygon(self, suffix: str, *, triangle: bool = False) -> None:
@@ -497,7 +509,9 @@ class _Parser:
         self._next_polygon_id += 1
 
         what = "ring" if triangle else "exterior ring"
-        ring_indices = self._parse_ring(suffix, what=what)
+        ring_indices = self._parse_ring(
+            suffix, what=what, keyword="TRIANGLE" if triangle else "POLYGON"
+        )
         if triangle and len(ring_indices) != 3:
             raise self._error(
                 f"a triangular patch has 3 distinct points, not {len(ring_indices)}."
@@ -514,7 +528,9 @@ class _Parser:
             self._advance()
             if triangle:
                 raise self._error("a triangular patch carries no interior ring.")
-            hole_indices = self._parse_ring(suffix, what="interior ring")
+            hole_indices = self._parse_ring(
+                suffix, what="interior ring", keyword="POLYGON"
+            )
             self._add_element(
                 "polygon", hole_indices, polygon_id=polygon_id, ring=ring_num
             )

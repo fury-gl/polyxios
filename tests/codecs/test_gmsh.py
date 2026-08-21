@@ -1240,3 +1240,15 @@ def test_a_tag_group_indexing_no_element_of_this_mesh_is_dropped(
     with pytest.warns(UserWarning, match="index no element"):
         write(poly, path)
     assert len(read(path).element_types) == 2
+
+
+def test_a_data_block_the_file_ends_inside_is_still_read(tmp_path: Path) -> None:
+    """The mesh sections and the data blocks come off one walk of the file."""
+    path = _write_text(
+        tmp_path,
+        "unterminated.msh",
+        _TET_HEADER + '$ElementData\n1\n"rho"\n1\n0.0\n3\n0\n1\n1\n1 4.5\n',
+    )
+    rho = read(path).element_attrs["rho"]
+    assert rho[0] == 4.5
+    assert np.isnan(rho[1])

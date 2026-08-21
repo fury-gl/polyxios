@@ -695,3 +695,62 @@ def test_an_include_still_cannot_leave_the_deck_directory(tmp_path: Path) -> Non
     )
     with pytest.raises(CodecError, match="outside the deck's directory"):
         read(tmp_path / "deck" / "main.inp")
+
+
+def test_a_vertex_tag_indexing_no_node_is_dropped(tmp_path: Path) -> None:
+    """A '*Nset' naming a node no '*Node' card defines is a deck Abaqus refuses."""
+    poly = PolyData(
+        vertices=np.zeros((3, 3)),
+        connectivity=np.array([0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 3], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["triangle"]], dtype=np.uint8),
+        vertex_tags={"stale": np.array([0, 99])},
+    )
+    out = tmp_path / "stale.inp"
+    with pytest.warns(UserWarning, match="index no node"):
+        write(poly, out)
+    body = out.read_text()
+    assert "*Nset, nset=stale" in body
+    assert "\n1\n" in body
+
+
+def test_a_float_vertex_tag_is_refused_rather_than_rounded(tmp_path: Path) -> None:
+    """Rounding an index moves a label onto another node."""
+    poly = PolyData(
+        vertices=np.zeros((3, 3)),
+        connectivity=np.array([0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 3], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["triangle"]], dtype=np.uint8),
+        vertex_tags={"soft": np.array([0.0, 1.9])},
+    )
+    out = tmp_path / "soft.inp"
+    with pytest.warns(UserWarning, match="index no node"):
+        write(poly, out)
+    assert "nset=soft" not in out.read_text()
+
+
+def test_a_set_name_carrying_a_separator_is_folded(tmp_path: Path) -> None:
+    """A comma or an '=' inside a name ends the card early."""
+    poly = PolyData(
+        vertices=np.zeros((3, 3)),
+        connectivity=np.array([0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 3], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["triangle"]], dtype=np.uint8),
+        vertex_tags={"a,b=c\nd": np.array([0])},
+    )
+    out = tmp_path / "folded.inp"
+    write(poly, out)
+    assert "*Nset, nset=a_b_c_d" in out.read_text()
+
+
+def test_a_part_does_not_take_the_decks_own_numbering_with_it(tmp_path: Path) -> None:
+    """A '*Nset' out past '*End Part' still names the nodes the deck defined."""
+    path = tmp_path / "mixed.inp"
+    path.write_text(
+        "*Node\n1, 0., 0., 0.\n2, 1., 0., 0.\n3, 0., 1., 0.\n"
+        "*Element, type=S3\n1, 1, 2, 3\n"
+        "*Part, name=P\n*Node\n1, 0., 0., 1.\n*End Part\n"
+        "*Nset, nset=GLOBAL\n1, 2, 3\n"
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(poly.vertex_tags["GLOBAL"], [0, 1, 2])

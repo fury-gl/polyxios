@@ -138,6 +138,85 @@ _CRITICAL_KEYS: frozenset[str] = frozenset(
 )
 
 
+def _writable_variables(
+    attrs: dict[str, np.ndarray] | None,
+    count: int,
+    picked: np.ndarray | None,
+    what: str,
+) -> tuple[list[str], list[np.ndarray]]:
+    """Return the attributes that can travel as variables, and their columns.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's ``vertex_attrs`` or ``element_attrs``.
+    count
+        How many entities the mesh holds, which is how long an attribute has
+        to be to describe them.
+    picked
+        Which entities reach the file, in the order they are written; None
+        when every one does, as every node does.
+    what
+        ``vertex_attrs`` or ``element_attrs``, named in the warnings.
+
+    Returns
+    -------
+    list of str
+        The names to declare, in the order the runs are written.
+    list of numpy.ndarray
+        One column per name, already cut down to the entities written.
+
+    Notes
+    -----
+    A nameless variable reads back as no variable at all, taking its column
+    with it, so it is dropped here rather than silently on load. Whatever the
+    mesh holds is asked once what shape it is: a plain list is a mesh a caller
+    built by hand, not a reason to crash.
+
+    A column that is not finite throughout is dropped as well. The format
+    spells no "no value here", so a NaN - which is what a field covering part
+    of a mesh carries over the rest of it - would go out as the token ``nan``,
+    and a zone holding one is a zone no reader loads. Losing the variable is
+    the smaller loss, and it is reported either way.
+    """
+    names: list[str] = []
+    columns: list[np.ndarray] = []
+    refused: set[str] = set()
+    unspellable: set[str] = set()
+    for name, raw in (attrs or {}).items():
+        arr = np.asarray(raw)
+        if not (
+            name.strip()
+            and arr.ndim == 1
+            and arr.shape[0] == count
+            and arr.dtype.kind in "fiub"
+        ):
+            refused.add(name)
+            continue
+        values = arr.astype(np.float64, copy=False)
+        if picked is not None:
+            values = values[picked]
+        if not bool(np.isfinite(values).all()):
+            unspellable.add(name)
+            continue
+        names.append(name)
+        columns.append(values)
+    if refused:
+        warnings.warn(
+            f".tec: only named 1-D numeric {what} can be written;"
+            f" skipped {sorted(refused)}.",
+            stacklevel=3,
+        )
+    if unspellable:
+        warnings.warn(
+            f".tec: the format spells no missing value, so the {what}"
+            f" {sorted(unspellable)} carrying one were not written; a zone"
+            " holding 'nan' is one no reader loads.",
+            stacklevel=3,
+        )
+    return names, columns
+
+
 def _safe_variable_name(name: str) -> str:
     """Return a variable name that survives a quoted Tecplot header.
 
@@ -1054,55 +1133,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     et_str = _POLYXIOS_TO_ET[et_name]
 
-    attr_names: list[str] = []
-    attr_arrays: list[np.ndarray] = []
-    bad_attrs: set[str] = set()
-    for name, raw in (poly.vertex_attrs or {}).items():
-        # A nameless variable reads back as no variable at all, taking its
-        # column with it, so it is dropped here rather than silently on load.
-        # Whatever the mesh holds is asked once what shape it is: a plain
-        # list is a mesh a caller built by hand, not a reason to crash.
-        arr = np.asarray(raw)
-        if (
-            name.strip()
-            and arr.ndim == 1
-            and arr.shape[0] == n_verts
-            and arr.dtype.kind in "fiub"
-        ):
-            attr_names.append(name)
-            attr_arrays.append(arr)
-        else:
-            bad_attrs.add(name)
-    if bad_attrs:
-        warnings.warn(
-            f".tec: only named 1-D numeric vertex_attrs can be written;"
-            f" skipped {sorted(bad_attrs)}.",
-            stacklevel=2,
-        )
-
-    cell_names: list[str] = []
-    cell_arrays: list[np.ndarray] = []
-    bad_cells: set[str] = set()
-    for name, raw in (poly.element_attrs or {}).items():
-        # Indexed by the mesh's elements, so it is the elements that survive
-        # the single-type cut that pick out the values written.
-        arr = np.asarray(raw)
-        if (
-            name.strip()
-            and arr.ndim == 1
-            and arr.shape[0] == n_elems
-            and arr.dtype.kind in "fiub"
-        ):
-            cell_names.append(name)
-            cell_arrays.append(arr.astype(np.float64, copy=False)[elem_indices])
-        else:
-            bad_cells.add(name)
-    if bad_cells:
-        warnings.warn(
-            f".tec: only named 1-D numeric element_attrs can be written;"
-            f" skipped {sorted(bad_cells)}.",
-            stacklevel=2,
-        )
+    attr_names, attr_arrays = _writable_variables(
+        poly.vertex_attrs, n_verts, None, "vertex_attrs"
+    )
+    cell_names, cell_arrays = _writable_variables(
+        poly.element_attrs, n_elems, elem_indices, "element_attrs"
+    )
 
     quoted = [_safe_variable_name(name) for name in (*attr_names, *cell_names)]
     declared = [*attr_names, *cell_names]

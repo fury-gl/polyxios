@@ -1189,3 +1189,37 @@ def test_an_attribute_that_is_not_an_array_is_skipped_rather_than_fatal(
     back = read(out)
     np.testing.assert_allclose(back.vertex_attrs["t"], [1.0, 2.0, 3.0])
     np.testing.assert_allclose(back.element_attrs["p"], [4.0])
+
+
+def _tetra_with(**attrs) -> PolyData:
+    return PolyData(
+        vertices=np.array(
+            [[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64
+        ),
+        connectivity=np.array([0, 1, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 4], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["tetra"]], dtype=np.uint8),
+        **attrs,
+    )
+
+
+def test_a_cell_variable_carrying_a_missing_value_is_not_written(
+    tmp_path: Path,
+) -> None:
+    """A zone holding the token 'nan' is one no reader loads."""
+    out = tmp_path / "nan.tec"
+    with pytest.warns(UserWarning, match="spells no missing value"):
+        write(_tetra_with(element_attrs={"q": np.array([np.nan])}), out)
+    body = out.read_text()
+    assert "nan" not in body
+    assert not read(out).element_attrs
+
+
+def test_a_nodal_variable_carrying_a_missing_value_is_not_written(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "nan_nodal.tec"
+    with pytest.warns(UserWarning, match="spells no missing value"):
+        write(_tetra_with(vertex_attrs={"t": np.array([1.0, 2.0, np.nan, 4.0])}), out)
+    assert "nan" not in out.read_text()
+    assert not read(out).vertex_attrs

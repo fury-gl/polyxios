@@ -86,6 +86,7 @@ Quirks worth knowing
 - Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.
 - Index widths are checked against the declared vertex count, so a mesh too large for the header's list type raises instead of truncating.
 - Line elements travel as ``element edge`` with ``vertex1`` / ``vertex2``, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, ``vertex_index1`` / ``vertex_index2`` and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.
+- An ``element edge`` record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.
 - An element index no vertex answers to is refused rather than read into a mesh nothing can draw.
 
 .. seealso::

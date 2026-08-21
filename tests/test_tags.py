@@ -28,28 +28,41 @@ def test_a_float_column_is_no_label() -> None:
 
 def test_a_group_whose_members_are_not_indices_is_reported() -> None:
     """Nothing checks a tag group's dtype on the way in, and a float indexes none."""
-    values, unnamed, named, unusable = values_from_tags(
+    values, unnamed, named, unusable, oversized = values_from_tags(
         {"ref_3": np.array([0.0, 1.0])}, "ref_", 2, dtype=np.int32
     )
     np.testing.assert_array_equal(values, [0, 0])
     assert not named
     assert unnamed == set()
     assert unusable == {"ref_3"}
+    assert oversized == set()
 
 
 def test_a_group_named_anything_else_is_reported_apart() -> None:
-    values, unnamed, named, unusable = values_from_tags(
+    values, unnamed, named, unusable, oversized = values_from_tags(
         {"ref_3": np.array([1]), "top": np.array([0])}, "ref_", 2, dtype=np.int32
     )
     np.testing.assert_array_equal(values, [0, 3])
     assert named
     assert unnamed == {"top"}
     assert unusable == set()
+    assert oversized == set()
 
 
 def test_a_member_outside_the_mesh_names_nothing() -> None:
-    values, _unnamed, named, _unusable = values_from_tags(
+    values, _unnamed, named, _unusable, _oversized = values_from_tags(
         {"ref_5": np.array([0, 9, -1])}, "ref_", 2, dtype=np.int32
     )
     np.testing.assert_array_equal(values, [5, 0])
     assert named
+
+
+def test_a_group_naming_a_label_the_column_cannot_hold_is_reported() -> None:
+    """A group name is free text, so it may spell a number no field carries."""
+    values, _unnamed, named, unusable, oversized = values_from_tags(
+        {"ref_5000000000": np.array([0])}, "ref_", 1, dtype=np.int32
+    )
+    np.testing.assert_array_equal(values, [0])
+    assert not named
+    assert unusable == set()
+    assert oversized == {"ref_5000000000"}
