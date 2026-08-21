@@ -60,32 +60,98 @@ _SNIFF_RE: re.Pattern[str] = re.compile(
 _READ_ENCODING: str = "utf-8-sig"
 _WRITE_ENCODING: str = "utf-8"
 
-# Nastran bulk card → (polyxios name, n_nodes). Higher-order and revised
-# variants share the shape of their linear counterpart: only the corner grid
-# points (the leading n_nodes fields) are kept.
-_CARD_TO_POLYXIOS: dict[str, tuple[str, int]] = {
-    "CTRIA3": ("triangle", 3),
-    "CTRIA6": ("triangle", 3),
-    "CTRIAR": ("triangle", 3),
-    "CQUAD4": ("quad", 4),
-    "CQUAD8": ("quad", 4),
-    "CQUADR": ("quad", 4),
-    "CQUAD": ("quad", 4),
-    "CTETRA": ("tetra", 4),
-    "CPYRAM": ("pyramid", 5),
-    "CPYRA": ("pyramid", 5),
-    "CPENTA": ("wedge", 6),
-    "CHEXA": ("hexahedron", 8),
+# Nastran bulk card → the shapes it can hold, smallest first. A card name
+# does not say its order: CTETRA is a 4-node tetrahedron with four grid point
+# fields and a 10-node one with ten, and Nastran lets any mid-side field be
+# left blank. The reader counts the grid points the card actually carries and
+# takes the largest shape that fits, so a linear card is never read as a
+# truncated quadratic one and a quadratic one never loses its mid-side nodes.
+_CARD_SHAPES: dict[str, tuple[tuple[int, str], ...]] = {
+    # shells and plane elements
+    "CTRIA3": ((3, "triangle"),),
+    "CTRIAR": ((3, "triangle"),),
+    "CTRAX3": ((3, "triangle"),),
+    "CTRIA6": ((3, "triangle"), (6, "quadratic_triangle")),
+    "CTRAX6": ((3, "triangle"), (6, "quadratic_triangle")),
+    "CTRIAX6": ((3, "triangle"), (6, "quadratic_triangle")),
+    "CQUAD4": ((4, "quad"),),
+    "CQUADR": ((4, "quad"),),
+    "CQUADX4": ((4, "quad"),),
+    "CSHEAR": ((4, "quad"),),
+    "CQUAD8": ((4, "quad"), (8, "quadratic_quad")),
+    "CQUADX8": ((4, "quad"), (8, "quadratic_quad")),
+    "CQUAD": ((4, "quad"), (8, "quadratic_quad"), (9, "biquadratic_quad")),
+    # solids
+    "CTETRA": ((4, "tetra"), (10, "quadratic_tetra")),
+    "CPYRAM": ((5, "pyramid"), (13, "quadratic_pyramid")),
+    "CPYRA": ((5, "pyramid"), (13, "quadratic_pyramid")),
+    "CPENTA": ((6, "wedge"), (15, "quadratic_wedge")),
+    "CHEXA": ((8, "hexahedron"), (20, "quadratic_hexahedron")),
+    # one-dimensional elements: a deck of beams and rods is still a mesh
+    "CBAR": ((2, "line"),),
+    "CBEAM": ((2, "line"),),
+    "CBEND": ((2, "line"),),
+    "CBUSH": ((2, "line"),),
+    "CBUSH1D": ((2, "line"),),
+    "CGAP": ((2, "line"),),
+    "CROD": ((2, "line"),),
+    "CONROD": ((2, "line"),),
+    "CTUBE": ((2, "line"),),
+    "CVISC": ((2, "line"),),
 }
 
-# Write mapping: one canonical card per polyxios element type.
+# Node ordering. Nastran and VTK number the corner grid points alike, and the
+# mid-side nodes of every card but one as well. CPENTA runs the bottom ring,
+# then the three vertical edges, then the top ring; VTK runs the bottom ring,
+# the top ring, and the verticals last. Entry ``i`` holds the Nastran position
+# of the node that belongs at VTK position ``i``.
+_READ_ORDER: dict[str, tuple[int, ...]] = {
+    "quadratic_wedge": (0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 9, 10, 11),
+}
+_WRITE_ORDER: dict[str, tuple[int, ...]] = {
+    name: tuple(order.index(i) for i in range(len(order)))
+    for name, order in _READ_ORDER.items()
+}
+
+# CONROD names a material where every other element card names a property, so
+# its grid points sit one field earlier than the rest.
+_GRID_FIELD_START: dict[str, int] = {"CONROD": 2}
+_DEFAULT_GRID_FIELD: int = 3
+
+# Where a shell card carries its offset, ZOFFS: after the grid points and the
+# material orientation angle. Nastran measures a shell's mid-surface from it,
+# so dropping it moves the geometry the deck describes.
+_ZOFFS_FIELD: dict[str, int] = {
+    "CTRIA3": 7,
+    "CTRIAR": 7,
+    "CQUAD4": 8,
+    "CQUADR": 8,
+}
+_ZOFFS_KEY: str = "zoffs"
+
+# Write mapping: one canonical card per polyxios element type. Cards that
+# carry their whole geometry in grid point fields are preferred, so a written
+# deck needs no orientation vector to be valid.
 _POLYXIOS_TO_CARD: dict[str, str] = {
+    "line": "CROD",
     "triangle": "CTRIA3",
+    "quadratic_triangle": "CTRIA6",
     "quad": "CQUAD4",
+    "quadratic_quad": "CQUAD8",
+    "biquadratic_quad": "CQUAD",
     "tetra": "CTETRA",
+    "quadratic_tetra": "CTETRA",
     "pyramid": "CPYRAM",
+    "quadratic_pyramid": "CPYRAM",
     "wedge": "CPENTA",
+    "quadratic_wedge": "CPENTA",
     "hexahedron": "CHEXA",
+    "quadratic_hexahedron": "CHEXA",
+}
+
+# Node count per polyxios type, from the shapes the cards declare.
+_NODE_COUNT: dict[str, int] = {
+    name: n for shapes in _CARD_SHAPES.values() for n, name in shapes
 }
 
 # Cards starting with 'C' that are not element connectivity cards; used to
@@ -548,6 +614,57 @@ def sniff(head: bytes) -> bool:
     return False
 
 
+def _resolve_shape(
+    fields: list[str],
+    shapes: tuple[tuple[int, str], ...],
+    first: int,
+    card: str,
+    eid: str,
+) -> tuple[str, int]:
+    """Return the element a card holds, from the grid points it carries.
+
+    Parameters
+    ----------
+    fields
+        The card's fields, continuation lines already joined.
+    shapes
+        The shapes this card name can hold, smallest first.
+    first
+        Index of the card's first grid point field.
+    card, eid
+        Card name and element id, named in the error when the card is short.
+
+    Returns
+    -------
+    tuple of (str, int)
+        The polyxios element name and its grid point count.
+
+    Raises
+    ------
+    CodecError
+        When the card carries fewer grid points than its smallest shape needs.
+
+    Notes
+    -----
+    Counting stops at the first blank field: Nastran lets a mid-side grid
+    point be left out, and that card is a linear element, not a quadratic one
+    with a hole in it. The count is capped at the largest shape, so the
+    material angle and offset a shell card carries past its grid points are
+    never mistaken for grid points of their own.
+    """
+    largest = shapes[-1][0]
+    present = 0
+    while present < largest and _field(fields, first + present):
+        present += 1
+    for n_nodes, name in reversed(shapes):
+        if present >= n_nodes:
+            return name, n_nodes
+    raise CodecError(
+        f".bdf: {card} {eid} carries {present} grid point field(s);"
+        f" {shapes[0][0]} are required"
+    )
+
+
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a Nastran .bdf file.
 
@@ -581,13 +698,18 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     -----
     Grid points defined in a local coordinate system (non-zero ``CP``) are
     read as-is and a warning is emitted; no frame transform is applied.
-    Mid-side nodes of higher-order cards (e.g. CTETRA with 10 grid points)
-    are dropped, keeping the corner nodes only. Element cards whose shape
-    has no polyxios counterpart (CBAR, CROD, ...) are skipped with a
-    warning, as is a continuation line with no card ahead of it to
-    continue. ``INCLUDE`` statements are not followed. A blank property id
-    reads as 1; PSHELL, PSOLID and the other property cards are not parsed,
-    so the ids carry no name or material.
+    A card name does not say the element's order, so the shape is taken from
+    the grid points the card actually carries: a CTETRA with ten becomes a
+    ``quadratic_tetra`` and one with four a ``tetra``. Counting stops at the
+    first blank field, since Nastran allows a mid-side grid point to be left
+    out and that card is a linear element. CPENTA's mid-side nodes are
+    permuted into VTK order; every other card already agrees. A shell's
+    ``ZOFFS`` lands in ``element_attrs["zoffs"]`` when any card carries one.
+    An element card outside the table is skipped with a warning, as is a
+    continuation line with no card ahead of it to continue. ``INCLUDE``
+    statements are not followed. A blank property id reads as 1; PSHELL,
+    PSOLID and the other property cards are not parsed, so the ids carry no
+    name or material.
     """
     if lazy:
         warnings.warn(
@@ -601,6 +723,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     offsets_list: list[int] = [0]
     types_list: list[int] = []
     pid_list: list[int] = []
+    zoffs_list: list[float] = []
     # Card name and element id as the deck spells them, kept only so a
     # dangling grid reference can be pointed at the card that made it.
     elem_sources: list[tuple[str, str]] = []
@@ -641,27 +764,33 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             includes += 1
             continue
 
-        info = _CARD_TO_POLYXIOS.get(card)
-        if info is None:
+        shapes = _CARD_SHAPES.get(card)
+        if shapes is None:
             if card.startswith("C") and card not in _NON_ELEMENT_C_CARDS:
                 skipped[card] = skipped.get(card, 0) + 1
             continue
 
-        elem_name, n_nodes = info
         eid = _field(fields, 1) or "?"
-        node_fields = [_field(fields, 3 + j) for j in range(n_nodes)]
-        if any(not f for f in node_fields):
-            raise CodecError(
-                f".bdf: {card} {eid} is missing grid point fields; {n_nodes}"
-                " are required"
-            )
-        grid_ids.extend(_to_int(f, ctx=f"{card} {eid} grid point") for f in node_fields)
+        first = _GRID_FIELD_START.get(card, _DEFAULT_GRID_FIELD)
+        elem_name, n_nodes = _resolve_shape(fields, shapes, first, card, eid)
+        node_fields = [_field(fields, first + j) for j in range(n_nodes)]
+        nodes = [_to_int(f, ctx=f"{card} {eid} grid point") for f in node_fields]
+        order = _READ_ORDER.get(elem_name)
+        if order is not None:
+            nodes = [nodes[k] for k in order]
+        grid_ids.extend(nodes)
         offsets_list.append(offsets_list[-1] + n_nodes)
         types_list.append(ELEMENT_TYPES[elem_name])
         elem_sources.append((card, eid))
-        pid = _field(fields, 2)
+        pid = _field(fields, 2) if card not in _GRID_FIELD_START else ""
         pid_list.append(
             _to_int(pid, ctx=f"{card} {eid} property id") if pid else _DEFAULT_PID
+        )
+        zoffs_field = _ZOFFS_FIELD.get(card)
+        zoffs_list.append(
+            _to_float(_field(fields, zoffs_field), ctx=f"{card} {eid} ZOFFS")
+            if zoffs_field is not None and _field(fields, zoffs_field)
+            else 0.0
         )
 
     if duplicates:
@@ -721,6 +850,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             for pid, members in zip(ranked[starts], np.split(order, starts[1:]))
         }
 
+    # An offset of zero is what a shell has when the deck says nothing, so an
+    # all-zero column is an attribute invented for every mesh rather than data
+    # the file carried.
+    if any(zoffs_list):
+        element_attrs[_ZOFFS_KEY] = np.array(zoffs_list, dtype=np.float64)
+
     return PolyData(
         vertices=vertices,
         connectivity=connectivity,
@@ -729,6 +864,40 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_attrs=element_attrs,
         element_tags=element_tags,
     )
+
+
+def _element_zoffs(poly: PolyData, n_elems: int) -> np.ndarray | None:
+    """Return the shell offsets to write, or None when there are none to write.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    n_elems
+        How many elements it holds.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        One float per element, or None when the attribute is absent or does
+        not describe this mesh.
+    """
+    stored = (poly.element_attrs or {}).get(_ZOFFS_KEY)
+    if stored is None:
+        return None
+    values = np.asarray(stored)
+    if (
+        values.ndim != 1
+        or values.shape[0] != n_elems
+        or values.dtype.kind not in "fiub"
+    ):
+        warnings.warn(
+            f".bdf: element_attrs['{_ZOFFS_KEY}'] is not one number per element;"
+            " the shell offsets were not written.",
+            stacklevel=3,
+        )
+        return None
+    return values.astype(np.float64, copy=False)
 
 
 def _fmt_real(value: float, *, width: int | None = None) -> str:
@@ -1441,6 +1610,7 @@ def write(
         )
 
     pids = _element_pids(poly)
+    zoffs = _element_zoffs(poly, n_elems)
     lines: list[str] = ["$ Nastran BDF exported by polyxios", "BEGIN BULK"]
 
     lost = 0
@@ -1484,14 +1654,25 @@ def write(
             raise CodecError(f".bdf: no write mapping for element type '{name}'")
 
         start, end = int(poly.offsets[ei]), int(poly.offsets[ei + 1])
-        expected = _CARD_TO_POLYXIOS[card][1]
+        expected = _NODE_COUNT[name]
         if end - start != expected:
             raise CodecError(
                 f".bdf: element {ei} of type '{name}' has {end - start} grid"
                 f" points, expected {expected}"
             )
-        nodes = [str(node + 1) for node in connectivity[start:end].tolist()]
-        lines.extend(_card_lines([card, str(ei + 1), str(int(pids[ei])), *nodes]))
+        indices = connectivity[start:end].tolist()
+        order = _WRITE_ORDER.get(name)
+        if order is not None:
+            indices = [indices[k] for k in order]
+        nodes = [str(node + 1) for node in indices]
+        card_fields = [card, str(ei + 1), str(int(pids[ei])), *nodes]
+        offset_at = _ZOFFS_FIELD.get(card)
+        if offset_at is not None and zoffs is not None and zoffs[ei]:
+            # ZOFFS sits past the material orientation angle, which stays
+            # blank: a deck that omits it takes the property's own value.
+            card_fields.extend([""] * (offset_at - len(card_fields) + 1))
+            card_fields[offset_at] = _fmt_real(float(zoffs[ei]))
+        lines.extend(_card_lines(card_fields))
 
     lines.append("ENDDATA")
     lines.append("")

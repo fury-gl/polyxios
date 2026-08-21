@@ -82,6 +82,10 @@ Quirks worth knowing
   ``fmt=".bdf"`` because an output file has no content to inspect.
 - A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (``1.234-10`` for ``1.234E-10``, ``1.2346+7`` for ``1.2346E+07``), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads ``.5`` as ``0.5``. A spelling that reads back as the value itself is always preferred to a longer one that does not, so ``1e7`` goes out as ``1.E+07`` rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.
 - Property ids become element tags, so the deck's grouping is preserved.
+- A card name does not say the element's order, so the shape comes from the grid points the card carries: ``CTETRA`` with ten grid points is a ``quadratic_tetra``, with four a ``tetra``. Counting stops at the first blank field, because Nastran lets a mid-side grid point be omitted and that card is a linear element.
+- ``CPENTA`` runs the prism's three vertical edges before its top ring where VTK runs them after, so those mid-side nodes are permuted on read and back on write. Every other card already agrees with VTK.
+- One-dimensional cards (``CBAR``, ``CBEAM``, ``CROD``, ``CONROD``, ``CTUBE``, ``CBUSH``, ``CGAP``, ``CBEND``, ``CVISC``) read as lines rather than being skipped; ``CONROD`` names a material where the others name a property, so its grid points sit one field earlier.
+- A shell's ``ZOFFS`` becomes ``element_attrs["zoffs"]`` when any card carries one, and is written back on the shell cards that have a field for it.
 
 .. seealso::
 
