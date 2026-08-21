@@ -10,6 +10,50 @@ from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".mesh"
+# '.mesh' belongs to Medit ASCII as well, so it is shared rather than owned:
+# the two are told apart by the keyword the file opens with. MFEM keeps the
+# writes, since an output file has no content to sniff and '.mesh' has meant
+# MFEM here since before Medit ASCII was read at all.
+SNIFF_EXTENSIONS: tuple[str, ...] = (".mesh",)
+SNIFF_DEFAULT_WRITER: bool = True
+SNIFF_PRIORITY: int = 0
+
+# Every MFEM flavour opens with one of these; the header is mandatory.
+_MFEM_HEADERS: tuple[str, ...] = (
+    "MFEM MESH",
+    "MFEM INLINE",
+    "MFEM NURBS",
+    "MFEM NC-MESH",
+    "MFEM NC MESH",
+)
+
+
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like an MFEM mesh.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes, as handed over by the registry.
+
+    Returns
+    -------
+    bool
+        True when the first meaningful line names an MFEM mesh flavour.
+
+    Notes
+    -----
+    Used to resolve ``.mesh``, which Medit ASCII uses too. The test is
+    deliberately narrow: the header is mandatory and opens no other format.
+    """
+    text = head.decode("utf-8-sig", errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return stripped.upper().startswith(_MFEM_HEADERS)
+    return False
+
 
 # MFEM geometry type code → (polyxios element name, number of vertices)
 _MFEM_GEOM: dict[int, tuple[str, int]] = {
