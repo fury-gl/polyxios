@@ -1,67 +1,422 @@
-"""Abaqus .inp ASCII codec - read + write."""
+"""Abaqus ``.inp`` ASCII codec - read + write.
 
+An Abaqus deck is a sequence of keyword cards, each followed by its data
+lines. This codec reads the mesh cards - ``*NODE``, ``*ELEMENT``, ``*NSET``,
+``*ELSET``, ``*SYSTEM`` and ``*INCLUDE`` - and ignores the solver cards
+around them, since a step definition says nothing about the geometry.
+
+Node and element sets become ``vertex_tags`` and ``element_tags``. A deck
+split over several files with ``*INCLUDE`` is read as one mesh, with the
+included paths resolved against the parent file and refused when they leave
+its directory - an ``.inp`` is untrusted input like any other file.
+"""
+
+import os
+from pathlib import Path
+from typing import Any
 import warnings
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
-from polyxios._io import Source, read_text, write_text
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    ELEMENT_TYPES_INV,
+    MAX_SAFE_CONN,
+    MAX_SAFE_ELEMENTS,
+    MAX_SAFE_VERTICES,
+)
+from polyxios._io import Source, is_buffer, read_text, source_name, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".inp"
 
-# Abaqus element type prefix → (polyxios name, n_nodes)
-# Keys are upper-case prefixes matched with .startswith(); sorted longest-first so
-# longer prefixes (e.g. C3D10) always match before any shorter prefix they share.
-_INP_PREFIXES: list[tuple[str, str, int]] = sorted(
-    [
-        ("C3D4", "tetra", 4),
-        ("C3D5", "pyramid", 5),
-        ("C3D6", "wedge", 6),
-        ("C3D8", "hexahedron", 8),
-        ("C3D10", "quadratic_tetra", 10),
-        ("C3D20", "quadratic_hexahedron", 20),
-        ("STRI3", "triangle", 3),
-        ("S3", "triangle", 3),
-        ("S4", "quad", 4),
-        ("CPS3", "triangle", 3),
-        ("CPE3", "triangle", 3),
-        ("CPS4", "quad", 4),
-        ("CPE4", "quad", 4),
-        ("T3D2", "line", 2),
-        ("B31", "line", 2),
-    ],
-    key=lambda t: len(t[0]),
-    reverse=True,
-)
+# A deck that includes itself is legal text and reads until memory runs out,
+# so the nesting is capped. Real decks nest two or three deep.
+_MAX_INCLUDE_DEPTH: int = 8
 
+# Abaqus element cards, keyed by the base card with its modifier suffixes
+# removed. The suffixes - R (reduced integration), H (hybrid), I
+# (incompatible modes), M (modified), T (coupled temperature), S/W (shell
+# variants), P (pore pressure), and the 5/6 degree-of-freedom shell numbers -
+# change the solver's behaviour, never the node count or their order, so
+# CPS8R holds the same eight nodes as CPS8.
+_INP_BASE_TYPES: dict[str, tuple[str, int]] = {
+    # trusses and beams
+    "T2D2": ("line", 2),
+    "T2D3": ("quadratic_edge", 3),
+    "T3D2": ("line", 2),
+    "T3D3": ("quadratic_edge", 3),
+    "B21": ("line", 2),
+    "B22": ("quadratic_edge", 3),
+    "B31": ("line", 2),
+    "B32": ("quadratic_edge", 3),
+    "B33": ("quadratic_edge", 3),
+    "DC1D2": ("line", 2),
+    "DC1D3": ("quadratic_edge", 3),
+    # plane stress / plane strain / axisymmetric / generalised plane strain
+    "CPS3": ("triangle", 3),
+    "CPE3": ("triangle", 3),
+    "CPEG3": ("triangle", 3),
+    "CAX3": ("triangle", 3),
+    "CGAX3": ("triangle", 3),
+    "CPS4": ("quad", 4),
+    "CPE4": ("quad", 4),
+    "CPEG4": ("quad", 4),
+    "CAX4": ("quad", 4),
+    "CGAX4": ("quad", 4),
+    "CPS6": ("quadratic_triangle", 6),
+    "CPE6": ("quadratic_triangle", 6),
+    "CPEG6": ("quadratic_triangle", 6),
+    "CAX6": ("quadratic_triangle", 6),
+    "CGAX6": ("quadratic_triangle", 6),
+    "CPS8": ("quadratic_quad", 8),
+    "CPE8": ("quadratic_quad", 8),
+    "CPEG8": ("quadratic_quad", 8),
+    "CAX8": ("quadratic_quad", 8),
+    "CGAX8": ("quadratic_quad", 8),
+    # shells, membranes and rigid surfaces
+    "S3": ("triangle", 3),
+    "STRI3": ("triangle", 3),
+    "S4": ("quad", 4),
+    "S6": ("quadratic_triangle", 6),
+    "STRI65": ("quadratic_triangle", 6),
+    "S8": ("quadratic_quad", 8),
+    "S9": ("biquadratic_quad", 9),
+    "SC6": ("wedge", 6),
+    "SC8": ("hexahedron", 8),
+    "R3D3": ("triangle", 3),
+    "R3D4": ("quad", 4),
+    "M3D3": ("triangle", 3),
+    "M3D4": ("quad", 4),
+    "M3D6": ("quadratic_triangle", 6),
+    "M3D8": ("quadratic_quad", 8),
+    "M3D9": ("biquadratic_quad", 9),
+    # solids
+    "C3D4": ("tetra", 4),
+    "C3D5": ("pyramid", 5),
+    "C3D6": ("wedge", 6),
+    "C3D8": ("hexahedron", 8),
+    "C3D10": ("quadratic_tetra", 10),
+    "C3D15": ("quadratic_wedge", 15),
+    "C3D20": ("quadratic_hexahedron", 20),
+    # heat transfer and cohesive
+    "DC2D3": ("triangle", 3),
+    "DC2D4": ("quad", 4),
+    "DC2D6": ("quadratic_triangle", 6),
+    "DC2D8": ("quadratic_quad", 8),
+    "DC3D4": ("tetra", 4),
+    "DC3D6": ("wedge", 6),
+    "DC3D8": ("hexahedron", 8),
+    "DC3D10": ("quadratic_tetra", 10),
+    "DC3D15": ("quadratic_wedge", 15),
+    "DC3D20": ("quadratic_hexahedron", 20),
+    "COH2D4": ("quad", 4),
+    "COH3D6": ("wedge", 6),
+    "COH3D8": ("hexahedron", 8),
+}
+
+# The card written for each polyxios type. Cards other readers know are
+# preferred over the ones this codec would pick for itself, so an exported
+# deck loads elsewhere; ``element_type=`` overrides any of them.
 _POLYXIOS_TO_INP: dict[str, str] = {
+    "line": "T3D2",
+    "quadratic_edge": "T3D3",
     "triangle": "S3",
+    "quadratic_triangle": "STRI65",
     "quad": "S4",
+    "quadratic_quad": "S8R",
+    "biquadratic_quad": "S9R5",
     "tetra": "C3D4",
+    "quadratic_tetra": "C3D10",
     "pyramid": "C3D5",
     "wedge": "C3D6",
+    "quadratic_wedge": "C3D15",
     "hexahedron": "C3D8",
-    "line": "T3D2",
+    "quadratic_hexahedron": "C3D20",
 }
 
 
 def _inp_type_info(type_str: str) -> tuple[str, int] | None:
-    up = type_str.upper()
-    for prefix, name, n in _INP_PREFIXES:
-        if up.startswith(prefix):
-            return name, n
-    return None
+    """Return the polyxios type a card names, ignoring its modifier suffixes.
+
+    Parameters
+    ----------
+    type_str
+        The ``TYPE=`` value of an ``*ELEMENT`` card.
+
+    Returns
+    -------
+    tuple of (str, int) or None
+        The polyxios element name and its node count, or None when no known
+        card is a prefix of this one.
+
+    Notes
+    -----
+    The lookup takes the longest prefix that ends in a digit - the node count
+    is the last thing a card name spells before its modifiers - so ``CPS8R``
+    and ``CPS8`` resolve alike while ``C3D20RH`` does not fall back to
+    ``C3D2``.
+    """
+    up = type_str.upper().strip()
+    for end in range(len(up), 0, -1):
+        if not up[end - 1].isdigit():
+            continue
+        info = _INP_BASE_TYPES.get(up[:end])
+        if info is not None:
+            return info
+    return _INP_BASE_TYPES.get(up)
+
+
+def _parse_params(card: str) -> dict[str, str]:
+    """Return a keyword card's parameters, upper-cased keys, values as written."""
+    params: dict[str, str] = {}
+    for part in card.split(",")[1:]:
+        key, sep, value = part.partition("=")
+        params[key.strip().upper()] = value.strip() if sep else ""
+    return params
+
+
+def _include_path(card: str, base: Path | None, name: str) -> Path:
+    """Return the file an ``*INCLUDE`` card names, refusing an escaping path."""
+    params = _parse_params(card)
+    target = params.get("INPUT") or params.get("FILE") or ""
+    target = target.strip().strip("'\"")
+    if not target:
+        raise CodecError(f".inp: '{name}' has an *INCLUDE card with no INPUT=.")
+    if base is None:
+        raise CodecError(
+            f".inp: '{name}' uses *INCLUDE, which names a file relative to the"
+            " deck's own directory; read it from a path rather than a buffer."
+        )
+    if Path(target).is_absolute():
+        raise CodecError(
+            f".inp: *INCLUDE names the absolute path '{target}'; only paths"
+            " inside the deck's own directory are read."
+        )
+    resolved = (base / target).resolve()
+    if not resolved.is_relative_to(base.resolve()):
+        raise CodecError(
+            f".inp: *INCLUDE path '{target}' resolves outside the deck's"
+            f" directory '{base}'; refusing to read it."
+        )
+    if not resolved.is_file():
+        raise CodecError(f".inp: *INCLUDE names '{target}', which does not exist.")
+    return resolved
+
+
+def _expand_includes(
+    text: str, base: Path | None, name: str, depth: int, seen: tuple[Path, ...]
+) -> list[str]:
+    """Return the deck's lines with every ``*INCLUDE`` replaced by its file."""
+    out: list[str] = []
+    for ln in text.splitlines():
+        stripped = ln.strip()
+        if not stripped.upper().startswith("*INCLUDE"):
+            out.append(ln)
+            continue
+        if depth >= _MAX_INCLUDE_DEPTH:
+            raise CodecError(
+                f".inp: *INCLUDE nests deeper than {_MAX_INCLUDE_DEPTH} files;"
+                " a deck that includes itself would never finish."
+            )
+        target = _include_path(stripped, base, name)
+        if target in seen:
+            raise CodecError(
+                f".inp: *INCLUDE nests '{target.name}' inside itself; a deck"
+                " that includes itself would never finish."
+            )
+        out.extend(
+            _expand_includes(
+                target.read_text(encoding="utf-8", errors="replace"),
+                target.parent,
+                target.name,
+                depth + 1,
+                (*seen, target),
+            )
+        )
+    return out
+
+
+def _logical_lines(raw_lines: list[str]) -> list[str]:
+    """Strip comments and join the continuation lines a data line may spill onto."""
+    raw = [
+        ln.split("**")[0].rstrip()
+        for ln in raw_lines
+        if not ln.strip().startswith("**")
+    ]
+
+    lines: list[str] = []
+    buf = ""
+    for ln in raw:
+        stripped = ln.strip()
+        if not stripped:
+            if buf:
+                lines.append(buf)
+                buf = ""
+            continue
+        if stripped.startswith("*"):
+            if buf:
+                lines.append(buf)
+                buf = ""
+            lines.append(ln)
+        elif stripped.endswith(",") or buf:
+            buf += stripped
+            if not stripped.endswith(","):
+                lines.append(buf)
+                buf = ""
+        else:
+            lines.append(ln)
+    if buf:
+        lines.append(buf)
+    return lines
+
+
+def _parse_system(rows: list[list[str]]) -> tuple[np.ndarray, np.ndarray] | None:
+    """Return the origin and rotation a ``*SYSTEM`` card's data lines define.
+
+    Parameters
+    ----------
+    rows
+        The card's data lines, already split on commas.
+
+    Returns
+    -------
+    tuple of numpy.ndarray or None
+        Origin and a 3x3 rotation whose columns are the local axes, or None
+        for a card with no data lines, which restores the global system.
+    """
+    if not rows:
+        return None
+    try:
+        first = [float(tok) for tok in rows[0] if tok]
+        second = [float(tok) for tok in rows[1] if tok] if len(rows) > 1 else []
+    except ValueError as exc:
+        raise CodecError(f".inp: malformed *SYSTEM data line: {exc}.") from exc
+    if len(first) < 3:
+        raise CodecError(
+            f".inp: *SYSTEM needs at least an origin of 3 values, got {len(first)}."
+        )
+    origin = np.array(first[:3], dtype=np.float64)
+    if len(first) < 6:
+        # An origin on its own is a pure shift; the axes stay global.
+        return origin, np.eye(3)
+
+    x_axis = np.array(first[3:6], dtype=np.float64) - origin
+    norm = float(np.linalg.norm(x_axis))
+    if norm == 0.0:
+        raise CodecError(".inp: *SYSTEM local X axis has zero length.")
+    x_axis /= norm
+
+    if len(second) >= 3:
+        plane = np.array(second[:3], dtype=np.float64) - origin
+    else:
+        # No second point: any direction not along X gives the same result
+        # for a pure rotation about X, which is all the card can mean here.
+        plane = np.array([0.0, 0.0, 1.0])
+        if abs(float(np.dot(plane, x_axis))) > 1.0 - 1e-12:
+            plane = np.array([0.0, 1.0, 0.0])
+    y_axis = plane - float(np.dot(plane, x_axis)) * x_axis
+    norm = float(np.linalg.norm(y_axis))
+    if norm == 0.0:
+        raise CodecError(
+            ".inp: *SYSTEM second point lies on the local X axis, so it does"
+            " not define a plane."
+        )
+    y_axis /= norm
+    z_axis = np.cross(x_axis, y_axis)
+    return origin, np.column_stack((x_axis, y_axis, z_axis))
+
+
+def _set_indices(
+    rows: list[list[str]],
+    id_map: dict[int, int],
+    known: dict[str, np.ndarray],
+    *,
+    generate: bool,
+    name: str,
+    what: str,
+) -> list[int]:
+    """Return the indices a ``*NSET`` / ``*ELSET`` body names.
+
+    A set body lists ids, ranges under ``GENERATE``, or the names of sets
+    declared earlier; an id the deck never defined is reported rather than
+    dropped, since a set standing for a boundary condition matters.
+    """
+    indices: list[int] = []
+    missing: list[str] = []
+    if generate:
+        for row in rows:
+            values = [tok for tok in row if tok]
+            if len(values) < 2:
+                continue
+            try:
+                first, last = int(values[0]), int(values[1])
+                step = int(values[2]) if len(values) > 2 else 1
+            except ValueError:
+                missing.append(", ".join(values))
+                continue
+            if step <= 0:
+                raise CodecError(
+                    f".inp: {what} set '{name}' generates with a step of {step}."
+                )
+            for ident in range(first, last + 1, step):
+                if ident in id_map:
+                    indices.append(id_map[ident])
+                else:
+                    missing.append(str(ident))
+    else:
+        for row in rows:
+            for tok in row:
+                if not tok:
+                    continue
+                try:
+                    ident = int(tok)
+                except ValueError:
+                    # A set body may name sets declared earlier.
+                    nested = known.get(tok)
+                    if nested is None:
+                        missing.append(tok)
+                    else:
+                        indices.extend(int(k) for k in nested)
+                    continue
+                if ident in id_map:
+                    indices.append(id_map[ident])
+                else:
+                    missing.append(str(ident))
+
+    if missing:
+        warnings.warn(
+            f".inp: {what} set '{name}' names {len(missing)} entry(ies) the deck"
+            f" never defines, first {missing[0]!r}; they are dropped.",
+            stacklevel=2,
+        )
+    return sorted(set(indices))
+
+
+def _store_set(
+    tags: dict[str, np.ndarray], name: str, indices: list[int], what: str
+) -> None:
+    """Record a set under its name, merging a name the deck reuses."""
+    if not indices:
+        warnings.warn(
+            f".inp: {what} set '{name}' is empty; it is dropped.", stacklevel=2
+        )
+        return
+    array = np.array(indices, dtype=np.int32)
+    if name in tags:
+        array = np.unique(np.concatenate([tags[name], array])).astype(np.int32)
+    tags[name] = array
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
-    """Parse an Abaqus .inp file.
+    """Parse an Abaqus ``.inp`` file.
 
     Parameters
     ----------
     path
-        Path to the .inp file.
+        Path to the ``.inp`` file, or a file object - a buffer holds no
+        directory, so a deck read from one cannot use ``*INCLUDE``.
     lazy
         Ignored (ASCII format; always loads eagerly).
 
@@ -72,47 +427,94 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     CodecError
-        If no ``*Node`` section is found.
-    """
-    raw = [
-        ln.split("**")[0].rstrip()
-        for ln in read_text(path).splitlines()
-        if not ln.strip().startswith("**")
-    ]
+        If no ``*Node`` section is found, an ``*INCLUDE`` card names a
+        missing file or one outside the deck's directory or nests too deeply,
+        a ``*SYSTEM`` card is malformed, an element row is short or names an
+        undefined node, or a count exceeds the safety caps.
 
-    # Join Abaqus continuation lines: data lines ending with ',' continue on next line
-    lines: list[str] = []
-    buf = ""
-    for ln in raw:
-        stripped_ln = ln.strip()
-        if not stripped_ln:
-            if buf:
-                lines.append(buf)
-                buf = ""
-            continue
-        if stripped_ln.startswith("*"):
-            if buf:
-                lines.append(buf)
-                buf = ""
-            lines.append(ln)
-        elif stripped_ln.endswith(",") or buf:
-            buf += stripped_ln
-            if not stripped_ln.endswith(","):
-                lines.append(buf)
-                buf = ""
-        else:
-            lines.append(ln)
-    if buf:
-        lines.append(buf)
+    Notes
+    -----
+    Several ``*NODE`` blocks accumulate, and a repeated node id restates that
+    node rather than adding another. ``NSET=`` / ``ELSET=`` on a block, and
+    standalone ``*NSET`` / ``*ELSET`` cards with or without ``GENERATE``,
+    become ``vertex_tags`` and ``element_tags``. ``*SYSTEM`` transforms the
+    node blocks that follow it, until the next ``*SYSTEM``. Every
+    ``*INSTANCE`` is merged into one mesh, each under its own node numbering
+    and tagged by its instance name. Solver cards are ignored.
+    """
+    if lazy:
+        warnings.warn(
+            ".inp: lazy=True is not supported; loading eagerly.", stacklevel=2
+        )
+
+    text = read_text(path, errors="replace")
+    base = None if is_buffer(path) else Path(os.fspath(path)).parent  # type: ignore[arg-type]
+    lines = _logical_lines(_expand_includes(text, base, source_name(path), 0, ()))
 
     node_map: dict[int, int] = {}
+    elem_map: dict[int, int] = {}
     coords: list[float] = []
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
     types_list: list[int] = []
+    vertex_tags: dict[str, np.ndarray] = {}
+    element_tags: dict[str, np.ndarray] = {}
 
+    # The mesh cards carry state across their data lines, so the loop tracks
+    # which card it is inside and what that card asked for.
     mode: str | None = None
     elem_info: tuple[str, int] | None = None
+    block_nodes: list[int] = []
+    block_elems: list[int] = []
+    block_set: str | None = None
+    set_name: str | None = None
+    set_rows: list[list[str]] = []
+    set_generate = False
+    system: tuple[np.ndarray, np.ndarray] | None = None
+    system_rows: list[list[str]] = []
+    instance: str | None = None
+    instance_nodes: list[int] = []
+    instance_elems: list[int] = []
+    unknown_types: set[str] = set()
+
+    def close_block() -> None:
+        """Record whatever the card that is ending asked to be recorded."""
+        nonlocal system
+        if mode == "system":
+            system = _parse_system(system_rows)
+        elif mode in ("nset", "elset") and set_name is not None:
+            if mode == "nset":
+                _store_set(
+                    vertex_tags,
+                    set_name,
+                    _set_indices(
+                        set_rows,
+                        node_map,
+                        vertex_tags,
+                        generate=set_generate,
+                        name=set_name,
+                        what="node",
+                    ),
+                    "node",
+                )
+            else:
+                _store_set(
+                    element_tags,
+                    set_name,
+                    _set_indices(
+                        set_rows,
+                        elem_map,
+                        element_tags,
+                        generate=set_generate,
+                        name=set_name,
+                        what="element",
+                    ),
+                    "element",
+                )
+        elif mode == "node" and block_set:
+            _store_set(vertex_tags, block_set, sorted(set(block_nodes)), "node")
+        elif mode == "element" and block_set:
+            _store_set(element_tags, block_set, sorted(set(block_elems)), "element")
 
     for ln in lines:
         stripped = ln.strip()
@@ -120,44 +522,96 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             continue
 
         if stripped.startswith("*"):
-            parts = [p.strip() for p in stripped.split(",")]
-            kw = parts[0].upper()
-            if kw == "*NODE":
+            close_block()
+            mode = None
+            block_set = None
+            block_nodes = []
+            block_elems = []
+            set_rows = []
+            set_name = None
+            set_generate = False
+            system_rows = []
+
+            keyword = stripped.split(",")[0].strip().lstrip("*").upper()
+            params = _parse_params(stripped)
+            if keyword == "NODE":
                 mode = "node"
-            elif kw == "*ELEMENT":
+                block_set = params.get("NSET") or None
+            elif keyword == "ELEMENT":
                 mode = "element"
-                elem_info = None
-                for part in parts[1:]:
-                    if "=" in part and part.upper().startswith("TYPE"):
-                        type_str = part.split("=")[1].strip()
-                        elem_info = _inp_type_info(type_str)
-                        if elem_info is None:
-                            warnings.warn(
-                                f".inp: unrecognised element type '{type_str}';"
-                                " skipping block",
-                                stacklevel=2,
-                            )
-                        break
-            else:
-                mode = None
+                block_set = params.get("ELSET") or None
+                type_str = params.get("TYPE", "")
+                elem_info = _inp_type_info(type_str) if type_str else None
+                if elem_info is None:
+                    unknown_types.add(type_str or "<missing TYPE=>")
+            elif keyword == "NSET":
+                mode = "nset"
+                set_name = params.get("NSET") or None
+                set_generate = "GENERATE" in params
+            elif keyword == "ELSET":
+                mode = "elset"
+                set_name = params.get("ELSET") or None
+                set_generate = "GENERATE" in params
+            elif keyword == "SYSTEM":
+                mode = "system"
+            elif keyword in ("INSTANCE", "PART"):
+                # An instance numbers its own nodes from 1, so it reads
+                # against a fresh map and its elements are tagged by name.
+                instance = params.get("NAME") or keyword.lower()
+                node_map = {}
+                elem_map = {}
+                instance_nodes = []
+                instance_elems = []
+            elif keyword in ("END INSTANCE", "END PART"):
+                if instance is not None:
+                    if instance_nodes:
+                        _store_set(vertex_tags, instance, instance_nodes, "node")
+                    if instance_elems:
+                        _store_set(element_tags, instance, instance_elems, "element")
+                instance = None
+                node_map = {}
+                elem_map = {}
             continue
 
         if mode == "node":
             parts = [p.strip() for p in stripped.split(",")]
             if len(parts) < 3:
                 continue
-            node_id = int(parts[0])
-            node_map[node_id] = len(coords) // 3
-            if len(parts) >= 4:
-                coords.extend([float(parts[1]), float(parts[2]), float(parts[3])])
+            try:
+                node_id = int(parts[0])
+                xyz = [float(parts[1]), float(parts[2])]
+                xyz.append(float(parts[3]) if len(parts) >= 4 and parts[3] else 0.0)
+            except ValueError as exc:
+                raise CodecError(f".inp: malformed node line {stripped!r}.") from exc
+            point = np.array(xyz, dtype=np.float64)
+            if system is not None:
+                origin, rotation = system
+                point = origin + rotation @ point
+            existing = node_map.get(node_id)
+            if existing is None:
+                index = len(coords) // 3
+                if index >= MAX_SAFE_VERTICES:
+                    raise CodecError(
+                        f".inp: node count exceeds the safety cap {MAX_SAFE_VERTICES}."
+                    )
+                node_map[node_id] = index
+                coords.extend(point.tolist())
             else:
-                # 2-D node: pad Z with 0
-                coords.extend([float(parts[1]), float(parts[2]), 0.0])
+                # A repeated id restates the same node; appending would leave
+                # a vertex nothing references.
+                index = existing
+                coords[3 * index : 3 * index + 3] = point.tolist()
+            block_nodes.append(index)
+            if instance is not None:
+                instance_nodes.append(index)
 
-        elif mode == "element" and elem_info is not None:
+        elif mode == "element":
+            if elem_info is None:
+                continue
             elem_name, n_nodes = elem_info
             parts = [p.strip() for p in stripped.split(",")]
             try:
+                elem_id = int(parts[0])
                 nodes = [node_map[int(parts[1 + j])] for j in range(n_nodes)]
             except IndexError as exc:
                 raise CodecError(
@@ -167,9 +621,32 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 raise CodecError(
                     f".inp: element refs undefined node {exc.args[0]}"
                 ) from exc
+            except ValueError as exc:
+                raise CodecError(f".inp: malformed element line {stripped!r}.") from exc
+            index = len(types_list)
+            if index >= MAX_SAFE_ELEMENTS or len(conn_list) >= MAX_SAFE_CONN:
+                raise CodecError(".inp: element count exceeds the safety caps.")
+            elem_map[elem_id] = index
             conn_list.extend(nodes)
             offsets_list.append(offsets_list[-1] + n_nodes)
             types_list.append(ELEMENT_TYPES[elem_name])
+            block_elems.append(index)
+            if instance is not None:
+                instance_elems.append(index)
+
+        elif mode in ("nset", "elset"):
+            set_rows.append([p.strip() for p in stripped.split(",")])
+        elif mode == "system":
+            system_rows.append([p.strip() for p in stripped.split(",")])
+
+    close_block()
+
+    if unknown_types:
+        warnings.warn(
+            f".inp: unrecognised element type(s) {sorted(unknown_types)};"
+            " their blocks are skipped.",
+            stacklevel=2,
+        )
 
     if not coords:
         raise CodecError(".inp: no *Node section found.")
@@ -182,32 +659,55 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         connectivity=np.array(conn_list, dtype=np.int32),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
     )
 
 
-def write(poly: PolyData, path: Source) -> None:
-    """Write PolyData to Abaqus .inp ASCII format.
+def write(poly: PolyData, path: Source, **opts: Any) -> None:
+    """Write PolyData to Abaqus ``.inp`` ASCII format.
 
     Parameters
     ----------
     poly
         PolyData to write.
     path
-        Output .inp path.
+        Output ``.inp`` path.
+    **opts
+        ``element_type``: a mapping from polyxios element name to the Abaqus
+        card to write for it, so a deck can ask for ``C3D8R`` where the mesh
+        only says ``hexahedron``. Any other option is warned about and
+        ignored.
 
     Raises
     ------
     CodecError
-        If an element type id is unknown, or has no Abaqus write mapping.
+        If an element type id is unknown, or has no Abaqus write mapping, or
+        ``element_type`` is not a mapping of strings.
 
     Notes
     -----
-    Quadratic types readable by this codec (``quadratic_tetra``,
-    ``quadratic_hexahedron``) have no write mapping and raise ``CodecError``.
+    ``vertex_tags`` and ``element_tags`` are written as ``*Nset`` and
+    ``*Elset`` cards, so a boundary named on the way in is still named on the
+    way out. Elements are grouped by type, one ``*Element`` card per group.
     """
+    overrides = opts.pop("element_type", None) or {}
+    if opts:
+        warnings.warn(
+            f".inp write: unrecognized options {set(opts)}; ignored.", stacklevel=2
+        )
+    if not isinstance(overrides, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in overrides.items()
+    ):
+        raise CodecError(
+            ".inp: element_type= takes a mapping from polyxios element name to"
+            " Abaqus card, such as {'hexahedron': 'C3D8R'}."
+        )
+
     n_elems = len(poly.element_types)
 
     groups: dict[str, list[int]] = {}
+    used: set[str] = set()
     for i in range(n_elems):
         type_id = int(poly.element_types[i])
         name = ELEMENT_TYPES_INV.get(type_id)
@@ -215,8 +715,19 @@ def write(poly: PolyData, path: Source) -> None:
             raise CodecError(f".inp: unknown element type id {type_id}")
         if name not in _POLYXIOS_TO_INP:
             raise CodecError(f".inp: no write mapping for element type '{name}'")
-        inp_type = _POLYXIOS_TO_INP[name]
+        used.add(name)
+        inp_type = overrides.get(name, _POLYXIOS_TO_INP[name])
         groups.setdefault(inp_type, []).append(i)
+
+    unused = sorted(set(overrides) - used)
+    if unused:
+        # An override the mesh has no element for silently writes the deck
+        # the caller did not ask for, usually because the name is misspelt.
+        warnings.warn(
+            f".inp: element_type= names {unused}, which this mesh has no"
+            " elements of; ignored.",
+            stacklevel=2,
+        )
 
     lines: list[str] = [
         "*Heading",
@@ -228,16 +739,62 @@ def write(poly: PolyData, path: Source) -> None:
         for i, v in enumerate(poly.vertices)
     )
 
+    # Element ids are handed out as the groups are written, so a set naming
+    # an element has to be resolved against the numbering, not the mesh order.
+    elem_id_of: dict[int, int] = {}
     elem_id = 0
     for inp_type, indices in groups.items():
         lines.append(f"*Element, type={inp_type}")
         for ei in indices:
             elem_id += 1
+            elem_id_of[ei] = elem_id
             s, e = int(poly.offsets[ei]), int(poly.offsets[ei + 1])
             node_str = ", ".join(
                 str(poly.connectivity[s + j] + 1) for j in range(e - s)
             )
             lines.append(f"{elem_id}, {node_str}")
 
+    lines.extend(_set_cards(poly.vertex_tags, "Nset", "nset", lambda k: k + 1))
+    lines.extend(_set_cards(poly.element_tags, "Elset", "elset", elem_id_of.get))
+
     lines.append("")
     write_text(path, "\n".join(lines))
+
+
+def _set_cards(
+    tags: dict[str, np.ndarray], keyword: str, param: str, ident
+) -> list[str]:
+    """Return the ``*Nset`` / ``*Elset`` cards a tag dictionary spells.
+
+    Parameters
+    ----------
+    tags
+        Named index arrays.
+    keyword
+        Card keyword to write, ``Nset`` or ``Elset``.
+    param
+        Parameter naming the set on that card.
+    ident
+        Maps an index to the 1-based id written for it, or None when the
+        index was not written at all.
+
+    Returns
+    -------
+    list of str
+        One card per tag, its ids wrapped 16 to a line as Abaqus expects.
+    """
+    lines: list[str] = []
+    for name, indices in (tags or {}).items():
+        ids = [ident(int(k)) for k in np.asarray(indices).ravel()]
+        kept = sorted({i for i in ids if i is not None})
+        if not kept:
+            continue
+        safe = name.replace(",", "_").replace("*", "_").strip()
+        if not safe:
+            continue
+        lines.append(f"*{keyword}, {param}={safe}")
+        lines.extend(
+            ", ".join(str(i) for i in kept[start : start + 16])
+            for start in range(0, len(kept), 16)
+        )
+    return lines

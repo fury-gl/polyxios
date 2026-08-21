@@ -286,7 +286,10 @@ CAPABILITIES: dict[str, Cap] = {
     ),
     ".inp": Cap(
         "mixed",
-        note="The Abaqus writer emits geometry only; see P1.9/P1.10.",
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        note="Abaqus node and element sets carry the tags; attributes have no"
+        " card in a mesh deck.",
     ),
     ".mesh": Cap("mixed", note="Medit stores geometry and per-element refs only."),
     ".meshb": Cap("mixed", note="Binary Medit, same payload as .mesh."),
