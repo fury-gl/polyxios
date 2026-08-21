@@ -9,6 +9,7 @@ py.install_sources(
     '_dolfin.py',
     '_flac3d.py',
     '_gmsh.py',
+    '_medit.py',
     '_meshb.py',
     '_nastran.py',
     '_netgen.py',

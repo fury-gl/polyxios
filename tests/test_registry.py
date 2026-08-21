@@ -296,12 +296,18 @@ def test_a_codec_without_a_sniffer_cannot_contest(monkeypatch) -> None:
 
 
 def test_an_owned_extension_is_never_contested(monkeypatch) -> None:
-    """A codec owning '.dat' outright keeps it, whatever else competes."""
-    import polyxios.codecs._nastran as nastran
+    """A codec owning '.dat' outright keeps it, whatever else competes.
 
-    monkeypatch.setattr(nastran, "EXTENSIONS", (".bdf", ".dat"), raising=True)
+    The claim has to come from a codec that does not also list '.dat' among
+    its sniffed extensions: listing an extension in both places is how a
+    codec says it shares its own extension, which is the opposite claim.
+    """
+    import polyxios.codecs._off as off
+
+    monkeypatch.setattr(off, "EXTENSIONS", (".off", ".dat"), raising=False)
     registry = build_default_registry()
-    assert registry[".dat"] is registry[".bdf"]
+    assert registry[".dat"] is registry[".off"]
+    assert registry[".dat"].candidates == ()
 
 
 def test_an_entry_point_outranks_the_dispatcher_it_collides_with(monkeypatch) -> None:

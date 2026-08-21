@@ -291,8 +291,21 @@ CAPABILITIES: dict[str, Cap] = {
         note="Abaqus node and element sets carry the tags; attributes have no"
         " card in a mesh deck.",
     ),
-    ".mesh": Cap("mixed", note="Medit stores geometry and per-element refs only."),
-    ".meshb": Cap("mixed", note="Binary Medit, same payload as .mesh."),
+    ".medit": Cap(
+        "mixed",
+        warns=(r"element tag group\(s\) \['a', 'b'\] are not named 'ref_<n>'",),
+        note="A Medit record carries a reference number, not a name, so only"
+        " groups already called 'ref_<n>' survive; the writer warns rather"
+        " than numbering the rest itself.",
+    ),
+    ".mesh": Cap("mixed", note="MFEM stores geometry only."),
+    ".meshb": Cap(
+        "mixed",
+        warns=(r"element tag group\(s\) \['a', 'b'\] are not named 'ref_<n>'",),
+        note="A Medit record carries a reference number, not a name, so only"
+        " groups already called 'ref_<n>' survive; the writer warns rather"
+        " than numbering the rest itself.",
+    ),
     ".msh": Cap(
         "mixed",
         vertex_attrs=("scalar", "vector"),
