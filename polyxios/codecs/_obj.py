@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._faces import report_flattened_faces
 from polyxios._io import Source, open_text, source_name, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, LazyReadError
@@ -70,6 +71,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     mtl_file: str | None = None
     object_name: str | None = None
     current_material = ""
+    # Directives that name geometry this codec has no element for, counted so
+    # the read can say what the file held that the mesh does not.
+    dropped: dict[str, int] = {}
 
     # Naming the source costs a path walk, so it is done once here rather
     # than per line; a message is spelled only when one is raised.
@@ -136,6 +140,21 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             elif directive == "o":
                 if len(parts) > 1:
                     object_name = " ".join(parts[1:])
+
+            elif directive in ("l", "p"):
+                # A polyline and a point element, which this codec has no
+                # place for. They carry geometry, so dropping them is a loss
+                # rather than a directive stepped over, and it is counted so
+                # the read can say what the file held that the mesh does not.
+                dropped[directive] = dropped.get(directive, 0) + 1
+
+    if dropped:
+        named = ", ".join(f"'{tag}' ({n})" for tag, n in sorted(dropped.items()))
+        warnings.warn(
+            f".obj: '{source}' carries {named} record(s), which name geometry"
+            " this codec has no element for; they were dropped.",
+            stacklevel=3,
+        )
 
     if not vertices:
         return PolyData(
@@ -239,7 +258,24 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
     Each ``element_tags`` group becomes a ``g`` directive covering the run of
     faces that carries it. A face in no group is preceded by a bare ``g``, so
     it does not inherit the group of the face above it.
+
+    An ``f`` record is a flat ring of vertices and OBJ has no other shape, so
+    an element that is not one - a ``tetra``, a ``quadratic_triangle`` - is
+    written as a ring of its nodes in mesh order and reads back as whatever
+    that many vertices name: a triangle at three, a quad at four, a polygon
+    otherwise. The element it was is not in the file, so it is named in a
+    warning rather than lost quietly.
     """
+    n_elems = len(poly.element_types)
+    # Reported before a byte is written, so a caller reading the warning
+    # still has the mesh in hand.
+    report_flattened_faces(
+        offsets=poly.offsets,
+        element_types=poly.element_types,
+        face_indices=np.arange(n_elems, dtype=np.int64),
+        fmt=".obj",
+    )
+
     lines: list[str] = []
 
     lines.append("# Written by polyxios")
@@ -276,7 +312,6 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
         for i in idxs:
             idx_to_groups.setdefault(int(i), []).append(g)
 
-    n_elems = len(poly.element_types)
     # A corner names a record only when the record was written; an attribute
     # dropped above must not leave the faces indexing it.
     has_normals = vn_rows is not None

@@ -90,6 +90,7 @@ Quirks worth knowing
 - An element index no vertex answers to is refused rather than read into a mesh nothing can draw.
 - PLY spells no 64-bit integer, so a column of one is written at the narrowest type that holds the values it actually carries - ``int`` when they fit a signed 32-bit field, ``double`` when they do not. The header and the record are taken from the same decision, so a field's declared width is always the width written.
 - A face's vertex count is declared ``uchar``, as almost every PLY file does, and widens to ``ushort`` or ``uint`` for a mesh carrying a polygon of more than 255 vertices - a count the narrower type cannot spell.
+- A face record is a flat ring of vertices and PLY spells no other shape, so an element that is not one - a ``tetra``, a ``quadratic_triangle`` - keeps its vertices and loses the type it was: a reader names a record by how many vertices it holds, so it comes back a triangle at three, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning rather than dropped quietly.
 - An integer attribute is written in full in the ASCII flavour rather than through a float format, which would turn a large one into ``1.23456789e+13``: not a token a reader expecting the declared integer property accepts.
 
 .. seealso::

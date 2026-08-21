@@ -67,6 +67,8 @@ Quirks worth knowing
 - Records that cannot be lined up with the vertices leave the attribute out entirely, on write as well as on read: an attribute that does not hold one row per vertex is warned about and left out, rather than written as faces indexing records that are not in the file. A vertex no face names carries NaN in the array and is written back as zero, since ``vt nan nan`` is not a record another OBJ reader takes.
 - A face belonging to no group is written after a bare ``g``, so it does not inherit the group of the face above it; a bare ``g`` on read clears the active groups rather than inventing a ``default`` tag.
 - A ``v``, ``vn`` or ``vt`` record that does not carry the components its directive needs, or carries something that is not a number, raises ``CodecError`` naming the line. A ``vt`` may carry a third component - the depth of a volumetric texture - and ``texcoords`` keeps the two a surface uses.
+- An ``f`` record is a flat ring of vertices and OBJ spells no other shape, so an element that is not one - a ``tetra``, a ``line`` - keeps its vertices and loses the type it was: it comes back a triangle at three vertices, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning.
+- ``l`` and ``p`` records name geometry this codec has no element for. They are dropped, and the read says how many of each the file held rather than leaving the loss to be found later.
 - ``element_attrs['material']`` is written as ``usemtl`` only when it holds one value per face; a shorter attribute is warned about and left out, the way an ill-fitting vertex attribute is.
 
 .. seealso::
