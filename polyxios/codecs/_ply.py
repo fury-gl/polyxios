@@ -136,6 +136,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
 
+    # PLY spells a two-ended element as 'element edge' with vertex1/vertex2,
+    # not as a face list of length two: a reader handed the latter builds a
+    # degenerate polygon, which is not the line the mesh held.
+    line_code = ELEMENT_TYPES["line"]
+    edge_indices = [i for i in range(n_elems) if poly.element_types[i] == line_code]
+    face_indices = [i for i in range(n_elems) if poly.element_types[i] != line_code]
+
     lines: list[bytes] = []
     lines.append(b"ply")
 
@@ -163,12 +170,17 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             lines.append(f"property {dt_str} {name}".encode())
 
     # Face element
-    lines.append(f"element face {n_elems}".encode())
+    lines.append(f"element face {len(face_indices)}".encode())
     lines.append(b"property list uchar int vertex_indices")
 
     for name, arr in poly.element_attrs.items():
         dt_str = _np_to_ply_type(arr.dtype)
         lines.append(f"property {dt_str} {name}".encode())
+
+    if edge_indices:
+        lines.append(f"element edge {len(edge_indices)}".encode())
+        lines.append(b"property int vertex1")
+        lines.append(b"property int vertex2")
 
     lines.append(b"end_header")
 
@@ -194,7 +206,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             # Faces: interleaved per-face record (count, indices, extra...)
             count_dt = np.dtype("u1")
             idx_dt = np.dtype(endian_chr + "i4")
-            for i in range(n_elems):
+            for i in face_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
                 fh.write(np.array([e - s], dtype=count_dt).tobytes())
                 fh.write(poly.connectivity[s:e].astype(idx_dt).tobytes())
@@ -202,6 +214,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                     val = np.asarray(arr[i]).ravel()
                     dt = np.dtype(endian_chr + _np_short_dtype(val.dtype))
                     fh.write(val.astype(dt).tobytes())
+            # Edges: the two ends, one record each.
+            for i in edge_indices:
+                s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
+                fh.write(_edge_ends(poly, i, s, e).astype(idx_dt).tobytes())
         else:
             # ASCII: each vertex line = x y z [extra_props...]
             for vi in range(n_verts):
@@ -217,19 +233,57 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                         row.append(f"{arr[vi]:.10g}")
                 fh.write((" ".join(row) + "\n").encode())
             # Each face line = count v0 v1 ... [extra_props...]
-            for i in range(n_elems):
+            for i in face_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
                 parts = [str(e - s)] + [str(int(v)) for v in poly.connectivity[s:e]]
                 parts.extend(f"{arr[i]:.10g}" for arr in poly.element_attrs.values())
                 fh.write((" ".join(parts) + "\n").encode())
+            # Each edge line = vertex1 vertex2
+            for i in edge_indices:
+                s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
+                ends = _edge_ends(poly, i, s, e)
+                fh.write(f"{int(ends[0])} {int(ends[1])}\n".encode())
+
+
+def _edge_ends(poly: PolyData, index: int, start: int, end: int) -> np.ndarray:
+    """Return an edge's two ends, refusing one that does not have exactly two.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    index
+        Which element, named in the error.
+    start, end
+        The element's slice of the connectivity.
+
+    Returns
+    -------
+    numpy.ndarray
+        The two vertex indices.
+
+    Raises
+    ------
+    CodecError
+        When the element does not hold exactly two vertices; a PLY edge
+        record has room for two and no reader would find the rest.
+    """
+    if end - start != 2:
+        raise CodecError(
+            f".ply: element {index} is a line with {end - start} vertex(es);"
+            " a PLY edge record holds exactly two."
+        )
+    return np.asarray(poly.connectivity[start:end])
 
 
 def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
     vert_elem = next((e for e in header["elements"] if e["name"] == "vertex"), None)
     face_elem = next((e for e in header["elements"] if e["name"] == "face"), None)
+    edge_elem = next((e for e in header["elements"] if e["name"] == "edge"), None)
 
     n_verts = vert_elem["count"] if vert_elem else 0
     n_faces = face_elem["count"] if face_elem else 0
+    n_edges = edge_elem["count"] if edge_elem else 0
 
     with open_read(path) as fh:
         start = fh.tell()
@@ -278,31 +332,84 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
                     extra_face_props.setdefault(pname, []).append(float(vals[vi]))
                     vi += 1
 
-    poly_code = ELEMENT_TYPES["polygon"]
-    tri_code = ELEMENT_TYPES["triangle"]
-    quad_code = ELEMENT_TYPES["quad"]
-
-    types_list: list[int] = []
-    n_elems = len(offsets_list) - 1
-    for i in range(n_elems):
-        n = offsets_list[i + 1] - offsets_list[i]
-        if n == 3:
-            types_list.append(tri_code)
-        elif n == 4:
-            types_list.append(quad_code)
-        else:
-            types_list.append(poly_code)
-
+    types_list = _face_types(offsets_list)
     element_attrs = {k: np.array(v) for k, v in extra_face_props.items()}
+
+    # Edges come after the faces, so a per-face attribute keeps lining up with
+    # the faces it describes and the lines simply extend the mesh.
+    if edge_elem:
+        line_code = ELEMENT_TYPES["line"]
+        ends = _edge_end_names(edge_elem["properties"])
+        for _ei in range(n_edges):
+            vals = lines[idx].split()
+            idx += 1
+            record = {
+                pname: vals[pi] for pi, (pname, _) in enumerate(edge_elem["properties"])
+            }
+            try:
+                pair = [int(record[name]) for name in ends]
+            except (KeyError, ValueError) as exc:
+                raise CodecError(
+                    f".ply: malformed edge record {' '.join(vals)!r}."
+                ) from exc
+            conn_list.extend(pair)
+            offsets_list.append(offsets_list[-1] + 2)
+            types_list.append(line_code)
+
+    connectivity = _checked_connectivity(conn_list, n_verts)
 
     return PolyData(
         vertices=vertices,
-        connectivity=np.array(conn_list, dtype=np.int32),
+        connectivity=connectivity,
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
     )
+
+
+def _face_types(offsets_list: list[int]) -> list[int]:
+    """Return the element type each face's vertex count names."""
+    tri_code = ELEMENT_TYPES["triangle"]
+    quad_code = ELEMENT_TYPES["quad"]
+    poly_code = ELEMENT_TYPES["polygon"]
+    types: list[int] = []
+    for i in range(len(offsets_list) - 1):
+        n = offsets_list[i + 1] - offsets_list[i]
+        types.append(tri_code if n == 3 else quad_code if n == 4 else poly_code)
+    return types
+
+
+def _edge_end_names(props: list[tuple[str, Any]]) -> tuple[str, str]:
+    """Return the two properties holding an edge's ends.
+
+    The spec spells them ``vertex1``/``vertex2``, but files in the wild use
+    ``vertex_index1``/``vertex_index2`` and a few just number two integer
+    properties, so the fallback is the first two scalars in declared order.
+    """
+    names = [pname for pname, ptype in props if not isinstance(ptype, tuple)]
+    for first, second in (("vertex1", "vertex2"), ("vertex_index1", "vertex_index2")):
+        if first in names and second in names:
+            return first, second
+    if len(names) >= 2:
+        return names[0], names[1]
+    raise CodecError(
+        ".ply: an edge element declares fewer than two scalar properties, so"
+        " it names no pair of ends."
+    )
+
+
+def _checked_connectivity(conn_list: list[int], n_verts: int) -> np.ndarray:
+    """Return the connectivity, refusing an index no vertex answers to."""
+    connectivity = np.array(conn_list, dtype=np.int64)
+    if connectivity.size:
+        low, high = int(connectivity.min()), int(connectivity.max())
+        if low < 0 or high >= n_verts:
+            raise CodecError(
+                f".ply: an element references vertex {low}..{high}, outside"
+                f" 0..{n_verts - 1}."
+            )
+    return connectivity.astype(np.int32)
 
 
 def _read_binary(
@@ -344,6 +451,11 @@ def _decode_binary(
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
     element_attrs: dict[str, np.ndarray] = {}
+    # Edges are held back and appended after the faces, so a per-face
+    # attribute keeps lining up with the faces it describes whatever order
+    # the header declares the two elements in.
+    edge_conn: list[int] = []
+    edge_offsets: list[int] = []
 
     for elem in header["elements"]:
         ename = elem["name"]
@@ -420,27 +532,37 @@ def _decode_binary(
             for pname, vals in extra_data.items():
                 element_attrs[pname] = np.array(vals)
 
+        elif ename == "edge":
+            # A PLY edge names its two ends in scalar properties rather than
+            # in a face list; read as a face it would build a degenerate
+            # polygon instead of the line the file holds.
+            ends = _edge_end_names(props)
+            dt = np.dtype(
+                [(pname, endian + _PLY_DTYPE[ptype]) for pname, ptype in props]
+            )
+            nbytes = count * dt.itemsize
+            rec = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=dt)
+            pos += nbytes
+            pairs = np.column_stack(
+                [rec[ends[0]].astype(np.int64), rec[ends[1]].astype(np.int64)]
+            )
+            edge_conn = pairs.ravel().tolist()
+            edge_offsets = list(range(2, 2 * count + 1, 2))
+
         else:
             # Skip unknown elements: compute size by summing property sizes
             pos = _skip_binary_element(mv, pos, count, props, endian)
 
-    n_elems = len(offsets_list) - 1
-    tri_code = ELEMENT_TYPES["triangle"]
-    quad_code = ELEMENT_TYPES["quad"]
-    poly_code = ELEMENT_TYPES["polygon"]
-    types_list: list[int] = []
-    for i in range(n_elems):
-        n = offsets_list[i + 1] - offsets_list[i]
-        if n == 3:
-            types_list.append(tri_code)
-        elif n == 4:
-            types_list.append(quad_code)
-        else:
-            types_list.append(poly_code)
+    types_list = _face_types(offsets_list)
+    if edge_conn:
+        base = offsets_list[-1]
+        conn_list.extend(edge_conn)
+        offsets_list.extend(base + step for step in edge_offsets)
+        types_list.extend([ELEMENT_TYPES["line"]] * len(edge_offsets))
 
     return PolyData(
         vertices=vertices,
-        connectivity=np.array(conn_list, dtype=np.int32),
+        connectivity=_checked_connectivity(conn_list, vertices.shape[0]),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_attrs=vertex_attrs,

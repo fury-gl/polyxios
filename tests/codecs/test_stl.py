@@ -226,3 +226,98 @@ def test_binary_with_solid_header(tmp_path: Path) -> None:
     assert len(poly2.element_types) == 4
     poly_lazy = read(str(stl_file), lazy=True)
     assert len(poly_lazy.element_types) == 4
+
+
+# --- meshio #1355: binary STL colours ----------------------------------------
+
+
+def _binary_stl(facets: list[tuple[np.ndarray, int]]) -> bytes:
+    """Return a binary STL holding the given (3x3 vertices, attribute) facets."""
+    out = bytearray(b"\x00" * 80)
+    out += np.array([len(facets)], dtype="<u4").tobytes()
+    for verts, attr in facets:
+        out += np.zeros(3, dtype="<f4").tobytes()
+        out += np.asarray(verts, dtype="<f4").tobytes()
+        out += np.array([attr], dtype="<u2").tobytes()
+    return bytes(out)
+
+
+_TRI_A = np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]])
+_TRI_B = np.array([[0.0, 0, 0], [1, 0, 0], [0, 0, 1]])
+
+
+def _rgb15(r: int, g: int, b: int) -> int:
+    """Pack 5-bit components the way Magics does, with the valid bit set."""
+    return 0x8000 | (b << 10) | (g << 5) | r
+
+
+def test_issue_1355_binary_attribute_bytes_read_as_colours(tmp_path) -> None:
+    """The attribute word is where a binary STL keeps its per-facet colour."""
+    path = tmp_path / "colour.stl"
+    path.write_bytes(
+        _binary_stl([(_TRI_A, _rgb15(31, 0, 0)), (_TRI_B, _rgb15(0, 31, 31))])
+    )
+    poly = read(path)
+    colors = poly.element_attrs["colors"]
+    assert colors.shape == (2, 3)
+    np.testing.assert_allclose(colors[0], [1.0, 0.0, 0.0], atol=1e-6)
+    np.testing.assert_allclose(colors[1], [0.0, 1.0, 1.0], atol=1e-6)
+
+
+def test_issue_1355_facets_without_the_valid_bit_carry_no_colour(tmp_path) -> None:
+    """A zero attribute word is what a writer leaves when it has no colour."""
+    path = tmp_path / "plain.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
+    assert "colors" not in read(path).element_attrs
+
+
+def test_issue_1355_a_partly_coloured_file_keeps_the_facets_that_have_one(
+    tmp_path,
+) -> None:
+    """An uncoloured facet in a coloured file must not take the colours along."""
+    path = tmp_path / "mixed.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 31, 31)), (_TRI_B, 0)]))
+    colors = read(path).element_attrs["colors"]
+    np.testing.assert_allclose(colors[0], [1.0, 1.0, 1.0], atol=1e-6)
+    assert np.isnan(colors[1]).all()
+
+
+def test_issue_1355_colours_survive_a_round_trip(tmp_path) -> None:
+    path = tmp_path / "src.stl"
+    path.write_bytes(
+        _binary_stl([(_TRI_A, _rgb15(31, 0, 0)), (_TRI_B, _rgb15(0, 0, 31))])
+    )
+    poly = read(path)
+    out = tmp_path / "back.stl"
+    write(poly, out, binary=True)
+    np.testing.assert_allclose(
+        read(out).element_attrs["colors"], poly.element_attrs["colors"], atol=1e-6
+    )
+
+
+def test_issue_1355_ascii_output_drops_colours_with_a_warning(tmp_path) -> None:
+    """ASCII STL has no field for a colour; dropping one silently hides it."""
+    path = tmp_path / "src.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 0, 0))]))
+    poly = read(path)
+    with pytest.warns(UserWarning, match="colors"):
+        write(poly, tmp_path / "ascii.stl", binary=False)
+
+
+# --- meshio #1470: STL is per-facet, so a conversion needs dedup -------------
+
+
+def test_issue_1470_coincident_facet_corners_are_merged(tmp_path) -> None:
+    """STL repeats a shared corner per facet; keeping them explodes a .ply."""
+    path = tmp_path / "shared.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
+    poly = read(path)
+    # Six facet corners, four distinct points.
+    assert poly.vertices.shape == (4, 3)
+    assert len(poly.element_types) == 2
+
+
+def test_issue_1470_the_merge_can_be_turned_off(tmp_path) -> None:
+    path = tmp_path / "shared.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
+    assert read(path, merge_vertices=False).vertices.shape == (6, 3)
