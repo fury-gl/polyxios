@@ -6,8 +6,9 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata
+from polyxios._element_types import ELEMENT_TYPES
 from polyxios.codecs._ply import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.fetcher import fetch
 
 
@@ -178,3 +179,83 @@ def test_real_armadillo() -> None:
     assert len(poly.element_types) == 345944
     assert poly.faces is not None and len(poly.faces) > 0
     assert "intensity" in poly.element_attrs
+
+
+# --- meshio #1394: PLY edge elements -----------------------------------------
+
+
+def _edge_mesh():
+    verts = np.array([[0.0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float64)
+    return make_polydata(
+        verts,
+        [
+            ("line", np.array([[0, 1], [2, 3]])),
+            ("triangle", np.array([[0, 1, 2]])),
+        ],
+    )
+
+
+@pytest.mark.parametrize("binary", [False, True], ids=["ascii", "binary"])
+def test_issue_1394_lines_are_written_as_ply_edges(tmp_path, binary: bool) -> None:
+    """A line written as a degenerate face is not what a PLY reader expects."""
+    poly = _edge_mesh()
+    out = tmp_path / "edges.ply"
+    write(poly, out, binary=binary)
+
+    head = out.read_bytes().split(b"end_header")[0].decode("ascii")
+    assert "element edge 2" in head
+    assert "property int vertex1" in head
+    assert "property int vertex2" in head
+    assert "element face 1" in head
+
+    back = read(out)
+    assert back.element_types.tolist() == [
+        ELEMENT_TYPES["triangle"],
+        ELEMENT_TYPES["line"],
+        ELEMENT_TYPES["line"],
+    ]
+    np.testing.assert_array_equal(back.connectivity, [0, 1, 2, 0, 1, 2, 3])
+
+
+@pytest.mark.parametrize("binary", [False, True], ids=["ascii", "binary"])
+def test_issue_1394_an_edge_only_mesh_round_trips(tmp_path, binary: bool) -> None:
+    verts = np.array([[0.0, 0, 0], [1, 0, 0], [2, 0, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("line", np.array([[0, 1], [1, 2]]))])
+    out = tmp_path / "lines.ply"
+    write(poly, out, binary=binary)
+    back = read(out)
+    assert len(back.element_types) == 2
+    np.testing.assert_array_equal(back.connectivity, [0, 1, 1, 2])
+    np.testing.assert_allclose(back.vertices, verts)
+
+
+def test_issue_1394_an_edge_element_is_read_from_a_hand_written_file(
+    tmp_path,
+) -> None:
+    """Files in the wild spell the two ends vertex1/vertex2, not a face list."""
+    path = tmp_path / "hand.ply"
+    path.write_text(
+        "ply\nformat ascii 1.0\n"
+        "element vertex 3\nproperty float x\nproperty float y\nproperty float z\n"
+        "element edge 2\nproperty int vertex1\nproperty int vertex2\n"
+        "end_header\n"
+        "0 0 0\n1 0 0\n2 0 0\n"
+        "0 1\n1 2\n"
+    )
+    poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]] * 2
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 1, 2])
+
+
+def test_an_edge_element_naming_a_missing_vertex_is_refused(tmp_path) -> None:
+    path = tmp_path / "bad.ply"
+    path.write_text(
+        "ply\nformat ascii 1.0\n"
+        "element vertex 2\nproperty float x\nproperty float y\nproperty float z\n"
+        "element edge 1\nproperty int vertex1\nproperty int vertex2\n"
+        "end_header\n"
+        "0 0 0\n1 0 0\n"
+        "0 9\n"
+    )
+    with pytest.raises(CodecError, match="vertex"):
+        read(path)

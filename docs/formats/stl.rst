@@ -80,6 +80,8 @@ Quirks worth knowing
 - Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.
 - Facet normals are read but not trusted for orientation; they are kept as element attributes.
 - The declared triangle count is validated against the real file size before memory is allocated.
+- A binary facet's attribute word carries its colour, five bits per channel with the top bit set to say the word holds one at all. Facets that claim a colour land in ``element_attrs["colors"]`` as RGB in 0..1; the ones that do not stay ``NaN``, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all.
+- Colours are written back on a binary write. ASCII STL has no field for one, so an ASCII write reports that they were dropped rather than losing them quietly.
 
 .. seealso::
 
