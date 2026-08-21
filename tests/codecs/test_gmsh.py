@@ -85,9 +85,27 @@ def test_node_permutations_match_meshio() -> None:
     from meshio.gmsh._gmsh22 import _gmsh_to_meshio_order
 
     for name, order in _READ_ORDER.items():
+        alias = _MESHIO_ALIAS.get(name)
+        if alias is None:
+            continue
         idx = np.arange(len(order))
-        ref = _gmsh_to_meshio_order(_MESHIO_ALIAS[name], idx[None, :])[0]
+        ref = _gmsh_to_meshio_order(alias, idx[None, :])[0]
         np.testing.assert_array_equal(ref, order, err_msg=name)
+
+
+def test_issue_1517_meshio_does_not_permute_the_18_node_prism() -> None:
+    """meshio reads Gmsh's prism18 straight through; that is the bug, recorded.
+
+    Kept so the disagreement is deliberate rather than discovered later: our
+    table is derived from VTK's own edge and face lists, meshio's is identity.
+    """
+    pytest.importorskip("meshio")
+    from meshio.gmsh._gmsh22 import _gmsh_to_meshio_order
+
+    idx = np.arange(18)
+    ref = _gmsh_to_meshio_order("wedge18", idx[None, :])[0]
+    np.testing.assert_array_equal(ref, idx)
+    assert _READ_ORDER["biquadratic_quadratic_wedge"] != tuple(idx)
 
     for meshio_name, n_nodes in _MESHIO_IDENTITY.items():
         idx = np.arange(n_nodes)
@@ -779,3 +797,365 @@ def test_coordinates_roundtrip_exactly(tmp_path: Path) -> None:
     out = tmp_path / "prec.msh"
     write(poly, out)
     np.testing.assert_array_equal(read(out).vertices, verts)
+
+
+# --- meshio #1517: 18-node prism node ordering -------------------------------
+
+# Gmsh numbers a prism18's mid-nodes by its own edge and face tables, VTK by
+# its own; the two disagree, so the file's node 7 is not VTK's node 7. The
+# corners of a straight prism, and the mid-node each numbering expects.
+_P18_CORNERS = np.array(
+    [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 1.0],
+        [0.0, 1.0, 1.0],
+    ]
+)
+_GMSH_P18_EDGES = [
+    (0, 1),
+    (0, 2),
+    (0, 3),
+    (1, 2),
+    (1, 4),
+    (2, 5),
+    (3, 4),
+    (3, 5),
+    (4, 5),
+]
+_GMSH_P18_FACES = [(0, 1, 4, 3), (0, 3, 5, 2), (1, 2, 5, 4)]
+_VTK_P18_EDGES = [
+    (0, 1),
+    (1, 2),
+    (2, 0),
+    (3, 4),
+    (4, 5),
+    (5, 3),
+    (0, 3),
+    (1, 4),
+    (2, 5),
+]
+_VTK_P18_FACES = [(0, 1, 4, 3), (1, 2, 5, 4), (2, 0, 3, 5)]
+
+
+def _p18_points() -> np.ndarray:
+    """Return the 18 node positions a straight prism has, in Gmsh order."""
+    mids = [_P18_CORNERS[list(e)].mean(axis=0) for e in _GMSH_P18_EDGES]
+    centres = [_P18_CORNERS[list(f)].mean(axis=0) for f in _GMSH_P18_FACES]
+    return np.vstack([_P18_CORNERS, np.array(mids), np.array(centres)])
+
+
+def _p18_msh(points: np.ndarray) -> str:
+    nodes = "\n".join(
+        f"{i + 1} {p[0]:.17g} {p[1]:.17g} {p[2]:.17g}" for i, p in enumerate(points)
+    )
+    refs = " ".join(str(i + 1) for i in range(18))
+    return (
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+        f"$Nodes\n18\n{nodes}\n$EndNodes\n"
+        f"$Elements\n1\n1 13 2 1 1 {refs}\n$EndElements\n"
+    )
+
+
+def test_issue_1517_prism18_is_permuted_into_vtk_order(tmp_path: Path) -> None:
+    """Gmsh's edge and face tables are not VTK's; identity bends the element."""
+    points = _p18_points()
+    path = _write_text(tmp_path, "p18.msh", _p18_msh(points))
+    poly = read(path)
+
+    assert list(poly.element_types) == [ELEMENT_TYPES["biquadratic_quadratic_wedge"]]
+    cell = poly.connectivity[: int(poly.offsets[1])]
+    assert len(cell) == 18
+
+    np.testing.assert_allclose(poly.vertices[cell[:6]], _P18_CORNERS)
+    for slot, edge in enumerate(_VTK_P18_EDGES, start=6):
+        np.testing.assert_allclose(
+            poly.vertices[cell[slot]],
+            _P18_CORNERS[list(edge)].mean(axis=0),
+            err_msg=f"VTK slot {slot} must hold the midpoint of edge {edge}",
+        )
+    for slot, face in enumerate(_VTK_P18_FACES, start=15):
+        np.testing.assert_allclose(
+            poly.vertices[cell[slot]],
+            _P18_CORNERS[list(face)].mean(axis=0),
+            err_msg=f"VTK slot {slot} must hold the centre of face {face}",
+        )
+
+
+def test_issue_1517_prism18_survives_a_round_trip(tmp_path: Path) -> None:
+    """A permutation applied on read and not on write is the same bug, mirrored."""
+    points = _p18_points()
+    poly = read(_write_text(tmp_path, "p18.msh", _p18_msh(points)))
+    out = tmp_path / "back.msh"
+    write(poly, out)
+    back = read(out)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_allclose(
+        back.vertices[back.connectivity], poly.vertices[poly.connectivity]
+    )
+
+
+def test_pyramid14_is_still_skipped_with_a_warning(tmp_path: Path) -> None:
+    """VTK has no 14-node pyramid, so there is nowhere correct to put one."""
+    nodes = "\n".join(f"{i + 1} {i}.0 0.0 0.0" for i in range(14))
+    refs = " ".join(str(i + 1) for i in range(14))
+    path = _write_text(
+        tmp_path,
+        "p14.msh",
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+        f"$Nodes\n14\n{nodes}\n$EndNodes\n"
+        f"$Elements\n1\n1 14 2 1 1 {refs}\n$EndElements\n",
+    )
+    with pytest.warns(UserWarning, match="unsupported Gmsh type"):
+        poly = read(path)
+    assert len(poly.element_types) == 0
+
+
+# --- meshio #1281: $NodeData / $ElementData ----------------------------------
+
+
+_TET_HEADER = (
+    "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+    "$Nodes\n4\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n$EndNodes\n"
+    "$Elements\n2\n1 4 2 1 1 1 2 3 4\n2 2 2 1 1 1 2 3\n$EndElements\n"
+)
+
+
+def test_issue_1281_node_data_becomes_a_vertex_attr(tmp_path: Path) -> None:
+    """A solution field dropped on read makes the reader useless for results."""
+    path = _write_text(
+        tmp_path,
+        "nodedata.msh",
+        _TET_HEADER + '$NodeData\n1\n"T"\n1\n0.0\n3\n0\n1\n4\n'
+        "1 10.0\n2 20.0\n3 30.0\n4 40.0\n$EndNodeData\n",
+    )
+    poly = read(path)
+    np.testing.assert_allclose(poly.vertex_attrs["T"], [10.0, 20.0, 30.0, 40.0])
+
+
+def test_issue_1281_node_data_of_any_width_is_kept(tmp_path: Path) -> None:
+    """The spec allows any component count, not only 1, 3 and 9."""
+    rows = "\n".join(
+        f"{i + 1} " + " ".join(str(i * 5 + k) for k in range(5)) for i in range(4)
+    )
+    path = _write_text(
+        tmp_path,
+        "nodedata5.msh",
+        _TET_HEADER
+        + '$NodeData\n1\n"state"\n1\n0.0\n3\n0\n5\n4\n'
+        + rows
+        + "\n$EndNodeData\n",
+    )
+    poly = read(path)
+    assert poly.vertex_attrs["state"].shape == (4, 5)
+    np.testing.assert_allclose(poly.vertex_attrs["state"][2], [10, 11, 12, 13, 14])
+
+
+def test_issue_1281_element_data_becomes_an_element_attr(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path,
+        "ed.msh",
+        _TET_HEADER + '$ElementData\n1\n"rho"\n1\n0.0\n3\n0\n1\n2\n'
+        "1 1.5\n2 2.5\n$EndElementData\n",
+    )
+    poly = read(path)
+    np.testing.assert_allclose(poly.element_attrs["rho"], [1.5, 2.5])
+
+
+def test_issue_1281_several_data_fields_all_arrive(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path,
+        "two.msh",
+        _TET_HEADER
+        + '$NodeData\n1\n"a"\n1\n0.0\n3\n0\n1\n4\n1 1\n2 2\n3 3\n4 4\n$EndNodeData\n'
+        '$NodeData\n1\n"b"\n1\n0.0\n3\n0\n1\n4\n1 9\n2 8\n3 7\n4 6\n$EndNodeData\n',
+    )
+    poly = read(path)
+    np.testing.assert_allclose(poly.vertex_attrs["a"], [1, 2, 3, 4])
+    np.testing.assert_allclose(poly.vertex_attrs["b"], [9, 8, 7, 6])
+
+
+def test_issue_1281_partial_node_data_is_filled_with_nan(tmp_path: Path) -> None:
+    """A field naming half the nodes must not shift onto the wrong ones."""
+    path = _write_text(
+        tmp_path,
+        "part.msh",
+        _TET_HEADER + '$NodeData\n1\n"T"\n1\n0.0\n3\n0\n1\n2\n'
+        "2 20.0\n4 40.0\n$EndNodeData\n",
+    )
+    poly = read(path)
+    values = poly.vertex_attrs["T"]
+    np.testing.assert_allclose(values[[1, 3]], [20.0, 40.0])
+    assert np.isnan(values[[0, 2]]).all()
+
+
+def test_issue_1281_data_naming_an_unknown_node_warns(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path,
+        "ghost.msh",
+        _TET_HEADER + '$NodeData\n1\n"T"\n1\n0.0\n3\n0\n1\n1\n99 1.0\n$EndNodeData\n',
+    )
+    with pytest.warns(UserWarning, match="99|unknown"):
+        poly = read(path)
+    assert "T" not in poly.vertex_attrs
+
+
+def test_issue_1281_a_data_field_named_like_phys_tag_is_renamed(
+    tmp_path: Path,
+) -> None:
+    """phys_tag is this codec's own element attribute; a clash would hide it."""
+    path = _write_text(
+        tmp_path,
+        "clash.msh",
+        _TET_HEADER + '$ElementData\n1\n"phys_tag"\n1\n0.0\n3\n0\n1\n2\n'
+        "1 5.0\n2 6.0\n$EndElementData\n",
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(poly.element_attrs["phys_tag"], [1, 1])
+    np.testing.assert_allclose(poly.element_attrs["phys_tag_2"], [5.0, 6.0])
+
+
+def test_malformed_data_section_is_skipped_with_a_warning(tmp_path: Path) -> None:
+    path = _write_text(
+        tmp_path,
+        "bad.msh",
+        _TET_HEADER
+        + '$NodeData\n1\n"T"\n1\n0.0\n3\n0\n1\n2\n1 nope\n2 3.0\n$EndNodeData\n',
+    )
+    with pytest.warns(UserWarning, match="NodeData"):
+        poly = read(path)
+    assert "T" not in poly.vertex_attrs
+
+
+# --- meshio #1421, #1404, #865, #524, #1116 ----------------------------------
+
+
+def test_issue_1421_single_line_element_mesh_round_trips(tmp_path: Path) -> None:
+    """A one-line mesh is the smallest thing Gmsh can hold; it must re-read."""
+    verts = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
+    out = tmp_path / "line.msh"
+    write(poly, out)
+    back = read(out)
+    assert list(back.element_types) == [ELEMENT_TYPES["line"]]
+    np.testing.assert_allclose(back.vertices, verts)
+    np.testing.assert_array_equal(back.connectivity, [0, 1])
+
+    meshio = pytest.importorskip("meshio")
+    mesh = meshio.read(out)
+    np.testing.assert_array_equal(mesh.cells[0].data, [[0, 1]])
+
+
+def test_issue_1404_reading_prints_nothing(tmp_path: Path, capsys) -> None:
+    """A library that prints on read corrupts whatever the caller pipes it to."""
+    path = _write_text(tmp_path, "quiet.msh", _TET_HEADER)
+    read(path)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_issue_865_mixed_cell_types_survive_a_write(tmp_path: Path) -> None:
+    """CSR holds mixed types natively, so no block splitting can drop one."""
+    verts = np.array(
+        [[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]], dtype=np.float64
+    )
+    poly = make_polydata(
+        verts,
+        [
+            ("line", np.array([[0, 1]])),
+            ("triangle", np.array([[0, 1, 2]])),
+            ("tetra", np.array([[0, 1, 2, 3]])),
+            ("vertex", np.array([[4]])),
+        ],
+    )
+    out = tmp_path / "mixed.msh"
+    write(poly, out)
+    back = read(out)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+
+
+def test_issue_1116_a_flat_mesh_keeps_its_zero_z(tmp_path: Path) -> None:
+    """A 2-D mesh is 3-D with z=0; dropping the column changes the geometry."""
+    verts = np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]])
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    out = tmp_path / "flat.msh"
+    write(poly, out)
+    back = read(out)
+    assert back.vertices.shape == (3, 3)
+    np.testing.assert_allclose(back.vertices[:, 2], 0.0)
+
+
+def test_issue_1281_vertex_attrs_are_written_as_node_data(tmp_path: Path) -> None:
+    """A field read into vertex_attrs and dropped on write is half a codec."""
+    poly = PolyData(
+        vertices=_TET_VERTS,
+        connectivity=np.array([0, 1, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 4], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["tetra"]], dtype=np.uint8),
+        vertex_attrs={
+            "T": np.arange(4, dtype=np.float64),
+            "v": np.arange(12, dtype=np.float64).reshape(4, 3),
+        },
+    )
+    out = tmp_path / "nodedata.msh"
+    write(poly, out)
+    back = read(out)
+    np.testing.assert_allclose(back.vertex_attrs["T"], [0, 1, 2, 3])
+    np.testing.assert_allclose(back.vertex_attrs["v"], poly.vertex_attrs["v"])
+
+    meshio = pytest.importorskip("meshio")
+    mesh = meshio.read(out)
+    np.testing.assert_allclose(mesh.point_data["T"], [0, 1, 2, 3])
+
+
+def test_issue_1281_element_attrs_are_written_as_element_data(tmp_path: Path) -> None:
+    poly = PolyData(
+        vertices=_TET_VERTS,
+        connectivity=np.array([0, 1, 2, 0, 1, 3], dtype=np.int32),
+        offsets=np.array([0, 3, 6], dtype=np.int32),
+        element_types=np.full(2, ELEMENT_TYPES["triangle"], dtype=np.uint8),
+        element_attrs={"rho": np.array([1.5, 2.5])},
+    )
+    out = tmp_path / "ed.msh"
+    write(poly, out)
+    np.testing.assert_allclose(read(out).element_attrs["rho"], [1.5, 2.5])
+
+
+def test_element_data_follows_the_elements_that_were_written(
+    tmp_path: Path,
+) -> None:
+    """A skipped element shifts the numbering; the field has to shift with it."""
+    poly = PolyData(
+        vertices=_TET_VERTS,
+        connectivity=np.array([0, 1, 2, 0, 1, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 3, 7], dtype=np.int32),
+        element_types=np.array(
+            [ELEMENT_TYPES["polyhedron"], ELEMENT_TYPES["tetra"]], dtype=np.uint8
+        ),
+        element_attrs={"rho": np.array([9.0, 2.5])},
+    )
+    out = tmp_path / "skip.msh"
+    with pytest.warns(UserWarning, match="no Gmsh equivalent"):
+        write(poly, out)
+    back = read(out)
+    assert len(back.element_types) == 1
+    np.testing.assert_allclose(back.element_attrs["rho"], [2.5])
+
+
+def test_attrs_that_have_no_data_section_are_skipped_with_a_warning(
+    tmp_path: Path,
+) -> None:
+    poly = PolyData(
+        vertices=_TET_VERTS,
+        connectivity=np.array([0, 1, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 4], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["tetra"]], dtype=np.uint8),
+        vertex_attrs={"labels": np.array(["a", "b", "c", "d"])},
+    )
+    with pytest.warns(UserWarning, match="labels"):
+        write(poly, tmp_path / "bad.msh")

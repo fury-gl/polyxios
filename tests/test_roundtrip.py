@@ -295,7 +295,8 @@ CAPABILITIES: dict[str, Cap] = {
     ".meshb": Cap("mixed", note="Binary Medit, same payload as .mesh."),
     ".msh": Cap(
         "mixed",
-        element_attrs=("phys_tag",),
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint", "phys_tag"),
         element_tags=("a",),
         warns=(r"element tag group\(s\) \['b'\] were not written",),
         note="A Gmsh element carries one physical tag, so overlaps cannot both"
