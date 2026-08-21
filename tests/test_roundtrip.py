@@ -355,9 +355,13 @@ CAPABILITIES: dict[str, Cap] = {
     ".tec": Cap(
         "volume",
         vertex_attrs=("scalar",),
+        element_attrs=("efloat", "eint"),
+        global_attrs=("tecplot_title", "tecplot_zone_title"),
         warns=(r"only named 1-D numeric vertex_attrs can be written",),
-        note="A Tecplot FE zone is single-type and node-centred: vectors and"
-        " element attributes have no column.",
+        note="A Tecplot FE zone is single-type: vectors have no column, while"
+        " element attributes travel as VARLOCATION cell-centred variables. Every"
+        " zone carries a title, so the caller's global_attrs are replaced by the"
+        " file and zone names.",
     ),
     ".ugrid": Cap(
         "mixed",
