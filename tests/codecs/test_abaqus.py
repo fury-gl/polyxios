@@ -774,3 +774,38 @@ def test_a_set_naming_an_element_that_was_not_written_is_still_reported(
     poly.element_tags["A"] = np.array([0, 5], dtype=np.int32)
     with pytest.warns(UserWarning, match="index no element"):
         write(poly, tmp_path / "gone.inp")
+
+
+def test_two_tag_names_reaching_one_card_name_are_reported(tmp_path) -> None:
+    """A card name cannot carry ',' or '=', so two groups can fold into one.
+
+    Every member still reaches the file - Abaqus merges cards naming one set -
+    but the groups stop being told apart, which is a loss this codec reports
+    everywhere else rather than leaving to be found on the way back in.
+    """
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.element_tags["a,b"] = np.array([0], dtype=np.int32)
+    poly.element_tags["a=b"] = np.array([0], dtype=np.int32)
+    with pytest.warns(UserWarning, match="spell one card name"):
+        write(poly, tmp_path / "folded.inp")
+
+
+def test_two_tag_names_differing_only_in_case_are_reported(tmp_path) -> None:
+    """Abaqus matches a set name without regard to case, and so does the read."""
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.vertex_tags["Top"] = np.array([0], dtype=np.int32)
+    poly.vertex_tags["TOP"] = np.array([1], dtype=np.int32)
+    with pytest.warns(UserWarning, match="spell one card name"):
+        write(poly, tmp_path / "cased.inp")
+
+
+def test_distinct_set_names_are_not_reported_as_merged(tmp_path) -> None:
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.element_tags["A"] = np.array([0], dtype=np.int32)
+    poly.element_tags["B"] = np.array([0], dtype=np.int32)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write(poly, tmp_path / "apart.inp")

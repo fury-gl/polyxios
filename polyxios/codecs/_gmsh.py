@@ -448,6 +448,15 @@ def _data_section_lines(
     thinned: dict[str, int] = {}
     padded: dict[str, tuple[int, int]] = {}
     overwide: dict[str, int] = {}
+    # Element data is numbered by the file, not by the mesh: an element with
+    # no Gmsh equivalent never got an id, so its value has no row. Which rows
+    # those are is the same for every attribute, so it is settled once here
+    # rather than rebuilt per field.
+    picked = (
+        np.arange(count, dtype=np.int64)
+        if written is None
+        else np.asarray(written, dtype=np.int64)
+    )
     for name, raw in (attrs or {}).items():
         array = np.asarray(raw)
         if (
@@ -466,14 +475,10 @@ def _data_section_lines(
             values = np.pad(values, ((0, 0), (0, width - held)))
         elif held > _MAX_DECLARED_WIDTH:
             overwide[name] = held
-        # Element data is numbered by the file, not by the mesh: an element
-        # with no Gmsh equivalent never got an id, so its value has no row.
-        picked = (
-            np.arange(count, dtype=np.int64)
-            if written is None
-            else np.asarray(written, dtype=np.int64)
-        )
         if not picked.size:
+            # Nothing reached the file, so there is no section to write - but
+            # the walk goes on, since what an attribute cannot spell is worth
+            # reporting whether or not a row of it was ever written.
             continue
         rows = values[picked]
         # The tag names the entity as this file numbers it, which is the row's

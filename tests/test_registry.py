@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -474,3 +476,25 @@ def test_an_unowned_shared_extension_still_stops_at_the_dispatcher(
     path.write_text("hello world\n")
     with pytest.raises(UnsupportedFormatError, match="fmt="):
         polyxios.read(path)
+
+
+def test_an_owner_that_never_shared_a_shared_extension_is_named(monkeypatch) -> None:
+    """Sharing is a thing every owner has to say for itself.
+
+    One that stays silent while another shares loses the key by module order
+    alone, and reporting the extension as settled because somebody shared it
+    is what leaves that silent.
+    """
+    import polyxios.codecs._nastran as nastran
+
+    monkeypatch.setattr(nastran, "EXTENSIONS", (".bdf", ".nas", ".mesh"), raising=True)
+    with pytest.warns(UserWarning, match="never listed it in SNIFF_EXTENSIONS"):
+        build_default_registry()
+
+
+def test_an_extension_every_owner_shares_says_nothing(monkeypatch) -> None:
+    """'.mesh' is MFEM's and Medit's, and both of them declare it shared."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        registry = build_default_registry()
+    assert ".mesh" in registry
