@@ -191,7 +191,7 @@ def write(*, poly: PolyData, path: Source) -> None:
         vert_dt = np.dtype([("xyz", "<f8", (dim,)), ("ref", "<i4")])
         buf = np.zeros(n_verts, dtype=vert_dt)
         buf["xyz"] = poly.vertices
-        vref = poly.vertex_attrs.get("ref")
+        vref = _vertex_refs(poly, n_verts)
         if vref is not None:
             buf["ref"] = vref
         fh.write(buf.tobytes())
@@ -209,7 +209,7 @@ def write(*, poly: PolyData, path: Source) -> None:
                 np.int32
             )
             if refs_attr is not None:
-                refs_col = refs_attr[idx].reshape(-1, 1).astype(np.int32)
+                refs_col = refs_attr[idx].reshape(-1, 1)
             else:
                 refs_col = np.zeros((len(idx), 1), dtype=np.int32)
             fh.write(np.concatenate([nodes, refs_col], axis=1).tobytes())
@@ -220,6 +220,79 @@ def write(*, poly: PolyData, path: Source) -> None:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+# A Medit record spells its reference in one signed 32-bit field, so a label
+# outside this cannot be written down at all.
+_REF_MIN: int = -(2**31)
+_REF_MAX: int = 2**31 - 1
+
+
+def _fits_a_reference(values: np.ndarray, what: str) -> np.ndarray | None:
+    """Return the column as int32, or None when a value has no field to fit in.
+
+    Parameters
+    ----------
+    values
+        One integer label per entity.
+    what
+        ``vertex`` or ``element``, named in the warning.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        The column at the width a record carries, or None when a value is
+        wider than that - narrowing one wraps it onto another label, which is
+        the silent relabelling this codec refuses everywhere else.
+    """
+    if values.dtype.itemsize > 4:
+        low, high = int(values.min()), int(values.max())
+        if low < _REF_MIN or high > _REF_MAX:
+            warnings.warn(
+                f".meshb: {'a' if what == 'vertex' else 'an'} {what} reference"
+                f" of {low if low < _REF_MIN else high}"
+                " is wider than the 32-bit field a Medit record carries; the"
+                f" {what} references were not written.",
+                stacklevel=4,
+            )
+            return None
+    return values.astype(np.int32, copy=False)
+
+
+def _vertex_refs(poly: PolyData, n_verts: int) -> np.ndarray | None:
+    """Return one reference per vertex, or None when there is none to write.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    n_verts
+        How many vertices it holds.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        One int32 per vertex, or None when the mesh names none and the column
+        stays zero.
+
+    Notes
+    -----
+    A float column is refused rather than truncated, the way the element
+    references are: a reference is a number the file names exactly, and
+    rounding one relabels the vertices it stands for.
+    """
+    stored = (poly.vertex_attrs or {}).get("ref")
+    if stored is None:
+        return None
+    values = integer_column(stored, n_verts)
+    if values is None:
+        warnings.warn(
+            ".meshb: vertex_attrs['ref'] is not one integer per vertex; the"
+            " vertex references were written as 0.",
+            stacklevel=3,
+        )
+        return None
+    return _fits_a_reference(values, "vertex")
 
 
 def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
@@ -247,14 +320,14 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
     if stored is not None:
         values = integer_column(stored, n_elems)
         if values is not None:
-            return values.astype(np.int32, copy=False)
+            return _fits_a_reference(values, "element")
         warnings.warn(
             ".meshb: element_attrs['ref'] is not one integer per element; the"
             " references were taken from element_tags instead.",
             stacklevel=3,
         )
 
-    refs, unnamed, named, unusable = values_from_tags(
+    refs, unnamed, named, unusable, oversized = values_from_tags(
         poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32
     )
     if unnamed:
@@ -269,6 +342,13 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
             f".meshb: element tag group(s) {sorted(unusable)} do not hold"
             " element indices, so the reference they name reaches nothing;"
             " they were not written.",
+            stacklevel=3,
+        )
+    if oversized:
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(oversized)} name a reference"
+            " wider than the 32-bit field a Medit record carries; they were"
+            " not written.",
             stacklevel=3,
         )
     return refs if named else None

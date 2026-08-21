@@ -1001,3 +1001,12 @@ def test_issue_1382_a_tin_inside_a_collection_reads(tmp_path: Path) -> None:
     )
     poly = read(path)
     assert ELEMENT_TYPES["triangle"] in poly.element_types.tolist()
+
+
+def test_a_short_triangle_ring_names_the_geometry_it_came_from(
+    tmp_path: Path,
+) -> None:
+    """A TRIANGLE reporting a POLYGON's complaint names a geometry not in the file."""
+    path = _wkt(tmp_path, "TRIANGLE ((0 0, 1 0, 0 0))\n")
+    with pytest.raises(CodecError, match="TRIANGLE ring"):
+        read(path)

@@ -483,3 +483,115 @@ def test_an_attribute_that_does_not_describe_the_mesh_is_reported(
     assert "v" not in back.vertex_attrs
     assert "two" not in back.element_attrs
     np.testing.assert_array_equal(back.connectivity, [0, 1, 2])
+
+
+def _face_and_edge_mesh(values: np.ndarray) -> object:
+    from polyxios._types import PolyData
+
+    return PolyData(
+        vertices=np.array(
+            [[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=np.float64
+        ),
+        connectivity=np.array([0, 1, 2, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 3, 5], dtype=np.int32),
+        element_types=np.array(
+            [ELEMENT_TYPES["triangle"], ELEMENT_TYPES["line"]], dtype=np.uint8
+        ),
+        element_attrs={"mat": values},
+    )
+
+
+@pytest.mark.parametrize("binary", [False, True], ids=["ascii", "binary"])
+def test_an_element_property_reaches_the_edges_too(tmp_path, binary: bool) -> None:
+    """A line's own value has nowhere to go if only the faces carry properties."""
+    out = tmp_path / "both.ply"
+    write(_face_and_edge_mesh(np.array([7, 8], dtype=np.int32)), out, binary=binary)
+
+    head = out.read_bytes().split(b"end_header")[0].decode("ascii")
+    assert head.count("property int mat") == 2
+
+    back = read(out)
+    np.testing.assert_array_equal(back.element_attrs["mat"], [7, 8])
+
+
+def test_a_property_only_the_edges_declare_is_nan_over_the_faces(tmp_path) -> None:
+    """The two elements need not declare the same properties."""
+    path = tmp_path / "edge_only.ply"
+    path.write_text(
+        "ply\nformat ascii 1.0\n"
+        "element vertex 3\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "element face 1\nproperty list uchar int vertex_indices\n"
+        "element edge 1\n"
+        "property int vertex1\nproperty int vertex2\nproperty float weight\n"
+        "end_header\n"
+        "0 0 0\n1 0 0\n0 1 0\n"
+        "3 0 1 2\n"
+        "0 2 0.5\n"
+    )
+    weight = read(path).element_attrs["weight"]
+    assert np.isnan(weight[0])
+    assert weight[1] == 0.5
+
+
+def test_a_binary_face_block_of_one_width_reads_as_one_block(tmp_path) -> None:
+    """Every record the same width is the case worth reading in one call."""
+    import struct
+
+    path = tmp_path / "uniform.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 4\nproperty float x\nproperty float y\n"
+            "property float z\n"
+            "element face 2\nproperty list uchar int vertex_indices\n"
+            "property uchar quality\n",
+            struct.pack("<12f", 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0)
+            + struct.pack("<B3iB", 3, 0, 1, 2, 7)
+            + struct.pack("<B3iB", 3, 1, 3, 2, 9),
+        )
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 1, 3, 2])
+    np.testing.assert_array_equal(poly.element_attrs["quality"], [7, 9])
+
+
+def test_a_binary_face_block_of_mixed_widths_falls_back_to_the_walk(tmp_path) -> None:
+    """A triangle beside a quad is a block no single record width describes."""
+    import struct
+
+    path = tmp_path / "mixed.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 4\nproperty float x\nproperty float y\n"
+            "property float z\n"
+            "element face 2\nproperty list uchar int vertex_indices\n",
+            struct.pack("<12f", 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0)
+            + struct.pack("<B3i", 3, 0, 1, 2)
+            + struct.pack("<B4i", 4, 0, 1, 3, 2),
+        )
+    )
+    poly = read(path)
+    assert poly.element_types.tolist() == [
+        ELEMENT_TYPES["triangle"],
+        ELEMENT_TYPES["quad"],
+    ]
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 0, 1, 3, 2])
+
+
+def test_a_file_ending_inside_its_faces_names_the_format(tmp_path) -> None:
+    """A truncated binary face block must not escape as a bare struct error."""
+    import struct
+
+    path = tmp_path / "cut.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 3\nproperty float x\nproperty float y\n"
+            "property float z\n"
+            "element face 2\nproperty list uchar int vertex_indices\n",
+            struct.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, 0)
+            + struct.pack("<B3i", 3, 0, 1, 2)
+            + struct.pack("<Bi", 3, 0),
+        )
+    )
+    with pytest.raises(CodecError, match="face record"):
+        read(path)

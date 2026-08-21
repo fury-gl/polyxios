@@ -517,3 +517,19 @@ def test_a_higher_order_section_is_stepped_over_whole(tmp_path: Path) -> None:
         poly = read(path)
     assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
     np.testing.assert_array_equal(poly.element_tags["ref_7"], [0])
+
+
+def test_a_reference_wider_than_32_bits_is_read_as_it_is_written(
+    tmp_path: Path,
+) -> None:
+    """The ASCII format puts no ceiling on a reference; narrowing one relabels."""
+    path = tmp_path / "wide.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension 3\n"
+        "Vertices\n3\n0 0 0 5000000000\n1 0 0 1\n0 1 0 1\n"
+        "Triangles\n1\n1 2 3 3000000000\nEnd\n"
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(poly.vertex_attrs["ref"], [5000000000, 1, 1])
+    np.testing.assert_array_equal(poly.element_attrs["ref"], [3000000000])
+    assert "ref_3000000000" in poly.element_tags

@@ -71,10 +71,10 @@ def member_indices(members: object, n_elems: int) -> np.ndarray:
     -----
     Nothing checks a tag group on the way in, so a group may hold floats, an
     extra dimension, or an index past the end of a mesh it was not built for.
-    Each of those indexes nothing: a float raises rather than rounding - which
-    is right, since rounding an index moves a label onto another element - and
-    a stale index reaches an element that is not the one it named. Dropping
-    them is what lets a writer report the loss instead of raising whatever the
+    Each of those indexes nothing: a float column is refused whole rather than
+    rounded - rounding an index moves a label onto another element - and a
+    stale index reaches an element that is not the one it named. Dropping them
+    is what lets a writer report the loss instead of raising whatever the
     first stray value happens to raise.
     """
     picked = np.asarray(members).ravel()
@@ -113,7 +113,7 @@ def values_from_tags(
     n_elems: int,
     *,
     dtype: np.dtype | type,
-) -> tuple[np.ndarray, set[str], bool, set[str]]:
+) -> tuple[np.ndarray, set[str], bool, set[str], set[str]]:
     """Return the labels the ``prefix<n>`` tag groups spell.
 
     Parameters
@@ -125,7 +125,8 @@ def values_from_tags(
     n_elems
         How many elements the mesh holds.
     dtype
-        Type of the returned column.
+        Type of the returned column, whose width is what a label has to fit
+        in to be written at all.
 
     Returns
     -------
@@ -138,15 +139,22 @@ def values_from_tags(
     set of str
         The groups whose members are not element indices, so a caller can
         report those too. Nothing checks a tag group's dtype on the way in,
-        and a float one indexes nothing: numpy refuses it outright rather
-        than rounding, which is the right answer given rounding an index
-        moves a label onto another element.
+        and a float one indexes nothing: it is refused outright rather than
+        rounded, which is the right answer given rounding an index moves a
+        label onto another element.
+    set of str
+        The groups naming a number the column cannot hold. A name is free
+        text, so it may spell one wider than the format's own field; assigning
+        it raises an OverflowError from numpy, which says nothing about which
+        group is at fault, so it is reported here instead.
     """
     values = np.zeros(n_elems, dtype=dtype)
+    limits = np.iinfo(values.dtype)
     pattern = re.compile(rf"{re.escape(prefix)}(-?\d+)")
     named = False
     unnamed: set[str] = set()
     unusable: set[str] = set()
+    oversized: set[str] = set()
     for name, members in (tags or {}).items():
         match = pattern.fullmatch(name)
         if match is None:
@@ -155,6 +163,10 @@ def values_from_tags(
         if np.asarray(members).ravel().dtype.kind not in "iub":
             unusable.add(name)
             continue
-        values[member_indices(members, n_elems)] = int(match.group(1))
+        label = int(match.group(1))
+        if not limits.min <= label <= limits.max:
+            oversized.add(name)
+            continue
+        values[member_indices(members, n_elems)] = label
         named = True
-    return values, unnamed, named, unusable
+    return values, unnamed, named, unusable, oversized

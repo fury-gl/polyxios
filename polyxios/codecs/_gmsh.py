@@ -55,6 +55,10 @@ _GMSH_NODE_COUNT: dict[str, int] = {
 }
 
 # Topological dimension per element, used for the ``$PhysicalNames`` records.
+# The sections a field travels in, which are collected apart from the mesh
+# sections: a file carries one per field and per time step.
+_DATA_KEYWORDS: frozenset[str] = frozenset({"$NodeData", "$ElementData"})
+
 _ELEMENT_DIM: dict[str, int] = {
     "vertex": 0,
     "line": 1,
@@ -189,7 +193,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             ".msh: file is not ASCII/UTF-8 text; binary .msh is not supported."
         ) from exc
 
-    sections = _split_sections(text)
+    sections, data_blocks = _split_sections(text)
     for required in ("$MeshFormat", "$Nodes", "$Elements"):
         if required not in sections:
             raise CodecError(f".msh: missing {required} section.")
@@ -235,7 +239,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     vertex_attrs: dict[str, np.ndarray] = {}
     _read_data_sections(
-        text,
+        data_blocks,
         node_index,
         # Gmsh numbers its elements from 1, so a 0 is an element that answers
         # to no tag and must not be reachable from a data row.
@@ -476,9 +480,33 @@ def _data_section_lines(
     return lines
 
 
-def _split_sections(text: str) -> dict[str, list[str]]:
-    """Split a .msh file into ``$Keyword`` → content lines, blanks removed."""
+def _split_sections(
+    text: str,
+) -> tuple[dict[str, list[str]], list[tuple[str, list[str]]]]:
+    """Split a .msh file into its sections, blanks removed.
+
+    Parameters
+    ----------
+    text
+        The whole file.
+
+    Returns
+    -------
+    dict of str to list of str
+        ``$Keyword`` to its content lines, one entry per keyword.
+    list of (str, list of str)
+        The ``$NodeData`` / ``$ElementData`` blocks, in file order.
+
+    Notes
+    -----
+    The data blocks come back alongside rather than through the mapping: a
+    file carries one per field and per time step, and a mapping keyed by the
+    keyword keeps one and drops the rest. Both are collected in this one walk,
+    since the file runs to millions of lines and splitting it twice costs as
+    much again.
+    """
     sections: dict[str, list[str]] = {}
+    data: list[tuple[str, list[str]]] = []
     current: str | None = None
     content: list[str] = []
     for raw in text.splitlines():
@@ -488,6 +516,8 @@ def _split_sections(text: str) -> dict[str, list[str]]:
         if ln.startswith("$End"):
             if current is not None:
                 sections[current] = content
+                if current in _DATA_KEYWORDS:
+                    data.append((current, content))
             current = None
             content = []
         elif ln.startswith("$"):
@@ -496,9 +526,12 @@ def _split_sections(text: str) -> dict[str, list[str]]:
         elif current is not None:
             content.append(ln)
     # An unterminated final section still carries usable records.
-    if current is not None and current not in sections:
-        sections[current] = content
-    return sections
+    if current is not None:
+        if current not in sections:
+            sections[current] = content
+        if current in _DATA_KEYWORDS:
+            data.append((current, content))
+    return sections, data
 
 
 def _parse_mesh_format(lines: list[str]) -> tuple[str, bool]:
@@ -894,35 +927,6 @@ class _ElementBuilder:
         )
 
 
-def _data_blocks(text: str) -> list[tuple[str, list[str]]]:
-    """Return the ``$NodeData`` / ``$ElementData`` blocks, in file order.
-
-    A file may carry one per field and per time step, so unlike the mesh
-    sections these cannot be collected into a keyword-to-content mapping:
-    that keeps one block and drops the rest.
-    """
-    blocks: list[tuple[str, list[str]]] = []
-    current: str | None = None
-    content: list[str] = []
-    for raw in text.splitlines():
-        ln = raw.strip()
-        if not ln:
-            continue
-        if ln.startswith("$End"):
-            if current is not None:
-                blocks.append((current, content))
-            current = None
-            content = []
-        elif ln.startswith("$"):
-            current = ln if ln in ("$NodeData", "$ElementData") else None
-            content = []
-        elif current is not None:
-            content.append(ln)
-    if current is not None:
-        blocks.append((current, content))
-    return blocks
-
-
 def _parse_data_block(
     lines: list[str], kind: str
 ) -> tuple[str, np.ndarray, np.ndarray]:
@@ -1031,7 +1035,7 @@ def _unique_key(name: str, taken: dict[str, np.ndarray]) -> str:
 
 
 def _read_data_sections(
-    text: str,
+    blocks: list[tuple[str, list[str]]],
     node_index: dict[int, int] | None,
     elem_index: dict[int, int],
     n_verts: int,
@@ -1049,7 +1053,7 @@ def _read_data_sections(
     does is dropped. A malformed block costs that field alone: the mesh around
     it is still worth having.
     """
-    for kind, lines in _data_blocks(text):
+    for kind, lines in blocks:
         try:
             name, tags, values = _parse_data_block(lines, kind)
         except CodecError as exc:

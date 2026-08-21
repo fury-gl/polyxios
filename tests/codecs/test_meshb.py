@@ -269,3 +269,63 @@ def test_a_tag_group_that_holds_no_indices_is_reported(tmp_path) -> None:
     poly.element_tags["ref_7"] = np.array([0.0])
     with pytest.warns(UserWarning, match="do not hold"):
         write(poly=poly, path=tmp_path / "bad_tag.meshb")
+
+
+def _one_triangle() -> PolyData:
+    return PolyData(
+        vertices=np.zeros((3, 3)),
+        connectivity=np.array([0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 3], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["triangle"]], dtype=np.uint8),
+    )
+
+
+def test_a_reference_wider_than_the_record_is_refused(tmp_path) -> None:
+    """A Medit record spells its reference in one signed 32-bit field."""
+    poly = dataclasses.replace(
+        _one_triangle(), element_attrs={"ref": np.array([5_000_000_000])}
+    )
+    out = tmp_path / "wide.meshb"
+    with pytest.warns(UserWarning, match="wider than the 32-bit field"):
+        write(poly=poly, path=out)
+    assert "ref" not in read(path=out).element_attrs
+
+
+def test_a_vertex_reference_wider_than_the_record_is_refused(tmp_path) -> None:
+    poly = dataclasses.replace(
+        _one_triangle(), vertex_attrs={"ref": np.array([5_000_000_000, 1, 1])}
+    )
+    out = tmp_path / "wide_vertex.meshb"
+    with pytest.warns(UserWarning, match="wider than the 32-bit field"):
+        write(poly=poly, path=out)
+    assert "ref" not in read(path=out).vertex_attrs
+
+
+def test_a_float_vertex_reference_is_refused_rather_than_rounded(tmp_path) -> None:
+    """Rounding a reference relabels the vertices it stands for."""
+    poly = dataclasses.replace(
+        _one_triangle(), vertex_attrs={"ref": np.array([1.7, 2.2, 3.9])}
+    )
+    out = tmp_path / "soft.meshb"
+    with pytest.warns(UserWarning, match="not one integer per vertex"):
+        write(poly=poly, path=out)
+    assert "ref" not in read(path=out).vertex_attrs
+
+
+def test_a_vertex_reference_that_is_not_one_per_vertex_is_refused(tmp_path) -> None:
+    """A short column used to escape as a bare broadcast error."""
+    poly = dataclasses.replace(_one_triangle(), vertex_attrs={"ref": np.array([1, 2])})
+    out = tmp_path / "short.meshb"
+    with pytest.warns(UserWarning, match="not one integer per vertex"):
+        write(poly=poly, path=out)
+    assert "ref" not in read(path=out).vertex_attrs
+
+
+def test_a_tag_group_naming_a_reference_too_wide_is_reported(tmp_path) -> None:
+    poly = dataclasses.replace(
+        _one_triangle(), element_tags={"ref_5000000000": np.array([0], dtype=np.int32)}
+    )
+    out = tmp_path / "wide_tag.meshb"
+    with pytest.warns(UserWarning, match="wider than the 32-bit field"):
+        write(poly=poly, path=out)
+    assert "ref" not in read(path=out).element_attrs

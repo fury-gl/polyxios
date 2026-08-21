@@ -29,6 +29,7 @@ from polyxios._element_types import (
     MAX_SAFE_CONN,
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
+    NODES_PER_ELEMENT,
 )
 from polyxios._io import Source, read_text, source_name, write_text
 from polyxios._tags import group_by_value, integer_column, values_from_tags
@@ -42,8 +43,11 @@ EXTENSIONS: tuple[str, ...] = (".mesh", ".medit")
 # '.mesh' is MFEM's own extension as well, so it is shared rather than owned:
 # the two are told apart by the keyword the file opens with.
 SNIFF_EXTENSIONS: tuple[str, ...] = (".mesh",)
-# Ahead of MFEM's: 'MeshVersionFormatted' opens a Medit file and nothing else.
-SNIFF_PRIORITY: int = 0
+# Ahead of MFEM's 0: 'MeshVersionFormatted' opens a Medit file and nothing
+# else, so it is the narrower of the two tests and settles the file first.
+# Spelled out rather than left to the module-name tiebreak two equal
+# priorities fall back on, which '_medit' happens to win today.
+SNIFF_PRIORITY: int = -1
 
 # Section name → (polyxios element name, nodes per record). Medit numbers the
 # corner nodes of every one of these the way VTK does, so no permutation
@@ -70,9 +74,6 @@ _ELEM_TO_SECTION: dict[str, str] = {
     "wedge": "Prisms",
     "hexahedron": "Hexahedra",
 }
-# Nodes per element, taken from the sections themselves so the two tables
-# cannot drift apart.
-_NODE_COUNT: dict[str, int] = dict(_SECTION_TO_ELEM.values())
 _WRITE_ORDER: tuple[str, ...] = (
     "line",
     "triangle",
@@ -337,7 +338,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     dim = 3
     coords = np.zeros((0, 3), dtype=np.float64)
-    vertex_refs = np.zeros(0, dtype=np.int32)
+    vertex_refs = np.zeros(0, dtype=np.int64)
     conn: list[int] = []
     offsets: list[int] = [0]
     types: list[int] = []
@@ -399,7 +400,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 raise CodecError(f".mesh: malformed vertex record: {exc}.") from exc
             coords = np.zeros((n_verts, 3), dtype=np.float64)
             coords[:, :dim] = values[:, :dim]
-            vertex_refs = values[:, dim].astype(np.int32)
+            # int64, not int32: the format puts no ceiling on a reference,
+            # and narrowing one either wraps it to another label or saturates.
+            vertex_refs = values[:, dim].astype(np.int64)
             continue
 
         mapped = _SECTION_TO_ELEM.get(name)
@@ -478,7 +481,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     element_attrs: dict[str, np.ndarray] = {}
     element_tags: dict[str, np.ndarray] = {}
     if elem_refs:
-        refs = np.array(elem_refs, dtype=np.int32)
+        refs = np.array(elem_refs, dtype=np.int64)
         # All-zero references are what a file has when it labels nothing, so
         # keeping them would invent an attribute and a tag group for every
         # unlabelled mesh.
@@ -571,7 +574,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         indices = groups.get(name)
         if not indices:
             continue
-        expected = _NODE_COUNT[name]
+        expected = NODES_PER_ELEMENT[name]
         lines.append(_ELEM_TO_SECTION[name])
         lines.append(str(len(indices)))
         for ei in indices:
@@ -680,7 +683,7 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             stacklevel=3,
         )
 
-    refs, unnamed, _named, unusable = values_from_tags(
+    refs, unnamed, _named, unusable, oversized = values_from_tags(
         poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int64
     )
     if unnamed:
@@ -698,6 +701,12 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             f".mesh: element tag group(s) {sorted(unusable)} do not hold"
             " element indices, so the reference they name reaches nothing;"
             " they were not written.",
+            stacklevel=3,
+        )
+    if oversized:
+        warnings.warn(
+            f".mesh: element tag group(s) {sorted(oversized)} name a reference"
+            " no 64-bit integer holds; they were not written.",
             stacklevel=3,
         )
     return refs

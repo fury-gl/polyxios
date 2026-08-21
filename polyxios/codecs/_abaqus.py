@@ -26,6 +26,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, is_buffer, read_text, source_name, write_text
+from polyxios._tags import member_indices
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -34,6 +35,9 @@ EXTENSION: str = ".inp"
 # A deck that includes itself is legal text and reads until memory runs out,
 # so the nesting is capped. Real decks nest two or three deep.
 _MAX_INCLUDE_DEPTH: int = 8
+
+# Characters a set name cannot carry: each of them ends the card early.
+_NAME_UNSAFE: frozenset[str] = frozenset(",=*")
 
 # Abaqus element cards, keyed by the base card with its modifier suffixes
 # removed. The suffixes - R (reduced integration), H (hybrid), I
@@ -618,6 +622,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # past its *End Instance so an assembly-level set naming INSTANCE= still
     # reaches them: a deck keeps almost all of its sets out there.
     instance_ids: dict[str, tuple[dict[int, int], dict[int, int]]] = {}
+    # The node and element numbering in force outside the part being read,
+    # held while it is open so the deck's own numbering survives it.
+    outer_maps: tuple[dict[int, int], dict[int, int]] | None = None
     set_instance: str | None = None
     unknown_types: set[str] = set()
     unknown_instances: set[str] = set()
@@ -720,6 +727,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             elif keyword in ("INSTANCE", "PART"):
                 # An instance numbers its own nodes from 1, so it reads
                 # against a fresh map and its elements are tagged by name.
+                # The numbering in force outside is set aside rather than
+                # dropped: a deck may define nodes at the top level too, and
+                # a set out there still has to reach them once the part
+                # closes.
+                if instance is None:
+                    outer_maps = (node_map, elem_map)
                 instance = params.get("NAME") or keyword.lower()
                 instance_part = params.get("PART") or None
                 node_map = {}
@@ -751,8 +764,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     instance_ids[instance.upper()] = (held_nodes, held_elems)
                 instance = None
                 instance_part = None
-                node_map = {}
-                elem_map = {}
+                # Back to the numbering the deck was under before the part
+                # opened. A stray '*End Part' that closes nothing leaves it
+                # alone rather than wiping it.
+                if outer_maps is not None:
+                    node_map, elem_map = outer_maps
+                    outer_maps = None
             continue
 
         if mode == "node":
@@ -941,6 +958,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             stacklevel=2,
         )
 
+    n_verts = poly.vertices.shape[0]
     lines: list[str] = [
         "*Heading",
         "** exported by polyxios",
@@ -951,23 +969,27 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         for i, v in enumerate(poly.vertices)
     )
 
-    # Element ids are handed out as the groups are written, so a set naming
-    # an element has to be resolved against the numbering, not the mesh order.
-    elem_id_of: dict[int, int] = {}
+    # Element ids are handed out as the groups are written, so a set naming an
+    # element has to be resolved against the numbering, not the mesh order. A
+    # column rather than a dictionary: a set resolves its whole membership in
+    # one gather, and 0 marks an element that never reached the file.
+    elem_ids = np.zeros(n_elems, dtype=np.int64)
     elem_id = 0
     for inp_type, indices in groups.items():
         lines.append(f"*Element, type={inp_type}")
         for ei in indices:
             elem_id += 1
-            elem_id_of[ei] = elem_id
+            elem_ids[ei] = elem_id
             s, e = int(poly.offsets[ei]), int(poly.offsets[ei + 1])
             node_str = ", ".join(
                 str(poly.connectivity[s + j] + 1) for j in range(e - s)
             )
             lines.append(f"{elem_id}, {node_str}")
 
-    lines.extend(_set_cards(poly.vertex_tags, "Nset", "nset", lambda k: k + 1))
-    lines.extend(_set_cards(poly.element_tags, "Elset", "elset", elem_id_of.get))
+    lines.extend(_set_cards(poly.vertex_tags, "Nset", "nset", None, n_verts, "node"))
+    lines.extend(
+        _set_cards(poly.element_tags, "Elset", "elset", elem_ids, n_elems, "element")
+    )
 
     lines.append("")
     write_text(path, "\n".join(lines))
@@ -1007,8 +1029,37 @@ def _check_override(name: str, card: str) -> None:
         )
 
 
+def _safe_set_name(name: str) -> str:
+    """Return a set name a card can carry, or an empty string for none.
+
+    Parameters
+    ----------
+    name
+        The tag group's name.
+
+    Returns
+    -------
+    str
+        The name with every character that would end the card folded to an
+        underscore, or ``""`` when nothing is left.
+
+    Notes
+    -----
+    A comma opens the next parameter, an ``=`` splits the one being written,
+    a ``*`` opens a keyword card and a line break ends the card outright, so
+    a name carrying any of them writes a deck no reader parses.
+    """
+    folded = "".join("_" if ch in _NAME_UNSAFE or ch < " " else ch for ch in name)
+    return folded.strip()
+
+
 def _set_cards(
-    tags: dict[str, np.ndarray], keyword: str, param: str, ident
+    tags: dict[str, np.ndarray] | None,
+    keyword: str,
+    param: str,
+    ident: np.ndarray | None,
+    count: int,
+    what: str,
 ) -> list[str]:
     """Return the ``*Nset`` / ``*Elset`` cards a tag dictionary spells.
 
@@ -1021,26 +1072,68 @@ def _set_cards(
     param
         Parameter naming the set on that card.
     ident
-        Maps an index to the 1-based id written for it, or None when the
-        index was not written at all.
+        The 1-based id written for each index, 0 for an index that never
+        reached the file; None when the ids are the indices themselves, as a
+        node's is.
+    count
+        How many nodes or elements the mesh holds, which bounds an index.
+    what
+        ``node`` or ``element``, named in the warnings.
 
     Returns
     -------
     list of str
         One card per tag, its ids wrapped 16 to a line as Abaqus expects.
+
+    Notes
+    -----
+    Nothing checks a tag group on the way in, so a group may hold floats or an
+    index past the end of a mesh it was not built for. Either would spell an
+    id no ``*Node`` card defines and a deck Abaqus refuses to load, so they
+    are dropped and reported rather than written; a float column is refused
+    whole rather than rounded, since rounding an index moves a label onto
+    another entity.
     """
     lines: list[str] = []
-    for name, indices in (tags or {}).items():
-        ids = [ident(int(k)) for k in np.asarray(indices).ravel()]
-        kept = sorted({i for i in ids if i is not None})
-        if not kept:
+    unreachable: set[str] = set()
+    unwritten: set[str] = set()
+    nameless: set[str] = set()
+    for name, members in (tags or {}).items():
+        picked = member_indices(members, count)
+        if picked.size != np.asarray(members).size:
+            unreachable.add(name)
+        ids = picked + 1 if ident is None else ident[picked]
+        kept = np.unique(ids[ids > 0])
+        if kept.size != ids.size:
+            unwritten.add(name)
+        if not kept.size:
             continue
-        safe = name.replace(",", "_").replace("*", "_").strip()
+        safe = _safe_set_name(name)
         if not safe:
+            nameless.add(name)
             continue
         lines.append(f"*{keyword}, {param}={safe}")
+        text = [str(i) for i in kept.tolist()]
         lines.extend(
-            ", ".join(str(i) for i in kept[start : start + 16])
-            for start in range(0, len(kept), 16)
+            ", ".join(text[start : start + 16]) for start in range(0, len(text), 16)
+        )
+    if unreachable:
+        warnings.warn(
+            f".inp: {what} tag group(s) {sorted(unreachable)} name members that"
+            f" index no {what} of this mesh; those members were dropped.",
+            stacklevel=3,
+        )
+    if unwritten:
+        warnings.warn(
+            f".inp: {what} tag group(s) {sorted(unwritten)} name {what}(s) that"
+            " were not written, so no card defines them; those members were"
+            " dropped.",
+            stacklevel=3,
+        )
+    if nameless:
+        warnings.warn(
+            f".inp: {what} tag group(s) {sorted(nameless)} spell no name a"
+            " card can carry; they were not written.",
+            stacklevel=3,
         )
     return lines
