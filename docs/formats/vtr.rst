@@ -61,6 +61,9 @@ Quirks worth knowing
 
 - The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
 - Appended and base64 payloads are decoded eagerly - the XML container has no seekable layout for mmap, so ``lazy=True`` has no effect.
+- Multi-component attributes declare and honour ``NumberOfComponents``, so an ``(n, 3)`` vector survives a round trip rather than coming back as ``3n`` rows.
+- Binary arrays are written in the type their ``<DataArray>`` declares, so an integer attribute stays an integer one.
+- An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every ``CellData`` array belonging to nothing.
 
 .. seealso::
 

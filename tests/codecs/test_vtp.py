@@ -7,7 +7,7 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios.codecs._vtp import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
 
 
 def _synthetic_mesh() -> object:
@@ -89,3 +89,81 @@ def test_unsupported_lazy() -> None:
     # VTP lazy not supported with frozen PolyData - raises LazyReadError
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+# ---------------------------------------------------------------------------
+# Pieces that do not line up
+# ---------------------------------------------------------------------------
+
+
+def _polydata_file(points: str, n_points: int, extra: str = "") -> str:
+    return (
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">\n'
+        " <PolyData>\n"
+        f'  <Piece NumberOfPoints="{n_points}" NumberOfPolys="1">\n'
+        "   <Points>\n"
+        '    <DataArray type="Float64" NumberOfComponents="3" format="ascii">'
+        f"{points}</DataArray>\n"
+        "   </Points>\n"
+        "   <Polys>\n"
+        '    <DataArray type="Int32" Name="connectivity" format="ascii">0 1 2'
+        "</DataArray>\n"
+        '    <DataArray type="Int32" Name="offsets" format="ascii">3</DataArray>\n'
+        "   </Polys>\n"
+        f"{extra}"
+        "  </Piece>\n"
+        " </PolyData>\n"
+        "</VTKFile>\n"
+    )
+
+
+def test_a_piece_that_withholds_its_points_is_refused(tmp_path) -> None:
+    path = tmp_path / "short.vtp"
+    path.write_text(_polydata_file("0 0 0 1 0 0", 3))
+
+    with pytest.raises(CodecError, match="declares 3 points"):
+        read(path)
+
+
+def test_a_point_array_shorter_than_the_mesh_is_dropped(tmp_path) -> None:
+    path = tmp_path / "partial.vtp"
+    extra = (
+        "   <PointData>\n"
+        '    <DataArray type="Float64" Name="s" format="ascii">1 2</DataArray>\n'
+        "   </PointData>\n"
+    )
+    path.write_text(_polydata_file("0 0 0 1 0 0 0 1 0", 3, extra))
+
+    with pytest.warns(UserWarning, match="covers 2 of 3"):
+        poly = read(path)
+
+    assert "s" not in poly.vertex_attrs
+
+
+def test_a_points_array_of_ragged_tuples_names_the_piece(tmp_path) -> None:
+    """reshape answers a size that is not whole tuples without naming a file."""
+    path = tmp_path / "ragged_points.vtp"
+    path.write_text(_polydata_file("0 0 0 1 0 0 0 1 0 9", 3))
+
+    with pytest.raises(CodecError, match="not 3 tuples of three or more"):
+        read(path)
+
+
+def test_a_piece_count_that_is_not_a_count_names_the_file(tmp_path) -> None:
+    """int() on the attribute answered with a ValueError naming nothing."""
+    path = tmp_path / "bad.vtp"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">\n'
+        " <PolyData>\n"
+        '  <Piece NumberOfPoints="many" NumberOfPolys="1">\n'
+        '   <Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">0 0 0 1 0 0 0 1 0</DataArray></Points>\n'
+        "  </Piece>\n"
+        " </PolyData>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match="NumberOfPoints='many'"):
+        read(path)

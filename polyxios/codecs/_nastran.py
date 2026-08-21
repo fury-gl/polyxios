@@ -771,22 +771,307 @@ def _fmt_real(value: float, *, width: int | None = None) -> str:
     if width is None or len(text) <= width:
         return text
 
-    # %G picks the shorter of the fixed and exponent forms and drops
-    # trailing zeros, so it fits more significant digits in the field than
-    # a plain exponent format would.
-    for digits in range(_MAX_DIGITS, 0, -1):
-        mantissa, sep, exponent = f"{number:.{digits}G}".partition("E")
-        if "." not in mantissa:
-            mantissa += "."
-        candidate = f"{mantissa}{sep}{exponent}"
-        # Dropping digits rounds the mantissa, and rounding up at the top of
-        # the double range steps past it: 1.7976931348623157E+308 shortens to
-        # '1.797693135E+308', which fits sixteen characters and reads back as
-        # infinity. Keep only a candidate that still names a finite value, so
-        # the search falls through to the next shorter form instead.
-        if len(candidate) <= width and math.isfinite(float(candidate)):
-            return candidate
+    # A whole sweep asking for the value back unchanged comes first, because
+    # more significant digits is not the same as closer: dropping a digit
+    # can free the column that lets an exact spelling in, and a mantissa
+    # stepped toward zero keeps its digit count while losing the value
+    # ('10000000.' steps to '9999999.', where '1.E+07' is exact and fits).
+    # The second sweep takes the closest spelling that fits, which is what a
+    # value no field can hold exactly - the top of the double range - needs.
+    #
+    # ``repr`` is the shortest decimal that reads back as this double, so
+    # rounding to fewer significant digits than it carries lands on a
+    # different value whatever form the result is spelled in. The exact
+    # sweep stops there rather than spelling and parsing candidates that
+    # cannot qualify: that floor is what keeps a large-field write from
+    # paying a hundred parses per coordinate.
+    exact_digits = _shortest_exact_digits(mantissa)
+    # A field carries its significant digits, a mandatory decimal point and
+    # a sign if the value has one, so a precision past that cannot be spelled
+    # here however the exponent is written. Starting the sweep at the widest
+    # precision the field could hold skips the ones it never could.
+    ceiling = min(_MAX_DIGITS, width - 1 - (number < 0))
+    spellings: dict[int, tuple[list[str], list[tuple[str, str, str]]]] = {}
+    for exact_only in (True, False):
+        floor = exact_digits if exact_only else 1
+        for digits in range(ceiling, floor - 1, -1):
+            entry = spellings.get(digits)
+            if entry is None:
+                entry = spellings[digits] = _candidates(number, digits)
+            rounded, split = entry
+            # Stepping borrows out of the leading digit at most, so a
+            # stepped spelling is never more than one character shorter
+            # than the rounded one it came from. When even that cannot fit,
+            # the whole precision is out of reach and building the stepped
+            # forms would only spell candidates to throw away.
+            if min(len(candidate) for candidate in rounded) > width + 1:
+                continue
+            for candidate in rounded:
+                if len(candidate) > width:
+                    continue
+                read = _read_back(candidate)
+                if read is None or (exact_only and read != number):
+                    continue
+                return candidate
+            for candidate in _stepped(split):
+                if len(candidate) > width:
+                    continue
+                read = _read_back(candidate)
+                if read is None or (exact_only and read != number):
+                    continue
+                return candidate
     raise CodecError(f".bdf: cannot write {number!r} in a {width}-character field")
+
+
+def _shortest_exact_digits(mantissa: str) -> int:
+    """Count the significant digits the shortest exact spelling carries.
+
+    Rounding a double to this many significant digits reads back as the
+    same double, and rounding to fewer does not, so it is the floor of any
+    search for an exact spelling.
+
+    Parameters
+    ----------
+    mantissa
+        The mantissa of ``repr(number)``, which is the shortest decimal
+        that reads back as ``number``.
+
+    Returns
+    -------
+    int
+        Digits that carry value, zeros on either end excluded; at least 1,
+        which is what a zero mantissa needs.
+    """
+    return len(mantissa.lstrip("-+").replace(".", "").strip("0")) or 1
+
+
+def _candidates(
+    number: float, digits: int
+) -> tuple[list[str], list[tuple[str, str, str]]]:
+    """Spell a value at one precision, richest mantissa and longest first.
+
+    Both formats of the same rounded value are offered: %G picks the shorter
+    of the fixed and exponent forms and drops trailing zeros, while %E is
+    always an exponent form - which is what saves a small magnitude, where
+    the fixed form spends the field on leading zeros ('-0.00012' against
+    '-1.235-4').
+
+    Parameters
+    ----------
+    number
+        Value to spell.
+    digits
+        Significant digits to round to.
+
+    Returns
+    -------
+    tuple[list of str, list of tuple[str, str, str]]
+        The rounded spellings, and the mantissa/separator/exponent triples
+        they came from, in the same order. A caller takes the first
+        spelling that fits its field and reads back the way it wants, and
+        turns to ``_stepped`` on the triples only when none of them did:
+        stepping is the expensive half, and a value the rounded forms
+        already cover never needs it.
+    """
+    # %G drops trailing zeros, so at the same precision it can carry one
+    # significant digit less than %E; the richer mantissa is offered first,
+    # and the shorter one only when it is the one that fits.
+    split = sorted(
+        (
+            _split_mantissa(f"{number:.{digits}G}"),
+            _split_mantissa(f"{number:.{digits - 1}E}"),
+        ),
+        key=lambda parts: -_significant(parts[0]),
+    )
+    return [form for parts in split for form in _spellings(*parts)], split
+
+
+def _stepped(split: list[tuple[str, str, str]]) -> list[str]:
+    """Spell each mantissa one unit in the last place closer to zero.
+
+    Parameters
+    ----------
+    split
+        Mantissa, separator and exponent triples, as ``_candidates`` sorts
+        them.
+
+    Returns
+    -------
+    list of str
+        The stepped spellings, in the order of the triples they came from;
+        a mantissa with nothing left to step down to contributes none.
+    """
+    return [
+        form
+        for mantissa, sep, exponent in split
+        if (down := _toward_zero(mantissa)) is not None
+        for form in _spellings(down, sep, exponent)
+    ]
+
+
+def _significant(mantissa: str) -> int:
+    """Count the significant digits a mantissa carries.
+
+    Parameters
+    ----------
+    mantissa
+        A mantissa as a float format spells it, sign and decimal point
+        included.
+
+    Returns
+    -------
+    int
+        Digits that carry value; a leading zero before the point does not.
+    """
+    digits = mantissa.lstrip("-+").replace(".", "").lstrip("0")
+    return len(digits)
+
+
+def _split_mantissa(spelled: str) -> tuple[str, str, str]:
+    """Split a formatted float into mantissa, 'E' and exponent.
+
+    Parameters
+    ----------
+    spelled
+        Output of a ``%G`` or ``%E`` format.
+
+    Returns
+    -------
+    tuple[str, str, str]
+        The mantissa with a decimal point, ``'E'`` when there is an
+        exponent, and the exponent digits with their sign.
+    """
+    mantissa, sep, exponent = spelled.partition("E")
+    if "." not in mantissa:
+        mantissa += "."
+    return mantissa, sep, exponent
+
+
+def _read_back(text: str) -> float | None:
+    """Read a written field back the way the parser will.
+
+    Rounding a mantissa up at the top of the double range steps off it, and
+    the reader answers that with a ValueError rather than an infinity, so
+    both ways of failing are one question here.
+
+    Parameters
+    ----------
+    text
+        Candidate field text.
+
+    Returns
+    -------
+    float or None
+        The value the field names, or None when it names no finite one.
+    """
+    try:
+        return _parse_real(text)
+    except ValueError:
+        return None
+
+
+def _spellings(mantissa: str, sep: str, exponent: str) -> list[str]:
+    """Spell one rounded mantissa the ways bulk data allows, longest first.
+
+    Bulk data lets the ``E`` go when the exponent carries its own sign, so
+    ``1.234-10`` is ``1.234E-10`` in one character less - which is two more
+    significant digits in an eight-column field, and the difference between
+    writing a value and refusing it.
+
+    Parameters
+    ----------
+    mantissa
+        The rounded mantissa, decimal point included.
+    sep
+        ``'E'`` when the format produced an exponent, empty otherwise.
+    exponent
+        The exponent digits with their sign, or empty.
+
+    Returns
+    -------
+    list of str
+        Candidate spellings of the same value, the longest first. A caller
+        keeps the first that fits its field and still reads back finite.
+    """
+    if not sep:
+        return [mantissa, *_dot_form(mantissa)]
+
+    # An exponent with no sign is positive; the shorthand needs the sign to
+    # mark where the mantissa ends, so it is spelled back in.
+    signed = exponent if exponent[:1] in "+-" else f"+{exponent}"
+    # %E pads the exponent to two digits; nothing reads '+07' differently
+    # from '+7', and the column the padding costs is a significant digit.
+    trimmed = f"{signed[0]}{signed[1:].lstrip('0') or '0'}"
+    tails = [f"{sep}{exponent}", signed]
+    if trimmed != signed:
+        tails.append(trimmed)
+    heads = [mantissa, *_dot_form(mantissa)]
+    # Longest first, and the leading-zero spelling ahead of the dot one at
+    # the same length: a caller keeps the first that fits, so the plain form
+    # wins whenever the column is there for it.
+    return [f"{head}{tail}" for tail in tails for head in heads]
+
+
+def _dot_form(mantissa: str) -> list[str]:
+    """Spell a mantissa below one without its leading zero, if it has one.
+
+    Bulk data reads ``.5`` as ``0.5``, and the column the zero costs is a
+    significant digit - which in an eight-character field is the difference
+    between ``0.333333`` and ``.3333333``.
+
+    Parameters
+    ----------
+    mantissa
+        A mantissa as a float format spells it, sign and decimal point
+        included.
+
+    Returns
+    -------
+    list of str
+        The shortened spelling, or nothing when the mantissa has no leading
+        zero to drop or nothing left after the point - ``.`` names no value.
+    """
+    sign = "-" if mantissa.startswith("-") else ""
+    body = mantissa[len(sign) :]
+    if not body.startswith("0.") or len(body) == 2:
+        return []
+    return [f"{sign}{body[1:]}"]
+
+
+def _toward_zero(mantissa: str) -> str | None:
+    """Step a mantissa one unit in the last place closer to zero.
+
+    Rounding to nearest is what overflows at the top of the double range,
+    and the step down is the only spelling of the same length that stays on
+    it. The last place is a decimal digit, so this borrows across the point
+    the way subtraction does: ``1.80`` becomes ``1.79``.
+
+    Parameters
+    ----------
+    mantissa
+        A mantissa as a float format spells it, sign and decimal point
+        included.
+
+    Returns
+    -------
+    str or None
+        The stepped mantissa, keeping its sign, its point and its digit
+        count; None when every digit is already zero and there is nothing
+        left to step down to.
+    """
+    sign = "-" if mantissa.startswith("-") else ""
+    body = mantissa.lstrip("-+")
+    head, point, tail = body.partition(".")
+    digits = f"{head}{tail}"
+    if not digits.isdigit() or int(digits) == 0:
+        return None
+
+    stepped = f"{int(digits) - 1:0{len(digits)}d}"
+    # Borrowing out of the leading digit pads it with a zero ('10.0' steps to
+    # '09.9'); a field is too narrow to spend a column on a digit that says
+    # nothing, and a solver reads the same value either way.
+    whole = stepped[: len(head)].lstrip("0") or "0"
+    return f"{sign}{whole}{point}{stepped[len(head) :]}"
 
 
 def _survives_truncation(text: str) -> bool:
@@ -949,7 +1234,9 @@ def _grid_lines(
         return _card_lines(["GRID", str(index + 1), "", *texts]), lost, misread
 
     texts = [_fmt_real(value, width=_LARGE_WIDTH) for value in xyz]
-    lost = sum(float(text) != float(value) for text, value in zip(texts, xyz))
+    # The text may be spelled in the implicit-exponent shorthand, which
+    # float() does not read; ask the parser that wrote the rules instead.
+    lost = sum(_parse_real(text) != float(value) for text, value in zip(texts, xyz))
 
     ids = "".join(f"{text:<{_LARGE_WIDTH}}" for text in (str(index + 1), ""))
     body = "".join(f"{text:<{_LARGE_WIDTH}}" for text in texts[:2])

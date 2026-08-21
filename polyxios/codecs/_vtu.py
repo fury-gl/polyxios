@@ -1,4 +1,3 @@
-import base64
 from typing import Any
 
 import numpy as np
@@ -11,8 +10,18 @@ from polyxios._element_types import (
 )
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml
-from polyxios.exceptions import LazyReadError
+from polyxios.codecs._vtk_xml import (
+    decode_da,
+    format_attr_da,
+    format_da,
+    join_piece_attrs,
+    parse_xml,
+    piece_count,
+    shaped_da,
+    undecodable_type,
+    vtk_type_to_np,
+)
+from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtu"
@@ -69,27 +78,51 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise ValueError("No <UnstructuredGrid> element found in VTU file.")
 
     all_vertices: list[np.ndarray] = []
+    n_joined_points = 0
     all_connectivity: list[np.ndarray] = []
     all_offsets: list[int] = [0]
     all_types: list[int] = []
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
 
-    for piece in ug.findall("Piece"):
-        n_points = int(piece.get("NumberOfPoints", "0"))
+    for index, piece in enumerate(ug.findall("Piece")):
+        n_points = piece_count(piece, "NumberOfPoints", fmt=".vtu")
+
+        # Where this piece's points land in the joined array: its cells
+        # index its own points from zero. Carried along rather than summed
+        # per piece, which walks every piece read so far to answer the same
+        # question a running count already holds.
+        vert_offset = n_joined_points
 
         points_elem = piece.find("Points")
-        if points_elem is not None and n_points > 0:
-            da = points_elem.find("DataArray")
-            if da is not None:
-                flat = _decode(da)
-                if flat.size >= n_points * 3:
-                    verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
-                    all_vertices.append(verts)
-
-        vert_offset = (
-            sum(v.shape[0] for v in all_vertices[:-1]) if len(all_vertices) > 1 else 0
-        )
+        if n_points > 0:
+            # A piece that declares points and does not deliver them cannot
+            # be dropped quietly: its cells index those points, and every
+            # later piece is offset by how many there were.
+            da = None if points_elem is None else points_elem.find("DataArray")
+            # Asked before decoding, so an array of a type this reader has no
+            # numbers for is reported as that rather than as an empty one.
+            bad_type = None if da is None else undecodable_type(da)
+            if bad_type is not None:
+                raise CodecError(
+                    f".vtu: Piece {index} declares {n_points} points but"
+                    f" its Points array has type '{bad_type}', which holds"
+                    " no numbers."
+                )
+            flat = np.array([]) if da is None else _decode(da)
+            # The array has to hold whole tuples as well as enough of
+            # them: a size that is not a multiple of the point count has
+            # no shape to be read as, and reshape answers that with a
+            # ValueError naming neither the file nor the Piece.
+            if flat.size < n_points * 3 or flat.size % n_points:
+                raise CodecError(
+                    f".vtu: Piece {index} declares {n_points} points but"
+                    f" its Points array holds {flat.size} values, which is"
+                    f" not {n_points} tuples of three or more."
+                )
+            verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
+            all_vertices.append(verts)
+            n_joined_points += n_points
 
         cells_elem = piece.find("Cells")
         if cells_elem is not None:
@@ -121,9 +154,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 arr = _decode(da)
                 if arr.size == 0:
                     continue
-                n_comp = int(da.get("NumberOfComponents", "1"))
-                if n_comp > 1:
-                    arr = arr.reshape(-1, n_comp)
+                arr = shaped_da(da, arr)
                 all_vertex_attrs.setdefault(name, []).append(arr)
 
         cd_data = piece.find("CellData")
@@ -133,9 +164,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 arr = _decode(da)
                 if arr.size == 0:
                     continue
-                n_comp = int(da.get("NumberOfComponents", "1"))
-                if n_comp > 1:
-                    arr = arr.reshape(-1, n_comp)
+                arr = shaped_da(da, arr)
                 all_element_attrs.setdefault(name, []).append(arr)
 
     vertices = (
@@ -159,8 +188,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         compressed=compressed,
     )
 
-    vertex_attrs = {k: np.concatenate(v) for k, v in all_vertex_attrs.items()}
-    element_attrs = {k: np.concatenate(v) for k, v in all_element_attrs.items()}
+    vertex_attrs = join_piece_attrs(
+        all_vertex_attrs, expected=vertices.shape[0], kind="point"
+    )
+    element_attrs = join_piece_attrs(
+        all_element_attrs, expected=len(element_types), kind="cell"
+    )
 
     return PolyData(
         vertices=vertices,
@@ -201,7 +234,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
     lines.append(
-        '<VTKFile type="UnstructuredGrid" version="0.1" byte_order="LittleEndian">'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">'
     )
     lines.append("  <UnstructuredGrid>")
     lines.append(f'    <Piece NumberOfPoints="{n_verts}" NumberOfCells="{n_elems}">')
@@ -223,19 +256,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            n_comp = arr.shape[1] if arr.ndim == 2 else 1
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </PointData>")
 
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            n_comp = arr.shape[1] if arr.ndim == 2 else 1
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
@@ -253,20 +280,36 @@ def _da(
     n_comp: int,
     indent: int,
 ) -> str:
-    pad = " " * indent
-    name_attr = f' Name="{name}"' if name else ""
-    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
+    """Render one ``<DataArray>`` element.
 
-    if binary:
-        raw = arr.tobytes()
-        header = np.array([len(raw)], dtype="<u4").tobytes()
-        encoded = base64.b64encode(header + raw).decode()
-        return (
-            f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-            f'format="binary">{encoded}</DataArray>'
-        )
-    vals = " ".join(str(v) for v in arr.ravel())
-    return (
-        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-        f'format="ascii">{vals}</DataArray>'
+    Parameters
+    ----------
+    name
+        Array name; empty for the unnamed ``Points`` array.
+    arr
+        Values, flat or one row per tuple.
+    vtk_type
+        The type name the element declares. The values are cast to the dtype
+        it names, so the bytes are what the header says they are on a
+        big-endian machine as much as on a little-endian one.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    n_comp
+        Components per tuple.
+    indent
+        Spaces to prefix the line with.
+
+    Returns
+    -------
+    str
+        The ``<DataArray>`` line.
+    """
+    return format_da(
+        name,
+        arr,
+        vtk_type=vtk_type,
+        dtype=np.dtype("<" + (vtk_type_to_np(vtk_type) or "f8")),
+        binary=binary,
+        n_comp=n_comp,
+        indent=indent,
     )
