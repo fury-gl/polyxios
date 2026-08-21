@@ -325,6 +325,40 @@ def test_a_set_naming_an_absent_id_warns(tmp_path: Path) -> None:
     assert "ghost" not in poly.vertex_tags
 
 
+def test_a_set_body_names_an_earlier_set_whatever_its_case(tmp_path: Path) -> None:
+    """Abaqus matches a set name without regard to case, and so must this."""
+    path = _write_inp(
+        tmp_path,
+        _TWO_TETRA + "*Nset, nset=Top\n1, 3,\n5\n*Nset, nset=all\nTOP\n",
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(poly.vertex_tags["all"], [0, 2, 4])
+
+
+def test_a_set_redeclared_in_another_case_is_one_set(tmp_path: Path) -> None:
+    """Two spellings of one name would otherwise open two sets side by side."""
+    path = _write_inp(
+        tmp_path,
+        _TWO_TETRA + "*Nset, nset=Top\n1\n*Nset, nset=TOP\n3\n",
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(poly.vertex_tags["Top"], [0, 2])
+    assert "TOP" not in poly.vertex_tags
+
+
+def test_an_element_id_defined_twice_is_reported(tmp_path: Path) -> None:
+    """Only the last answers to the id, so a set naming it reaches one cell."""
+    path = _write_inp(
+        tmp_path,
+        "*Node\n1, 0, 0, 0\n2, 1, 0, 0\n3, 0, 1, 0\n4, 0, 0, 1\n5, 1, 1, 1\n"
+        "*Element, type=C3D4\n1, 1, 2, 3, 4\n"
+        "*Element, type=C3D4\n1, 2, 3, 4, 5\n",
+    )
+    with pytest.warns(UserWarning, match="defined twice"):
+        poly = read(path)
+    assert len(poly.element_types) == 2
+
+
 # --- meshio #1531: *INCLUDE --------------------------------------------------
 
 
@@ -487,3 +521,49 @@ def test_issue_1529_reads_what_meshio_writes(tmp_path: Path) -> None:
     poly = read(tmp)
     np.testing.assert_allclose(poly.vertices, verts)
     np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 3])
+
+
+def test_element_type_may_ask_for_a_variant_of_the_same_card(tmp_path: Path) -> None:
+    """C3D8R is a reduced-integration brick: the same eight nodes."""
+    poly = make_polydata(
+        np.arange(24, dtype=np.float64).reshape(8, 3),
+        [("hexahedron", np.arange(8).reshape(1, 8))],
+    )
+    out = tmp_path / "brick.inp"
+    write(poly, out, element_type={"hexahedron": "C3D8R"})
+    assert "*Element, type=C3D8R" in out.read_text()
+    assert read(out).element_types.tolist() == poly.element_types.tolist()
+
+
+def test_element_type_naming_a_card_of_another_element_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Eight nodes under a twenty-node card is a deck no reader loads."""
+    poly = make_polydata(
+        np.arange(24, dtype=np.float64).reshape(8, 3),
+        [("hexahedron", np.arange(8).reshape(1, 8))],
+    )
+    with pytest.raises(CodecError, match="20-node"):
+        write(poly, tmp_path / "bad.inp", element_type={"hexahedron": "C3D20"})
+
+
+def test_element_type_cannot_spell_two_element_types_with_one_card(
+    tmp_path: Path,
+) -> None:
+    """One block cannot run rows of two lengths under a card that reads one."""
+    verts = np.arange(15, dtype=np.float64).reshape(5, 3)
+    poly = make_polydata(
+        verts,
+        [
+            ("tetra", np.array([[0, 1, 2, 3]])),
+            ("quad", np.array([[0, 1, 2, 4]])),
+        ],
+    )
+    with pytest.raises(CodecError, match="one card cannot hold"):
+        write(
+            poly,
+            tmp_path / "clash.inp",
+            # A card this codec does not know is written as asked - but not
+            # for two element types at once.
+            element_type={"quad": "UEL4", "tetra": "UEL4"},
+        )

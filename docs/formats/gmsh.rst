@@ -62,7 +62,7 @@ Quirks worth knowing
 - ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer still understands.
 - Physical group names become element tags, so named boundaries and volumes survive the read.
 - Node tags need not be contiguous; they are remapped to dense indices.
-- ``$NodeData`` and ``$ElementData`` sections become ``vertex_attrs`` and ``element_attrs``, at any component count the file declares, and are written back the same way. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays ``NaN``.
+- ``$NodeData`` and ``$ElementData`` sections become ``vertex_attrs`` and ``element_attrs``, at any component count the file declares, and are written back the same way. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays ``NaN``. A row naming an entity the mesh does not hold - an element of a type this codec skipped, say - costs that row rather than the whole field.
 - Gmsh numbers the mid-edge and face nodes of the higher-order elements by its own edge and face tables, which are not VTK's; they are permuted on the way in and back on the way out. Gmsh's 18-node prism becomes a ``biquadratic_quadratic_wedge``.
 - Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped with a warning rather than reshaped into something else.
 

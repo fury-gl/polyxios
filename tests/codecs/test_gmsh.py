@@ -1017,6 +1017,38 @@ def test_issue_1281_a_data_field_named_like_phys_tag_is_renamed(
     np.testing.assert_allclose(poly.element_attrs["phys_tag_2"], [5.0, 6.0])
 
 
+def test_element_data_survives_a_row_naming_a_skipped_element(
+    tmp_path: Path,
+) -> None:
+    """One element of a type with no VTK home must not cost the whole field."""
+    path = _write_text(
+        tmp_path,
+        "partial.msh",
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+        "$Nodes\n4\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n$EndNodes\n"
+        # Type 14 is the 14-node pyramid, which has no VTK equivalent.
+        "$Elements\n2\n1 2 2 1 1 1 2 3\n2 14 2 1 1 1 2 3 4\n$EndElements\n"
+        '$ElementData\n1\n"heat"\n1\n0.0\n3\n0\n1\n2\n'
+        "1 5.0\n2 6.0\n$EndElementData\n",
+    )
+    with pytest.warns(UserWarning):
+        poly = read(path)
+    np.testing.assert_allclose(poly.element_attrs["heat"], [5.0])
+
+
+def test_an_unreadable_element_tag_does_not_sink_the_read(tmp_path: Path) -> None:
+    """A tag names a data row and nothing else; the mesh is still worth having."""
+    path = _write_text(
+        tmp_path,
+        "oddtag.msh",
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+        "$Nodes\n4\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n$EndNodes\n"
+        "$Elements\n1\ne1 4 2 1 1 1 2 3 4\n$EndElements\n",
+    )
+    poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["tetra"]]
+
+
 def test_malformed_data_section_is_skipped_with_a_warning(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path,

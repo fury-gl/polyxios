@@ -1154,3 +1154,21 @@ def test_issue_1372_zone_title_holding_a_quote_is_folded(tmp_path: Path) -> None
     tmp = tmp_path / "q.tec"
     write(poly, tmp)
     assert read(tmp).global_attrs["tecplot_zone_title"] == "a 'quoted' zone"
+
+
+def test_a_block_run_is_wrapped_rather_than_written_whole(tmp_path) -> None:
+    """A run written as one line is as long as the mesh; readers refuse that."""
+    n = 40
+    verts = np.column_stack([np.arange(n, dtype=np.float64), np.zeros(n), np.zeros(n)])
+    cells = np.column_stack([np.arange(n - 2), np.arange(1, n - 1), np.arange(2, n)])
+    poly = make_polydata(verts, [("triangle", cells)])
+    poly.element_attrs["heat"] = np.arange(len(cells), dtype=np.float64)
+
+    out = tmp_path / "block.tec"
+    write(poly, out)
+    body = out.read_text().splitlines()
+    assert max(len(ln.split()) for ln in body[3:]) <= 10
+
+    back = read(out)
+    np.testing.assert_allclose(back.element_attrs["heat"], poly.element_attrs["heat"])
+    np.testing.assert_allclose(back.vertices, poly.vertices)

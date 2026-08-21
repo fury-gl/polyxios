@@ -198,7 +198,9 @@ def build_default_registry() -> dict[str, Codec]:
     ASCII uses it too. A shared extension still needs a writer, since an
     output file has no content to sniff, so the owner declares
     ``SNIFF_DEFAULT_WRITER = True`` and keeps writing it; without one, a bare
-    write raises and asks for ``fmt=``.
+    write raises and asks for ``fmt=``. Only an owner may claim the writes,
+    and only one may: two claims are warned about and both dropped, since
+    which of them won would otherwise come down to module walk order.
 
     Also loads third-party codecs declared under the ``polyxios.codecs``
     entry-point group; those stay one extension per entry point, and they are
@@ -233,6 +235,9 @@ def build_default_registry() -> dict[str, Codec]:
     # Extensions a codec owns and shares, and the writer that keeps them.
     shared_owned: set[str] = set()
     default_writers: dict[str, tuple[str, Codec]] = {}
+    # Extensions two owners both claimed the writes of, which is a claim no
+    # one gets: whichever won would come down to the module walk order.
+    disputed: set[str] = set()
 
     for mod_info in pkgutil.iter_modules(_search_path):
         if mod_info.name.startswith("_") and not mod_info.name.startswith("__"):
@@ -288,10 +293,28 @@ def build_default_registry() -> dict[str, Codec]:
             wants_writes = getattr(mod, "SNIFF_DEFAULT_WRITER", False) is True
             for alias in dict.fromkeys(e.lower() for e in sniff_exts):
                 contested.setdefault(alias, []).append((priority, mod_info.name, codec))
-                if alias in owned:
-                    shared_owned.add(alias)
-                if wants_writes:
-                    default_writers[alias] = (mod_info.name.lstrip("_"), codec)
+                if alias not in owned:
+                    continue
+                shared_owned.add(alias)
+                # Only the owner of an extension may keep its writes: a codec
+                # that merely competes to read one has no claim on a write it
+                # never owned, and two owners cannot both keep it - which one
+                # won would come down to the order the modules were walked.
+                if not wants_writes:
+                    continue
+                held = default_writers.pop(alias, None)
+                if held is not None or alias in disputed:
+                    disputed.add(alias)
+                    other = held[0] if held is not None else "another codec"
+                    warnings.warn(
+                        f"'{alias}' is claimed as the default writer by both"
+                        f" '{other}' and '{mod_info.name.lstrip('_')}';"
+                        " neither keeps it, so a bare write there raises and"
+                        " asks for fmt=.",
+                        stacklevel=2,
+                    )
+                    continue
+                default_writers[alias] = (mod_info.name.lstrip("_"), codec)
 
     for alias, competing in contested.items():
         # An extension one codec owns outright is not contested, whatever

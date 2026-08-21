@@ -259,3 +259,48 @@ def test_an_edge_element_naming_a_missing_vertex_is_refused(tmp_path) -> None:
     )
     with pytest.raises(CodecError, match="vertex"):
         read(path)
+
+
+def _ascii_ply_with_edges(extra_face_prop: bool) -> str:
+    prop = "property float quality\n" if extra_face_prop else ""
+    values = " 0.25" if extra_face_prop else ""
+    return (
+        "ply\nformat ascii 1.0\n"
+        "element vertex 3\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "element face 1\n"
+        "property list uchar int vertex_indices\n" + prop + "element edge 1\n"
+        "property int vertex1\nproperty int vertex2\n"
+        "end_header\n"
+        "0 0 0\n1 0 0\n0 1 0\n"
+        "3 0 1 2" + values + "\n"
+        "0 2\n"
+    )
+
+
+def test_a_face_property_is_stretched_over_the_edges_that_follow(tmp_path) -> None:
+    """An attribute shorter than the mesh is one every reader indexes off."""
+    path = tmp_path / "edges.ply"
+    path.write_text(_ascii_ply_with_edges(extra_face_prop=True))
+    poly = read(path)
+    quality = poly.element_attrs["quality"]
+    assert quality.shape[0] == len(poly.element_types) == 2
+    assert quality[0] == 0.25
+    assert np.isnan(quality[1])
+
+
+def test_a_short_edge_record_is_a_codec_error(tmp_path) -> None:
+    """A truncated record must name the format, not raise a bare IndexError."""
+    path = tmp_path / "short.ply"
+    path.write_text(
+        _ascii_ply_with_edges(extra_face_prop=False).replace("0 2\n", "0\n")
+    )
+    with pytest.raises(CodecError, match="edge record"):
+        read(path)
+
+
+def test_a_file_ending_inside_its_edges_is_a_codec_error(tmp_path) -> None:
+    path = tmp_path / "cut.ply"
+    path.write_text(_ascii_ply_with_edges(extra_face_prop=False).replace("0 2\n", ""))
+    with pytest.raises(CodecError, match="ends inside"):
+        read(path)

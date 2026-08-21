@@ -1640,3 +1640,74 @@ def test_issue_1396_a_deck_without_offsets_carries_no_zoffs(tmp_path) -> None:
     """An attribute of zeros invented for every mesh is noise, not data."""
     poly = read(_write(tmp_path, _deck("CTRIA3,1,1,1,2,3\n", 4)))
     assert "zoffs" not in poly.element_attrs
+
+
+def test_chexa20_midside_nodes_are_permuted_to_vtk(tmp_path) -> None:
+    """Nastran runs the brick's vertical edges before its top face, VTK last."""
+    deck = _deck(_elem_card("CHEXA", 20), 20)
+    poly = read(_write(tmp_path, deck))
+    cell = poly.connectivity[:20].tolist()
+    # Nastran G9..G12 are the bottom face edges, G13..G16 the verticals and
+    # G17..G20 the top face; VTK wants bottom face, top face, then verticals.
+    assert cell == [*range(12), 16, 17, 18, 19, 12, 13, 14, 15]
+
+
+def test_chexa20_survives_a_round_trip_in_nastran_order(tmp_path) -> None:
+    """The write permutation has to undo the read one, or a hop bends the cell."""
+    deck = _deck(_elem_card("CHEXA", 20), 20)
+    poly = read(_write(tmp_path, deck))
+    out = tmp_path / "hex20.bdf"
+    write(poly, out)
+    np.testing.assert_array_equal(read(out).connectivity, poly.connectivity)
+
+
+def test_ctriax6_interleaves_its_corner_and_midside_grids(tmp_path) -> None:
+    """CTRIAX6 numbers corner, mid, corner, mid; VTK wants the corners first."""
+    deck = _deck(_card("CTRIAX6", "1", "9", *(str(i + 1) for i in range(6))), 6)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["quadratic_triangle"]]
+    assert poly.connectivity.tolist() == [0, 2, 4, 1, 3, 5]
+
+
+def test_ctriax6_without_its_midside_grids_is_a_linear_triangle(tmp_path) -> None:
+    """G2, G4 and G6 are optional, and a card without them is still a triangle."""
+    deck = _deck(_card("CTRIAX6", "1", "9", "1", "", "2", "", "3", ""), 3)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    assert poly.connectivity.tolist() == [0, 1, 2]
+
+
+def test_ctriax6_second_field_is_a_material_not_a_property(tmp_path) -> None:
+    """CTRIAX6 names a material where the shells name a property id."""
+    deck = _deck(_card("CTRIAX6", "1", "77", *(str(i + 1) for i in range(6))), 6)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_attrs["pid"].tolist() == [1]
+
+
+def test_a_grounded_cbush_is_skipped_rather_than_refused(tmp_path) -> None:
+    """A CBUSH may ground its second end; refusing one sinks the whole deck."""
+    deck = _deck("CBUSH,1,1,1,,0.,0.,1.\nCROD,2,1,1,2\n", 4)
+    with pytest.warns(UserWarning, match="CBUSH"):
+        poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]]
+
+
+@pytest.mark.parametrize(
+    ("card", "n_nodes", "zoffs_at"),
+    [("CTRIA6", 6, 10), ("CQUAD8", 8, 16)],
+)
+def test_issue_1396_the_quadratic_shells_carry_zoffs_too(
+    tmp_path, card: str, n_nodes: int, zoffs_at: int
+) -> None:
+    """A quadratic shell's offset moves its mid-surface just as a linear one's."""
+    # The grid points fill fields 3..2+n; the blanks are the corner
+    # thicknesses and the material angle that sit between them and ZOFFS.
+    fields = [str(i + 1) for i in range(n_nodes)]
+    fields.extend([""] * (zoffs_at - n_nodes - 3))
+    deck = _deck(_card(card, "1", "1", *fields, "0.5"), n_nodes)
+    poly = read(_write(tmp_path, deck))
+    np.testing.assert_allclose(poly.element_attrs["zoffs"], [0.5])
+
+    out = tmp_path / "off.bdf"
+    write(poly, out)
+    np.testing.assert_allclose(read(out).element_attrs["zoffs"], [0.5])

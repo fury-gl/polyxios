@@ -31,6 +31,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, read_text, source_name, write_text
+from polyxios._tags import group_by_value, integer_column, values_from_tags
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -144,6 +145,12 @@ _REF_KEY: str = "ref"
 
 _MAGIC: str = "MESHVERSIONFORMATTED"
 
+# Where the file's own Dimension is kept, so a two-dimensional mesh - what a
+# bamg file is - does not come back as a flat three-dimensional one. The
+# vertices are held with three columns whatever the file said, the way every
+# other codec here holds them.
+_DIM_KEY: str = "medit_dimension"
+
 
 def sniff(head: bytes) -> bool:
     """Report whether a file's opening bytes look like Medit ASCII.
@@ -211,7 +218,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     PolyData
         Vertex references land in ``vertex_attrs["ref"]`` when any is
         non-zero; element references in ``element_attrs["ref"]`` and in one
-        ``element_tags["ref_<n>"]`` group per distinct value.
+        ``element_tags["ref_<n>"]`` group per distinct value. Vertices always
+        have three columns, the file's own ``Dimension`` being kept in
+        ``global_attrs["medit_dimension"]`` so a write can restore it.
 
     Raises
     ------
@@ -382,7 +391,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         # unlabelled mesh.
         if refs.any():
             element_attrs[_REF_KEY] = refs
-            element_tags = _ref_tags(refs)
+            element_tags = group_by_value(refs, _REF_TAG_PREFIX)
 
     return PolyData(
         vertices=coords,
@@ -392,23 +401,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
         element_tags=element_tags,
+        global_attrs={_DIM_KEY: dim},
     )
-
-
-def _ref_tags(refs: np.ndarray) -> dict[str, np.ndarray]:
-    """Return one tag group per distinct reference, members ascending.
-
-    A reference is what a Medit file uses for a surface or region label, and
-    a label that stays a column of integers does not survive a conversion as
-    a named group. One stable sort groups every value in a single pass.
-    """
-    order = np.argsort(refs, kind="stable").astype(np.int32)
-    ranked = refs[order]
-    starts = np.flatnonzero(np.concatenate(([True], ranked[1:] != ranked[:-1])))
-    return {
-        f"{_REF_TAG_PREFIX}{int(ref)}": members
-        for ref, members in zip(ranked[starts], np.split(order, starts[1:]))
-    }
 
 
 def write(poly: PolyData, path: Source, **opts: Any) -> None:
@@ -434,7 +428,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     -----
     ``element_attrs["ref"]`` is written back as each record's trailing
     reference; failing that, references come from the ``ref_<n>`` groups in
-    ``element_tags``, and failing that they are 0. Elements whose type has no
+    ``element_tags``, and failing that they are 0. The file is written in
+    three dimensions unless ``global_attrs["medit_dimension"]`` is 2 and the
+    vertices have stayed in the plane, which is what carries a two-dimensional
+    file back out as one. Elements whose type has no
     Medit section are skipped with a warning. Sections are written in order
     of topological dimension, which is the order Medit's own writers use.
     """
@@ -462,10 +459,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             stacklevel=2,
         )
 
-    lines: list[str] = ["MeshVersionFormatted 2", "", "Dimension 3", ""]
-
     n_verts = poly.vertices.shape[0]
-    vrefs = poly.vertex_attrs.get(_REF_KEY)
+    dim = _write_dimension(poly)
+    lines: list[str] = ["MeshVersionFormatted 2", "", f"Dimension {dim}", ""]
+
+    vrefs = (poly.vertex_attrs or {}).get(_REF_KEY)
     vertex_refs = (
         np.asarray(vrefs).astype(np.int64, copy=False)
         if vrefs is not None and np.asarray(vrefs).shape == (n_verts,)
@@ -474,9 +472,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append("Vertices")
     lines.append(str(n_verts))
     lines.extend(
-        f"{v[0]:{float_fmt}} {v[1]:{float_fmt}} {v[2]:{float_fmt}}"
-        f" {int(vertex_refs[i])}"
-        for i, v in enumerate(poly.vertices)
+        " ".join(f"{value:{float_fmt}}" for value in vertex[:dim])
+        + f" {int(vertex_refs[i])}"
+        for i, vertex in enumerate(poly.vertices)
     )
     lines.append("")
 
@@ -504,6 +502,35 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     write_text(path, "\n".join(lines), encoding="utf-8")
 
 
+def _write_dimension(poly: PolyData) -> int:
+    """Return the Dimension to write, which is the one the mesh came in under.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+
+    Returns
+    -------
+    int
+        2 or 3. A mesh read from a two-dimensional file goes back out as one,
+        which is what a reader expecting a plane needs; anything else, and a
+        two-dimensional mesh whose vertices left the plane, is written in
+        three.
+    """
+    stored = (poly.global_attrs or {}).get(_DIM_KEY)
+    if stored != 2:
+        return 3
+    if poly.vertices.shape[0] and np.any(poly.vertices[:, 2]):
+        warnings.warn(
+            f".mesh: global_attrs['{_DIM_KEY}'] is 2 but the vertices carry a"
+            " third coordinate; the file was written in three dimensions.",
+            stacklevel=3,
+        )
+        return 3
+    return 2
+
+
 def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
     """Return one reference per element, from the attribute or the tag groups.
 
@@ -521,12 +548,8 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
     """
     stored = (poly.element_attrs or {}).get(_REF_KEY)
     if stored is not None:
-        values = np.asarray(stored)
-        if (
-            values.ndim == 1
-            and values.shape[0] == n_elems
-            and values.dtype.kind in "iu"
-        ):
+        values = integer_column(stored, n_elems)
+        if values is not None:
             return values.astype(np.int64, copy=False)
         warnings.warn(
             f".mesh: element_attrs['{_REF_KEY}'] is not one integer per element;"
@@ -534,16 +557,9 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             stacklevel=3,
         )
 
-    refs = np.zeros(n_elems, dtype=np.int64)
-    unnamed: set[str] = set()
-    for name, members in (poly.element_tags or {}).items():
-        match = re.fullmatch(rf"{_REF_TAG_PREFIX}(-?\d+)", name)
-        if match is None:
-            unnamed.add(name)
-            continue
-        picked = np.asarray(members).ravel()
-        picked = picked[(picked >= 0) & (picked < n_elems)]
-        refs[picked] = int(match.group(1))
+    refs, unnamed, _named = values_from_tags(
+        poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int64
+    )
     if unnamed:
         # A Medit record carries a number, not a name, so a group called
         # anything but 'ref_<n>' has nowhere to go. Numbering them here would

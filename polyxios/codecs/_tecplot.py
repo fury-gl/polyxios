@@ -112,6 +112,11 @@ _VARLOCATION_RE = re.compile(r"VARLOCATION\s*=\s*(\([^)]*\)|[A-Za-z]+)", re.IGNO
 _VARLOC_GROUP_RE = re.compile(r"\[([^\]]*)\]\s*=\s*([A-Za-z]+)", re.IGNORECASE)
 _VARLOC_RANGE_RE = re.compile(r"(\d+)\s*-\s*(\d+)")
 
+# How many values of a BLOCK-packed run go on one line. The format itself puts
+# no limit on a line, but readers with a fixed line buffer do, and a run
+# written whole is as long as the mesh.
+_BLOCK_PER_LINE: int = 10
+
 # One variable name: quoted whole, or a bare token. Keeping a quoted name whole
 # is what stops ``"Pressure (Pa)"`` from counting as two variables.
 _VAR_RE = re.compile(r"\"([^\"]*)\"|'([^']*)'|([^\s,]+)")
@@ -659,6 +664,27 @@ def _parse_varloc_spec(spec: str, clause: str) -> set[int]:
     return indices
 
 
+def _wrapped_values(values: np.ndarray) -> list[str]:
+    """Return one variable's run as lines of at most ``_BLOCK_PER_LINE`` values.
+
+    Parameters
+    ----------
+    values
+        The run, one value per node or per element.
+
+    Returns
+    -------
+    list of str
+        The lines to write. Empty for an empty run, which a zone declaring no
+        nodes or no elements has.
+    """
+    formatted = [f"{value:.10g}" for value in values]
+    return [
+        " ".join(formatted[start : start + _BLOCK_PER_LINE])
+        for start in range(0, len(formatted), _BLOCK_PER_LINE)
+    ]
+
+
 def _resolve_count(hdr: dict[str, str], keys: tuple[str, str], what: str) -> str | None:
     """Return a count declared under either spelling, refusing disagreement."""
     values = [hdr[key] for key in keys if hdr.get(key) is not None]
@@ -1113,11 +1139,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     columns.extend(attr_arrays)
     if cell_arrays:
         # BLOCK packing runs each variable end to end: every nodal column
-        # first, then the E-long cell-centred ones.
-        lines.extend(
-            " ".join(f"{value:.10g}" for value in col)
-            for col in (*columns, *cell_arrays)
-        )
+        # first, then the E-long cell-centred ones. A run is wrapped rather
+        # than written as one line, since a mesh of any size would otherwise
+        # spell a variable in a line megabytes long that readers with a line
+        # buffer refuse.
+        for col in (*columns, *cell_arrays):
+            lines.extend(_wrapped_values(col))
     else:
         lines.extend(
             " ".join(f"{col[i]:.10g}" for col in columns) for i in range(n_verts)
