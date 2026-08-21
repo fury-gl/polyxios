@@ -218,3 +218,32 @@ def test_polyxios_dispatch() -> None:
     poly2 = polyxios.read(tmp)
     assert len(poly2.vertices) == 4
     assert len(poly2.element_types) == 1
+
+
+def test_an_element_mfem_cannot_hold_is_skipped_not_mislabelled(tmp_path) -> None:
+    """A geometry code and a node count that disagree cost every record after."""
+    verts = np.arange(30, dtype=np.float64).reshape(10, 3)
+    poly = make_polydata(verts, [("quadratic_tetra", np.arange(10).reshape(1, 10))])
+    path = tmp_path / "quad.mesh"
+    with pytest.warns(UserWarning, match="no MFEM geometry holds"):
+        write(poly, path)
+    back = read(path)
+    assert len(back.element_types) == 0
+
+
+def test_the_elements_that_do_fit_still_reach_the_file(tmp_path) -> None:
+    """Skipping one element must not renumber or drop the rest."""
+    verts = np.arange(42, dtype=np.float64).reshape(14, 3)
+    poly = make_polydata(
+        verts,
+        [
+            ("tetra", np.array([[0, 1, 2, 3]])),
+            ("quadratic_tetra", np.arange(4, 14).reshape(1, 10)),
+        ],
+    )
+    path = tmp_path / "mixed.mesh"
+    with pytest.warns(UserWarning, match="no MFEM geometry holds"):
+        write(poly, path)
+    back = read(path)
+    assert len(back.element_types) == 1
+    np.testing.assert_array_equal(back.connectivity, [0, 1, 2, 3])

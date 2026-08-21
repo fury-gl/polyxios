@@ -1252,3 +1252,33 @@ def test_a_data_block_the_file_ends_inside_is_still_read(tmp_path: Path) -> None
     rho = read(path).element_attrs["rho"]
     assert rho[0] == 4.5
     assert np.isnan(rho[1])
+
+
+def test_a_data_field_is_declared_at_a_width_gmsh_loads(tmp_path: Path) -> None:
+    """MSH2 declares 1, 3 or 9 components; Gmsh refuses any other count."""
+    poly = make_polydata(
+        np.arange(12, dtype=np.float64).reshape(4, 3),
+        [("tetra", np.array([[0, 1, 2, 3]]))],
+    )
+    poly.vertex_attrs["uv"] = np.arange(8, dtype=np.float64).reshape(4, 2)
+    path = tmp_path / "uv.msh"
+    with pytest.warns(UserWarning, match="padded out"):
+        write(poly, path)
+    body = path.read_text().split("$NodeData")[1].splitlines()
+    # the rest of the keyword line, the string and real tags, then the
+    # integer tags: time step, component count, entity count
+    assert body[7] == "3"
+    back = read(path)
+    np.testing.assert_allclose(back.vertex_attrs["uv"][:, :2], poly.vertex_attrs["uv"])
+
+
+def test_a_field_already_a_legal_width_is_left_alone(tmp_path: Path) -> None:
+    poly = make_polydata(
+        np.arange(12, dtype=np.float64).reshape(4, 3),
+        [("tetra", np.array([[0, 1, 2, 3]]))],
+    )
+    poly.vertex_attrs["v"] = np.arange(12, dtype=np.float64).reshape(4, 3)
+    path = tmp_path / "v.msh"
+    write(poly, path)
+    back = read(path)
+    np.testing.assert_allclose(back.vertex_attrs["v"], poly.vertex_attrs["v"])

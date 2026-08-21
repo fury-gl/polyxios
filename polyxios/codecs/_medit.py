@@ -380,6 +380,16 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             continue
 
         if name == "VERTICES":
+            if seen_vertices:
+                # A Medit file declares its vertices once, and the elements
+                # already read index the block that came first. Letting a
+                # second one replace it moves every element read so far onto
+                # geometry it never named, which a matching count hides
+                # outright - no index goes out of range and nothing is said.
+                raise CodecError(
+                    ".mesh: a second Vertices section would replace the one"
+                    " the elements already read index into."
+                )
             if cursor >= n_tokens:
                 raise CodecError(".mesh: Vertices names no count.")
             n_verts = _checked_count(tokens[cursor], MAX_SAFE_VERTICES, "vertex")
@@ -683,7 +693,7 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             stacklevel=3,
         )
 
-    refs, unnamed, _named, unusable, oversized = values_from_tags(
+    refs, unnamed, _named, unusable, oversized, contested = values_from_tags(
         poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int64
     )
     if unnamed:
@@ -707,6 +717,15 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
         warnings.warn(
             f".mesh: element tag group(s) {sorted(oversized)} name a reference"
             " no 64-bit integer holds; they were not written.",
+            stacklevel=3,
+        )
+    if contested:
+        # A record carries one reference, so an element named by two groups
+        # keeps whichever came last - an order the caller never chose.
+        warnings.warn(
+            f".mesh: element tag group(s) {sorted(contested)} name elements"
+            " another group already labelled; a Medit record carries one"
+            " reference, so the later group's is the one written.",
             stacklevel=3,
         )
     return refs

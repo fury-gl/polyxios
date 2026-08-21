@@ -42,6 +42,21 @@ _PLY_DTYPE: dict[str, str] = {
     "float64": "f8",
 }
 
+# The PLY name of each numpy code a column can be written at, which is the
+# reverse of _PLY_DTYPE over the eight types the format actually spells.
+# Written from the array's own dtype rather than from the dtype it arrived
+# under, so the header and the record can never disagree on a field's width.
+_PLY_NAME: dict[str, str] = {
+    "i1": "char",
+    "u1": "uchar",
+    "i2": "short",
+    "u2": "ushort",
+    "i4": "int",
+    "u4": "uint",
+    "f4": "float",
+    "f8": "double",
+}
+
 # struct format character per numpy code, so a record holding a list property -
 # whose width is only known once its count has been read - can be walked one
 # field at a time without a numpy call per field.
@@ -152,13 +167,22 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     Notes
     -----
     ``line`` elements are written as ``element edge`` records and every other
-    element as a face. Numeric ``vertex_attrs`` and ``element_attrs`` become
-    properties of their element, a multi-component one spelled as one property
-    per column; an attribute that is not one row per entity, or whose name is
-    not a bare token, has no record to sit in and is skipped with a warning.
-    The ``element_attrs`` are declared on the edge records as well as the
-    faces, since an attribute is one value per element and a line's own value
-    would otherwise have nowhere to go.
+    element as a face. A PLY element is a block and not a column, so the faces
+    are written first and the lines after them: a mesh holding both comes back
+    from a round trip with its faces ahead of its lines, whatever order it
+    held them in. The ``element_attrs`` are carried along with it and still
+    describe the element they came in on; an index into the element column
+    held outside the mesh does not.
+
+    Numeric ``vertex_attrs`` and ``element_attrs`` become properties of their
+    element, a multi-component one spelled as one property per column; an
+    attribute that is not one row per entity, or whose name is not a bare
+    token, has no record to sit in and is skipped with a warning. A column of
+    64-bit integers is written at the narrowest PLY type that holds its
+    values, since the format spells no integer that wide. The
+    ``element_attrs`` are declared on the edge records as well as the faces,
+    since an attribute is one value per element and a line's own value would
+    otherwise have nowhere to go.
     """
     binary: bool = bool(opts.get("binary", True))
     endian: str = str(opts.get("endian", "little"))
@@ -175,8 +199,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     edge_indices = np.flatnonzero(is_edge).tolist()
     face_indices = np.flatnonzero(~is_edge).tolist()
 
-    vert_attrs = _writable_attrs(poly.vertex_attrs, n_verts, "vertex")
-    elem_attrs = _writable_attrs(poly.element_attrs, n_elems, "element")
+    endian_chr = ("<" if endian == "little" else ">") if binary else ""
+    vert_attrs = _writable_attrs(poly.vertex_attrs, n_verts, "vertex", endian_chr)
+    elem_attrs = _writable_attrs(poly.element_attrs, n_elems, "element", endian_chr)
+    count_name, count_code = _list_count_type(poly.offsets, face_indices)
 
     lines: list[bytes] = []
     lines.append(b"ply")
@@ -199,7 +225,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     # Face element
     lines.append(f"element face {len(face_indices)}".encode())
-    lines.append(b"property list uchar int vertex_indices")
+    lines.append(f"property list {count_name} int vertex_indices".encode())
     lines.extend(_property_lines(elem_attrs))
 
     if edge_indices:
@@ -219,28 +245,33 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         fh.write(header_bytes)
 
         if binary:
-            endian_chr = "<" if endian == "little" else ">"
+            # Cast once for the whole file rather than once per record: the
+            # coordinates and the indices are the two largest arrays a mesh
+            # holds, and converting a row of either at a time is a numpy call
+            # per row that says nothing the one call up here does not.
+            coords = np.ascontiguousarray(
+                poly.vertices, dtype=np.dtype(endian_chr + "f8")
+            )
+            indices = np.ascontiguousarray(
+                poly.connectivity, dtype=np.dtype(endian_chr + "i4")
+            )
             # Vertices: interleaved per-vertex record (x, y, z, extra...)
             for vi in range(n_verts):
-                fh.write(
-                    np.asarray(
-                        poly.vertices[vi], dtype=np.dtype(endian_chr + "f8")
-                    ).tobytes()
-                )
-                _write_binary_attrs(fh, vert_attrs, vi, endian_chr)
+                fh.write(coords[vi].tobytes())
+                _write_binary_attrs(fh, vert_attrs, vi)
             # Faces: interleaved per-face record (count, indices, extra...)
-            count_dt = np.dtype("u1")
-            idx_dt = np.dtype(endian_chr + "i4")
+            pack_count = struct.Struct(endian_chr + _PLY_STRUCT[count_code]).pack
             for i in face_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
-                fh.write(np.array([e - s], dtype=count_dt).tobytes())
-                fh.write(poly.connectivity[s:e].astype(idx_dt).tobytes())
-                _write_binary_attrs(fh, elem_attrs, i, endian_chr)
+                fh.write(pack_count(e - s))
+                fh.write(indices[s:e].tobytes())
+                _write_binary_attrs(fh, elem_attrs, i)
             # Edges: the two ends and the same properties, one record each.
             for i in edge_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
-                fh.write(_edge_ends(poly, i, s, e).astype(idx_dt).tobytes())
-                _write_binary_attrs(fh, elem_attrs, i, endian_chr)
+                _check_edge_width(i, s, e)
+                fh.write(indices[s:e].tobytes())
+                _write_binary_attrs(fh, elem_attrs, i)
         else:
             # ASCII: each vertex line = x y z [extra_props...]
             for vi in range(n_verts):
@@ -260,7 +291,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             # Each edge line = vertex1 vertex2 [extra_props...]
             for i in edge_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
-                ends = _edge_ends(poly, i, s, e)
+                _check_edge_width(i, s, e)
+                ends = poly.connectivity[s:e]
                 parts = [str(int(ends[0])), str(int(ends[1]))]
                 _extend_ascii_attrs(parts, elem_attrs, i)
                 fh.write((" ".join(parts) + "\n").encode())
@@ -283,7 +315,7 @@ def _property_lines(attrs: dict[str, np.ndarray]) -> list[bytes]:
     """
     lines: list[bytes] = []
     for name, arr in attrs.items():
-        dt_str = _np_to_ply_type(arr.dtype)
+        dt_str = _PLY_NAME[arr.dtype.str[1:]]
         if arr.ndim == 2:
             lines.extend(
                 f"property {dt_str} {name}_{ci}".encode() for ci in range(arr.shape[1])
@@ -293,14 +325,51 @@ def _property_lines(attrs: dict[str, np.ndarray]) -> list[bytes]:
     return lines
 
 
-def _write_binary_attrs(
-    fh: Any, attrs: dict[str, np.ndarray], index: int, endian_chr: str
-) -> None:
-    """Append one record's attribute fields, in the header's declared order."""
+def _write_binary_attrs(fh: Any, attrs: dict[str, np.ndarray], index: int) -> None:
+    """Append one record's attribute fields, in the header's declared order.
+
+    The columns already carry the dtype the header declared them at, byte
+    order included, so a field is written by taking its bytes - no dtype is
+    built and no value is cast here, which on a mesh of a million records is
+    a million of each that no longer happen.
+    """
     for arr in attrs.values():
-        val = np.asarray(arr[index]).ravel()
-        dt = np.dtype(endian_chr + _np_short_dtype(val.dtype))
-        fh.write(val.astype(dt).tobytes())
+        fh.write(arr[index].tobytes())
+
+
+# Above this a double no longer counts in ones, so a value past it is a
+# magnitude rather than a number of things and reads better in the float
+# spelling it arrived in.
+_EXACT_INTEGER: float = 2.0**53
+
+
+def _ascii_value(value: Any) -> str:
+    """Return one attribute value as an ASCII record spells it.
+
+    Parameters
+    ----------
+    value
+        The value, at whatever dtype its column is written.
+
+    Returns
+    -------
+    str
+        The token to write.
+
+    Notes
+    -----
+    A whole number is spelled in full rather than through ``%.10g``, which
+    turns 12345678901234 into ``1.23456789e+13`` - not a token a reader
+    expecting the declared integer property accepts, and one that has already
+    dropped the digits telling the values apart. A 64-bit integer column is
+    declared ``double`` for want of a PLY integer that wide, so the test is on
+    the value and not on the column's dtype; every value ``%.10g`` already
+    spelled exactly keeps the spelling it had.
+    """
+    number = float(value)
+    if number.is_integer() and abs(number) < _EXACT_INTEGER:
+        return str(int(number))
+    return f"{number:.10g}"
 
 
 def _extend_ascii_attrs(
@@ -309,13 +378,56 @@ def _extend_ascii_attrs(
     """Append one record's attribute fields to an ASCII row."""
     for arr in attrs.values():
         if arr.ndim == 2:
-            row.extend(f"{arr[index, ci]:.10g}" for ci in range(arr.shape[1]))
+            row.extend(_ascii_value(value) for value in arr[index])
         else:
-            row.append(f"{arr[index]:.10g}")
+            row.append(_ascii_value(arr[index]))
+
+
+def _column_code(values: np.ndarray) -> str:
+    """Return the numpy code one attribute column is written at.
+
+    Parameters
+    ----------
+    values
+        The column, as the mesh carries it.
+
+    Returns
+    -------
+    str
+        A code among the eight types PLY spells, without an endian prefix.
+
+    Notes
+    -----
+    PLY has no 64-bit integer, so a column of one is written at the narrowest
+    type that holds every value it carries: ``int`` when they all fit a signed
+    32-bit field, ``double`` when they do not. Neither loses a value, where
+    declaring ``int`` and writing eight bytes - which is what the two separate
+    header and record mappings used to do between them - framed every field
+    after it wrong and cost the records that followed.
+
+    A boolean column stays at the ``float`` it has always been written as: it
+    reads back the same either way, and narrowing it would rewrite files that
+    round-trip today for nothing.
+    """
+    kind, size = values.dtype.kind, values.dtype.itemsize
+    if kind == "f":
+        return "f8" if size == 8 else "f4"
+    if kind in "iu" and size <= 4:
+        return f"{kind}{size}"
+    if kind == "b":
+        return "f4"
+    # A 64-bit column, which the format has no type for. One pass settles
+    # whether the values themselves need the width, or only their dtype did.
+    if values.size:
+        low, high = int(values.min()), int(values.max())
+        fits = np.iinfo(np.int32)
+        if low < fits.min or high > fits.max:
+            return "f8"
+    return "i4"
 
 
 def _writable_attrs(
-    attrs: dict[str, np.ndarray] | None, count: int, kind: str
+    attrs: dict[str, np.ndarray] | None, count: int, kind: str, endian_chr: str
 ) -> dict[str, np.ndarray]:
     """Return the attributes a record of this element has room for.
 
@@ -328,11 +440,16 @@ def _writable_attrs(
         attribute has to be to describe them.
     kind
         ``vertex`` or ``element``, named in the warning.
+    endian_chr
+        Byte order the records are written in, ``<`` or ``>``; empty for the
+        ASCII flavour, which has none.
 
     Returns
     -------
     dict of str to numpy.ndarray
-        The attributes that describe these entities, each as an array. A
+        The attributes that describe these entities, each already at the
+        dtype - byte order included - its property is declared at, so the
+        header and the records cannot disagree on a field's width. A
         multi-component one is kept and spelled one property per column.
 
     Notes
@@ -343,6 +460,10 @@ def _writable_attrs(
     name is a bare token in the header, so one carrying whitespace would split
     into two properties and read back as neither. All of it is reported rather
     than left to produce a file no reader can parse.
+
+    The cast happens once per column here rather than once per record in the
+    writer, which is where the byte order used to be applied a value at a
+    time.
     """
     kept: dict[str, np.ndarray] = {}
     refused: set[str] = set()
@@ -357,7 +478,9 @@ def _writable_attrs(
         ):
             refused.add(name)
             continue
-        kept[name] = values
+        kept[name] = np.ascontiguousarray(
+            values, dtype=np.dtype(endian_chr + _column_code(values))
+        )
     if refused:
         warnings.warn(
             f".ply: only numeric {kind}_attrs named by a bare token, one row"
@@ -367,22 +490,49 @@ def _writable_attrs(
     return kept
 
 
-def _edge_ends(poly: PolyData, index: int, start: int, end: int) -> np.ndarray:
-    """Return an edge's two ends, refusing one that does not have exactly two.
+def _list_count_type(offsets: np.ndarray, face_indices: list[int]) -> tuple[str, str]:
+    """Return the type a face's vertex count is declared and written at.
 
     Parameters
     ----------
-    poly
-        The mesh being written.
+    offsets
+        The mesh's element offsets.
+    face_indices
+        Which elements are written as faces.
+
+    Returns
+    -------
+    tuple of (str, str)
+        The PLY type name for the header, and the numpy code the count is
+        written at.
+
+    Notes
+    -----
+    ``uchar`` is what a face list is almost always declared with and stays the
+    answer for every mesh whose faces fit in it, so the usual file is byte for
+    byte the one this codec has always written. A polygon of more than 255
+    vertices does not fit: declaring ``uchar`` and writing the count anyway
+    spells a number the header says is one byte, which a reader honouring the
+    declaration reads as a different face - so the declaration widens with the
+    mesh instead.
+    """
+    widest = max(
+        (int(offsets[i + 1]) - int(offsets[i]) for i in face_indices), default=0
+    )
+    if widest <= 0xFF:
+        return "uchar", "u1"
+    return ("ushort", "u2") if widest <= 0xFFFF else ("uint", "u4")
+
+
+def _check_edge_width(index: int, start: int, end: int) -> None:
+    """Refuse a line element that does not carry exactly two ends.
+
+    Parameters
+    ----------
     index
         Which element, named in the error.
     start, end
         The element's slice of the connectivity.
-
-    Returns
-    -------
-    numpy.ndarray
-        The two vertex indices.
 
     Raises
     ------
@@ -395,7 +545,6 @@ def _edge_ends(poly: PolyData, index: int, start: int, end: int) -> np.ndarray:
             f".ply: element {index} is a line with {end - start} vertex(es);"
             " a PLY edge record holds exactly two."
         )
-    return np.asarray(poly.connectivity[start:end])
 
 
 def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
@@ -791,9 +940,13 @@ def _sized(
     """
     if values is not None and values.shape[0] == count:
         return values
+    # The caller only asks about a name one of the two elements declared, so
+    # one of the columns is always there to take a width from; falling back
+    # to a plain column keeps that from turning into an AttributeError if a
+    # later caller ever asks about a name neither declared.
     like = values if values is not None else other
-    assert like is not None
-    return np.full((count, *like.shape[1:]), np.nan, dtype=np.float64)
+    shape = (count,) if like is None else (count, *like.shape[1:])
+    return np.full(shape, np.nan, dtype=np.float64)
 
 
 def _decode_binary_faces(
@@ -1551,28 +1704,3 @@ def _parse_header(fh: object) -> tuple[dict, int]:
         # ignore comment, obj_info, etc.
 
     return header, offset
-
-
-def _np_to_ply_type(dtype: np.dtype) -> str:
-    kind = dtype.kind
-    size = dtype.itemsize
-    if kind == "f":
-        return "double" if size == 8 else "float"
-    if kind in ("i", "u"):
-        signed = kind == "i"
-        mapping = {1: "char", 2: "short", 4: "int"}
-        base = mapping.get(size, "int")
-        return base if signed else "u" + base
-    return "float"
-
-
-def _np_short_dtype(dtype: np.dtype) -> str:
-    kind = dtype.kind
-    size = dtype.itemsize
-    if kind == "f":
-        return "f8" if size == 8 else "f4"
-    if kind == "i":
-        return f"i{size}"
-    if kind == "u":
-        return f"u{size}"
-    return "f4"

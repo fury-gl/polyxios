@@ -113,7 +113,7 @@ def values_from_tags(
     n_elems: int,
     *,
     dtype: np.dtype | type,
-) -> tuple[np.ndarray, set[str], bool, set[str], set[str]]:
+) -> tuple[np.ndarray, set[str], bool, set[str], set[str], set[str]]:
     """Return the labels the ``prefix<n>`` tag groups spell.
 
     Parameters
@@ -147,14 +147,29 @@ def values_from_tags(
         text, so it may spell one wider than the format's own field; assigning
         it raises an OverflowError from numpy, which says nothing about which
         group is at fault, so it is reported here instead.
+    set of str
+        The groups that took an element another group had already labelled,
+        so a caller can report the label that did not survive. A record
+        carries one reference and the groups are walked in the order the mesh
+        holds them, so the last to name an element is the one that keeps it -
+        an order the caller never chose, which is why it is worth saying.
+
+    Notes
+    -----
+    Which element each group reached is tracked in one boolean column rather
+    than by intersecting the groups against each other, so the whole walk
+    stays linear in the members the mesh holds however many groups it spreads
+    them over.
     """
     values = np.zeros(n_elems, dtype=dtype)
     limits = np.iinfo(values.dtype)
     pattern = re.compile(rf"{re.escape(prefix)}(-?\d+)")
+    claimed = np.zeros(n_elems, dtype=bool)
     named = False
     unnamed: set[str] = set()
     unusable: set[str] = set()
     oversized: set[str] = set()
+    contested: set[str] = set()
     for name, members in (tags or {}).items():
         match = pattern.fullmatch(name)
         if match is None:
@@ -167,6 +182,10 @@ def values_from_tags(
         if not limits.min <= label <= limits.max:
             oversized.add(name)
             continue
-        values[member_indices(members, n_elems)] = label
+        picked = member_indices(members, n_elems)
+        if claimed[picked].any():
+            contested.add(name)
+        claimed[picked] = True
+        values[picked] = label
         named = True
-    return values, unnamed, named, unusable, oversized
+    return values, unnamed, named, unusable, oversized, contested

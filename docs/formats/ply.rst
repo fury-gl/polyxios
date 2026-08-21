@@ -88,6 +88,9 @@ Quirks worth knowing
 - Line elements travel as ``element edge`` with ``vertex1`` / ``vertex2``, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, ``vertex_index1`` / ``vertex_index2`` and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.
 - An ``element edge`` record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.
 - An element index no vertex answers to is refused rather than read into a mesh nothing can draw.
+- PLY spells no 64-bit integer, so a column of one is written at the narrowest type that holds the values it actually carries - ``int`` when they fit a signed 32-bit field, ``double`` when they do not. The header and the record are taken from the same decision, so a field's declared width is always the width written.
+- A face's vertex count is declared ``uchar``, as almost every PLY file does, and widens to ``ushort`` or ``uint`` for a mesh carrying a polygon of more than 255 vertices - a count the narrower type cannot spell.
+- An integer attribute is written in full in the ASCII flavour rather than through a float format, which would turn a large one into ``1.23456789e+13``: not a token a reader expecting the declared integer property accepts.
 
 .. seealso::
 

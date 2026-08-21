@@ -754,3 +754,23 @@ def test_a_part_does_not_take_the_decks_own_numbering_with_it(tmp_path: Path) ->
     )
     poly = read(path)
     np.testing.assert_array_equal(poly.vertex_tags["GLOBAL"], [0, 1, 2])
+
+
+def test_a_set_naming_one_element_twice_is_not_reported_as_lost(tmp_path) -> None:
+    """Deduplicating the ids also collapses a repeat, which is not a loss."""
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.element_tags["A"] = np.array([0, 0], dtype=np.int32)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write(poly, tmp_path / "dup.inp")
+
+
+def test_a_set_naming_an_element_that_was_not_written_is_still_reported(
+    tmp_path,
+) -> None:
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.element_tags["A"] = np.array([0, 5], dtype=np.int32)
+    with pytest.warns(UserWarning, match="index no element"):
+        write(poly, tmp_path / "gone.inp")
