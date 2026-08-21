@@ -557,3 +557,43 @@ def test_two_groups_naming_one_element_report_the_reference_that_lost(
     poly.element_tags["ref_2"] = np.array([0], dtype=np.int32)
     with pytest.warns(UserWarning, match="already labelled"):
         write(poly, tmp_path / "clash.mesh")
+
+
+def test_a_dimension_after_the_vertices_is_a_codec_error(tmp_path) -> None:
+    """A vertex record is as wide as the dimension, so a Dimension arriving
+    after the block means every coordinate came out of the wrong token."""
+    path = tmp_path / "late.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nVertices 3\n"
+        "0 0 0 1\n1 0 0 1\n0 1 0 1\nDimension 2\nEnd\n"
+    )
+    with pytest.raises(CodecError, match="declared after the Vertices section"):
+        read(path)
+
+
+def test_a_dimension_repeated_at_the_same_width_is_not_refused(tmp_path) -> None:
+    """Only a disagreement means the block was read at the wrong width."""
+    path = tmp_path / "again.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension 3\nVertices 3\n"
+        "0 0 0 1\n1 0 0 1\n0 1 0 1\nDimension 3\nTriangles 1\n1 2 3 4\nEnd\n"
+    )
+    assert read(path).vertices.shape == (3, 3)
+
+
+def test_the_element_cap_is_counted_over_the_file_not_the_section(
+    tmp_path, monkeypatch
+) -> None:
+    """A mesh spreads its elements across as many sections as it holds types,
+    and a cap each of them passes on its own is one the file does not."""
+    monkeypatch.setattr("polyxios.codecs._medit.MAX_SAFE_ELEMENTS", 3)
+    path = tmp_path / "many.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension 3\nVertices 3\n"
+        "0 0 0 0\n1 0 0 0\n0 1 0 0\n"
+        "Triangles 2\n1 2 3 1\n1 2 3 1\n"
+        "Edges 2\n1 2 1\n2 3 1\n"
+        "End\n"
+    )
+    with pytest.raises(CodecError, match="element count exceeds the safety cap"):
+        read(path)

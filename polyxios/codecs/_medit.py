@@ -346,6 +346,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     skipped: set[str] = set()
     higher_order: set[str] = set()
     seen_vertices = False
+    read_dim = dim
 
     cursor = 0
     n_tokens = len(tokens)
@@ -377,6 +378,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 # Not a cap but the whole of what the keyword can say: Medit
                 # meshes the plane and space, and nothing else.
                 raise CodecError(f".mesh: Dimension {dim} is not a mesh.")
+            if seen_vertices and dim != read_dim:
+                # A vertex record is as wide as the dimension, so a Dimension
+                # arriving after the block was read at another width means
+                # every coordinate came out of the wrong token. The file is
+                # not one this codec read - it is one it misread - and a count
+                # that happens to divide hides that outright.
+                raise CodecError(
+                    f".mesh: Dimension {dim} is declared after the Vertices"
+                    f" section, which was read as {read_dim}-dimensional;"
+                    " Dimension has to come first."
+                )
             continue
 
         if name == "VERTICES":
@@ -395,6 +407,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             n_verts = _checked_count(tokens[cursor], MAX_SAFE_VERTICES, "vertex")
             cursor += 1
             seen_vertices = True
+            # The width the block was read at, kept so a Dimension arriving
+            # later can be told from the one that was in force here.
+            read_dim = dim
             width = dim + 1
             need = n_verts * width
             if cursor + need > n_tokens:
@@ -444,6 +459,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             records = np.array(block, dtype=np.int64).reshape(n_elems, width)
         except ValueError as exc:
             raise CodecError(f".mesh: malformed {word} record: {exc}.") from exc
+        if len(types) + n_elems > MAX_SAFE_ELEMENTS:
+            # Counted over the file and not over the section: a mesh spreads
+            # its elements across as many sections as it holds types, and a
+            # cap each of them passes on its own is one the file does not.
+            raise CodecError(
+                f".mesh: element count exceeds the safety cap {MAX_SAFE_ELEMENTS}."
+            )
         if len(conn) + n_elems * n_nodes > MAX_SAFE_CONN:
             raise CodecError(
                 f".mesh: connectivity exceeds the safety cap {MAX_SAFE_CONN}."
@@ -693,39 +715,37 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             stacklevel=3,
         )
 
-    refs, unnamed, _named, unusable, oversized, contested = values_from_tags(
-        poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int64
-    )
-    if unnamed:
+    held = values_from_tags(poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int64)
+    if held.unnamed:
         # A Medit record carries a number, not a name, so a group called
         # anything but 'ref_<n>' has nowhere to go. Numbering them here would
         # write labels the caller never chose.
         warnings.warn(
-            f".mesh: element tag group(s) {sorted(unnamed)} are not named"
+            f".mesh: element tag group(s) {sorted(held.unnamed)} are not named"
             " 'ref_<n>' and a Medit reference is a number; they were not"
             " written.",
             stacklevel=3,
         )
-    if unusable:
+    if held.unusable:
         warnings.warn(
-            f".mesh: element tag group(s) {sorted(unusable)} do not hold"
+            f".mesh: element tag group(s) {sorted(held.unusable)} do not hold"
             " element indices, so the reference they name reaches nothing;"
             " they were not written.",
             stacklevel=3,
         )
-    if oversized:
+    if held.oversized:
         warnings.warn(
-            f".mesh: element tag group(s) {sorted(oversized)} name a reference"
+            f".mesh: element tag group(s) {sorted(held.oversized)} name a reference"
             " no 64-bit integer holds; they were not written.",
             stacklevel=3,
         )
-    if contested:
+    if held.contested:
         # A record carries one reference, so an element named by two groups
         # keeps whichever came last - an order the caller never chose.
         warnings.warn(
-            f".mesh: element tag group(s) {sorted(contested)} name elements"
+            f".mesh: element tag group(s) {sorted(held.contested)} name elements"
             " another group already labelled; a Medit record carries one"
             " reference, so the later group's is the one written.",
             stacklevel=3,
         )
-    return refs
+    return held.values

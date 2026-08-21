@@ -10,6 +10,7 @@ from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.codecs._meshb import read, write
+from polyxios.exceptions import CodecError
 
 
 def _tet_mesh():
@@ -329,3 +330,30 @@ def test_a_tag_group_naming_a_reference_too_wide_is_reported(tmp_path) -> None:
     with pytest.warns(UserWarning, match="wider than the 32-bit field"):
         write(poly=poly, path=out)
     assert "ref" not in read(path=out).element_attrs
+
+
+def test_a_group_whose_members_reach_no_element_writes_no_reference(tmp_path) -> None:
+    """The label reaches nothing, so writing it would relabel every record 0."""
+    poly = _tet_mesh()
+    poly.element_tags["ref_7"] = np.array([9], dtype=np.int32)
+    path = tmp_path / "stale.meshb"
+    with pytest.warns(UserWarning, match="do not hold"):
+        write(poly=poly, path=path)
+    back = read(path=path)
+    assert "ref" not in (back.element_attrs or {})
+
+
+def test_a_section_running_past_the_end_of_the_file_is_a_codec_error(
+    tmp_path,
+) -> None:
+    """Left to the decoder it raises out of numpy, naming neither the section
+    nor the format, and a count wide enough asks for the allocation first."""
+    path = tmp_path / "over.meshb"
+    write(poly=_tet_mesh(), path=path)
+    raw = bytearray(path.read_bytes())
+    # The Vertices keyword sits after the 16-byte header; overstate its count.
+    assert struct.unpack_from("<i", raw, 16)[0] == 4
+    struct.pack_into("<i", raw, 20, 1_000_000)
+    path.write_bytes(bytes(raw))
+    with pytest.raises(CodecError, match="runs past the end of the file"):
+        read(path=path)

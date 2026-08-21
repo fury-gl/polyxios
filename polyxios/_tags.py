@@ -7,15 +7,63 @@ so the codecs that share the convention cannot drift apart on it.
 """
 
 import re
+from typing import NamedTuple
 
 import numpy as np
 
 __all__ = [
+    "TagValues",
     "group_by_value",
     "integer_column",
     "member_indices",
     "values_from_tags",
 ]
+
+
+class TagValues(NamedTuple):
+    """The labels a mesh's tag groups spell, and what could not be written.
+
+    Attributes
+    ----------
+    values
+        One label per element, zero where no group names one.
+    unnamed
+        The groups whose names spell no number, so a caller can report them.
+    named
+        Whether any group named a label that reached an element. A group
+        whose members index nothing counts for no more here than one that
+        was never there: writing its column would relabel every element 0.
+    unusable
+        The groups that reach no element of this mesh. Nothing checks a tag
+        group on the way in, so a group may hold floats, which index nothing
+        and are refused outright rather than rounded - rounding an index
+        moves a label onto another element - or hold indices past the end of
+        a mesh it was not built for.
+    oversized
+        The groups naming a number the column cannot hold. A name is free
+        text, so it may spell one wider than the format's own field;
+        assigning it raises an OverflowError from numpy, which says nothing
+        about which group is at fault, so it is reported here instead.
+    contested
+        The groups that took an element another group had already labelled,
+        so a caller can report the label that did not survive. A record
+        carries one reference and the groups are walked in the order the mesh
+        holds them, so the last to name an element is the one that keeps it -
+        an order the caller never chose, which is why it is worth saying.
+
+    Notes
+    -----
+    A named tuple rather than a bare one: six fields, four of them sets of
+    names, is more than a positional unpack at a call site can be read back
+    against.
+    """
+
+    values: np.ndarray
+    unnamed: set[str]
+    named: bool
+    unusable: set[str]
+    oversized: set[str]
+    contested: set[str]
 
 
 def group_by_value(values: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
@@ -113,7 +161,7 @@ def values_from_tags(
     n_elems: int,
     *,
     dtype: np.dtype | type,
-) -> tuple[np.ndarray, set[str], bool, set[str], set[str], set[str]]:
+) -> TagValues:
     """Return the labels the ``prefix<n>`` tag groups spell.
 
     Parameters
@@ -130,29 +178,9 @@ def values_from_tags(
 
     Returns
     -------
-    numpy.ndarray
-        One label per element, zero where no group names one.
-    set of str
-        The groups whose names spell no number, so a caller can report them.
-    bool
-        Whether any group did name one.
-    set of str
-        The groups whose members are not element indices, so a caller can
-        report those too. Nothing checks a tag group's dtype on the way in,
-        and a float one indexes nothing: it is refused outright rather than
-        rounded, which is the right answer given rounding an index moves a
-        label onto another element.
-    set of str
-        The groups naming a number the column cannot hold. A name is free
-        text, so it may spell one wider than the format's own field; assigning
-        it raises an OverflowError from numpy, which says nothing about which
-        group is at fault, so it is reported here instead.
-    set of str
-        The groups that took an element another group had already labelled,
-        so a caller can report the label that did not survive. A record
-        carries one reference and the groups are walked in the order the mesh
-        holds them, so the last to name an element is the one that keeps it -
-        an order the caller never chose, which is why it is worth saying.
+    TagValues
+        The label column and the groups that could not be written, each named
+        on the tuple rather than left to a positional unpack.
 
     Notes
     -----
@@ -183,9 +211,15 @@ def values_from_tags(
             oversized.add(name)
             continue
         picked = member_indices(members, n_elems)
+        if not picked.size:
+            # Every member indexed past the end of this mesh, so the label
+            # reaches nothing. Counting it as a label named would write a
+            # column of zeros over a mesh no group actually labelled.
+            unusable.add(name)
+            continue
         if claimed[picked].any():
             contested.add(name)
         claimed[picked] = True
         values[picked] = label
         named = True
-    return values, unnamed, named, unusable, oversized, contested
+    return TagValues(values, unnamed, named, unusable, oversized, contested)
