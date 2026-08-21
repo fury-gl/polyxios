@@ -1234,3 +1234,16 @@ def test_issue_584_a_large_grid_reads_without_boxing_every_number(
 
     assert len(poly.element_types) == (n - 1) ** 3
     assert peak < 12 * size, f"peak {peak} is {peak / size:.1f}x the file"
+
+
+def test_an_id_wider_than_a_machine_integer_names_the_format(tmp_path) -> None:
+    """Python counts as high as memory allows; the arrays behind it do not.
+
+    Ids are collected into int64 arrays and matched by a numpy sort, so an id
+    past that width reaches whichever of them touches it first and surfaces
+    as an OverflowError naming none of the file.
+    """
+    path = tmp_path / "wide.f3grid"
+    path.write_text(f"* GRIDPOINTS\nG {2**64} 0.0 0.0 0.0\nG 2 1.0 0.0 0.0\n* ZONES\n")
+    with pytest.raises(CodecError, match="64-bit integer"):
+        read(path)

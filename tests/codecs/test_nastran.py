@@ -1178,7 +1178,10 @@ def test_marker_past_column_seventy_two_leaves_field_nine_as_data(tmp_path) -> N
     """A card reaching the continuation field cannot hide a marker before it.
 
     Field 9 spans columns 64 to 72, so '+9' there is grid point 9, and the
-    '+11' past column 72 is the marker.
+    '+11' past column 72 is the marker. Nine grid point fields come out of
+    that, one more than a hexahedron holds, so the card also reports the
+    mid-side point it dropped - the marker is what this test is about, and
+    the ninth field is what the deck happens to carry past it.
     """
     grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(12))
     card = "CHEXA   1       1       1       2       3       4       5       +9      +11"
@@ -1186,7 +1189,9 @@ def test_marker_past_column_seventy_two_leaves_field_nine_as_data(tmp_path) -> N
         tmp_path,
         "BEGIN BULK\n" + grids + card + "\n+11     6       7       8\nENDDATA\n",
     )
-    np.testing.assert_array_equal(read(tmp).connectivity, [0, 1, 2, 3, 4, 8, 5, 6])
+    with pytest.warns(UserWarning, match="mid-side grid points"):
+        poly = read(tmp)
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 3, 4, 8, 5, 6])
 
 
 def test_begin_bulk_tolerates_extra_blanks(tmp_path) -> None:
@@ -1749,3 +1754,35 @@ def test_a_card_that_grounds_an_end_is_not_called_unsupported(tmp_path) -> None:
     assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]]
     assert any("ground an end" in m and "CBUSH" in m for m in messages)
     assert not any("unsupported type" in m for m in messages)
+
+
+def test_a_card_missing_one_mid_side_point_reports_the_rest_it_drops(
+    tmp_path,
+) -> None:
+    """Nastran lets a mid-side grid point be left out, polyxios cannot.
+
+    The card reads as the linear element, which is the right shape - but the
+    mid-side points it did carry have nowhere to go, and a CHEXA quietly
+    losing eleven of its twenty nodes is the kind of loss a mesh is judged on
+    later, not here.
+    """
+    grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(10))
+    partial = "CTETRA,1,1,1,2,3,4,5,6,+\n+,7,8,9\n"
+    complete = "CTETRA,2,1,1,2,3,4\n"
+    tmp = _write(tmp_path, "BEGIN BULK\n" + grids + partial + complete + "ENDDATA\n")
+    with pytest.warns(UserWarning, match=r"mid-side grid points.*CTETRA \(1\)"):
+        poly = read(tmp)
+    # Both read as linear tetrahedra; only the partial card is reported.
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["tetra"]] * 2
+    np.testing.assert_array_equal(poly.offsets, [0, 4, 8])
+
+
+def test_a_card_carrying_every_mid_side_point_keeps_them(tmp_path) -> None:
+    """The counterpart: a complete quadratic card is not a demotion."""
+    grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(10))
+    card = "CTETRA,1,1,1,2,3,4,5,6,+\n+,7,8,9,10\n"
+    tmp = _write(tmp_path, "BEGIN BULK\n" + grids + card + "ENDDATA\n")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        poly = read(tmp)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["quadratic_tetra"]]

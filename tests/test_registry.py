@@ -447,3 +447,30 @@ def test_a_capitalised_extension_registers_in_lower_case(monkeypatch) -> None:
     registry = build_default_registry()
     assert ".BDF" not in registry
     assert registry[".bdf"] is registry[".nas"]
+
+
+def test_the_owner_of_a_shared_extension_reads_what_no_sniffer_claims(
+    tmp_path,
+) -> None:
+    """Sharing an extension must not narrow what its owner reads.
+
+    '.mesh' is MFEM's and Medit ASCII uses it too, so it dispatches by
+    content. A file neither sniffer recognises still belongs under MFEM's
+    key, which held it before the extension was shared - and MFEM's own
+    reader says what is wrong with the file, where the dispatcher can only
+    report that nobody spoke up.
+    """
+    path = tmp_path / "junk.mesh"
+    path.write_text("hello world\n")
+    with pytest.raises(CodecError, match="MFEM mesh"):
+        polyxios.read(path)
+
+
+def test_an_unowned_shared_extension_still_stops_at_the_dispatcher(
+    tmp_path,
+) -> None:
+    """'.dat' belongs to nobody, so there is no reader to fall back to."""
+    path = tmp_path / "junk.dat"
+    path.write_text("hello world\n")
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        polyxios.read(path)

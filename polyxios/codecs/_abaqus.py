@@ -177,14 +177,48 @@ def _parse_params(card: str) -> dict[str, str]:
     return params
 
 
-def _include_path(card: str, base: Path | None, name: str) -> Path:
-    """Return the file an ``*INCLUDE`` card names, refusing an escaping path."""
+def _include_path(card: str, base: Path | None, name: str, root: Path | None) -> Path:
+    """Return the file an ``*INCLUDE`` card names, refusing an escaping path.
+
+    Parameters
+    ----------
+    card
+        The ``*INCLUDE`` card, whitespace stripped.
+    base
+        Directory the card's path is relative to, which is the directory of
+        the file the card sits in. None for a deck read from a buffer, which
+        has no directory for a relative path to be relative to.
+    name
+        The file the card sits in, named in the error.
+    root
+        Directory the whole read is confined to, which is the top deck's own.
+        None alongside a None ``base``.
+
+    Returns
+    -------
+    pathlib.Path
+        The resolved file.
+
+    Raises
+    ------
+    CodecError
+        On a card naming no file, a deck read from a buffer, an absolute
+        path, a path resolving outside ``root``, or a file that is not there.
+
+    Notes
+    -----
+    The boundary is the top deck's directory and stays there as the includes
+    nest, rather than narrowing to each included file's own: a deck laid out
+    as ``main.inp`` including ``parts/a.inp`` including ``../common/nodes.inp``
+    never leaves the directory it was read from, and a boundary that followed
+    the nesting would refuse the third file for stepping out of ``parts``.
+    """
     params = _parse_params(card)
     target = params.get("INPUT") or params.get("FILE") or ""
     target = target.strip().strip("'\"")
     if not target:
         raise CodecError(f".inp: '{name}' has an *INCLUDE card with no INPUT=.")
-    if base is None:
+    if base is None or root is None:
         raise CodecError(
             f".inp: '{name}' uses *INCLUDE, which names a file relative to the"
             " deck's own directory; read it from a path rather than a buffer."
@@ -195,10 +229,10 @@ def _include_path(card: str, base: Path | None, name: str) -> Path:
             " inside the deck's own directory are read."
         )
     resolved = (base / target).resolve()
-    if not resolved.is_relative_to(base.resolve()):
+    if not resolved.is_relative_to(root):
         raise CodecError(
             f".inp: *INCLUDE path '{target}' resolves outside the deck's"
-            f" directory '{base}'; refusing to read it."
+            f" directory '{root}'; refusing to read it."
         )
     if not resolved.is_file():
         raise CodecError(f".inp: *INCLUDE names '{target}', which does not exist.")
@@ -206,7 +240,12 @@ def _include_path(card: str, base: Path | None, name: str) -> Path:
 
 
 def _expand_includes(
-    text: str, base: Path | None, name: str, depth: int, seen: tuple[Path, ...]
+    text: str,
+    base: Path | None,
+    name: str,
+    depth: int,
+    seen: tuple[Path, ...],
+    root: Path | None,
 ) -> list[str]:
     """Return the deck's lines with every ``*INCLUDE`` replaced by its file."""
     out: list[str] = []
@@ -220,7 +259,7 @@ def _expand_includes(
                 f".inp: *INCLUDE nests deeper than {_MAX_INCLUDE_DEPTH} files;"
                 " a deck that includes itself would never finish."
             )
-        target = _include_path(stripped, base, name)
+        target = _include_path(stripped, base, name, root)
         if target in seen:
             raise CodecError(
                 f".inp: *INCLUDE nests '{target.name}' inside itself; a deck"
@@ -233,6 +272,7 @@ def _expand_includes(
                 target.name,
                 depth + 1,
                 (*seen, target),
+                root,
             )
         )
     return out
@@ -540,7 +580,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     text = read_text(path, errors="replace")
     base = None if is_buffer(path) else Path(os.fspath(path)).parent  # type: ignore[arg-type]
-    lines = _logical_lines(_expand_includes(text, base, source_name(path), 0, ()))
+    # The boundary every *INCLUDE has to stay inside, fixed here so the
+    # nesting cannot narrow it as it descends into subdirectories.
+    root = None if base is None else base.resolve()
+    lines = _logical_lines(_expand_includes(text, base, source_name(path), 0, (), root))
 
     node_map: dict[int, int] = {}
     elem_map: dict[int, int] = {}

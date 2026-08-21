@@ -63,11 +63,10 @@ def _make_dispatcher(
         Candidate ``(label, codec)`` pairs, already in the order their
         ``sniff`` should be tried.
     default_writer
-        The ``(label, codec)`` that writes this extension when the caller
-        names no format. Only for an extension a format owns and shares
-        rather than one several formats merely happen to use: ``.dat``
-        belongs to nobody and gets None, while ``.mesh`` is MFEM's own and
-        keeps writing MFEM. None makes a bare write raise.
+        The ``(label, codec)`` that owns this extension and shares it. Only
+        for an extension a format owns rather than one several formats merely
+        happen to use: ``.dat`` belongs to nobody and gets None, while
+        ``.mesh`` is MFEM's own and keeps it. None makes a bare write raise.
 
     Returns
     -------
@@ -76,6 +75,15 @@ def _make_dispatcher(
         recognises the file, whose ``write`` goes to ``default_writer`` or
         raises when there is none - an output file has no content to sniff -
         and whose ``candidates`` names the competitors.
+
+    Notes
+    -----
+    The owner of a shared extension keeps both directions: a write with no
+    format named goes to it, and so does a read no sniffer claimed. The
+    second is what stops sharing an extension from narrowing what its owner
+    reads - the owner answered every file under that key before it was
+    shared, and its own reader gives a better account of a file it cannot
+    read than the dispatcher can.
     """
     labels = tuple(label for label, _ in entries)
     named = ", ".join(labels)
@@ -140,6 +148,15 @@ def _make_dispatcher(
                 continue
             if matched:
                 return codec.read(path=path, lazy=lazy)
+
+        # Nothing recognised the file. An extension a format owns and merely
+        # shares still belongs to that format, so the read goes to it rather
+        # than stopping here: it held the key before the extension was shared
+        # and its own error names the real problem, where a verdict from the
+        # dispatcher can only say that no sniffer spoke up. An extension no
+        # one owns has no such fallback and does stop here.
+        if default_writer is not None:
+            return default_writer[1].read(path=path, lazy=lazy)
 
         # A sniffer that raised never answered, so reporting that the content
         # matched nothing would state a verdict no one reached; say what

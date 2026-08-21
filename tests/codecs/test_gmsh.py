@@ -1191,3 +1191,52 @@ def test_attrs_that_have_no_data_section_are_skipped_with_a_warning(
     )
     with pytest.warns(UserWarning, match="labels"):
         write(poly, tmp_path / "bad.msh")
+
+
+def test_a_field_covering_part_of_the_mesh_writes_no_missing_value(
+    tmp_path: Path,
+) -> None:
+    """A partial field reads as NaN, and NaN is not a number the format has.
+
+    Written straight through, the elements the field says nothing about would
+    each spell the token 'nan' under a count that claims a value for every
+    one of them. The rows are left out and the count drops with them, so the
+    field goes back out covering the part it came in covering.
+    """
+    path = _write_text(
+        tmp_path,
+        "partial.msh",
+        _TET_HEADER + '$ElementData\n1\n"rho"\n1\n0.0\n3\n0\n1\n1\n'
+        "1 3.5\n$EndElementData\n",
+    )
+    poly = read(path)
+    np.testing.assert_array_equal(np.isnan(poly.element_attrs["rho"]), [False, True])
+
+    out = tmp_path / "partial_out.msh"
+    with pytest.warns(UserWarning, match="spells no missing value"):
+        write(poly, out)
+    text = out.read_text()
+    assert "nan" not in text
+    assert '$ElementData\n1\n"rho"\n1\n0.0\n3\n0\n1\n1\n1 3.5' in text
+
+    back = read(out)
+    np.testing.assert_array_equal(np.isnan(back.element_attrs["rho"]), [False, True])
+    np.testing.assert_allclose(back.element_attrs["rho"][0], 3.5)
+
+
+def test_a_tag_group_indexing_no_element_of_this_mesh_is_dropped(
+    tmp_path: Path,
+) -> None:
+    """A stale index reaches an element that is not the one it named.
+
+    Nothing checks a tag group on the way in, so one carried over from
+    another mesh may run past the end of this one. Indexing with it raises
+    whatever the stray value happens to raise; dropping it is what lets the
+    loss be reported.
+    """
+    poly = make_polydata(_TET_VERTS, [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))])
+    poly.element_tags["stale"] = np.array([0, 99], dtype=np.int32)
+    path = tmp_path / "stale.msh"
+    with pytest.warns(UserWarning, match="index no element"):
+        write(poly, path)
+    assert len(read(path).element_types) == 2

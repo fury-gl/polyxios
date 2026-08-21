@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pytest
@@ -471,3 +472,48 @@ def test_a_tag_group_that_holds_no_indices_is_reported(tmp_path) -> None:
     poly.element_tags["ref_7"] = np.array([0.0])
     with pytest.warns(UserWarning, match="do not hold"):
         write(poly, tmp_path / "bad_tag.mesh")
+
+
+def test_a_section_holding_a_word_is_stepped_over_by_its_own_length(
+    tmp_path: Path,
+) -> None:
+    """A skipped section's payload must not be read as the file's structure.
+
+    Sections this codec does not decode used to be stepped over by name
+    alone, leaving their records to the scan that looks for the next section.
+    That holds while a payload is numbers - a number cannot name a section -
+    and stops holding at 'Identifier', whose value is a word: the word reads
+    as a section of its own and is reported as one the codec does not
+    support.
+    """
+    path = tmp_path / "identifier.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension 3\n"
+        "Identifier\nmygrid\n"
+        "GeometricSupport\nsomecad\n"
+        "Corners\n2\n1\n2\n"
+        "Normals\n2\n0 0 1\n0 1 0\n"
+        "NormalAtVertices\n1\n1 1\n"
+        "Vertices\n3\n0 0 0 1\n1 0 0 1\n0 1 0 1\n"
+        "Triangles\n1\n1 2 3 7\nEnd\n"
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    assert sorted(poly.element_tags) == ["ref_7"]
+
+
+def test_a_higher_order_section_is_stepped_over_whole(tmp_path: Path) -> None:
+    """Its records are known in width even though its ordering is not."""
+    path = tmp_path / "ho.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension 3\n"
+        "Vertices\n3\n0 0 0 1\n1 0 0 1\n0 1 0 1\n"
+        "TrianglesP2\n1\n1 2 3 1 2 3 9\n"
+        "Triangles\n1\n1 2 3 7\nEnd\n"
+    )
+    with pytest.warns(UserWarning, match="higher-order section"):
+        poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    np.testing.assert_array_equal(poly.element_tags["ref_7"], [0])

@@ -660,3 +660,38 @@ def test_a_generate_range_the_deck_fills_still_reports_the_first_gap(
     with pytest.warns(UserWarning, match="first '2'"):
         poly = read(path)
     np.testing.assert_array_equal(poly.element_tags["SPAN"], [0, 1])
+
+
+def test_an_include_may_reach_a_sibling_of_its_own_directory(
+    tmp_path: Path,
+) -> None:
+    """The boundary is the deck's directory, not each included file's.
+
+    A deck laid out as main.inp including parts/a.inp including
+    ../common/nodes.inp never leaves the directory it was read from. A
+    boundary that followed the nesting would narrow to 'parts' and refuse the
+    third file for stepping out of it, which is the layout a real deck uses.
+    """
+    (tmp_path / "parts").mkdir()
+    (tmp_path / "common").mkdir()
+    (tmp_path / "main.inp").write_text("*Heading\n*INCLUDE, INPUT=parts/a.inp\n")
+    (tmp_path / "parts" / "a.inp").write_text(
+        "*INCLUDE, INPUT=../common/nodes.inp\n*Element, type=S3\n1, 1, 2, 3\n"
+    )
+    (tmp_path / "common" / "nodes.inp").write_text(
+        "*Node\n1, 0., 0., 0.\n2, 1., 0., 0.\n3, 0., 1., 0.\n"
+    )
+    poly = read(tmp_path / "main.inp")
+    assert poly.vertices.shape == (3, 3)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+
+
+def test_an_include_still_cannot_leave_the_deck_directory(tmp_path: Path) -> None:
+    """Pinning the boundary widens it to the deck, never past it."""
+    (tmp_path / "deck").mkdir()
+    (tmp_path / "secret.inp").write_text("*Node\n1, 0., 0., 0.\n")
+    (tmp_path / "deck" / "main.inp").write_text(
+        "*Heading\n*INCLUDE, INPUT=../secret.inp\n"
+    )
+    with pytest.raises(CodecError, match="outside the deck's directory"):
+        read(tmp_path / "deck" / "main.inp")
