@@ -83,3 +83,33 @@ def test_groups_that_do_not_overlap_are_not_reported() -> None:
         {"ref_1": np.array([0]), "ref_2": np.array([1])}, "ref_", 2, dtype=np.int32
     )
     assert contested == set()
+
+
+def test_a_group_reaching_no_element_names_no_label() -> None:
+    """Its members index a mesh it was not built for, so it labels nothing.
+
+    Counting it as a label named would have the caller write a column of
+    zeros over a mesh that no group actually labelled.
+    """
+    held = values_from_tags({"ref_5": np.array([9, 11])}, "ref_", 2, dtype=np.int32)
+    np.testing.assert_array_equal(held.values, [0, 0])
+    assert not held.named
+    assert held.unusable == {"ref_5"}
+
+
+def test_a_group_reaching_one_element_still_names_a_label() -> None:
+    held = values_from_tags({"ref_5": np.array([1, 11])}, "ref_", 2, dtype=np.int32)
+    np.testing.assert_array_equal(held.values, [0, 5])
+    assert held.named
+    assert held.unusable == set()
+
+
+def test_the_result_names_its_fields() -> None:
+    """Six fields, four of them sets of names, is more than a positional
+    unpack at a call site can be read back against."""
+    held = values_from_tags({"ref_1": np.array([0])}, "ref_", 1, dtype=np.int32)
+    assert held.values.tolist() == [1]
+    assert held.unnamed == set()
+    assert held.named is True
+    assert held.oversized == set()
+    assert held.contested == set()

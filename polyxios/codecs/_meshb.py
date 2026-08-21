@@ -327,40 +327,38 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
             stacklevel=3,
         )
 
-    refs, unnamed, named, unusable, oversized, contested = values_from_tags(
-        poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32
-    )
-    if unnamed:
+    held = values_from_tags(poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32)
+    if held.unnamed:
         warnings.warn(
-            f".meshb: element tag group(s) {sorted(unnamed)} are not named"
+            f".meshb: element tag group(s) {sorted(held.unnamed)} are not named"
             " 'ref_<n>' and a Medit reference is a number; they were not"
             " written.",
             stacklevel=3,
         )
-    if unusable:
+    if held.unusable:
         warnings.warn(
-            f".meshb: element tag group(s) {sorted(unusable)} do not hold"
+            f".meshb: element tag group(s) {sorted(held.unusable)} do not hold"
             " element indices, so the reference they name reaches nothing;"
             " they were not written.",
             stacklevel=3,
         )
-    if oversized:
+    if held.oversized:
         warnings.warn(
-            f".meshb: element tag group(s) {sorted(oversized)} name a reference"
+            f".meshb: element tag group(s) {sorted(held.oversized)} name a reference"
             " wider than the 32-bit field a Medit record carries; they were"
             " not written.",
             stacklevel=3,
         )
-    if contested:
+    if held.contested:
         # A record carries one reference, so an element named by two groups
         # keeps whichever came last - an order the caller never chose.
         warnings.warn(
-            f".meshb: element tag group(s) {sorted(contested)} name elements"
+            f".meshb: element tag group(s) {sorted(held.contested)} name elements"
             " another group already labelled; a Medit record carries one"
             " reference, so the later group's is the one written.",
             stacklevel=3,
         )
-    return refs if named else None
+    return held.values if held.named else None
 
 
 def _write_i32(fh, v: int) -> None:
@@ -402,6 +400,37 @@ def _parse_header(mm: mmap.mmap | bytes) -> tuple[int, int, str]:
     return version, dim, endian
 
 
+def _fits(count: int, rec: int, data_start: int, total: int, what: str) -> None:
+    """Refuse a section that declares more records than the file carries.
+
+    Parameters
+    ----------
+    count
+        How many records the section declares.
+    rec
+        How many bytes one of them spends.
+    data_start
+        Where the section's records begin.
+    total
+        How long the file is.
+    what
+        The section's name, for the error.
+
+    Raises
+    ------
+    CodecError
+        When the records run past the end of the file. Left to the decoder,
+        the same file raises a ValueError out of ``np.frombuffer`` that names
+        neither the section nor the format, and a count wide enough would ask
+        for the allocation before saying so.
+    """
+    if data_start + count * rec > total:
+        raise CodecError(
+            f".meshb: the {what} section declares {count} record(s) of"
+            f" {rec} bytes, which runs past the end of the file."
+        )
+
+
 def _scan_sections(
     mm: mmap.mmap | bytes, version: int, dim: int, endian: str
 ) -> dict[int, tuple[int, int]]:
@@ -435,11 +464,13 @@ def _scan_sections(
 
         if kw == _KW_VERTICES:
             rec = vert_rec
+            _fits(count, rec, data_start, total, "Vertices")
             sections[kw] = (count, data_start)
         elif kw == _KW_NORMALS:
             rec = dim * float_size  # dim-dependent, no ref
         elif kw in decode_rec:
             rec = decode_rec[kw]
+            _fits(count, rec, data_start, total, _KW_TO_ELEM[kw][0])
             sections[kw] = (count, data_start)
         elif kw in _SKIP_REC:
             rec = _SKIP_REC[kw]
