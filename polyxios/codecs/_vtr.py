@@ -1,4 +1,3 @@
-import base64
 from typing import Any
 
 import numpy as np
@@ -6,7 +5,16 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml
+from polyxios.codecs._vtk_xml import (
+    decode_da,
+    format_attr_da,
+    parse_xml,
+    shaped_da,
+    sized_attrs,
+    structured_cell_shape,
+    structured_cells,
+    xml_extent,
+)
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
@@ -73,13 +81,18 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise ValueError("No <Piece> element found.")
 
     extent_str = piece.get("Extent", "0 0 0 0 0 0")
-    extent = [int(x) for x in extent_str.split()]
+    extent = xml_extent(extent_str, fmt=".vtr", where="Extent")
     i0, i1, j0, j1, k0, k1 = extent
     nx, ny, nz = i1 - i0, j1 - j0, k1 - k0
     n_verts = (nx + 1) * (ny + 1) * (nz + 1)
-    n_cells = nx * ny * nz
+    # An extent flat along an axis is a sheet of quads or a run of lines, not
+    # a grid of no cells: the cells the grid holds decide the shape of a
+    # CellData array, so they are counted before the header is validated.
+    n_cells, n_per_cell, cell_kind = structured_cell_shape(nx, ny, nz)
 
-    validate_header(n_verts, n_cells, n_cells * 8, file_size, compressed=compressed)
+    validate_header(
+        n_verts, n_cells, n_cells * n_per_cell, file_size, compressed=compressed
+    )
 
     coords_elem = piece.find("Coordinates")
     if coords_elem is None:
@@ -93,44 +106,25 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     zz, yy, xx = np.meshgrid(z_arr, y_arr, x_arr, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
 
-    nxp1 = nx + 1
-    nyp1 = ny + 1
-    connectivity = np.empty(n_cells * 8, dtype=np.int32)
-    offsets = np.arange(0, (n_cells + 1) * 8, 8, dtype=np.int32)
-    element_types = np.full(n_cells, ELEMENT_TYPES["hexahedron"], dtype=np.uint8)
+    connectivity, _, _ = structured_cells(nx, ny, nz)
+    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
 
-    cell_idx = 0
-    for iz in range(nz):
-        for iy in range(ny):
-            for ix in range(nx):
-                v0 = ix + iy * nxp1 + iz * nxp1 * nyp1
-                v1 = v0 + 1
-                v2 = v0 + 1 + nxp1
-                v3 = v0 + nxp1
-                v4 = v0 + nxp1 * nyp1
-                v5 = v4 + 1
-                v6 = v4 + 1 + nxp1
-                v7 = v4 + nxp1
-                ci = cell_idx * 8
-                connectivity[ci : ci + 8] = [v0, v1, v2, v3, v4, v5, v6, v7]
-                cell_idx += 1
-
-    vertex_attrs: dict[str, np.ndarray] = {}
-    element_attrs: dict[str, np.ndarray] = {}
+    point_data: dict[str, np.ndarray] = {}
+    cell_data: dict[str, np.ndarray] = {}
 
     pd = piece.find("PointData")
     if pd is not None:
         for da in pd:
-            arr = _decode(da)
-            name = da.get("Name", "unknown")
-            vertex_attrs[name] = arr
+            point_data[da.get("Name", "unknown")] = shaped_da(da, _decode(da))
 
     cd = piece.find("CellData")
     if cd is not None:
         for da in cd:
-            arr = _decode(da)
-            name = da.get("Name", "unknown")
-            element_attrs[name] = arr
+            cell_data[da.get("Name", "unknown")] = shaped_da(da, _decode(da))
+
+    vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point")
+    element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell")
 
     global_attrs: dict[str, Any] = {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
@@ -176,7 +170,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
     bo = "LittleEndian"
-    lines.append(f'<VTKFile type="RectilinearGrid" version="0.1" byte_order="{bo}">')
+    lines.append(f'<VTKFile type="RectilinearGrid" version="1.0" byte_order="{bo}">')
     lines.append(f'  <RectilinearGrid WholeExtent="{extent_str}">')
     lines.append(f'    <Piece Extent="{extent_str}">')
     lines.append("      <Coordinates>")
@@ -188,13 +182,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            lines.append(_format_data_array(name, arr.ravel(), binary, 8))
+            lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </PointData>")
 
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            lines.append(_format_data_array(name, arr.ravel(), binary, 8))
+            lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
@@ -205,30 +199,24 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
 
 def _format_data_array(name: str, arr: np.ndarray, binary: bool, indent: int) -> str:
-    pad = " " * indent
-    vtk_type = _np_to_vtk_type(arr.dtype)
+    """Render one DataArray element in the type the array is held in.
 
-    if binary:
-        raw = arr.astype("<f8").tobytes()
-        length = np.array([len(raw)], dtype="<u4").tobytes()
-        encoded = base64.b64encode(length + raw).decode()
-        return f'{pad}<DataArray type="{vtk_type}" Name="{name}" format="binary">{encoded}</DataArray>'
-    else:
-        vals = " ".join(f"{v:.10g}" for v in arr.ravel())
-        return f'{pad}<DataArray type="{vtk_type}" Name="{name}" format="ascii">{vals}</DataArray>'
+    Parameters
+    ----------
+    name
+        Array name.
+    arr
+        Values. Every dimension past the first is the component count, which
+        the element has to declare or a reader has no way to cut the flat run
+        back into tuples.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    indent
+        Spaces to prefix the line with.
 
-
-def _np_to_vtk_type(dt: np.dtype) -> str:
-    mapping = {
-        "f4": "Float32",
-        "f8": "Float64",
-        "i1": "Int8",
-        "i2": "Int16",
-        "i4": "Int32",
-        "i8": "Int64",
-        "u1": "UInt8",
-        "u2": "UInt16",
-        "u4": "UInt32",
-        "u8": "UInt64",
-    }
-    return mapping.get(dt.str.lstrip("<>|="), "Float64")
+    Returns
+    -------
+    str
+        The ``<DataArray>`` line.
+    """
+    return format_attr_da(name, arr, binary=binary, indent=indent)

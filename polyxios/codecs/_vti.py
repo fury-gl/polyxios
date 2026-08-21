@@ -1,4 +1,3 @@
-import base64
 from typing import Any
 
 import numpy as np
@@ -6,7 +5,16 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import decode_da, parse_xml
+from polyxios.codecs._vtk_xml import (
+    decode_da,
+    format_attr_da,
+    parse_xml,
+    shaped_da,
+    sized_attrs,
+    structured_cell_shape,
+    structured_cells,
+    xml_extent,
+)
 from polyxios.exceptions import LazyReadError
 from polyxios.validate import validate_header
 
@@ -75,13 +83,18 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise ValueError("No <Piece> element found.")
 
     piece_extent_str = piece.get("Extent", whole_extent_str)
-    pe = [int(v) for v in piece_extent_str.split()]
+    pe = xml_extent(piece_extent_str, fmt=".vti", where="Extent")
     i0, i1, j0, j1, k0, k1 = pe
     nx, ny, nz = i1 - i0, j1 - j0, k1 - k0
     n_verts = (nx + 1) * (ny + 1) * (nz + 1)
-    n_cells = nx * ny * nz
+    # An extent flat along an axis is a sheet of quads or a run of lines, not
+    # a grid of no cells: the cells the grid holds decide the shape of a
+    # CellData array, so they are counted before the header is validated.
+    n_cells, n_per_cell, cell_kind = structured_cell_shape(nx, ny, nz)
 
-    validate_header(n_verts, n_cells, n_cells * 8, file_size, compressed=compressed)
+    validate_header(
+        n_verts, n_cells, n_cells * n_per_cell, file_size, compressed=compressed
+    )
 
     x = origin[0] + np.arange(i0, i1 + 1) * spacing[0]
     y = origin[1] + np.arange(j0, j1 + 1) * spacing[1]
@@ -90,39 +103,29 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     zz, yy, xx = np.meshgrid(z, y, x, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
 
-    nxp1, nyp1 = nx + 1, ny + 1
-    connectivity = np.empty(n_cells * 8, dtype=np.int32)
-    offsets = np.arange(0, (n_cells + 1) * 8, 8, dtype=np.int32)
-    element_types = np.full(n_cells, ELEMENT_TYPES["hexahedron"], dtype=np.uint8)
+    connectivity, _, _ = structured_cells(nx, ny, nz)
+    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
 
-    cell_idx = 0
-    for iz in range(nz):
-        for iy in range(ny):
-            for ix in range(nx):
-                v0 = ix + iy * nxp1 + iz * nxp1 * nyp1
-                v1, v2, v3 = v0 + 1, v0 + 1 + nxp1, v0 + nxp1
-                v4 = v0 + nxp1 * nyp1
-                v5, v6, v7 = v4 + 1, v4 + 1 + nxp1, v4 + nxp1
-                ci = cell_idx * 8
-                connectivity[ci : ci + 8] = [v0, v1, v2, v3, v4, v5, v6, v7]
-                cell_idx += 1
-
-    vertex_attrs: dict[str, np.ndarray] = {}
-    element_attrs: dict[str, np.ndarray] = {}
+    point_data: dict[str, np.ndarray] = {}
+    cell_data: dict[str, np.ndarray] = {}
 
     pd = piece.find("PointData")
     if pd is not None:
         for da in pd:
             arr = _decode(da)
             if arr.size > 0:
-                vertex_attrs[da.get("Name", "unknown")] = arr
+                point_data[da.get("Name", "unknown")] = shaped_da(da, arr)
 
     cd = piece.find("CellData")
     if cd is not None:
         for da in cd:
             arr = _decode(da)
             if arr.size > 0:
-                element_attrs[da.get("Name", "unknown")] = arr
+                cell_data[da.get("Name", "unknown")] = shaped_da(da, arr)
+
+    vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point")
+    element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell")
 
     global_attrs: dict[str, Any] = {
         "vti_origin": origin,
@@ -178,7 +181,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
-    lines.append('<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">')
+    lines.append('<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">')
     lines.append(
         f'  <ImageData WholeExtent="{ext_str}" Origin="{orig_str}" Spacing="{spac_str}">'
     )
@@ -187,19 +190,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if poly.vertex_attrs:
         lines.append("      <PointData>")
         for name, arr in poly.vertex_attrs.items():
-            n_comp = arr.shape[1] if arr.ndim == 2 else 1
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </PointData>")
 
     if poly.element_attrs:
         lines.append("      <CellData>")
         for name, arr in poly.element_attrs.items():
-            n_comp = arr.shape[1] if arr.ndim == 2 else 1
-            lines.append(
-                _da(name, arr.ravel().astype(np.float64), "Float64", binary, n_comp, 10)
-            )
+            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
@@ -207,30 +204,3 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append("</VTKFile>")
 
     write_text(path, "\n".join(lines), encoding="utf-8")
-
-
-def _da(
-    name: str,
-    arr: np.ndarray,
-    vtk_type: str,
-    binary: bool,
-    n_comp: int,
-    indent: int,
-) -> str:
-    pad = " " * indent
-    name_attr = f' Name="{name}"' if name else ""
-    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
-
-    if binary:
-        raw = arr.tobytes()
-        header = np.array([len(raw)], dtype="<u4").tobytes()
-        encoded = base64.b64encode(header + raw).decode()
-        return (
-            f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-            f'format="binary">{encoded}</DataArray>'
-        )
-    vals = " ".join(f"{v:.10g}" for v in arr.ravel())
-    return (
-        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-        f'format="ascii">{vals}</DataArray>'
-    )

@@ -60,8 +60,14 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - Negative (relative) indices are resolved against the vertex count at the point the face appears, not the final count.
+- An index naming a record the file has not declared raises ``CodecError`` naming the line, rather than wrapping around into another vertex.
 - Faces with more than four vertices are kept as polygons rather than being silently triangulated.
 - Material and group keywords are read as element tags; ``.mtl`` files are not parsed.
+- ``vt`` and ``vn`` are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in ``vertex_attrs['texcoords']`` and ``vertex_attrs['normals']``: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.
+- Records that cannot be lined up with the vertices leave the attribute out entirely, on write as well as on read: an attribute that does not hold one row per vertex is warned about and left out, rather than written as faces indexing records that are not in the file. A vertex no face names carries NaN in the array and is written back as zero, since ``vt nan nan`` is not a record another OBJ reader takes.
+- A face belonging to no group is written after a bare ``g``, so it does not inherit the group of the face above it; a bare ``g`` on read clears the active groups rather than inventing a ``default`` tag.
+- A ``v``, ``vn`` or ``vt`` record that does not carry the components its directive needs, or carries something that is not a number, raises ``CodecError`` naming the line. A ``vt`` may carry a third component - the depth of a volumetric texture - and ``texcoords`` keeps the two a surface uses.
+- ``element_attrs['material']`` is written as ``usemtl`` only when it holds one value per face; a shorter attribute is warned about and left out, the way an ill-fitting vertex attribute is.
 
 .. seealso::
 

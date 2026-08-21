@@ -5,8 +5,10 @@ import tempfile
 import numpy as np
 import pytest
 
+from polyxios import make_polydata
 from polyxios.codecs._vtr import read, write
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.validate import validate
 
 
 def _synthetic_rectilinear() -> object:
@@ -102,3 +104,157 @@ def test_unsupported_lazy() -> None:
     _, tmp = _synthetic_rectilinear()
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+def _grid() -> object:
+    xs = np.array([0.0, 1.0, 2.0])
+    verts = np.stack(
+        [g.ravel() for g in np.meshgrid(xs, xs, xs, indexing="ij")], axis=1
+    )
+    quads = np.array([[0, 1, 4, 3]], dtype=np.int32)
+    return make_polydata(verts, [("quad", quads)])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_vector_attribute_keeps_its_components(tmp_path, binary: bool) -> None:
+    """Without NumberOfComponents a reader has no way to cut the flat run."""
+    poly = _grid()
+    poly.vertex_attrs["vector"] = np.arange(27 * 3, dtype=np.float64).reshape(27, 3)
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.vertex_attrs["vector"].shape == (27, 3)
+    np.testing.assert_allclose(back.vertex_attrs["vector"], poly.vertex_attrs["vector"])
+
+
+def test_a_binary_integer_attribute_is_written_as_the_type_it_declares(
+    tmp_path,
+) -> None:
+    """It was cast to float64 under an Int32 header and read back as noise."""
+    poly = _grid()
+    poly.vertex_attrs["ints"] = np.arange(27, dtype=np.int32)
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=True)
+    back = read(path)
+
+    np.testing.assert_array_equal(back.vertex_attrs["ints"], np.arange(27))
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_dtype_no_vtk_type_names_is_written_as_the_one_declared(
+    tmp_path, binary: bool
+) -> None:
+    """Only the header fell back to Float64; the bytes stayed booleans."""
+    poly = _grid()
+    poly.vertex_attrs["mask"] = np.arange(27) % 2 == 0
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    np.testing.assert_array_equal(
+        back.vertex_attrs["mask"], poly.vertex_attrs["mask"].astype(np.float64)
+    )
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_tensor_declares_every_component_it_holds(tmp_path, binary: bool) -> None:
+    """shape[1] of an (n, 3, 3) array is three, and the tuple is nine."""
+    poly = _grid()
+    tensor = np.arange(27 * 9, dtype=np.float64).reshape(27, 3, 3)
+    poly.vertex_attrs["tensor"] = tensor
+    path = tmp_path / "grid.vtr"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.vertex_attrs["tensor"].shape == (27, 9)
+    np.testing.assert_array_equal(back.vertex_attrs["tensor"], tensor.reshape(27, 9))
+
+
+def test_an_attribute_that_covers_no_mesh_is_dropped(tmp_path) -> None:
+    """It used to reach PolyData and fail validate with a length message."""
+    path = tmp_path / "short.vtr"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian">\n'
+        '  <RectilinearGrid WholeExtent="0 1 0 1 0 1">\n'
+        '    <Piece Extent="0 1 0 1 0 1">\n'
+        "      <Coordinates>\n"
+        '        <DataArray type="Float64" Name="x" format="ascii">0 1</DataArray>\n'
+        '        <DataArray type="Float64" Name="y" format="ascii">0 1</DataArray>\n'
+        '        <DataArray type="Float64" Name="z" format="ascii">0 1</DataArray>\n'
+        "      </Coordinates>\n"
+        "      <PointData>\n"
+        '        <DataArray type="Float64" Name="half" format="ascii">1 2 3</DataArray>\n'
+        "      </PointData>\n"
+        "    </Piece>\n"
+        "  </RectilinearGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.warns(UserWarning, match="covers 3 of 8 points"):
+        back = read(path)
+
+    assert "half" not in back.vertex_attrs
+
+
+@pytest.mark.parametrize(
+    ("extent", "match"),
+    [
+        ("0 1 0 1", "holds 4 indices"),
+        ("a b c d e f", "not a run of whole numbers"),
+    ],
+)
+def test_an_extent_that_is_not_six_numbers_names_the_file(
+    tmp_path, extent: str, match: str
+) -> None:
+    """Unpacked into six names it failed with a message about unpacking."""
+    path = tmp_path / "bad.vtr"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian">\n'
+        ' <RectilinearGrid WholeExtent="0 1 0 1 0 0">\n'
+        f'  <Piece Extent="{extent}">\n'
+        "   <Coordinates>\n"
+        '    <DataArray type="Float64" format="ascii">0 1</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0 1</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0</DataArray>\n'
+        "   </Coordinates>\n"
+        "  </Piece>\n"
+        " </RectilinearGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match=match):
+        read(path)
+
+
+def test_a_flat_extent_is_a_sheet_of_quads_with_its_cell_data(tmp_path) -> None:
+    """A grid one point deep held no cells, so its CellData was dropped."""
+    path = tmp_path / "flat.vtr"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="RectilinearGrid" version="1.0" byte_order="LittleEndian">\n'
+        ' <RectilinearGrid WholeExtent="0 2 0 2 0 0">\n'
+        '  <Piece Extent="0 2 0 2 0 0">\n'
+        "   <Coordinates>\n"
+        '    <DataArray type="Float64" format="ascii">0 1 2</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0 1 2</DataArray>\n'
+        '    <DataArray type="Float64" format="ascii">0</DataArray>\n'
+        "   </Coordinates>\n"
+        '   <CellData><DataArray type="Float64" Name="c"'
+        ' format="ascii">1 2 3 4</DataArray></CellData>\n'
+        "  </Piece>\n"
+        " </RectilinearGrid>\n"
+        "</VTKFile>\n"
+    )
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 4
+    np.testing.assert_allclose(poly.element_attrs["c"], [1.0, 2.0, 3.0, 4.0])
+    validate(poly)

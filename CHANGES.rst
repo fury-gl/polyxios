@@ -104,10 +104,409 @@ Bug fixes
   data. A handle from ``open()`` never came up short, so no codec guarded
   against it. Nothing is read past what was asked for, so a handle the caller
   shares still ends up where the codec's reading left it.
+- OBJ face indices are resolved the way the format defines them: a negative
+  index counts back from what has been declared so far, and an index naming
+  a record the file does not have raises ``CodecError`` naming the line
+  instead of wrapping around into a different vertex.
+- OBJ ``vt`` records are read. They are indexed per face corner, so a file
+  may hold more of them than it holds vertices; each corner assigns to its
+  vertex, a vertex given two different values keeps the last and warns, and
+  records nothing indexes are kept only when there is one per vertex.
+  ``vt`` and ``vn`` are written back, so texture coordinates and normals
+  survive a round trip.
+- OBJ writes a bare ``g`` before a face that belongs to no group, so it no
+  longer inherits the group of the face above it, and a bare ``g`` on read
+  clears the active groups rather than inventing a ``default`` tag.
+- An OBJ file whose ``vn`` or ``vt`` records cannot be lined up with its
+  vertices now leaves the attribute out. The fold that gives up returned
+  None, and only the ``vt`` path checked for it, so ``vertex_attrs`` could
+  hand back a None where an array belongs and the writer raised
+  ``TypeError`` on it.
+- OBJ writes a number where a vertex has no record. A vertex no face names
+  carries NaN out of the reader, and ``vt nan nan`` is not a record another
+  reader takes; the row nothing indexes is written as zero. A ``vt`` array
+  narrower than two columns is padded rather than indexed past its end.
+- OBJ leaves out a ``vn`` or ``vt`` attribute that does not hold one row
+  per vertex, with a warning naming its shape. Only the column count was
+  checked, so an attribute with fewer rows than the mesh wrote faces
+  indexing ``vt`` records that were not in the file - which no reader can
+  take, this one included: a three-vertex mesh carrying one texture
+  coordinate wrote a file that read back as ``CodecError``. A
+  one-dimensional attribute is now read as one value per vertex rather
+  than as a single row.
+- Legacy ``.vtk`` files now read ``COLOR_SCALARS`` and ``NORMALS``, in both
+  the ASCII and the binary flavour. Both used to stop the attribute scan,
+  dropping the array and everything after it without a word. A binary
+  ``COLOR_SCALARS`` component is an unsigned char standing for the 0..1
+  float an ASCII file writes, and is scaled onto that range, so the same
+  colour reads back the same from either flavour.
+- Legacy ``.vtk`` reads ``TEXTURE_COORDINATES``, and steps over a
+  ``LOOKUP_TABLE`` definition rather than stopping at it. Those were the
+  last two attribute keywords the format defines that the scan did not
+  know, and in a binary file an unknown keyword ends the scan: a file
+  carrying either lost every array after it. A palette is not a value per
+  point, so a lookup table becomes no attribute - it is only counted past.
+- A legacy ``.vtk`` attribute keyword the reader does not know now warns
+  that it and everything after it in that section are being dropped. Its
+  payload is binary of unknown length, so the scan still cannot go on, but
+  a short read is no longer a silent one.
+- ``NORMALS`` and ``COLOR_SCALARS`` are read from ``STRUCTURED_POINTS``,
+  ``STRUCTURED_GRID`` and ``RECTILINEAR_GRID`` files too. Those three
+  datasets scan their attributes themselves rather than through the shared
+  parser, and knew only ``SCALARS``, ``VECTORS`` and ``FIELD``.
+- A binary legacy ``.vtk`` attribute that runs past the end of the file now
+  raises ``CodecError`` naming the array and the bytes that are missing.
+  The slice came up short in silence and the reshape after it failed with
+  a ``ValueError`` naming neither the array nor the file.
+- A legacy ``.vtk`` attribute section that declares more values than the
+  file holds raises ``CodecError`` naming the array and the count, rather
+  than running off the end of the line list with an ``IndexError`` that
+  names nothing. This covers ``SCALARS``, ``COLOR_SCALARS``, ``VECTORS``,
+  ``NORMALS``, ``TENSORS`` and ``FIELD``.
+- A Nastran real field is now written in whatever spelling fits it. Bulk
+  data allows the exponent's ``E`` to be dropped when its sign is there
+  (``1.234-10``), and nothing reads ``+07`` differently from ``+7``, so the
+  writer offers both - three columns back on the explicit form, which is
+  three more significant digits in an eight-column field. A value at the
+  top of the double range is stepped one digit toward zero rather than
+  refused, since rounding it to nearest overflows to infinity. No finite
+  coordinate is refused by a field any more.
+- A Nastran real field prefers a spelling that reads back as the value it
+  was given. The search spent precision one digit at a time and took the
+  first form that fit, so a mantissa stepped toward zero could win a field
+  an exact form two digits shorter would also have fit: ``1e7`` went out as
+  ``9999999.`` where ``1.E+07`` was available, and ``1e15`` as
+  ``999999999999999.`` in a large field. Exact spellings are now swept for
+  first, at every precision, and only a value no field can hold exactly -
+  the top of the double range - falls through to the closest one.
+- The XML writers declare ``version="1.0"`` in the ``<VTKFile>`` header
+  rather than ``version="0.1"``, which no VTK release ever defined.
+  Reading a file that declares ``0.1`` is unchanged.
+- A ``<DataArray>`` polyxios cannot decode - a ``type="String"`` label
+  array, or any type it does not know - is skipped with a warning naming
+  it, and the arrays around it are still read. It used to vanish without
+  a word.
+- A legacy ``STRUCTURED_POINTS`` file keeps its ``DIMENSIONS``, ``ORIGIN``
+  and ``SPACING`` in ``global_attrs`` as ``vtk_dimensions`` /
+  ``vtk_origin`` / ``vtk_spacing``, and ``STRUCTURED_GRID`` /
+  ``RECTILINEAR_GRID`` keep their ``DIMENSIONS``. Expanding the header into
+  a point array used to throw the grid away.
+- A ``.vtu`` or ``.vtp`` ``Piece`` that declares points and does not
+  deliver them raises ``CodecError``, whether its ``<Points>`` element is
+  short or missing altogether. It used to be skipped, leaving the piece's
+  cells indexing points that are not there and every later piece shifted
+  by the count that never arrived.
+- A point or cell array that covers only some of a multi-piece ``.vtu`` or
+  ``.vtp`` file is dropped with a warning naming it. Joining the pieces
+  that carried it gave an array shorter than the mesh, whose rows then sat
+  against the wrong points from the second piece on. An array the pieces
+  shape differently - one calling it scalar and the next a vector - is
+  dropped the same way, with its shapes named, rather than raising a bare
+  ``ValueError`` from ``numpy.concatenate``.
+- A ``CELL_DATA`` section is read from ``STRUCTURED_POINTS``,
+  ``STRUCTURED_GRID`` and ``RECTILINEAR_GRID`` files. Those three walk
+  their own attributes, and the chain that did it asked only about points,
+  so every cell array fell past it in silence - the cell scalars in VTK's
+  own ``SampleStructGrid.vtk`` among them. The three now share one scanner,
+  which also gives them ``TEXTURE_COORDINATES`` and ``TENSORS``. An array
+  whose declared length matches neither the points nor the cells is dropped
+  with a warning rather than reaching ``PolyData`` as a validation error
+  about lengths.
+- A structured legacy ``.vtk`` grid extends along whichever axes it
+  declares. A ``DIMENSIONS 3 1 3`` sheet was read as two lines over the
+  first two points instead of four quads over all nine, and a column along
+  ``y`` or ``z`` was read with the stride of a row along ``x``. Only grids
+  flat in ``z`` and rows along ``x`` came out right.
+- An attribute keyword one of the structured readers does not handle now
+  warns that its array is being dropped, the way the shared parser's binary
+  scan already did. Skipping the line does not step over the payload, so in
+  a binary file the scan carries on inside it.
+- An unknown attribute keyword in an ASCII legacy ``.vtk`` file warns as
+  well. Only the binary scan said anything; ASCII skipped the keyword and
+  its value lines without a word.
+- A legacy ``.vtk`` attribute section whose values run into the next
+  header raises ``CodecError`` naming the array, the line and what it
+  holds, rather than ``float()`` answering with a bare ``ValueError`` that
+  names neither the array nor the file.
+- A binary attribute in a structured legacy ``.vtk`` file is checked
+  against the end of the file before it is sliced, which the shared parser
+  already did. A truncated file gave a nameless reshape ``ValueError``.
+- A ``.vtu`` or ``.vtp`` ``Points`` array whose size is not a whole number
+  of tuples per point raises ``CodecError`` naming the Piece. Only a short
+  array was caught, so ten values for three points reached ``reshape`` and
+  came back as a ``ValueError`` naming neither the file nor the Piece.
+- A ``v``, ``vn`` or ``vt`` record in an OBJ file that does not carry the
+  components its directive needs, or carries something that is not a
+  number, raises ``CodecError`` naming the line. Both used to reach the
+  caller as a bare ``IndexError`` or ``ValueError``. A ``vt`` carrying a
+  third component - the depth of a volumetric texture - keeps the two a
+  surface uses rather than making the records ragged.
+- Writing an OBJ ``vertex_attrs`` entry that holds no numbers - a label per
+  vertex, say - drops it with a warning instead of raising out of
+  ``numpy.asarray``.
+- Legacy ``.vtk`` files written by VTK 5.1 - the default since VTK 9.0 -
+  are read. The two numbers on a v5.1 ``CELLS`` line are the length of the
+  ``OFFSETS`` array and the length of ``CONNECTIVITY``, not the cell count;
+  reading the first as a cell count ran the offsets into the
+  ``CONNECTIVITY`` keyword and answered with a bare ``ValueError``. The
+  offsets are now counted up to that keyword, so files spelling the line
+  either way are read. ``POLYDATA`` gained the layout altogether: its
+  ``POLYGONS``, ``LINES``, ``VERTICES`` and ``TRIANGLE_STRIPS`` sections
+  knew only the v4.2 form, so no polydata file VTK 9 writes could be read
+  at all.
+- Writing a v5.1 legacy ``.vtk`` file declares the length of its
+  ``OFFSETS`` array on the ``CELLS`` line. It declared the cell count,
+  which VTK's own reader takes literally: it stopped with "Error reading
+  cell array connectivity header" and returned a mesh with no cells.
+  Files polyxios wrote before this still read.
+- A ``METADATA`` block is stepped over. Every VTK writer since 4.2 puts one
+  after each array, and it is text even in a binary file. In ASCII it
+  warned twice about keywords it named as dropped; in binary it ended the
+  attribute scan, so a file with two arrays came back with one. Inside a
+  ``FIELD`` block it was read as an array header, which took the array
+  after it with it.
+- A binary ``STRUCTURED_GRID`` keeps the section that follows its points.
+  The line cursor was stepped past the payload and then once more over the
+  newline that ended it, so whichever section came next - a ``CELL_DATA``
+  written before ``POINT_DATA``, as VTK writes it - was skipped.
+- A ``RECTILINEAR_GRID`` follows its coordinate arrays rather than its
+  ``DIMENSIONS`` header. The points are the outer product of the three
+  arrays, so a header that disagreed with them generated cells indexing
+  points that do not exist and dropped attributes that covered every point
+  there is. The header is now checked against them, warned about when it
+  differs, and the arrays win.
+- ``.vti``, ``.vts`` and ``.vtr`` honour ``NumberOfComponents`` when
+  reading an attribute. A three-component array on 27 points came back as
+  81 rows, which belongs to no mesh and fails ``validate``; ``.vtu`` and
+  ``.vtp`` of the same family already cut it into tuples.
+- ``.vtr`` declares the component count of the attributes it writes, so a
+  vector survives a round trip, and writes each array in the type its
+  ``<DataArray>`` declares. Everything was cast to float64 under whatever
+  header the original dtype produced, so an ``Int32`` attribute read back
+  as the bit pattern of a double.
+- A ``.vtu`` or ``.vtp`` ``Points`` array of a type that holds no numbers -
+  ``type="String"``, or any type this reader does not know - raises
+  ``CodecError`` naming the type. It warned that the array was skipped and
+  then blamed the point count for the zero values that left.
+- A ``.vtr`` attribute of a dtype no VTK type names - a boolean mask, a
+  float16 - is written as the ``Float64`` its header declares. Only the
+  header fell back; the bytes stayed the dtype's own, so eight booleans
+  went out as eight bytes under a ``Float64`` header and read back as one
+  garbage double.
+- Every XML writer declares the whole width of a tuple, not the second
+  dimension of the array holding it. A ``(n, 3, 3)`` tensor attribute -
+  what a legacy ``TENSORS`` section reads back as - was declared as one
+  component in ``.vti``, ``.vts``, ``.vtp`` and ``.vtu`` and as three in
+  ``.vtr``, so nine times the rows came back and belonged to no mesh.
+- The XML writers cast to little endian before taking the bytes, which is
+  what the ``byte_order`` they all declare says those bytes are. On a
+  big-endian machine every binary array went out reversed.
+- ``.vti``, ``.vts`` and ``.vtr`` drop an attribute whose rows cannot be
+  matched to the mesh, with a warning naming it, as ``.vtu`` and ``.vtp``
+  already did. It used to reach ``PolyData`` and fail ``validate`` with a
+  message about lengths rather than about the file.
+- A binary legacy ``.vtk`` file holds its ``TENSORS`` as binary. Both
+  tensor branches of the writer - the 3x3 one and the Voigt 6-component
+  one - spelled their numbers whatever was asked for, so a binary file
+  carrying either had a run of ASCII in the middle of it and came back as
+  a ``CodecError`` about a short block.
+- The ASCII writers spell a value as the shortest decimal that reads back
+  as it, rather than to ten significant digits. A legacy ``.vtk``,
+  ``.vti``, ``.vts``, ``.vtp`` or ``.vtr`` file declaring ``double`` or
+  ``Float64`` held seven digits fewer than that, so coordinates came back
+  about 1e-10 off what was written; they are now exact.
+- A ``METADATA`` block written without its blank terminator ends at the
+  geometry keyword after it as well as at an attribute one. Left open at
+  the end of a ``POINT_DATA`` section it swallowed the ``CELLS`` that
+  followed and every line to the end of the file - the failure the
+  terminator search was added to prevent.
+- A malformed attribute section in a structured legacy ``.vtk`` file costs
+  the section rather than the mesh. A count running past the end of the
+  file raised ``CodecError`` out of a read whose geometry was already
+  whole, and those sections were skipped entirely before they were read at
+  all, so files that used to load stopped loading.
+- A ``.vtu`` or ``.vtp`` ``Piece`` that cannot be read is named by its
+  index. A file of forty pieces gave no way to find the one at fault.
+- An OBJ vertex named twice with different values is warned about whichever
+  component they differ in. The check asked whether the first component had
+  been written yet, so a record whose first component is NaN hid every
+  conflict on that vertex.
+- Writing an OBJ ``vn`` or ``vt`` attribute wider than the record says how
+  many components are being left out, rather than truncating in silence.
+- A legacy ``STRUCTURED_GRID`` whose ``DIMENSIONS`` does not cover its
+  ``POINTS`` array hands the points back without cells, warning about the
+  two counts. The cells are strides through the layout the header
+  describes, so a header naming more points than the file delivered
+  generated connectivity indexing points that are not there: the read
+  returned a ``PolyData`` that fails ``validate``. ``RECTILINEAR_GRID``
+  already reconciled the two.
+- An attribute section is read by the count its own header declares rather
+  than by the count of the mesh. The two agree in a well-formed file, and
+  where they do not the section's is the only number that says where one
+  array ends and the next begins - reading by the mesh's walked an array
+  straight into the header after it. An array that then covers no point or
+  cell of the mesh is dropped with a warning naming it, as the structured
+  readers already did.
+- A binary legacy ``.vtk`` ``SCALARS`` section without a ``LOOKUP_TABLE``
+  line - which the format leaves optional - reads its own values. The line
+  was consumed unconditionally, so the payload up to its first ``0x0a``
+  byte was swallowed, and a payload holding none rewound the scan to the
+  top of the file.
+- A binary legacy ``.vtk`` ``POINTS``, ``CELLS`` or ``CELL_TYPES`` block is
+  checked against the end of the file before it is sliced, the way the
+  attribute blocks already were. The whole-file bound the header check
+  applies clears a block that still runs off the end - a file with a long
+  comment header, say - and the reshape after the short slice failed with a
+  ``ValueError`` naming neither the array nor the file.
+- A legacy ``.vtk`` attribute header missing a field, or spelling a count
+  as something that is not a number, names the file and the line it is on.
+  ``SCALARS`` with no array name reached the caller as ``IndexError: list
+  index out of range`` and ``SCALARS s float x`` as a bare ``ValueError``,
+  in the ASCII scan, the binary scan and the structured one alike. A binary
+  file has no line to name, so the byte offset stands in for one.
+- ``.vti``, ``.vts``, ``.vtp`` and ``.vtu`` write each attribute in the
+  type the array is held in, as ``.vtr`` does. Everything was cast to a
+  double under a ``Float64`` header, so an ``int64`` identifier past 2**53
+  came back a different number.
+- The ASCII body of a ``<DataArray>`` is parsed into the type the element
+  declares rather than through ``float()`` first. An ``Int64`` array was
+  rounded to a double before the declared type ever saw it, which the top
+  of the integer range does not survive.
+- A binary legacy ``.vtk`` block is read as the type its header names. A
+  ``POINTS n int`` was read at four bytes a float, so an integer point
+  array came back as coordinates the file never held, and a type name the
+  reader has no numpy equivalent for - ``bit``, or a misspelling - was
+  guessed at rather than refused. Every binary header now resolves its type
+  the same way and raises ``CodecError`` naming it when it cannot; the
+  names VTK writes for 64-bit and signed-char arrays were missing from the
+  table and are there now. An ASCII payload is unaffected: its values are
+  text whatever the header calls them.
+- A legacy ``.vtk`` geometry or section header spelling a count as
+  something that is not a number, or leaving it out, names the file and the
+  line it is on. ``POINTS``, ``CELLS``, ``CELL_TYPES``, ``POINT_DATA``,
+  ``CELL_DATA``, ``DIMENSIONS``, ``ORIGIN``, ``SPACING`` and the coordinate
+  arrays reached the caller as a bare ``ValueError`` or ``IndexError``,
+  which the attribute headers had already stopped doing.
+- A ``CELL_DATA`` array in a legacy ``STRUCTURED_GRID`` is measured against
+  the cells the mesh ends up with rather than the cells ``DIMENSIONS``
+  describes. A header its ``POINTS`` array does not cover leaves the mesh
+  with no cells, and the array was kept against the header's count, so the
+  read returned a ``PolyData`` that fails ``validate``.
+- An OBJ face index spelled with a superscript digit raises ``CodecError``
+  naming the line. ``str.isdigit`` admits ``²`` and ``int()`` then refuses
+  it, so the fast path let a bare ``ValueError`` out; the test is now
+  ``str.isdecimal``, which still admits the non-Latin digits ``int()``
+  reads.
+- A bare ``mtllib`` or ``o`` directive in an OBJ file names nothing rather
+  than the empty string, which used to be written back as a directive with
+  nothing after it.
+- Writing an OBJ ``element_attrs['material']`` that does not cover the
+  faces drops it with a warning naming its length, the way the vertex
+  attributes already were. Indexed per face it ran off the end partway
+  through, leaving a half-written file and an ``IndexError`` naming an
+  axis.
+- A ``.vtu`` or ``.vtp`` ``Piece`` whose ``NumberOfPoints`` is not a count,
+  and a ``.vti``, ``.vts`` or ``.vtr`` ``Extent`` that is not six whole
+  numbers, raise ``CodecError`` naming the file. They reached the caller as
+  a bare ``ValueError`` about ``int()`` or about unpacking.
+- A ``<DataArray>`` whose ``NumberOfComponents`` is not a count is read
+  flat with a warning naming it, rather than raising a bare ``ValueError``
+  from ``int()``.
+- A legacy ``.vtk`` file whose header declares ``DATASET FIELD`` is read.
+  The dispatch asked what the line starts with while the line still
+  carried its ``DATASET`` keyword, so the branch never ran and every field
+  data file was refused by the one below it.
+- A ``METADATA`` block inside a v5.1 ``CELLS`` section is stepped over. VTK
+  follows a cell array with one, so a block sat between the offsets and the
+  connectivity of files every release since 9.0 writes; read as offsets it
+  raised ``CodecError`` about a line of words where numbers belong.
+- A v5.1 ``CELLS`` section is found by what follows the header rather than
+  by the version in the first line. Versions were compared as strings, so a
+  file declaring ``10.0`` sorted below ``5.1`` and its offsets would have
+  been read as a v4.2 cell stream. The binary scan already asked this way.
+- A ``.vti``, ``.vts`` or ``.vtr`` extent flat along an axis - an image one
+  voxel deep - is a sheet of quads, or a run of lines when it is flat along
+  two. All three read it as a grid of no cells, which left every
+  ``CellData`` array belonging to nothing.
+- An ASCII ``<DataArray>`` holding a value its declared type is too narrow
+  for wraps with a warning naming the array, the way a C reader wraps it,
+  rather than escaping as a bare ``OverflowError`` from numpy. A token that
+  names no number at all raises ``CodecError`` naming the array.
+- Writing a point or cell attribute of a kind no ``<DataArray>`` can hold -
+  a label per vertex, say - raises ``CodecError`` naming the array and its
+  dtype, rather than a ``ValueError`` about one element.
+- The warnings the ``.vtk``, XML and OBJ codecs raise are blamed on the code
+  that asked for the file. Every one of them pointed a frame short, at
+  ``polyxios.read`` or ``polyxios.write`` itself, which tells a caller
+  nothing about which of their own calls found the file.
+
+Optimizations
+~~~~~~~~~~~~~
+
+- Reading an OBJ file resolves a face corner inline when it names a plain
+  index inside what has been declared, which is what nearly every corner
+  does; the rest still go the long way round, where the message naming the
+  line lives. A mesh of any size has millions of corners, and the call this
+  saves is most of what checking them cost. A ``v``, ``vn`` or ``vt`` record
+  carrying exactly the components its directive spells skips the padding and
+  the slice that feeds it.
+- A ``float32`` attribute is spelled at its own width in an ASCII
+  ``<DataArray>``. Widened to a double first, ``0.1`` went out as
+  ``0.10000000149011612`` - seventeen digits of a value carrying seven -
+  which is nearly twice the file for the same numbers.
+- Writing a Nastran large-field deck is roughly ten times faster. Sweeping
+  for an exact spelling asked every precision from seventeen digits down,
+  spelling and parsing candidates at each; rounding to fewer significant
+  digits than ``repr`` carries cannot be exact whatever form it takes, so
+  the sweep now stops there. Neither sweep spells a candidate at a
+  precision the field could not hold in the first place, and the stepped
+  mantissas - the expensive half - are built only when the rounded ones
+  have all missed. Twenty thousand ``GRID*`` cards went from 10.3 s to
+  1.0 s, and every value is written exactly as before.
+- Reading an OBJ file no longer names its source once per line. The name
+  costs a path walk and was only ever used to spell an error message.
+- A Nastran real field below one drops its leading zero when the column it
+  costs is a significant digit. Bulk data reads ``.5`` as ``0.5``, so a
+  third in an eight-column field goes out as ``.3333333`` rather than
+  ``0.333333``.
+- Writing an OBJ file looks its material attribute up once rather than once
+  per face.
+- Stepping past a binary payload in a structured legacy ``.vtk`` file is a
+  binary search over the line offsets rather than a walk. A binary payload
+  carries a newline every few values, so the lines it is cut into number in
+  the thousands for a grid of any size; a 5 MB ``STRUCTURED_POINTS`` file
+  reads about a fifth faster.
+- ``.vti``, ``.vts`` and ``.vtr`` build their hexahedra with array
+  arithmetic instead of a Python loop per cell. The corners of a cell are
+  strides from its own origin, so the whole connectivity is eight adds over
+  the origins; a 40x40x40 grid builds about nine times faster.
+- The structured legacy ``.vtk`` readers cut their file into lines in one
+  pass rather than a ``find`` per line, and they all do it in the same
+  place. The lines are byte-identical to what the walk produced.
+- Folding OBJ ``vt`` and ``vn`` records onto their vertices is one pass over
+  the corners rather than a numpy row assignment per corner.
+- A legacy ``.vtk`` ASCII payload is spelled and written in one pass instead
+  of a formatted write per point, which was a syscall per line.
 
 Tests
 ~~~~~
 
+- Regression tests for the dtype a ``.vtr`` header declares against the
+  bytes under it, the component count of a tensor attribute in every XML
+  writer, a binary legacy ``TENSORS`` section, an unterminated ``METADATA``
+  block followed by geometry, an attribute section declaring more than its
+  file holds, an OBJ conflict hiding behind a NaN first component, and the
+  ``Piece`` index in a ``.vtu`` error.
+- ``test_a_double_section_holds_every_digit_of_a_double`` writes a
+  coordinate no ten-digit spelling can hold and asks for it back unchanged.
+
+- ``test_a_power_of_ten_is_written_exactly`` spells its powers as literals
+  rather than computing them with ``**``. ``pow`` is not correctly rounded
+  everywhere - glibc and MSVC answer ``10.0 ** 23`` with the double one unit
+  above ``1e23``, macOS with ``1e23`` itself - and that neighbour needs
+  seventeen significant digits, which no eight or sixteen character field
+  can hold. The test asked the writer for a field wider than the format has,
+  and failed on Linux and Windows only.
 - A cross-codec round-trip matrix (``tests/test_roundtrip.py``) writes and
   re-reads five canonical meshes through every writable codec, checked
   against a table declaring exactly what each format keeps. A new codec
