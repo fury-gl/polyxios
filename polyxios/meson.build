@@ -27,6 +27,7 @@ py.install_sources(
     '_element_types.py',
     '_io.py',
     '_registry.py',
+    '_tags.py',
     '_types.py',
     'exceptions.py',
     'transforms.py',

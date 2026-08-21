@@ -25,12 +25,28 @@ _HEADER_SIZE: int = 80
 _BINARY_FACET_SIZE: int = 50  # 3*float32 normal + 3*3*float32 verts + uint16 attr
 
 # The attribute word of a binary facet is where the tools that colour an STL
-# put the colour: five bits per channel, and the top bit set to say the word
-# holds one at all. A word without that bit is a facet the writer left blank,
-# not a black facet, so it reads back as NaN rather than as a colour.
+# put the colour, five bits per channel - but the two conventions in the wild
+# disagree on both the channel order and the meaning of the top bit:
+#
+#   VisCAM / SolidView: bits 0-4 blue, 5-9 green, 10-14 red, and bit 15 set
+#     when the word holds a colour at all.
+#   Materialise Magics: bits 0-4 red, 5-9 green, 10-14 blue, and bit 15 clear
+#     when the facet has a colour of its own, set when it takes the part's.
+#
+# Magics names itself in the 80-byte header, which is the only thing in the
+# file that tells the two apart: it writes a ``COLOR=`` record there. A header
+# without one reads as VisCAM, and VisCAM is what polyxios writes, since its
+# spelling of "no colour here" is the zero word every other writer leaves.
 _COLOR_VALID_BIT: int = 0x8000
 _COLOR_MAX: float = 31.0
 _COLOR_KEY: str = "colors"
+_MAGICS_MARKER: bytes = b"COLOR="
+# Bit position of red, green and blue under each convention.
+_VISCAM_SHIFTS: tuple[int, int, int] = (10, 5, 0)
+_MAGICS_SHIFTS: tuple[int, int, int] = (0, 5, 10)
+# An integer colour column counts 0..255 the way every image format does; a
+# float one runs 0..1. Scaling both as 0..1 turns an 8-bit colour white.
+_INT_COLOR_MAX: float = 255.0
 
 
 def read(
@@ -84,8 +100,10 @@ def read(
     if _is_ascii(raw):
         vertices, normals = _read_ascii(raw)
         attrs = None
+        header = b""
     else:
         vertices, normals, attrs = _read_binary(raw)
+        header = raw[:_HEADER_SIZE]
 
     n_tris = vertices.shape[0]
     if n_tris == 0:
@@ -113,7 +131,7 @@ def read(
     element_attrs: dict[str, np.ndarray] = {}
     if normals is not None:
         element_attrs["normals"] = normals
-    colors = _decode_colors(attrs)
+    colors = _decode_colors(attrs, header)
     if colors is not None:
         element_attrs[_COLOR_KEY] = colors
 
@@ -202,6 +220,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
     with open_block(path, fmt=".stl") as mm:
         if len(mm) < _HEADER_SIZE + 4:
             raise CodecError("Binary STL too short.")
+        header = bytes(mm[:_HEADER_SIZE])
         n_tris = int(np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
         data_start = _HEADER_SIZE + 4
         expected = data_start + n_tris * _BINARY_FACET_SIZE
@@ -224,7 +243,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
     element_types = np.full(n_tris, tri_code, dtype=np.uint8)
 
     element_attrs: dict[str, np.ndarray] = {"normals": normals}
-    colors = _decode_colors(attrs)
+    colors = _decode_colors(attrs, header)
     if colors is not None:
         element_attrs[_COLOR_KEY] = colors
 
@@ -237,7 +256,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
     )
 
 
-def _decode_colors(attrs: np.ndarray | None) -> np.ndarray | None:
+def _decode_colors(attrs: np.ndarray | None, header: bytes) -> np.ndarray | None:
     """Return per-facet RGB from the attribute words, or None when none carry one.
 
     Parameters
@@ -245,6 +264,9 @@ def _decode_colors(attrs: np.ndarray | None) -> np.ndarray | None:
     attrs
         One uint16 attribute word per facet, or None for an ASCII file, which
         has no field for one.
+    header
+        The file's 80-byte header, which is where Magics says the words are
+        its own; empty for an ASCII file.
 
     Returns
     -------
@@ -255,19 +277,28 @@ def _decode_colors(attrs: np.ndarray | None) -> np.ndarray | None:
     """
     if attrs is None or attrs.size == 0:
         return None
+    magics = _MAGICS_MARKER in header.upper()
     words = attrs.astype(np.uint16)
-    valid = (words & _COLOR_VALID_BIT) != 0
+    top = (words & _COLOR_VALID_BIT) != 0
+    # Magics sets the top bit to disown the facet's colour; everyone else
+    # sets it to claim one.
+    valid = ~top if magics else top
     if not valid.any():
         return None
+    shifts = _MAGICS_SHIFTS if magics else _VISCAM_SHIFTS
+    live = words[valid]
     colors = np.full((words.size, 3), np.nan, dtype=np.float64)
-    colors[valid, 0] = (words[valid] & 0x1F) / _COLOR_MAX
-    colors[valid, 1] = ((words[valid] >> 5) & 0x1F) / _COLOR_MAX
-    colors[valid, 2] = ((words[valid] >> 10) & 0x1F) / _COLOR_MAX
+    for channel, shift in enumerate(shifts):
+        colors[valid, channel] = ((live >> shift) & 0x1F) / _COLOR_MAX
     return colors
 
 
 def _encode_colors(colors: np.ndarray | None, n_facets: int) -> np.ndarray:
-    """Return the attribute word for each facet, 0 where there is no colour."""
+    """Return the attribute word for each facet, 0 where there is no colour.
+
+    Written under the VisCAM convention the reader falls back on, since the
+    header polyxios writes carries no Magics ``COLOR=`` record.
+    """
     words = np.zeros(n_facets, dtype="<u2")
     if colors is None:
         return words
@@ -276,12 +307,10 @@ def _encode_colors(colors: np.ndarray | None, n_facets: int) -> np.ndarray:
     if not valid.any():
         return words
     scaled = np.clip(np.rint(values[valid] * _COLOR_MAX), 0, 31).astype(np.uint16)
-    words[valid] = (
-        np.uint16(_COLOR_VALID_BIT)
-        | scaled[:, 0]
-        | (scaled[:, 1] << 5)
-        | (scaled[:, 2] << 10)
-    )
+    packed = np.uint16(_COLOR_VALID_BIT)
+    for channel, shift in enumerate(_VISCAM_SHIFTS):
+        packed = packed | (scaled[:, channel] << shift)
+    words[valid] = packed
     return words
 
 
@@ -439,8 +468,9 @@ def _facet_colors(poly: PolyData, tri_indices: np.ndarray) -> np.ndarray | None:
     Returns
     -------
     numpy.ndarray or None
-        Shape ``(n_facets, 3)``, or None when the mesh carries no usable
-        colour attribute.
+        Shape ``(n_facets, 3)`` in 0..1, or None when the mesh carries no
+        usable colour attribute. An integer attribute is read as 0..255 and a
+        floating point one as 0..1.
     """
     stored = (poly.element_attrs or {}).get(_COLOR_KEY)
     if stored is None:
@@ -458,7 +488,12 @@ def _facet_colors(poly: PolyData, tri_indices: np.ndarray) -> np.ndarray | None:
             stacklevel=3,
         )
         return None
-    return values[tri_indices].astype(np.float64, copy=False)
+    picked = values[tri_indices].astype(np.float64, copy=False)
+    # An integer column counts 0..255; scaling it as 0..1 saturates every
+    # channel and writes a white mesh.
+    if values.dtype.kind in "iu":
+        picked = picked / _INT_COLOR_MAX
+    return picked
 
 
 def _write_binary(

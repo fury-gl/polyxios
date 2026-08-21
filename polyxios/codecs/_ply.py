@@ -55,7 +55,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Returns
     -------
     PolyData
-        Parsed mesh data.
+        Parsed mesh data. ``element edge`` records follow the faces as ``line``
+        elements, and a per-face property is stretched over them with NaN, so
+        every attribute stays one value per element.
 
     Raises
     ------
@@ -339,22 +341,24 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
     # the faces it describes and the lines simply extend the mesh.
     if edge_elem:
         line_code = ELEMENT_TYPES["line"]
-        ends = _edge_end_names(edge_elem["properties"])
+        first, second = _edge_end_slots(edge_elem["properties"])
         for _ei in range(n_edges):
+            if idx >= len(lines):
+                raise CodecError(
+                    f".ply: the file ends inside its {n_edges} edge record(s)."
+                )
             vals = lines[idx].split()
             idx += 1
-            record = {
-                pname: vals[pi] for pi, (pname, _) in enumerate(edge_elem["properties"])
-            }
             try:
-                pair = [int(record[name]) for name in ends]
-            except (KeyError, ValueError) as exc:
+                conn_list.append(int(vals[first]))
+                conn_list.append(int(vals[second]))
+            except (IndexError, ValueError) as exc:
                 raise CodecError(
                     f".ply: malformed edge record {' '.join(vals)!r}."
                 ) from exc
-            conn_list.extend(pair)
             offsets_list.append(offsets_list[-1] + 2)
             types_list.append(line_code)
+        element_attrs = _padded_face_attrs(element_attrs, len(types_list))
 
     connectivity = _checked_connectivity(conn_list, n_verts)
 
@@ -380,23 +384,69 @@ def _face_types(offsets_list: list[int]) -> list[int]:
     return types
 
 
-def _edge_end_names(props: list[tuple[str, Any]]) -> tuple[str, str]:
-    """Return the two properties holding an edge's ends.
+def _edge_end_slots(props: list[tuple[str, Any]]) -> tuple[int, int]:
+    """Return the positions of the two properties holding an edge's ends.
 
-    The spec spells them ``vertex1``/``vertex2``, but files in the wild use
-    ``vertex_index1``/``vertex_index2`` and a few just number two integer
+    Parameters
+    ----------
+    props
+        The edge element's ``(name, type)`` properties, in declared order.
+
+    Returns
+    -------
+    tuple of (int, int)
+        Where the two ends sit among the properties, which is where they sit
+        in an ASCII record and which field of a binary one they name.
+
+    Raises
+    ------
+    CodecError
+        When the element declares fewer than two scalar properties.
+
+    Notes
+    -----
+    The spec spells the ends ``vertex1``/``vertex2``, but files in the wild
+    use ``vertex_index1``/``vertex_index2`` and a few just number two integer
     properties, so the fallback is the first two scalars in declared order.
     """
-    names = [pname for pname, ptype in props if not isinstance(ptype, tuple)]
+    scalars = [i for i, (_, ptype) in enumerate(props) if not isinstance(ptype, tuple)]
+    at = {props[i][0]: i for i in scalars}
     for first, second in (("vertex1", "vertex2"), ("vertex_index1", "vertex_index2")):
-        if first in names and second in names:
-            return first, second
-    if len(names) >= 2:
-        return names[0], names[1]
+        if first in at and second in at:
+            return at[first], at[second]
+    if len(scalars) >= 2:
+        return scalars[0], scalars[1]
     raise CodecError(
         ".ply: an edge element declares fewer than two scalar properties, so"
         " it names no pair of ends."
     )
+
+
+def _padded_face_attrs(
+    attrs: dict[str, np.ndarray], n_elems: int
+) -> dict[str, np.ndarray]:
+    """Return the face attributes stretched over the edges that follow them.
+
+    Parameters
+    ----------
+    attrs
+        One value per face, in face order.
+    n_elems
+        How many elements the mesh ends up holding, faces and edges together.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The same names, each one value per element, NaN on the edges - a PLY
+        edge record has no room for a face property, and an attribute shorter
+        than the mesh is one every reader downstream indexes off the end of.
+    """
+    padded: dict[str, np.ndarray] = {}
+    for name, values in attrs.items():
+        stretched = np.full((n_elems, *values.shape[1:]), np.nan, dtype=np.float64)
+        stretched[: values.shape[0]] = values
+        padded[name] = stretched
+    return padded
 
 
 def _checked_connectivity(conn_list: list[int], n_verts: int) -> np.ndarray:
@@ -536,15 +586,22 @@ def _decode_binary(
             # A PLY edge names its two ends in scalar properties rather than
             # in a face list; read as a face it would build a degenerate
             # polygon instead of the line the file holds.
-            ends = _edge_end_names(props)
+            first, second = _edge_end_slots(props)
             dt = np.dtype(
                 [(pname, endian + _PLY_DTYPE[ptype]) for pname, ptype in props]
             )
             nbytes = count * dt.itemsize
+            if pos + nbytes > len(mv):
+                raise CodecError(
+                    f".ply: the file ends inside its {count} edge record(s)."
+                )
             rec = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=dt)
             pos += nbytes
             pairs = np.column_stack(
-                [rec[ends[0]].astype(np.int64), rec[ends[1]].astype(np.int64)]
+                [
+                    rec[props[first][0]].astype(np.int64),
+                    rec[props[second][0]].astype(np.int64),
+                ]
             )
             edge_conn = pairs.ravel().tolist()
             edge_offsets = list(range(2, 2 * count + 1, 2))
@@ -559,6 +616,7 @@ def _decode_binary(
         conn_list.extend(edge_conn)
         offsets_list.extend(base + step for step in edge_offsets)
         types_list.extend([ELEMENT_TYPES["line"]] * len(edge_offsets))
+        element_attrs = _padded_face_attrs(element_attrs, len(types_list))
 
     return PolyData(
         vertices=vertices,

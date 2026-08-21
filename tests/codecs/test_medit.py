@@ -383,3 +383,39 @@ def test_meshio_reads_what_polyxios_writes(tmp_path: Path) -> None:
     mesh = meshio.read(out, file_format="medit")
     np.testing.assert_allclose(mesh.points, _tet_mesh().vertices)
     np.testing.assert_array_equal(mesh.cells[0].data, [[0, 1, 2, 3]])
+
+
+def _plane_mesh(tmp_path) -> Path:
+    path = tmp_path / "plane.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension\n2\n"
+        "Vertices\n3\n0 0 1\n1 0 2\n0 1 3\n"
+        "Triangles\n1\n1 2 3 9\nEnd\n"
+    )
+    return path
+
+
+def test_a_two_dimensional_file_goes_back_out_in_two_dimensions(tmp_path) -> None:
+    """A bamg file promoted to 3-D is one bamg no longer reads."""
+    poly = read(_plane_mesh(tmp_path))
+    assert poly.vertices.shape == (3, 3)
+    assert poly.global_attrs["medit_dimension"] == 2
+
+    out = tmp_path / "back.mesh"
+    write(poly, out)
+    body = out.read_text()
+    assert "Dimension 2" in body
+    # Three columns in, two coordinates and a reference out.
+    assert body.splitlines()[6].split() == ["0", "0", "1"]
+    np.testing.assert_allclose(read(out).vertices, poly.vertices)
+
+
+def test_a_plane_mesh_lifted_out_of_the_plane_is_written_in_three(tmp_path) -> None:
+    """Writing two coordinates for a vertex that has three drops one."""
+    poly = read(_plane_mesh(tmp_path))
+    poly.vertices[1, 2] = 0.5
+    out = tmp_path / "lifted.mesh"
+    with pytest.warns(UserWarning, match="third coordinate"):
+        write(poly, out)
+    assert "Dimension 3" in out.read_text()
+    np.testing.assert_allclose(read(out).vertices, poly.vertices)

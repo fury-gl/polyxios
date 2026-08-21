@@ -168,8 +168,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     ``$NodeData`` and ``$ElementData`` become ``vertex_attrs`` and
     ``element_attrs``, at whatever component count the file declares; a field
     is scattered by the tag each row names, so one covering part of the mesh
-    lands where it belongs and the rest stays ``NaN``. A field the mesh cannot
-    hold costs that field alone, with a warning.
+    lands where it belongs and the rest stays ``NaN``. A row naming an entity
+    the mesh does not hold is dropped with a warning, and a field the mesh
+    cannot hold at all costs that field alone.
     ``$ElementNodeData``, ``$Periodic`` and every other section are ignored.
     Duplicate node tags are reported with a warning and the last definition of
     each wins.
@@ -235,7 +236,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     _read_data_sections(
         text,
         node_index,
-        {tag: i for i, tag in enumerate(builder.ids)},
+        # Gmsh numbers its elements from 1, so a 0 is an element that answers
+        # to no tag and must not be reachable from a data row.
+        {tag: i for i, tag in enumerate(builder.ids) if tag > 0},
         vertices.shape[0],
         len(types),
         vertex_attrs,
@@ -636,6 +639,20 @@ def _lenient_int(field: str) -> int:
         return int(float(field))
 
 
+def _element_id(field: str) -> int:
+    """Read an element tag, or 0 for one no number can be made of.
+
+    A tag names the element a ``$ElementData`` row describes and nothing else,
+    so a file that spells one strangely is still a file whose mesh is worth
+    reading. Gmsh numbers its elements from 1, which is what leaves 0 free to
+    mean "this element answers to no tag".
+    """
+    try:
+        return _lenient_int(field)
+    except (ValueError, OverflowError):
+        return 0
+
+
 def _parse_entities_v41(lines: list[str]) -> dict[tuple[int, int], int]:
     """Map (dimension, entity tag) → first physical tag from ``$Entities``.
 
@@ -706,9 +723,7 @@ def _parse_elements_v2(lines: list[str]) -> "_ElementBuilder":
             phys_tag = int(parts[3]) if n_tags > 0 else 0
         except ValueError as exc:
             raise CodecError(f".msh: non-integer physical tag in {ln!r}.") from exc
-        builder.add(
-            gmsh_type, parts[3 + n_tags :], phys_tag, ln, _lenient_int(parts[0])
-        )
+        builder.add(gmsh_type, parts[3 + n_tags :], phys_tag, ln, _element_id(parts[0]))
     return builder
 
 
@@ -756,7 +771,7 @@ def _parse_elements_v41(
                 fields[1:],
                 phys_tag,
                 ln,
-                _lenient_int(fields[0]) if fields else 0,
+                _element_id(fields[0]) if fields else 0,
             )
         cursor += n_in_block
         seen += n_in_block
@@ -998,8 +1013,11 @@ def _read_data_sections(
 
     A field is scattered by the tag each row names rather than by row order,
     so a block covering half the mesh lands on the half it names; the rest
-    stays NaN rather than shifting onto the wrong entities. A malformed block
-    costs that field alone - the mesh around it is still worth having.
+    stays NaN rather than shifting onto the wrong entities. A row naming an
+    entity the mesh does not hold - an element of a type this codec skipped,
+    say - costs that row and not the whole field, and a block whose every row
+    does is dropped. A malformed block costs that field alone: the mesh around
+    it is still worth having.
     """
     for kind, lines in _data_blocks(text):
         try:
@@ -1020,20 +1038,20 @@ def _read_data_sections(
             rows = [elem_index.get(int(t), -1) for t in tags]
 
         index = np.array(rows, dtype=np.int64)
-        unknown = int(np.count_nonzero((index < 0) | (index >= count)))
+        held = (index >= 0) & (index < count)
+        unknown = int(np.count_nonzero(~held))
         if unknown:
             warnings.warn(
                 f".msh: {kind} '{name}' names {unknown} tag(s) the mesh does not"
-                f" hold, first {int(tags[np.argmax((index < 0) | (index >= count))])};"
-                " the field is dropped.",
+                f" hold, first {int(tags[np.argmax(~held)])}; those rows are"
+                " dropped.",
                 stacklevel=2,
             )
-            continue
-        if count == 0:
+        if count == 0 or not held.any():
             continue
 
         field = np.full((count, values.shape[1]), np.nan, dtype=np.float64)
-        field[index] = values
+        field[index[held]] = values[held]
         target[_unique_key(name, target)] = (
             field[:, 0].copy() if values.shape[1] == 1 else field
         )

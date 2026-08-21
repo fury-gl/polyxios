@@ -332,6 +332,7 @@ def _set_indices(
     rows: list[list[str]],
     id_map: dict[int, int],
     known: dict[str, np.ndarray],
+    folded: dict[str, str],
     *,
     generate: bool,
     name: str,
@@ -339,9 +340,33 @@ def _set_indices(
 ) -> list[int]:
     """Return the indices a ``*NSET`` / ``*ELSET`` body names.
 
-    A set body lists ids, ranges under ``GENERATE``, or the names of sets
-    declared earlier; an id the deck never defined is reported rather than
-    dropped, since a set standing for a boundary condition matters.
+    Parameters
+    ----------
+    rows
+        The card's data lines, already split on commas.
+    id_map
+        The deck's node or element ids, to the indices they were read into.
+    known
+        The sets declared so far, which a body may name instead of ids.
+    folded
+        Upper-cased set name to the spelling ``known`` holds it under: Abaqus
+        matches a set name without regard to case, so a body naming ``TOP``
+        reaches the set the deck declared as ``Top``.
+    generate
+        Whether the card carried ``GENERATE``, making each row a range.
+    name, what
+        The set's name and kind, named in the warning when an entry is
+        missing.
+
+    Returns
+    -------
+    list of int
+        The indices the body names, ascending and without repeats.
+
+    Notes
+    -----
+    An id the deck never defined is reported rather than dropped in silence,
+    since a set standing for a boundary condition matters.
     """
     indices: list[int] = []
     missing: list[str] = []
@@ -373,8 +398,9 @@ def _set_indices(
                 try:
                     ident = int(tok)
                 except ValueError:
-                    # A set body may name sets declared earlier.
-                    nested = known.get(tok)
+                    # A set body may name sets declared earlier, in any case.
+                    held = folded.get(tok.upper())
+                    nested = None if held is None else known[held]
                     if nested is None:
                         missing.append(tok)
                     else:
@@ -395,18 +421,40 @@ def _set_indices(
 
 
 def _store_set(
-    tags: dict[str, np.ndarray], name: str, indices: list[int], what: str
+    tags: dict[str, np.ndarray],
+    folded: dict[str, str],
+    name: str,
+    indices: list[int],
+    what: str,
 ) -> None:
-    """Record a set under its name, merging a name the deck reuses."""
+    """Record a set under its name, merging a name the deck reuses.
+
+    Parameters
+    ----------
+    tags
+        Where the sets are collected.
+    folded
+        Upper-cased name to the spelling ``tags`` holds it under, carried
+        along so a deck reusing a name in another case adds to the set it
+        already declared rather than opening a second one beside it.
+    name
+        The set's name as the card spells it.
+    indices
+        The elements or nodes it holds.
+    what
+        ``node`` or ``element``, named in the warning for an empty set.
+    """
     if not indices:
         warnings.warn(
             f".inp: {what} set '{name}' is empty; it is dropped.", stacklevel=2
         )
         return
-    array = np.array(indices, dtype=np.int32)
-    if name in tags:
-        array = np.unique(np.concatenate([tags[name], array])).astype(np.int32)
-    tags[name] = array
+    array = np.unique(np.array(indices, dtype=np.int32))
+    key = folded.setdefault(name.upper(), name)
+    held = tags.get(key)
+    if held is not None:
+        array = np.unique(np.concatenate([held, array]))
+    tags[key] = array.astype(np.int32, copy=False)
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
@@ -459,6 +507,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     types_list: list[int] = []
     vertex_tags: dict[str, np.ndarray] = {}
     element_tags: dict[str, np.ndarray] = {}
+    # Upper-cased set name to the spelling the tags hold it under; Abaqus
+    # matches a set name without regard to case and so must this.
+    vertex_folded: dict[str, str] = {}
+    element_folded: dict[str, str] = {}
 
     # The mesh cards carry state across their data lines, so the loop tracks
     # which card it is inside and what that card asked for.
@@ -476,6 +528,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     instance_nodes: list[int] = []
     instance_elems: list[int] = []
     unknown_types: set[str] = set()
+    repeated_elems = 0
 
     def close_block() -> None:
         """Record whatever the card that is ending asked to be recorded."""
@@ -486,11 +539,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             if mode == "nset":
                 _store_set(
                     vertex_tags,
+                    vertex_folded,
                     set_name,
                     _set_indices(
                         set_rows,
                         node_map,
                         vertex_tags,
+                        vertex_folded,
                         generate=set_generate,
                         name=set_name,
                         what="node",
@@ -500,11 +555,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             else:
                 _store_set(
                     element_tags,
+                    element_folded,
                     set_name,
                     _set_indices(
                         set_rows,
                         elem_map,
                         element_tags,
+                        element_folded,
                         generate=set_generate,
                         name=set_name,
                         what="element",
@@ -512,9 +569,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     "element",
                 )
         elif mode == "node" and block_set:
-            _store_set(vertex_tags, block_set, sorted(set(block_nodes)), "node")
+            _store_set(vertex_tags, vertex_folded, block_set, block_nodes, "node")
         elif mode == "element" and block_set:
-            _store_set(element_tags, block_set, sorted(set(block_elems)), "element")
+            _store_set(element_tags, element_folded, block_set, block_elems, "element")
 
     for ln in lines:
         stripped = ln.strip()
@@ -565,9 +622,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             elif keyword in ("END INSTANCE", "END PART"):
                 if instance is not None:
                     if instance_nodes:
-                        _store_set(vertex_tags, instance, instance_nodes, "node")
+                        _store_set(
+                            vertex_tags, vertex_folded, instance, instance_nodes, "node"
+                        )
                     if instance_elems:
-                        _store_set(element_tags, instance, instance_elems, "element")
+                        _store_set(
+                            element_tags,
+                            element_folded,
+                            instance,
+                            instance_elems,
+                            "element",
+                        )
                 instance = None
                 node_map = {}
                 elem_map = {}
@@ -626,6 +691,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             index = len(types_list)
             if index >= MAX_SAFE_ELEMENTS or len(conn_list) >= MAX_SAFE_CONN:
                 raise CodecError(".inp: element count exceeds the safety caps.")
+            if elem_id in elem_map:
+                # Both elements are kept - they are two cells - but only the
+                # last answers to the id, so a set naming it reaches one.
+                repeated_elems += 1
             elem_map[elem_id] = index
             conn_list.extend(nodes)
             offsets_list.append(offsets_list[-1] + n_nodes)
@@ -645,6 +714,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         warnings.warn(
             f".inp: unrecognised element type(s) {sorted(unknown_types)};"
             " their blocks are skipped.",
+            stacklevel=2,
+        )
+    if repeated_elems:
+        warnings.warn(
+            f".inp: {repeated_elems} element id(s) are defined twice; a set"
+            " naming one reaches the last definition.",
             stacklevel=2,
         )
 
@@ -676,14 +751,16 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     **opts
         ``element_type``: a mapping from polyxios element name to the Abaqus
         card to write for it, so a deck can ask for ``C3D8R`` where the mesh
-        only says ``hexahedron``. Any other option is warned about and
-        ignored.
+        only says ``hexahedron``. A card this codec knows has to be one that
+        holds that element; one it does not know is written as asked. Any
+        other option is warned about and ignored.
 
     Raises
     ------
     CodecError
         If an element type id is unknown, or has no Abaqus write mapping, or
-        ``element_type`` is not a mapping of strings.
+        ``element_type`` is not a mapping of strings, names a card that holds
+        another element, or spells two element types with one card.
 
     Notes
     -----
@@ -708,6 +785,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     groups: dict[str, list[int]] = {}
     used: set[str] = set()
+    # Which element type each card was given to, so one card asked to hold two
+    # is caught before a block of rows of two lengths is written under it.
+    holder_of: dict[str, str] = {}
     for i in range(n_elems):
         type_id = int(poly.element_types[i])
         name = ELEMENT_TYPES_INV.get(type_id)
@@ -715,8 +795,16 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             raise CodecError(f".inp: unknown element type id {type_id}")
         if name not in _POLYXIOS_TO_INP:
             raise CodecError(f".inp: no write mapping for element type '{name}'")
-        used.add(name)
         inp_type = overrides.get(name, _POLYXIOS_TO_INP[name])
+        if name not in used:
+            used.add(name)
+            _check_override(name, inp_type)
+            held = holder_of.setdefault(inp_type, name)
+            if held != name:
+                raise CodecError(
+                    f".inp: element_type= writes both '{held}' and '{name}' as"
+                    f" '{inp_type}'; one card cannot hold two element types."
+                )
         groups.setdefault(inp_type, []).append(i)
 
     unused = sorted(set(overrides) - used)
@@ -759,6 +847,40 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines.append("")
     write_text(path, "\n".join(lines))
+
+
+def _check_override(name: str, card: str) -> None:
+    """Refuse a card that cannot hold the element it was asked to spell.
+
+    Parameters
+    ----------
+    name
+        The polyxios element type being written.
+    card
+        The Abaqus card ``element_type=`` asked for, or the codec's own.
+
+    Raises
+    ------
+    CodecError
+        When the card is not a bare word, or when it is a card this codec
+        knows and that card holds a different number of nodes - a deck
+        spelling eight nodes under a twenty-node card is one no reader loads.
+    """
+    if not card.strip() or any(ch in card for ch in ", \t\n*="):
+        raise CodecError(
+            f".inp: element_type= gives '{name}' the card {card!r}, which is"
+            " not a bare card name."
+        )
+    known = _inp_type_info(card)
+    if known is None:
+        # A card outside the table is the caller's own business: they may be
+        # writing for a solver this codec does not read back.
+        return
+    if known[0] != name:
+        raise CodecError(
+            f".inp: element_type= writes '{name}' as '{card}', which is a"
+            f" {known[1]}-node '{known[0]}' card."
+        )
 
 
 def _set_cards(

@@ -1,7 +1,6 @@
 """Medit .meshb binary codec (GmFlib format) - read + write."""
 
 import mmap
-import re
 import struct
 import warnings
 
@@ -9,6 +8,7 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, open_block, open_write
+from polyxios._tags import group_by_value, integer_column, values_from_tags
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -245,27 +245,18 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
     """
     stored = (poly.element_attrs or {}).get("ref")
     if stored is not None:
-        values = np.asarray(stored)
-        if values.ndim == 1 and values.shape[0] == n_elems:
+        values = integer_column(stored, n_elems)
+        if values is not None:
             return values.astype(np.int32, copy=False)
         warnings.warn(
-            ".meshb: element_attrs['ref'] is not one value per element; the"
+            ".meshb: element_attrs['ref'] is not one integer per element; the"
             " references were taken from element_tags instead.",
             stacklevel=3,
         )
 
-    refs = np.zeros(n_elems, dtype=np.int32)
-    named = False
-    unnamed: set[str] = set()
-    for name, members in (poly.element_tags or {}).items():
-        match = re.fullmatch(r"ref_(-?\d+)", name)
-        if match is None:
-            unnamed.add(name)
-            continue
-        picked = np.asarray(members).ravel()
-        picked = picked[(picked >= 0) & (picked < n_elems)]
-        refs[picked] = int(match.group(1))
-        named = True
+    refs, unnamed, named = values_from_tags(
+        poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32
+    )
     if unnamed:
         warnings.warn(
             f".meshb: element tag group(s) {sorted(unnamed)} are not named"
@@ -417,15 +408,8 @@ def _decode(mm: mmap.mmap | bytes) -> PolyData:
             elem_attrs["ref"] = refs_flat
             # A reference is what a Medit file uses for a surface or region
             # label, and a label that stays a column of integers does not
-            # survive a conversion as a named group. One stable sort groups
-            # every value in a single pass.
-            order = np.argsort(refs_flat, kind="stable").astype(np.int32)
-            ranked = refs_flat[order]
-            starts = np.flatnonzero(np.concatenate(([True], ranked[1:] != ranked[:-1])))
-            elem_tags = {
-                f"{_REF_TAG_PREFIX}{int(ref)}": members
-                for ref, members in zip(ranked[starts], np.split(order, starts[1:]))
-            }
+            # survive a conversion as a named group.
+            elem_tags = group_by_value(refs_flat, _REF_TAG_PREFIX)
 
     sizes_arr = (
         np.concatenate(elem_sizes_parts).astype(np.int32)

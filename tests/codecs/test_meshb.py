@@ -245,3 +245,16 @@ def test_all_zero_refs_invent_no_tag_groups(tmp_path) -> None:
     back = read(path=out)
     assert not back.element_tags
     assert "ref" not in back.element_attrs
+
+
+def test_a_float_ref_column_is_refused_rather_than_truncated(tmp_path) -> None:
+    """A reference is a number the file names exactly; rounding one relabels."""
+    poly = _tri_mesh()
+    n = len(poly.element_types)
+    poly.element_attrs["ref"] = np.full(n, 2.7, dtype=np.float64)
+    poly.element_tags["ref_5"] = np.arange(n, dtype=np.int32)
+    out = tmp_path / "float.meshb"
+    with pytest.warns(UserWarning, match="not one integer per element"):
+        write(poly=poly, path=out)
+    # The tag groups spell the label the float column could not.
+    assert set(read(path=out).element_attrs["ref"].tolist()) == {5}

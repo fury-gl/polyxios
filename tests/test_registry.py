@@ -310,6 +310,32 @@ def test_an_owned_extension_is_never_contested(monkeypatch) -> None:
     assert registry[".dat"].candidates == ()
 
 
+def test_a_sniffed_extension_a_codec_does_not_own_keeps_no_writes(
+    monkeypatch,
+) -> None:
+    """Competing to read '.dat' is no claim on writing it."""
+    import polyxios.codecs._nastran as nastran
+
+    monkeypatch.setattr(nastran, "SNIFF_DEFAULT_WRITER", True, raising=False)
+    registry = build_default_registry()
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        registry[".dat"].write(_tri_mesh(), "out.dat")
+
+
+def test_two_owners_cannot_both_keep_the_writes_of_a_shared_extension(
+    monkeypatch, tmp_path
+) -> None:
+    """Which one won would otherwise come down to the module walk order."""
+    import polyxios.codecs._medit as medit
+
+    monkeypatch.setattr(medit, "SNIFF_DEFAULT_WRITER", True, raising=False)
+    with pytest.warns(UserWarning, match="default writer"):
+        registry = build_default_registry()
+    # Neither keeps it: a bare write raises and names the way out.
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        registry[".mesh"].write(_tri_mesh(), tmp_path / "shared.mesh")
+
+
 def test_an_entry_point_outranks_the_dispatcher_it_collides_with(monkeypatch) -> None:
     """Installing a codec for '.dat' is a claim; it beats polyxios' own guess."""
     import importlib.metadata

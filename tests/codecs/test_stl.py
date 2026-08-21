@@ -231,9 +231,9 @@ def test_binary_with_solid_header(tmp_path: Path) -> None:
 # --- meshio #1355: binary STL colours ----------------------------------------
 
 
-def _binary_stl(facets: list[tuple[np.ndarray, int]]) -> bytes:
+def _binary_stl(facets: list[tuple[np.ndarray, int]], header: bytes = b"") -> bytes:
     """Return a binary STL holding the given (3x3 vertices, attribute) facets."""
-    out = bytearray(b"\x00" * 80)
+    out = bytearray(header.ljust(80, b"\x00")[:80])
     out += np.array([len(facets)], dtype="<u4").tobytes()
     for verts, attr in facets:
         out += np.zeros(3, dtype="<f4").tobytes()
@@ -247,8 +247,13 @@ _TRI_B = np.array([[0.0, 0, 0], [1, 0, 0], [0, 0, 1]])
 
 
 def _rgb15(r: int, g: int, b: int) -> int:
-    """Pack 5-bit components the way Magics does, with the valid bit set."""
-    return 0x8000 | (b << 10) | (g << 5) | r
+    """Pack 5-bit components the VisCAM way: red high, blue low, valid bit set."""
+    return 0x8000 | (r << 10) | (g << 5) | b
+
+
+def _magics15(r: int, g: int, b: int) -> int:
+    """Pack them the Magics way: red low, blue high, top bit clear when owned."""
+    return (b << 10) | (g << 5) | r
 
 
 def test_issue_1355_binary_attribute_bytes_read_as_colours(tmp_path) -> None:
@@ -321,3 +326,56 @@ def test_issue_1470_the_merge_can_be_turned_off(tmp_path) -> None:
     path = tmp_path / "shared.stl"
     path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
     assert read(path, merge_vertices=False).vertices.shape == (6, 3)
+
+
+def test_issue_1355_a_magics_header_switches_the_colour_convention(tmp_path) -> None:
+    """Magics runs red in the low bits and clears the top bit to claim a colour."""
+    path = tmp_path / "magics.stl"
+    path.write_bytes(
+        _binary_stl(
+            [(_TRI_A, _magics15(31, 0, 0)), (_TRI_B, _magics15(0, 0, 31))],
+            header=b"COLOR=\xff\xff\xff\xff,MATERIAL=solid",
+        )
+    )
+    colors = read(path).element_attrs["colors"]
+    np.testing.assert_allclose(colors[0], [1.0, 0.0, 0.0], atol=1e-6)
+    np.testing.assert_allclose(colors[1], [0.0, 0.0, 1.0], atol=1e-6)
+
+
+def test_issue_1355_a_magics_facet_that_disowns_its_colour_carries_none(
+    tmp_path,
+) -> None:
+    """Magics sets the top bit to say the facet takes the part's colour."""
+    path = tmp_path / "inherit.stl"
+    path.write_bytes(
+        _binary_stl(
+            [(_TRI_A, _magics15(31, 0, 0)), (_TRI_B, 0x8000)],
+            header=b"COLOR=\xff\xff\xff\xff",
+        )
+    )
+    colors = read(path).element_attrs["colors"]
+    np.testing.assert_allclose(colors[0], [1.0, 0.0, 0.0], atol=1e-6)
+    assert np.isnan(colors[1]).all()
+
+
+def test_issue_1355_an_integer_colour_column_counts_to_255(tmp_path) -> None:
+    """A uint8 colour scaled as 0..1 saturates and writes a white mesh."""
+    path = tmp_path / "src.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 0, 0))]))
+    poly = read(path)
+    poly.element_attrs["colors"] = np.array([[255, 0, 0]], dtype=np.uint8)
+    out = tmp_path / "int.stl"
+    write(poly, out, binary=True)
+    np.testing.assert_allclose(
+        read(out).element_attrs["colors"][0], [1.0, 0.0, 0.0], atol=1e-6
+    )
+
+
+def test_issue_1355_lazy_reads_see_the_same_colours(tmp_path) -> None:
+    """The lazy path reads the same words and must read them the same way."""
+    path = tmp_path / "lazy.stl"
+    path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 0, 0))]))
+    np.testing.assert_allclose(
+        read(path, lazy=True).element_attrs["colors"],
+        read(path).element_attrs["colors"],
+    )
