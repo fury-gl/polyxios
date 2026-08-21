@@ -13,6 +13,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, read_text, write_text
+from polyxios._tags import member_indices
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -398,9 +399,16 @@ def _data_section_lines(
     A field of any width is written, since the format puts no ceiling on the
     component count. Non-numeric or wrong-length attributes have no data
     section to sit in and are reported rather than dropped in silence.
+
+    A row that is not finite throughout is left out, and the declared entity
+    count drops with it: the format spells no "no value here", so a NaN read
+    in from a field covering part of the mesh would go back out as the token
+    ``nan``, which is not a number a reader expecting one accepts. A field
+    covering part of the mesh is written over that part, the way it came in.
     """
     lines: list[str] = []
     skipped: set[str] = set()
+    thinned: dict[str, int] = {}
     for name, raw in (attrs or {}).items():
         array = np.asarray(raw)
         if (
@@ -414,8 +422,23 @@ def _data_section_lines(
         values = array.reshape(count, -1).astype(np.float64, copy=False)
         # Element data is numbered by the file, not by the mesh: an element
         # with no Gmsh equivalent never got an id, so its value has no row.
-        indices = list(range(count)) if written is None else list(written)
-        if not indices:
+        picked = (
+            np.arange(count, dtype=np.int64)
+            if written is None
+            else np.asarray(written, dtype=np.int64)
+        )
+        if not picked.size:
+            continue
+        rows = values[picked]
+        # The tag names the entity as this file numbers it, which is the row's
+        # place among the ones written - so dropping a row must not renumber
+        # the rest.
+        live = np.isfinite(rows).all(axis=1)
+        if not live.all():
+            thinned[name] = int(np.count_nonzero(~live))
+            rows = rows[live]
+        tags = np.flatnonzero(live) + 1
+        if not tags.size:
             continue
         lines.extend(
             [
@@ -427,20 +450,27 @@ def _data_section_lines(
                 "3",
                 "0",
                 str(values.shape[1]),
-                str(len(indices)),
+                str(tags.size),
             ]
         )
         lines.extend(
-            f"{out + 1} " + " ".join(f"{value:{float_fmt}}" for value in values[src])
-            for out, src in enumerate(indices)
+            f"{tag} " + " ".join(f"{value:{float_fmt}}" for value in row)
+            for tag, row in zip(tags.tolist(), rows)
         )
         lines.append(f"$End{keyword}")
 
+    kind = "vertex" if keyword == "NodeData" else "element"
     if skipped:
-        lines_kind = "vertex" if keyword == "NodeData" else "element"
         warnings.warn(
-            f".msh: only named numeric {lines_kind} attributes, one row per"
-            f" {lines_kind}, can be written; skipped {sorted(skipped)}.",
+            f".msh: only named numeric {kind} attributes, one row per"
+            f" {kind}, can be written; skipped {sorted(skipped)}.",
+            stacklevel=3,
+        )
+    if thinned:
+        named = ", ".join(f"{name} ({n})" for name, n in sorted(thinned.items()))
+        warnings.warn(
+            f".msh: the format spells no missing value, so the {kind}(s)"
+            f" carrying one were left out of their data section: {named}.",
             stacklevel=3,
         )
     return lines
@@ -1201,7 +1231,7 @@ def _resolve_physical_groups(
         # for an element that belongs to several groups.
         phys_tags = np.zeros(n_elems, dtype=np.int32)
         for next_tag, members in enumerate(poly.element_tags.values(), start=1):
-            idx = np.asarray(members, dtype=np.int64)
+            idx = member_indices(members, n_elems)
             unassigned = idx[phys_tags[idx] == 0]
             phys_tags[unassigned] = next_tag
 
@@ -1216,8 +1246,13 @@ def _resolve_physical_groups(
     claimed: dict[int, set[int] | None] = {}
     unnamed: list[str] = []
     typeless: list[str] = []
+    unreachable: list[str] = []
     for name, members in poly.element_tags.items():
-        idx = np.asarray(members, dtype=np.int64)
+        idx = member_indices(members, n_elems)
+        if idx.size != np.asarray(members).size:
+            # Members that index no element of this mesh cost the group the
+            # part of itself they stood for, so say which group lost them.
+            unreachable.append(name)
         if not idx.size:
             continue
         group_tags = np.unique(phys_tags[idx])
@@ -1259,6 +1294,13 @@ def _resolve_physical_groups(
         warnings.warn(
             f".msh: element tag group(s) {sorted(typeless)} were not written to"
             " $PhysicalNames; no member has a Gmsh element type.",
+            stacklevel=3,
+        )
+    if unreachable:
+        warnings.warn(
+            f".msh: element tag group(s) {sorted(set(unreachable))} name"
+            " members that index no element of this mesh; those members were"
+            " dropped.",
             stacklevel=3,
         )
     return phys_tags, names

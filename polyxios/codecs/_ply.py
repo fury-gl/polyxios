@@ -1,4 +1,6 @@
+import struct
 from typing import Any
+import warnings
 
 import numpy as np
 
@@ -38,6 +40,20 @@ _PLY_DTYPE: dict[str, str] = {
     "uint32": "u4",
     "float32": "f4",
     "float64": "f8",
+}
+
+# struct format character per numpy code, so a record holding a list property -
+# whose width is only known once its count has been read - can be walked one
+# field at a time without a numpy call per field.
+_PLY_STRUCT: dict[str, str] = {
+    "i1": "b",
+    "u1": "B",
+    "i2": "h",
+    "u2": "H",
+    "i4": "i",
+    "u4": "I",
+    "f4": "f",
+    "f8": "d",
 }
 
 
@@ -131,6 +147,14 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         If True (default), write binary little-endian.
     endian
         'little' (default) or 'big'.
+
+    Notes
+    -----
+    ``line`` elements are written as ``element edge`` records and every other
+    element as a face. Numeric ``vertex_attrs`` and ``element_attrs`` become
+    properties of their element, a multi-component one spelled as one property
+    per column; an attribute that is not one row per entity, or whose name is
+    not a bare token, has no record to sit in and is skipped with a warning.
     """
     binary: bool = bool(opts.get("binary", True))
     endian: str = str(opts.get("endian", "little"))
@@ -140,10 +164,15 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     # PLY spells a two-ended element as 'element edge' with vertex1/vertex2,
     # not as a face list of length two: a reader handed the latter builds a
-    # degenerate polygon, which is not the line the mesh held.
+    # degenerate polygon, which is not the line the mesh held. The split is
+    # one pass over the type column rather than a Python loop per element.
     line_code = ELEMENT_TYPES["line"]
-    edge_indices = [i for i in range(n_elems) if poly.element_types[i] == line_code]
-    face_indices = [i for i in range(n_elems) if poly.element_types[i] != line_code]
+    is_edge = np.asarray(poly.element_types) == line_code
+    edge_indices = np.flatnonzero(is_edge).tolist()
+    face_indices = np.flatnonzero(~is_edge).tolist()
+
+    vert_attrs = _writable_attrs(poly.vertex_attrs, n_verts, "vertex")
+    face_attrs = _writable_attrs(poly.element_attrs, n_elems, "element")
 
     lines: list[bytes] = []
     lines.append(b"ply")
@@ -162,7 +191,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(b"property double y")
     lines.append(b"property double z")
 
-    for name, arr in poly.vertex_attrs.items():
+    for name, arr in vert_attrs.items():
         dt_str = _np_to_ply_type(arr.dtype)
         if arr.ndim == 2:
             lines.extend(
@@ -175,9 +204,14 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(f"element face {len(face_indices)}".encode())
     lines.append(b"property list uchar int vertex_indices")
 
-    for name, arr in poly.element_attrs.items():
+    for name, arr in face_attrs.items():
         dt_str = _np_to_ply_type(arr.dtype)
-        lines.append(f"property {dt_str} {name}".encode())
+        if arr.ndim == 2:
+            lines.extend(
+                f"property {dt_str} {name}_{ci}".encode() for ci in range(arr.shape[1])
+            )
+        else:
+            lines.append(f"property {dt_str} {name}".encode())
 
     if edge_indices:
         lines.append(f"element edge {len(edge_indices)}".encode())
@@ -200,9 +234,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                         poly.vertices[vi], dtype=np.dtype(endian_chr + "f8")
                     ).tobytes()
                 )
-                for arr in poly.vertex_attrs.values():
-                    row = arr[vi] if arr.ndim == 1 else arr[vi]
-                    val = np.asarray(row).ravel()
+                for arr in vert_attrs.values():
+                    val = np.asarray(arr[vi]).ravel()
                     dt = np.dtype(endian_chr + _np_short_dtype(val.dtype))
                     fh.write(val.astype(dt).tobytes())
             # Faces: interleaved per-face record (count, indices, extra...)
@@ -212,7 +245,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
                 fh.write(np.array([e - s], dtype=count_dt).tobytes())
                 fh.write(poly.connectivity[s:e].astype(idx_dt).tobytes())
-                for arr in poly.element_attrs.values():
+                for arr in face_attrs.values():
                     val = np.asarray(arr[i]).ravel()
                     dt = np.dtype(endian_chr + _np_short_dtype(val.dtype))
                     fh.write(val.astype(dt).tobytes())
@@ -228,7 +261,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                     f"{poly.vertices[vi, 1]:.10g}",
                     f"{poly.vertices[vi, 2]:.10g}",
                 ]
-                for arr in poly.vertex_attrs.values():
+                for arr in vert_attrs.values():
                     if arr.ndim == 2:
                         row.extend(f"{arr[vi, ci]:.10g}" for ci in range(arr.shape[1]))
                     else:
@@ -238,13 +271,70 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             for i in face_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
                 parts = [str(e - s)] + [str(int(v)) for v in poly.connectivity[s:e]]
-                parts.extend(f"{arr[i]:.10g}" for arr in poly.element_attrs.values())
+                for arr in face_attrs.values():
+                    if arr.ndim == 2:
+                        parts.extend(f"{arr[i, ci]:.10g}" for ci in range(arr.shape[1]))
+                    else:
+                        parts.append(f"{arr[i]:.10g}")
                 fh.write((" ".join(parts) + "\n").encode())
             # Each edge line = vertex1 vertex2
             for i in edge_indices:
                 s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
                 ends = _edge_ends(poly, i, s, e)
                 fh.write(f"{int(ends[0])} {int(ends[1])}\n".encode())
+
+
+def _writable_attrs(
+    attrs: dict[str, np.ndarray] | None, count: int, kind: str
+) -> dict[str, np.ndarray]:
+    """Return the attributes a record of this element has room for.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's ``vertex_attrs`` or ``element_attrs``.
+    count
+        How many vertices or elements the mesh holds, which is how long an
+        attribute has to be to describe them.
+    kind
+        ``vertex`` or ``element``, named in the warning.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The attributes that describe these entities, each as an array. A
+        multi-component one is kept and spelled one property per column.
+
+    Notes
+    -----
+    A PLY header declares a fixed set of properties per record, so an
+    attribute that is not one row per entity has nowhere to sit: a short one
+    is indexed off the end and a long one leaves values with no record. A
+    name is a bare token in the header, so one carrying whitespace would split
+    into two properties and read back as neither. All of it is reported rather
+    than left to produce a file no reader can parse.
+    """
+    kept: dict[str, np.ndarray] = {}
+    refused: set[str] = set()
+    for name, raw in (attrs or {}).items():
+        values = np.asarray(raw)
+        if (
+            not name.strip()
+            or name.split() != [name]
+            or values.ndim not in (1, 2)
+            or values.shape[0] != count
+            or values.dtype.kind not in "fiub"
+        ):
+            refused.add(name)
+            continue
+        kept[name] = values
+    if refused:
+        warnings.warn(
+            f".ply: only numeric {kind}_attrs named by a bare token, one row"
+            f" per {kind}, fit in a record; skipped {sorted(refused)}.",
+            stacklevel=3,
+        )
+    return kept
 
 
 def _edge_ends(poly: PolyData, index: int, start: int, end: int) -> np.ndarray:
@@ -650,7 +740,6 @@ def _decode_binary(
     # attribute keeps lining up with the faces it describes whatever order
     # the header declares the two elements in.
     edge_conn: list[int] = []
-    edge_offsets: list[int] = []
 
     for elem in header["elements"]:
         ename = elem["name"]
@@ -658,19 +747,27 @@ def _decode_binary(
         props = elem["properties"]
 
         if ename == "vertex":
-            # Build structured dtype for vertex properties
-            dtype_fields: list[tuple[str, str]] = []
-            for pname, ptype in props:
-                dtype_fields.append((pname, endian + _PLY_DTYPE[ptype]))
-            dt = np.dtype(dtype_fields)
-            nbytes = count * dt.itemsize
-            raw = bytes(mv[pos : pos + nbytes])
-            rec = np.frombuffer(raw, dtype=dt)
-            pos += nbytes
+            # One structured read for the usual all-scalar record; an element
+            # carrying a list property has no fixed record width and is walked
+            # instead, rather than raising on a dtype that cannot describe it.
+            dt = _scalar_record_dtype(props, endian, "vertex")
+            if dt is not None:
+                nbytes = count * dt.itemsize
+                if pos + nbytes > len(mv):
+                    raise CodecError(
+                        f".ply: the file ends inside its {count} vertex record(s)."
+                    )
+                rec: Any = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=dt)
+                pos += nbytes
+            else:
+                rec, pos = _read_mixed_records(mv, pos, count, props, endian, "vertex")
 
             coords = np.zeros((count, 3), dtype=np.float64)
             coord_map = {"x": 0, "y": 1, "z": 2}
-            for pname, _ in props:
+            for pname, ptype in props:
+                if isinstance(ptype, tuple):
+                    # A list property has no column to become an attribute.
+                    continue
                 if pname in coord_map:
                     coords[:, coord_map[pname]] = rec[pname].astype(np.float64)
                 else:
@@ -732,24 +829,26 @@ def _decode_binary(
             # in a face list; read as a face it would build a degenerate
             # polygon instead of the line the file holds.
             first, second = _edge_end_slots(props)
-            dt = np.dtype(
-                [(pname, endian + _PLY_DTYPE[ptype]) for pname, ptype in props]
-            )
-            nbytes = count * dt.itemsize
-            if pos + nbytes > len(mv):
-                raise CodecError(
-                    f".ply: the file ends inside its {count} edge record(s)."
-                )
-            rec = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=dt)
-            pos += nbytes
+            edge_dt = _scalar_record_dtype(props, endian, "edge")
+            if edge_dt is not None:
+                nbytes = count * edge_dt.itemsize
+                if pos + nbytes > len(mv):
+                    raise CodecError(
+                        f".ply: the file ends inside its {count} edge record(s)."
+                    )
+                ends: Any = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=edge_dt)
+                pos += nbytes
+            else:
+                ends, pos = _read_mixed_records(mv, pos, count, props, endian, "edge")
             pairs = np.column_stack(
                 [
-                    rec[props[first][0]].astype(np.int64),
-                    rec[props[second][0]].astype(np.int64),
+                    ends[props[first][0]].astype(np.int64),
+                    ends[props[second][0]].astype(np.int64),
                 ]
             )
-            edge_conn = pairs.ravel().tolist()
-            edge_offsets = list(range(2, 2 * count + 1, 2))
+            # Extended, not assigned: a header declaring the element twice
+            # would otherwise keep only its last block.
+            edge_conn.extend(pairs.ravel().tolist())
 
         else:
             # Skip unknown elements: compute size by summing property sizes
@@ -757,10 +856,11 @@ def _decode_binary(
 
     types_list = _face_types(offsets_list)
     if edge_conn:
+        n_edges = len(edge_conn) // 2
         base = offsets_list[-1]
         conn_list.extend(edge_conn)
-        offsets_list.extend(base + step for step in edge_offsets)
-        types_list.extend([ELEMENT_TYPES["line"]] * len(edge_offsets))
+        offsets_list.extend(range(base + 2, base + 2 * n_edges + 1, 2))
+        types_list.extend([ELEMENT_TYPES["line"]] * n_edges)
         element_attrs = _padded_face_attrs(element_attrs, len(types_list))
 
     return PolyData(
@@ -771,6 +871,144 @@ def _decode_binary(
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
     )
+
+
+def _scalar_code(ptype: Any, where: str) -> str:
+    """Return the numpy code a scalar PLY property type names.
+
+    Parameters
+    ----------
+    ptype
+        The property's type as the header spells it.
+    where
+        The element's name, named in the error.
+
+    Returns
+    -------
+    str
+        The numpy dtype code, without an endian prefix.
+
+    Raises
+    ------
+    CodecError
+        On a type name outside the PLY set. Guessing a width here would read
+        every field after it from the wrong offset, so the whole element is
+        refused instead.
+    """
+    code = _PLY_DTYPE.get(ptype) if isinstance(ptype, str) else None
+    if code is None:
+        raise CodecError(
+            f".ply: the {where} element declares an unknown property type {ptype!r}."
+        )
+    return code
+
+
+def _scalar_record_dtype(
+    props: list[tuple[str, Any]], endian: str, where: str
+) -> np.dtype | None:
+    """Return one structured dtype for an element, or None when a list bars it.
+
+    Parameters
+    ----------
+    props
+        The element's ``(name, type)`` properties, in declared order.
+    endian
+        ``<`` or ``>``.
+    where
+        The element's name, named in any error raised.
+
+    Returns
+    -------
+    numpy.dtype or None
+        A dtype covering one whole record, so the block reads in one call.
+        None when a list property makes the record width vary, which is what
+        ``_read_mixed_records`` is for.
+    """
+    if any(isinstance(ptype, tuple) for _, ptype in props):
+        return None
+    return np.dtype(
+        [(pname, endian + _scalar_code(ptype, where)) for pname, ptype in props]
+    )
+
+
+def _read_mixed_records(
+    mv: memoryview,
+    pos: int,
+    count: int,
+    props: list[tuple[str, Any]],
+    endian: str,
+    where: str,
+) -> tuple[dict[str, np.ndarray], int]:
+    """Read an element whose records vary in width, one record at a time.
+
+    Parameters
+    ----------
+    mv
+        The file's bytes.
+    pos
+        Where the element's records begin.
+    count
+        How many of them there are.
+    props
+        The element's ``(name, type)`` properties, in declared order.
+    endian
+        ``<`` or ``>``.
+    where
+        The element's name, named in any error raised.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        One column per scalar property; the list properties are stepped over.
+    int
+        Where the element's records end.
+
+    Raises
+    ------
+    CodecError
+        When the file ends inside the block, or a property names a type of no
+        known width.
+
+    Notes
+    -----
+    Only reached by an element carrying a list property, which no common file
+    does outside ``face``: a record whose width depends on a count inside it
+    cannot be gathered by one structured read. The per-field walk uses
+    ``struct`` rather than numpy, whose per-call overhead is what makes the
+    scalar path worth keeping separate.
+    """
+    # (column, format, field width, index width) per property; a list property
+    # has no column and spends its index width on whatever count it declares.
+    layout: list[tuple[np.ndarray | None, str, int, int]] = []
+    columns: dict[str, np.ndarray] = {}
+    for pname, ptype in props:
+        if isinstance(ptype, tuple) and ptype[0] == "list":
+            fmt = endian + _PLY_STRUCT[_scalar_code(ptype[1], where)]
+            idx_size = np.dtype(endian + _scalar_code(ptype[2], where)).itemsize
+            layout.append((None, fmt, struct.calcsize(fmt), idx_size))
+        else:
+            code = _scalar_code(ptype, where)
+            fmt = endian + _PLY_STRUCT[code]
+            column = np.empty(count, dtype=code)
+            columns[pname] = column
+            layout.append((column, fmt, struct.calcsize(fmt), 0))
+
+    limit = len(mv)
+    for i in range(count):
+        for column, fmt, size, idx_size in layout:
+            if pos + size > limit:
+                raise CodecError(
+                    f".ply: the file ends inside its {count} {where} record(s)."
+                )
+            value = struct.unpack_from(fmt, mv, pos)[0]
+            pos += size
+            if column is None:
+                pos += int(value) * idx_size
+            else:
+                column[i] = value
+    if pos > limit:
+        raise CodecError(f".ply: the file ends inside its {count} {where} record(s).")
+    return columns, pos
 
 
 def _skip_binary_element(

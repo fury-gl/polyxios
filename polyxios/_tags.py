@@ -10,7 +10,12 @@ import re
 
 import numpy as np
 
-__all__ = ["group_by_value", "integer_column", "values_from_tags"]
+__all__ = [
+    "group_by_value",
+    "integer_column",
+    "member_indices",
+    "values_from_tags",
+]
 
 
 def group_by_value(values: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
@@ -44,6 +49,39 @@ def group_by_value(values: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
         f"{prefix}{int(value)}": members
         for value, members in zip(ranked[starts], np.split(order, starts[1:]))
     }
+
+
+def member_indices(members: object, n_elems: int) -> np.ndarray:
+    """Return the element indices a tag group names, dropping what indexes none.
+
+    Parameters
+    ----------
+    members
+        A tag group's members, as the mesh carries them.
+    n_elems
+        How many elements the mesh holds.
+
+    Returns
+    -------
+    numpy.ndarray
+        The members that are indices into this mesh, as int64. Empty when the
+        group holds no usable index at all.
+
+    Notes
+    -----
+    Nothing checks a tag group on the way in, so a group may hold floats, an
+    extra dimension, or an index past the end of a mesh it was not built for.
+    Each of those indexes nothing: a float raises rather than rounding - which
+    is right, since rounding an index moves a label onto another element - and
+    a stale index reaches an element that is not the one it named. Dropping
+    them is what lets a writer report the loss instead of raising whatever the
+    first stray value happens to raise.
+    """
+    picked = np.asarray(members).ravel()
+    if picked.dtype.kind not in "iub":
+        return np.empty(0, dtype=np.int64)
+    picked = picked.astype(np.int64, copy=False)
+    return picked[(picked >= 0) & (picked < n_elems)]
 
 
 def integer_column(stored: object, n_elems: int) -> np.ndarray | None:
@@ -114,11 +152,9 @@ def values_from_tags(
         if match is None:
             unnamed.add(name)
             continue
-        picked = np.asarray(members).ravel()
-        if picked.dtype.kind not in "iub":
+        if np.asarray(members).ravel().dtype.kind not in "iub":
             unusable.add(name)
             continue
-        picked = picked[(picked >= 0) & (picked < n_elems)]
-        values[picked] = int(match.group(1))
+        values[member_indices(members, n_elems)] = int(match.group(1))
         named = True
     return values, unnamed, named, unusable

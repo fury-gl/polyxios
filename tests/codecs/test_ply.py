@@ -374,3 +374,112 @@ def test_a_face_naming_more_indices_than_it_carries_names_the_format(
     path.write_text(_ascii_ply(_VERTEX_BLOCK + _FACE_BLOCK, _VERTEX_ROWS + "4 0 1 2\n"))
     with pytest.raises(CodecError, match="face record"):
         read(path)
+
+
+def _binary_ply(header: str, body: bytes) -> bytes:
+    """Return a little-endian binary PLY from its element declarations."""
+    return (
+        b"ply\nformat binary_little_endian 1.0\n"
+        + header.encode()
+        + b"end_header\n"
+        + body
+    )
+
+
+def test_an_edge_carrying_a_list_property_still_names_its_two_ends(
+    tmp_path,
+) -> None:
+    """A list property makes an edge record vary in width, not unreadable.
+
+    The scalar path gathers a whole block with one structured read, which a
+    list property has no fixed width for. Falling back to a record-by-record
+    walk is what keeps such a file readable instead of raising a bare KeyError
+    from a dtype that cannot describe the record.
+    """
+    import struct
+
+    path = tmp_path / "edge_list.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 3\nproperty float x\nproperty float y\n"
+            "property float z\n"
+            "element edge 1\nproperty int vertex1\nproperty int vertex2\n"
+            "property list uchar int tags\n",
+            struct.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, 0)
+            + struct.pack("<ii", 0, 1)
+            + struct.pack("<BI", 1, 5),
+        )
+    )
+    poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]]
+    np.testing.assert_array_equal(poly.connectivity, [0, 1])
+
+
+def test_a_vertex_carrying_a_list_property_still_names_its_coordinates(
+    tmp_path,
+) -> None:
+    """The same varying width on the element every PLY file carries."""
+    import struct
+
+    path = tmp_path / "vertex_list.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 2\nproperty float x\nproperty float y\n"
+            "property float z\nproperty list uchar int extra\n"
+            "element edge 1\nproperty int vertex1\nproperty int vertex2\n",
+            struct.pack("<3f", 0, 0, 0)
+            + struct.pack("<BII", 2, 7, 8)
+            + struct.pack("<3f", 1, 0, 0)
+            + struct.pack("<BI", 1, 9)
+            + struct.pack("<ii", 0, 1),
+        )
+    )
+    poly = read(path)
+    np.testing.assert_allclose(poly.vertices, [[0, 0, 0], [1, 0, 0]])
+    np.testing.assert_array_equal(poly.connectivity, [0, 1])
+
+
+def test_a_multi_component_element_attribute_is_one_property_per_column(
+    tmp_path,
+) -> None:
+    """An STL's facet colours are three numbers per element, not one.
+
+    A header declaring one property where the record holds three describes a
+    file no reader can walk, so the columns are spelled out the way a vertex
+    attribute's already are.
+    """
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.element_attrs["colors"] = np.array([[1.0, 0.0, 0.5]])
+    path = tmp_path / "colors.ply"
+    write(poly, path, binary=False)
+    text = path.read_text()
+    assert "property double colors_0" in text
+    assert "property double colors_2" in text
+
+    back = read(path)
+    for column, value in enumerate((1.0, 0.0, 0.5)):
+        np.testing.assert_allclose(back.element_attrs[f"colors_{column}"], [value])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_an_attribute_that_does_not_describe_the_mesh_is_reported(
+    tmp_path, binary: bool
+) -> None:
+    """A short column has no record to sit in and must not index off the end."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.vertex_attrs["v"] = np.arange(2, dtype=np.float64)
+    poly.element_attrs["two names"] = np.array([1.0])
+    path = tmp_path / "bad_attrs.ply"
+    with pytest.warns(UserWarning, match="fit in a record"):
+        write(poly, path, binary=binary)
+
+    back = read(path)
+    assert "v" not in back.vertex_attrs
+    assert "two" not in back.element_attrs
+    np.testing.assert_array_equal(back.connectivity, [0, 1, 2])

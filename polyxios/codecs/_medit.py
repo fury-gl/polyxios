@@ -88,49 +88,72 @@ _WRITE_ORDER: tuple[str, ...] = (
 # each kind of elements as there are programmers" - and leaves it to a
 # companion ``*Ordering`` section the ASCII flavour rarely carries. Reading
 # one without that section would mean guessing a permutation, so they are
-# named in the warning and skipped instead.
-_HIGHER_ORDER_SECTIONS: frozenset[str] = frozenset(
-    {
-        "EDGESP2",
-        "TRIANGLESP2",
-        "QUADRILATERALSQ2",
-        "TETRAHEDRAP2",
-        "PYRAMIDSP2",
-        "PRISMSP2",
-        "HEXAHEDRAQ2",
-        "EDGESP3",
-        "TRIANGLESP3",
-        "TETRAHEDRAP3",
-    }
-)
+# named in the warning and skipped instead. The value is the record's width -
+# its node count plus the trailing reference - which is known so the scanner
+# can step over the block rather than walk into it, not so it can be decoded.
+_HIGHER_ORDER_SECTIONS: dict[str, int] = {
+    "EDGESP2": 3 + 1,
+    "TRIANGLESP2": 6 + 1,
+    "QUADRILATERALSQ2": 9 + 1,
+    "TETRAHEDRAP2": 10 + 1,
+    "PYRAMIDSP2": 14 + 1,
+    "PRISMSP2": 18 + 1,
+    "HEXAHEDRAQ2": 27 + 1,
+    "EDGESP3": 4 + 1,
+    "TRIANGLESP3": 10 + 1,
+    "TETRAHEDRAP3": 20 + 1,
+}
 
-# Sections that carry no mesh entities: skipped without a word, since a file
-# is not worse for having them.
+# A width of _WIDTH_DIM is one value per dimension, which the file's own
+# Dimension fixes; _WIDTH_TWICE_DIM is a corner pair, as a bounding box is.
+_WIDTH_DIM: int = -1
+_WIDTH_TWICE_DIM: int = -2
+
+# Sections that carry no mesh entities but do carry records, each a count
+# followed by that many rows of this many values. Stepped over without a word,
+# since a file is not worse for having them - but stepped over by their own
+# length, so whatever follows is read as a section and not as their payload.
+_COUNTED_SECTIONS: dict[str, int] = {
+    **_HIGHER_ORDER_SECTIONS,
+    "CORNERS": 1,
+    "RIDGES": 1,
+    "REQUIREDVERTICES": 1,
+    "REQUIREDEDGES": 1,
+    "REQUIREDTRIANGLES": 1,
+    "REQUIREDQUADRILATERALS": 1,
+    "NORMALS": _WIDTH_DIM,
+    "TANGENTS": _WIDTH_DIM,
+    "NORMALATVERTICES": 2,
+    "TANGENTATVERTICES": 2,
+    "NORMALATTRIANGLEVERTICES": 3,
+    "NORMALATQUADRILATERALVERTICES": 3,
+    "TANGENTATEDGEVERTICES": 3,
+}
+
+# Sections that are a keyword and a value, with no count between them. A
+# string-valued one is why they are stepped over by name: 'Identifier' is
+# followed by a word, and a word left unclaimed reads as a section of its own.
+_SCALAR_SECTIONS: dict[str, int] = {
+    "ANGLEOFCORNERBOUND": 1,
+    "IDENTIFIER": 1,
+    "GEOMETRICSUPPORT": 1,
+    "TIME": 1,
+    "ITERATIONS": 1,
+    "BOUNDINGBOX": _WIDTH_TWICE_DIM,
+}
+
+# Sections read or handled by name, which the unsupported-section warning must
+# not name. 'SubDomainFromGeom' is here rather than among the counted ones:
+# its record width is not one this codec is sure of, and stepping over a block
+# by the wrong width is worse than stepping over none of it.
 _QUIET_SECTIONS: frozenset[str] = frozenset(
     {
         "MESHVERSIONFORMATTED",
         "DIMENSION",
         "END",
-        "CORNERS",
-        "RIDGES",
-        "REQUIREDVERTICES",
-        "REQUIREDEDGES",
-        "REQUIREDTRIANGLES",
-        "REQUIREDQUADRILATERALS",
-        "NORMALS",
-        "TANGENTS",
-        "NORMALATVERTICES",
-        "NORMALATTRIANGLEVERTICES",
-        "NORMALATQUADRILATERALVERTICES",
-        "TANGENTATEDGEVERTICES",
-        "TANGENTATVERTICES",
         "SUBDOMAINFROMGEOM",
-        "ANGLEOFCORNERBOUND",
-        "BOUNDINGBOX",
-        "IDENTIFIER",
-        "GEOMETRICSUPPORT",
-        "TIME",
-        "ITERATIONS",
+        *_COUNTED_SECTIONS,
+        *_SCALAR_SECTIONS,
     }
 )
 
@@ -201,6 +224,65 @@ def _checked_count(value: str, cap: int, what: str) -> int:
     if count > cap:
         raise CodecError(f".mesh: {what} count {count} exceeds the safety cap {cap}.")
     return count
+
+
+def _skip_section(tokens: list[str], cursor: int, name: str, dim: int) -> int:
+    """Return the cursor past a section this codec does not decode.
+
+    Parameters
+    ----------
+    tokens
+        The file's tokens.
+    cursor
+        Where the section's payload begins, the name already consumed.
+    name
+        The section's upper-cased name.
+    dim
+        The file's declared dimension, which is the width of a normal or a
+        tangent.
+
+    Returns
+    -------
+    int
+        Where the next section begins, or ``cursor`` unchanged for a section
+        whose payload this codec cannot measure.
+
+    Notes
+    -----
+    A section left unconsumed has its payload read as if it were the rest of
+    the file, which is harmless while the payload is numbers - a number is not
+    a section name - and wrong the moment one carries a word, as
+    ``Identifier`` does. Measuring what can be measured keeps the scan on the
+    section boundaries; a width this codec is unsure of consumes nothing,
+    which is what it did for every section before.
+    """
+    width = _SCALAR_SECTIONS.get(name)
+    if width is not None:
+        need = _section_width(width, dim)
+        return cursor + need if cursor + need <= len(tokens) else cursor
+
+    width = _COUNTED_SECTIONS.get(name)
+    if width is None or cursor >= len(tokens):
+        return cursor
+    try:
+        count = int(tokens[cursor])
+    except ValueError:
+        # bamg puts a count on the name's own line, so a section whose next
+        # token is not a number is one whose shape this codec does not know.
+        return cursor
+    if count < 0:
+        return cursor
+    need = 1 + count * _section_width(width, dim)
+    return cursor + need if cursor + need <= len(tokens) else cursor
+
+
+def _section_width(width: int, dim: int) -> int:
+    """Return a record width, resolving the dimension-dependent spellings."""
+    if width == _WIDTH_DIM:
+        return dim
+    if width == _WIDTH_TWICE_DIM:
+        return 2 * dim
+    return width
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
@@ -326,6 +408,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 higher_order.add(word)
             elif name not in _QUIET_SECTIONS:
                 skipped.add(word)
+            cursor = _skip_section(tokens, cursor, name, dim)
             continue
 
         elem_name, n_nodes = mapped

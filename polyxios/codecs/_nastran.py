@@ -146,6 +146,39 @@ _CARD_SPAN: dict[str, int] = {
     for card, shapes in _CARD_SHAPES.items()
 }
 
+
+def _slots(card: str, n_nodes: int) -> tuple[int, ...]:
+    """Return the grid point fields a card spends on one of its shapes."""
+    return _READ_ORDER.get((card, n_nodes)) or _STRAIGHT[n_nodes]
+
+
+def _extra_slots() -> dict[tuple[str, int], tuple[int, ...]]:
+    """Return, per card and shape, the fields its largest shape adds.
+
+    Returns
+    -------
+    dict of (str, int) to tuple of int
+        The grid point fields the card's largest shape uses and this one does
+        not - the mid-side points a demotion leaves behind.
+
+    Notes
+    -----
+    Read once per card that falls short of its largest shape, which is how a
+    partial quadratic card is told from a card that never carried a mid-side
+    point at all: the corners belong to both shapes and say nothing either
+    way. Only the shapes below the largest have an entry; the largest adds
+    nothing to itself.
+    """
+    table: dict[tuple[str, int], tuple[int, ...]] = {}
+    for card, shapes in _CARD_SHAPES.items():
+        top = set(_slots(card, shapes[-1][0]))
+        for n_nodes, _ in shapes[:-1]:
+            table[(card, n_nodes)] = tuple(sorted(top - set(_slots(card, n_nodes))))
+    return table
+
+
+_EXTRA_SLOTS: dict[tuple[str, int], tuple[int, ...]] = _extra_slots()
+
 # CONROD names a material where every other element card names a property, so
 # its grid points sit one field earlier than the rest.
 _GRID_FIELD_START: dict[str, int] = {"CONROD": 2}
@@ -664,6 +697,7 @@ def _resolve_shape(
     first: int,
     card: str,
     eid: str,
+    demoted: dict[str, int],
 ) -> tuple[str, tuple[int, ...]] | None:
     """Return the element a card holds, from the grid points it carries.
 
@@ -677,6 +711,10 @@ def _resolve_shape(
         Index of the card's first grid point field.
     card, eid
         Card name and element id, named in the error when the card is short.
+    demoted
+        Counts, per card, of the cards that carried some of a larger shape's
+        grid points but not all of them, so the caller can report the
+        mid-side nodes that were left behind.
 
     Returns
     -------
@@ -698,13 +736,23 @@ def _resolve_shape(
     rather than a quadratic one with a hole in it; the scan stops at the
     card's own span, so the material angle and offset a shell carries past its
     grid points are never mistaken for grid points of their own.
+
+    Taking the linear shape means leaving behind whatever mid-side points the
+    card did carry - polyxios has no element for a partly-populated quadratic
+    one - so the demotion is counted and reported rather than made in silence.
     """
     span = _CARD_SPAN[card]
     filled = [bool(_field(fields, first + k)) for k in range(span)]
     for n_nodes, name in reversed(shapes):
-        slots = _READ_ORDER.get((card, n_nodes)) or _STRAIGHT[n_nodes]
-        if all(filled[slot] for slot in slots):
-            return name, slots
+        slots = _slots(card, n_nodes)
+        if not all(filled[slot] for slot in slots):
+            continue
+        extra = _EXTRA_SLOTS.get((card, n_nodes))
+        if extra and any(filled[slot] for slot in extra):
+            # Some of the larger shape's mid-side points are there and some
+            # are not, so the ones that are have nowhere to go.
+            demoted[card] = demoted.get(card, 0) + 1
+        return name, slots
     if card in _OPTIONAL_GRIDS:
         return None
     # The leading run is what a reader sees before the card runs out, and is
@@ -758,11 +806,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     already agrees. A shell's ``ZOFFS`` lands in ``element_attrs["zoffs"]``
     when any card carries one. A CBUSH grounding its second end names no
     element and is skipped with a warning, as is an element card outside the
-    table and a continuation line with no card ahead of it to continue.
-    ``INCLUDE``
-    statements are not followed. A blank property id reads as 1; PSHELL,
-    PSOLID and the other property cards are not parsed, so the ids carry no
-    name or material.
+    table and a continuation line with no card ahead of it to continue. A card
+    carrying some of its mid-side grid points but not all reads as the linear
+    element, the mid-side ones it did carry dropped with a warning.
+    ``INCLUDE`` statements are not followed. A blank property id reads as 1;
+    PSHELL, PSOLID and the other property cards are not parsed, so the ids
+    carry no name or material.
     """
     if lazy:
         warnings.warn(
@@ -785,6 +834,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     includes = 0
     skipped: dict[str, int] = {}
     grounded: dict[str, int] = {}
+    demoted: dict[str, int] = {}
 
     text = read_text(path, encoding=_READ_ENCODING, errors="replace")
     for fields in _bulk_cards(text):
@@ -826,7 +876,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
         eid = _field(fields, 1) or "?"
         first = _GRID_FIELD_START.get(card, _DEFAULT_GRID_FIELD)
-        resolved = _resolve_shape(fields, shapes, first, card, eid)
+        resolved = _resolve_shape(fields, shapes, first, card, eid, demoted)
         if resolved is None:
             # A grounded CBUSH names one grid point and no element. The card
             # is one this codec supports, so it is not counted among the
@@ -881,6 +931,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         warnings.warn(
             f".bdf: skipped {sum(grounded.values())} card(s) that ground an"
             f" end, so they name one grid point and no element: {names}",
+            stacklevel=2,
+        )
+    if demoted:
+        names = ", ".join(f"{name} ({n})" for name, n in sorted(demoted.items()))
+        warnings.warn(
+            f".bdf: {sum(demoted.values())} card(s) carry some of their"
+            " mid-side grid points but not all, so they read as the linear"
+            f" element and the rest were dropped: {names}",
             stacklevel=2,
         )
 
