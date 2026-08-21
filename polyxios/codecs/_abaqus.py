@@ -367,9 +367,22 @@ def _set_indices(
     -----
     An id the deck never defined is reported rather than dropped in silence,
     since a set standing for a boundary condition matters.
+
+    A ``GENERATE`` range wider than the deck has ids is resolved by walking
+    the ids rather than the range: the card names two numbers and nothing
+    bounds their distance, so the range itself is not a thing to iterate.
     """
     indices: list[int] = []
-    missing: list[str] = []
+    n_missing = 0
+    first_missing: str | None = None
+
+    def miss(what_missed: str) -> None:
+        """Count an entry the deck never defined, keeping the first name."""
+        nonlocal n_missing, first_missing
+        n_missing += 1
+        if first_missing is None:
+            first_missing = what_missed
+
     if generate:
         for row in rows:
             values = [tok for tok in row if tok]
@@ -379,17 +392,43 @@ def _set_indices(
                 first, last = int(values[0]), int(values[1])
                 step = int(values[2]) if len(values) > 2 else 1
             except ValueError:
-                missing.append(", ".join(values))
+                miss(", ".join(values))
                 continue
             if step <= 0:
                 raise CodecError(
                     f".inp: {what} set '{name}' generates with a step of {step}."
                 )
+            if last < first:
+                continue
+            span = (last - first) // step + 1
+            if span > len(id_map):
+                # A range wider than the deck has ids is walked from the ids
+                # instead: 'GENERATE 1, 999999999' is a legal card, and a loop
+                # over the range it spells would run until the memory ran out.
+                hits = 0
+                for ident, index in id_map.items():
+                    if first <= ident <= last and (ident - first) % step == 0:
+                        indices.append(index)
+                        hits += 1
+                if hits < span:
+                    n_missing += span - hits
+                    if first_missing is None:
+                        # Bounded by the ids the deck holds: the walk stops at
+                        # the first gap, and every step before it was a hit.
+                        first_missing = str(
+                            next(
+                                ident
+                                for ident in range(first, last + 1, step)
+                                if ident not in id_map
+                            )
+                        )
+                continue
             for ident in range(first, last + 1, step):
-                if ident in id_map:
-                    indices.append(id_map[ident])
+                index = id_map.get(ident)
+                if index is None:
+                    miss(str(ident))
                 else:
-                    missing.append(str(ident))
+                    indices.append(index)
     else:
         for row in rows:
             for tok in row:
@@ -400,21 +439,21 @@ def _set_indices(
                 except ValueError:
                     # A set body may name sets declared earlier, in any case.
                     held = folded.get(tok.upper())
-                    nested = None if held is None else known[held]
-                    if nested is None:
-                        missing.append(tok)
+                    if held is None:
+                        miss(tok)
                     else:
-                        indices.extend(int(k) for k in nested)
+                        indices.extend(int(k) for k in known[held])
                     continue
-                if ident in id_map:
-                    indices.append(id_map[ident])
+                index = id_map.get(ident)
+                if index is None:
+                    miss(str(ident))
                 else:
-                    missing.append(str(ident))
+                    indices.append(index)
 
-    if missing:
+    if n_missing:
         warnings.warn(
-            f".inp: {what} set '{name}' names {len(missing)} entry(ies) the deck"
-            f" never defines, first {missing[0]!r}; they are dropped.",
+            f".inp: {what} set '{name}' names {n_missing} entry(ies) the deck"
+            f" never defines, first {first_missing!r}; they are dropped.",
             stacklevel=2,
         )
     return sorted(set(indices))
@@ -485,10 +524,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Several ``*NODE`` blocks accumulate, and a repeated node id restates that
     node rather than adding another. ``NSET=`` / ``ELSET=`` on a block, and
     standalone ``*NSET`` / ``*ELSET`` cards with or without ``GENERATE``,
-    become ``vertex_tags`` and ``element_tags``. ``*SYSTEM`` transforms the
-    node blocks that follow it, until the next ``*SYSTEM``. Every
-    ``*INSTANCE`` is merged into one mesh, each under its own node numbering
-    and tagged by its instance name. Solver cards are ignored.
+    become ``vertex_tags`` and ``element_tags``, and a set carrying
+    ``INSTANCE=`` is numbered by that instance rather than by whatever
+    numbering is in force where the card sits, which is where an assembly
+    keeps its sets. ``*SYSTEM`` transforms the node blocks that follow it,
+    until the next ``*SYSTEM``. Every ``*INSTANCE`` is merged into one mesh,
+    each under its own node numbering and tagged by its instance name; one
+    that only places its part shares the part's numbering. Solver cards are
+    ignored.
     """
     if lazy:
         warnings.warn(
@@ -525,9 +568,16 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     system: tuple[np.ndarray, np.ndarray] | None = None
     system_rows: list[list[str]] = []
     instance: str | None = None
+    instance_part: str | None = None
     instance_nodes: list[int] = []
     instance_elems: list[int] = []
+    # Upper-cased instance name to the node and element ids it numbered, kept
+    # past its *End Instance so an assembly-level set naming INSTANCE= still
+    # reaches them: a deck keeps almost all of its sets out there.
+    instance_ids: dict[str, tuple[dict[int, int], dict[int, int]]] = {}
+    set_instance: str | None = None
     unknown_types: set[str] = set()
+    unknown_instances: set[str] = set()
     repeated_elems = 0
 
     def close_block() -> None:
@@ -536,6 +586,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         if mode == "system":
             system = _parse_system(system_rows)
         elif mode in ("nset", "elset") and set_name is not None:
+            # A set naming INSTANCE= is numbered by that instance, not by
+            # whatever the reader happens to be inside now.
+            held = None
+            if set_instance is not None:
+                held = instance_ids.get(set_instance.upper())
+                if held is None:
+                    unknown_instances.add(set_instance)
+            set_nodes, set_elems = held if held is not None else (node_map, elem_map)
             if mode == "nset":
                 _store_set(
                     vertex_tags,
@@ -543,7 +601,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     set_name,
                     _set_indices(
                         set_rows,
-                        node_map,
+                        set_nodes,
                         vertex_tags,
                         vertex_folded,
                         generate=set_generate,
@@ -559,7 +617,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     set_name,
                     _set_indices(
                         set_rows,
-                        elem_map,
+                        set_elems,
                         element_tags,
                         element_folded,
                         generate=set_generate,
@@ -586,10 +644,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             block_elems = []
             set_rows = []
             set_name = None
+            set_instance = None
             set_generate = False
             system_rows = []
 
-            keyword = stripped.split(",")[0].strip().lstrip("*").upper()
+            # Whitespace inside a keyword is collapsed, so '*End  Instance'
+            # is the card '*End Instance' spelled loosely, not another one.
+            keyword = " ".join(stripped.split(",")[0].split()).lstrip("*").upper()
             params = _parse_params(stripped)
             if keyword == "NODE":
                 mode = "node"
@@ -604,10 +665,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             elif keyword == "NSET":
                 mode = "nset"
                 set_name = params.get("NSET") or None
+                set_instance = params.get("INSTANCE") or None
                 set_generate = "GENERATE" in params
             elif keyword == "ELSET":
                 mode = "elset"
                 set_name = params.get("ELSET") or None
+                set_instance = params.get("INSTANCE") or None
                 set_generate = "GENERATE" in params
             elif keyword == "SYSTEM":
                 mode = "system"
@@ -615,6 +678,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 # An instance numbers its own nodes from 1, so it reads
                 # against a fresh map and its elements are tagged by name.
                 instance = params.get("NAME") or keyword.lower()
+                instance_part = params.get("PART") or None
                 node_map = {}
                 elem_map = {}
                 instance_nodes = []
@@ -633,7 +697,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                             instance_elems,
                             "element",
                         )
+                    held_nodes, held_elems = node_map, elem_map
+                    if not held_nodes and not held_elems and instance_part:
+                        # An instance that only places its part carries no
+                        # nodes of its own, so a set naming the instance
+                        # means the part's.
+                        held_nodes, held_elems = instance_ids.get(
+                            instance_part.upper(), ({}, {})
+                        )
+                    instance_ids[instance.upper()] = (held_nodes, held_elems)
                 instance = None
+                instance_part = None
                 node_map = {}
                 elem_map = {}
             continue
@@ -714,6 +788,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         warnings.warn(
             f".inp: unrecognised element type(s) {sorted(unknown_types)};"
             " their blocks are skipped.",
+            stacklevel=2,
+        )
+    if unknown_instances:
+        warnings.warn(
+            f".inp: set(s) name the instance(s) {sorted(unknown_instances)},"
+            " which the deck never defines; they were resolved against the"
+            " numbering in force instead.",
             stacklevel=2,
         )
     if repeated_elems:

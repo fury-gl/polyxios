@@ -379,3 +379,27 @@ def test_issue_1355_lazy_reads_see_the_same_colours(tmp_path) -> None:
         read(path, lazy=True).element_attrs["colors"],
         read(path).element_attrs["colors"],
     )
+
+
+def test_a_magics_file_that_colours_nothing_is_not_black_from_end_to_end(
+    tmp_path,
+) -> None:
+    """A zero word is what a writer that coloured nothing leaves, not black."""
+    path = tmp_path / "uncoloured.stl"
+    path.write_bytes(
+        _binary_stl([(_TRI_A, 0), (_TRI_B, 0)], header=b"Magics COLOR=\xff\xff\xff\xff")
+    )
+    assert "colors" not in read(path).element_attrs
+
+
+def test_a_magics_file_keeps_the_facets_that_do_carry_one(tmp_path) -> None:
+    path = tmp_path / "partly.stl"
+    path.write_bytes(
+        _binary_stl(
+            [(_TRI_A, _magics15(0, 31, 0)), (_TRI_B, 0)],
+            header=b"Magics COLOR=\xff\xff\xff\xff",
+        )
+    )
+    colors = read(path).element_attrs["colors"]
+    np.testing.assert_allclose(colors[0], [0.0, 1.0, 0.0], atol=1e-6)
+    assert np.isnan(colors[1]).all()

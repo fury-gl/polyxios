@@ -35,6 +35,8 @@ def group_by_value(values: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
     which a mesh carrying thousands of labels feels; a single stable sort
     groups every value in one pass.
     """
+    if values.size == 0:
+        return {}
     order = np.argsort(values, kind="stable").astype(np.int32)
     ranked = values[order]
     starts = np.flatnonzero(np.concatenate(([True], ranked[1:] != ranked[:-1])))
@@ -73,7 +75,7 @@ def values_from_tags(
     n_elems: int,
     *,
     dtype: np.dtype | type,
-) -> tuple[np.ndarray, set[str], bool]:
+) -> tuple[np.ndarray, set[str], bool, set[str]]:
     """Return the labels the ``prefix<n>`` tag groups spell.
 
     Parameters
@@ -95,18 +97,28 @@ def values_from_tags(
         The groups whose names spell no number, so a caller can report them.
     bool
         Whether any group did name one.
+    set of str
+        The groups whose members are not element indices, so a caller can
+        report those too. Nothing checks a tag group's dtype on the way in,
+        and a float one indexes nothing: numpy refuses it outright rather
+        than rounding, which is the right answer given rounding an index
+        moves a label onto another element.
     """
     values = np.zeros(n_elems, dtype=dtype)
     pattern = re.compile(rf"{re.escape(prefix)}(-?\d+)")
     named = False
     unnamed: set[str] = set()
+    unusable: set[str] = set()
     for name, members in (tags or {}).items():
         match = pattern.fullmatch(name)
         if match is None:
             unnamed.add(name)
             continue
         picked = np.asarray(members).ravel()
+        if picked.dtype.kind not in "iub":
+            unusable.add(name)
+            continue
         picked = picked[(picked >= 0) & (picked < n_elems)]
         values[picked] = int(match.group(1))
         named = True
-    return values, unnamed, named
+    return values, unnamed, named, unusable

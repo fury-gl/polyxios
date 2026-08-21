@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pytest
@@ -567,3 +568,95 @@ def test_element_type_cannot_spell_two_element_types_with_one_card(
             # for two element types at once.
             element_type={"quad": "UEL4", "tetra": "UEL4"},
         )
+
+
+# --- an assembly keeps its sets outside the instance that numbers them -------
+
+_ASSEMBLY = """*Part, name=P1
+*Node
+1, 0., 0., 0.
+2, 1., 0., 0.
+3, 0., 1., 0.
+4, 1., 1., 0.
+*Element, type=S3
+1, 1, 2, 3
+2, 2, 4, 3
+*End Part
+*Assembly, name=A
+*Instance, name=I1, part=P1
+0., 0., 0.
+*End Instance
+*Elset, elset=TOP, instance=I1
+2,
+*Nset, nset=CORNER, instance=I1
+1, 4
+*End Assembly
+"""
+
+
+def test_an_assembly_level_set_is_numbered_by_the_instance_it_names(
+    tmp_path,
+) -> None:
+    """A deck keeps almost every set out at assembly level, naming INSTANCE=."""
+    path = tmp_path / "assembly.inp"
+    path.write_text(_ASSEMBLY)
+    poly = read(path)
+    np.testing.assert_array_equal(poly.element_tags["TOP"], [1])
+    np.testing.assert_array_equal(poly.vertex_tags["CORNER"], [0, 3])
+
+
+def test_an_instance_that_only_places_its_part_shares_its_numbering(
+    tmp_path,
+) -> None:
+    """An instance carrying no *Node of its own means the part's nodes."""
+    path = tmp_path / "placed.inp"
+    path.write_text(_ASSEMBLY.replace("2,\n", "1, 2\n"))
+    np.testing.assert_array_equal(read(path).element_tags["TOP"], [0, 1])
+
+
+def test_whitespace_inside_a_keyword_does_not_hide_the_card(tmp_path) -> None:
+    """'*End  Instance' is the same card spelled loosely."""
+    path = tmp_path / "loose.inp"
+    path.write_text(_ASSEMBLY.replace("*End Instance", "*End  Instance"))
+    np.testing.assert_array_equal(read(path).element_tags["TOP"], [1])
+
+
+def test_a_set_naming_an_instance_the_deck_never_defines_is_reported(
+    tmp_path,
+) -> None:
+    path = tmp_path / "ghost.inp"
+    path.write_text(_ASSEMBLY.replace("instance=I1\n2,", "instance=NOPE\n2,"))
+    # The set also reports the entry it lost, so every warning is caught.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        read(path)
+    assert any("NOPE" in str(w.message) for w in caught)
+
+
+def test_a_generate_range_wider_than_the_deck_is_walked_from_the_ids(
+    tmp_path,
+) -> None:
+    """'GENERATE 1, 999999999' is a legal card; the range is not a thing to walk."""
+    path = tmp_path / "generate.inp"
+    path.write_text(
+        "*Node\n1, 0., 0., 0.\n2, 1., 0., 0.\n3, 0., 1., 0.\n"
+        "*Element, type=S3\n1, 1, 2, 3\n"
+        "*Elset, elset=BIG, generate\n1, 999999999, 1\n"
+    )
+    with pytest.warns(UserWarning, match="999999998 entry"):
+        poly = read(path)
+    np.testing.assert_array_equal(poly.element_tags["BIG"], [0])
+
+
+def test_a_generate_range_the_deck_fills_still_reports_the_first_gap(
+    tmp_path,
+) -> None:
+    path = tmp_path / "gap.inp"
+    path.write_text(
+        "*Node\n1, 0., 0., 0.\n2, 1., 0., 0.\n3, 0., 1., 0.\n4, 1., 1., 0.\n"
+        "*Element, type=S3\n1, 1, 2, 3\n3, 2, 4, 3\n"
+        "*Elset, elset=SPAN, generate\n1, 4, 1\n"
+    )
+    with pytest.warns(UserWarning, match="first '2'"):
+        poly = read(path)
+    np.testing.assert_array_equal(poly.element_tags["SPAN"], [0, 1])

@@ -254,7 +254,7 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
             stacklevel=3,
         )
 
-    refs, unnamed, named = values_from_tags(
+    refs, unnamed, named, unusable = values_from_tags(
         poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32
     )
     if unnamed:
@@ -262,6 +262,13 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
             f".meshb: element tag group(s) {sorted(unnamed)} are not named"
             " 'ref_<n>' and a Medit reference is a number; they were not"
             " written.",
+            stacklevel=3,
+        )
+    if unusable:
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(unusable)} do not hold"
+            " element indices, so the reference they name reaches nothing;"
+            " they were not written.",
             stacklevel=3,
         )
     return refs if named else None

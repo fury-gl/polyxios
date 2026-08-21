@@ -262,6 +262,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     elem_refs: list[int] = []
     skipped: set[str] = set()
     higher_order: set[str] = set()
+    seen_vertices = False
 
     cursor = 0
     n_tokens = len(tokens)
@@ -282,9 +283,16 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         if name == "DIMENSION":
             if cursor >= n_tokens:
                 raise CodecError(".mesh: Dimension names no value.")
-            dim = _checked_count(tokens[cursor], 3, "dimension")
+            try:
+                dim = int(tokens[cursor])
+            except ValueError as exc:
+                raise CodecError(
+                    f".mesh: Dimension names {tokens[cursor]!r}, which is not a number."
+                ) from exc
             cursor += 1
-            if dim < 2:
+            if dim not in (2, 3):
+                # Not a cap but the whole of what the keyword can say: Medit
+                # meshes the plane and space, and nothing else.
                 raise CodecError(f".mesh: Dimension {dim} is not a mesh.")
             continue
 
@@ -293,6 +301,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 raise CodecError(".mesh: Vertices names no count.")
             n_verts = _checked_count(tokens[cursor], MAX_SAFE_VERTICES, "vertex")
             cursor += 1
+            seen_vertices = True
             width = dim + 1
             need = n_verts * width
             if cursor + need > n_tokens:
@@ -364,7 +373,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         )
 
     if not coords.size and not conn:
-        raise CodecError(f".mesh: '{source_name(path)}' holds no Vertices section.")
+        held = "declares no vertices" if seen_vertices else "holds no Vertices section"
+        raise CodecError(f".mesh: '{source_name(path)}' {held}.")
 
     connectivity = np.array(conn, dtype=np.int64)
     if connectivity.size:
@@ -428,7 +438,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     -----
     ``element_attrs["ref"]`` is written back as each record's trailing
     reference; failing that, references come from the ``ref_<n>`` groups in
-    ``element_tags``, and failing that they are 0. The file is written in
+    ``element_tags``, and failing that they are 0. ``vertex_attrs["ref"]``
+    goes the same way onto the vertex records. The file is written in
     three dimensions unless ``global_attrs["medit_dimension"]`` is 2 and the
     vertices have stayed in the plane, which is what carries a two-dimensional
     file back out as one. Elements whose type has no
@@ -463,18 +474,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     dim = _write_dimension(poly)
     lines: list[str] = ["MeshVersionFormatted 2", "", f"Dimension {dim}", ""]
 
-    vrefs = (poly.vertex_attrs or {}).get(_REF_KEY)
-    vertex_refs = (
-        np.asarray(vrefs).astype(np.int64, copy=False)
-        if vrefs is not None and np.asarray(vrefs).shape == (n_verts,)
-        else np.zeros(n_verts, dtype=np.int64)
-    )
+    vertex_refs = _vertex_refs(poly, n_verts)
     lines.append("Vertices")
     lines.append(str(n_verts))
     lines.extend(
-        " ".join(f"{value:{float_fmt}}" for value in vertex[:dim])
-        + f" {int(vertex_refs[i])}"
-        for i, vertex in enumerate(poly.vertices)
+        " ".join(f"{value:{float_fmt}}" for value in vertex[:dim]) + f" {int(ref)}"
+        for vertex, ref in zip(poly.vertices, vertex_refs)
     )
     lines.append("")
 
@@ -500,6 +505,41 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append("End")
     lines.append("")
     write_text(path, "\n".join(lines), encoding="utf-8")
+
+
+def _vertex_refs(poly: PolyData, n_verts: int) -> np.ndarray:
+    """Return one reference per vertex, zero where the mesh names none.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    n_verts
+        How many vertices it holds.
+
+    Returns
+    -------
+    numpy.ndarray
+        One int per vertex.
+
+    Notes
+    -----
+    A float column is refused rather than truncated, the way the element
+    references are: a reference is a number the file names exactly, and
+    rounding one relabels the vertices it stands for.
+    """
+    stored = (poly.vertex_attrs or {}).get(_REF_KEY)
+    if stored is None:
+        return np.zeros(n_verts, dtype=np.int64)
+    values = integer_column(stored, n_verts)
+    if values is None:
+        warnings.warn(
+            f".mesh: vertex_attrs['{_REF_KEY}'] is not one integer per vertex;"
+            " the vertex references were written as 0.",
+            stacklevel=3,
+        )
+        return np.zeros(n_verts, dtype=np.int64)
+    return values.astype(np.int64, copy=False)
 
 
 def _write_dimension(poly: PolyData) -> int:
@@ -557,7 +597,7 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             stacklevel=3,
         )
 
-    refs, unnamed, _named = values_from_tags(
+    refs, unnamed, _named, unusable = values_from_tags(
         poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int64
     )
     if unnamed:
@@ -568,6 +608,13 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
             f".mesh: element tag group(s) {sorted(unnamed)} are not named"
             " 'ref_<n>' and a Medit reference is a number; they were not"
             " written.",
-            stacklevel=4,
+            stacklevel=3,
+        )
+    if unusable:
+        warnings.warn(
+            f".mesh: element tag group(s) {sorted(unusable)} do not hold"
+            " element indices, so the reference they name reaches nothing;"
+            " they were not written.",
+            stacklevel=3,
         )
     return refs

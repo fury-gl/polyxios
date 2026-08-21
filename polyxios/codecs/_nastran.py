@@ -82,6 +82,8 @@ _CARD_SHAPES: dict[str, tuple[tuple[int, str], ...]] = {
     "CQUAD8": ((4, "quad"), (8, "quadratic_quad")),
     "CQUADX8": ((4, "quad"), (8, "quadratic_quad")),
     "CQUAD": ((4, "quad"), (8, "quadratic_quad"), (9, "biquadratic_quad")),
+    # The axisymmetric CQUAD, which carries its grid points the same way.
+    "CQUADX": ((4, "quad"), (8, "quadratic_quad"), (9, "biquadratic_quad")),
     # solids
     "CTETRA": ((4, "tetra"), (10, "quadratic_tetra")),
     "CPYRAM": ((5, "pyramid"), (13, "quadratic_pyramid")),
@@ -782,6 +784,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     duplicates = 0
     includes = 0
     skipped: dict[str, int] = {}
+    grounded: dict[str, int] = {}
 
     text = read_text(path, encoding=_READ_ENCODING, errors="replace")
     for fields in _bulk_cards(text):
@@ -825,8 +828,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         first = _GRID_FIELD_START.get(card, _DEFAULT_GRID_FIELD)
         resolved = _resolve_shape(fields, shapes, first, card, eid)
         if resolved is None:
-            # A grounded CBUSH names one grid point and no element.
-            skipped[card] = skipped.get(card, 0) + 1
+            # A grounded CBUSH names one grid point and no element. The card
+            # is one this codec supports, so it is not counted among the
+            # cards that are not.
+            grounded[card] = grounded.get(card, 0) + 1
             continue
         elem_name, slots = resolved
         grid_ids.extend(
@@ -869,6 +874,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         warnings.warn(
             f".bdf: skipped {sum(skipped.values())} element card(s) of"
             f" unsupported type: {names}",
+            stacklevel=2,
+        )
+    if grounded:
+        names = ", ".join(f"{name} ({n})" for name, n in sorted(grounded.items()))
+        warnings.warn(
+            f".bdf: skipped {sum(grounded.values())} card(s) that ground an"
+            f" end, so they name one grid point and no element: {names}",
             stacklevel=2,
         )
 

@@ -304,3 +304,73 @@ def test_a_file_ending_inside_its_edges_is_a_codec_error(tmp_path) -> None:
     path.write_text(_ascii_ply_with_edges(extra_face_prop=False).replace("0 2\n", ""))
     with pytest.raises(CodecError, match="ends inside"):
         read(path)
+
+
+# --- the header's own order decides which records are whose -----------------
+
+
+def _ascii_ply(elements: str, body: str) -> str:
+    return "ply\nformat ascii 1.0\n" + elements + "end_header\n" + body
+
+
+_VERTEX_BLOCK = (
+    "element vertex 4\nproperty float x\nproperty float y\nproperty float z\n"
+)
+_FACE_BLOCK = "element face 1\nproperty list uchar int vertex_indices\n"
+_EDGE_BLOCK = "element edge 1\nproperty int vertex1\nproperty int vertex2\n"
+_VERTEX_ROWS = "0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+
+
+def test_an_edge_element_declared_before_the_faces_is_still_read_as_edges(
+    tmp_path,
+) -> None:
+    """The blocks sit in the file in the order the header declares them."""
+    path = tmp_path / "edge_first.ply"
+    path.write_text(
+        _ascii_ply(
+            _VERTEX_BLOCK + _EDGE_BLOCK + _FACE_BLOCK,
+            _VERTEX_ROWS + "2 3\n3 0 1 2\n",
+        )
+    )
+    poly = read(path)
+    # The face keeps its place ahead of the edge whatever the header said.
+    assert poly.element_types.tolist() == [
+        ELEMENT_TYPES["triangle"],
+        ELEMENT_TYPES["line"],
+    ]
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 2, 3])
+
+
+def test_an_element_this_codec_has_no_place_for_costs_only_its_own_records(
+    tmp_path,
+) -> None:
+    """An unknown block read as another's records shifts the whole mesh."""
+    path = tmp_path / "material.ply"
+    path.write_text(
+        _ascii_ply(
+            _VERTEX_BLOCK
+            + "element material 2\nproperty float red\nproperty float green\n"
+            + _FACE_BLOCK,
+            _VERTEX_ROWS + "0.5 0.5\n0.25 0.25\n3 0 1 2\n",
+        )
+    )
+    poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+
+
+def test_a_short_vertex_record_names_the_format(tmp_path) -> None:
+    """A truncated record must not escape as a bare IndexError."""
+    path = tmp_path / "short.ply"
+    path.write_text(_ascii_ply(_VERTEX_BLOCK, "0 0 0\n1 0\n0 1 0\n1 1 0\n"))
+    with pytest.raises(CodecError, match="vertex record"):
+        read(path)
+
+
+def test_a_face_naming_more_indices_than_it_carries_names_the_format(
+    tmp_path,
+) -> None:
+    path = tmp_path / "cut.ply"
+    path.write_text(_ascii_ply(_VERTEX_BLOCK + _FACE_BLOCK, _VERTEX_ROWS + "4 0 1 2\n"))
+    with pytest.raises(CodecError, match="face record"):
+        read(path)
