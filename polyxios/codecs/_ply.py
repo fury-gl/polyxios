@@ -279,13 +279,39 @@ def _edge_ends(poly: PolyData, index: int, start: int, end: int) -> np.ndarray:
 
 
 def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
-    vert_elem = next((e for e in header["elements"] if e["name"] == "vertex"), None)
-    face_elem = next((e for e in header["elements"] if e["name"] == "face"), None)
-    edge_elem = next((e for e in header["elements"] if e["name"] == "edge"), None)
+    """Parse an ASCII PLY body, one element block at a time.
 
+    Parameters
+    ----------
+    path
+        The file being read.
+    header
+        The parsed header, whose ``elements`` are walked in declared order.
+    header_end_offset
+        Where the header ends and the records begin.
+
+    Returns
+    -------
+    PolyData
+        The mesh, edges following the faces whatever order the header put
+        them in.
+
+    Raises
+    ------
+    CodecError
+        On a block the file ends inside, a malformed record, or a vertex
+        index no vertex answers to.
+
+    Notes
+    -----
+    The blocks are consumed in the order the header declares them, since that
+    is the order they sit in the file: a header naming ``edge`` before
+    ``face`` would otherwise have its records read as each other's. Every
+    ASCII record is one line, so one bound check covers a whole block.
+    """
+    elements = header["elements"]
+    vert_elem = next((e for e in elements if e["name"] == "vertex"), None)
     n_verts = vert_elem["count"] if vert_elem else 0
-    n_faces = face_elem["count"] if face_elem else 0
-    n_edges = edge_elem["count"] if edge_elem else 0
 
     with open_read(path) as fh:
         start = fh.tell()
@@ -294,82 +320,201 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
         if can_seek(fh):
             fh.seek(start)
 
-    idx = 0
     vertices = np.zeros((n_verts, 3), dtype=np.float64)
     extra_vert_props: dict[str, list] = {}
-
-    if vert_elem:
-        props = vert_elem["properties"]
-        coord_map = {"x": 0, "y": 1, "z": 2}
-        for vi in range(n_verts):
-            vals = lines[idx].split()
-            idx += 1
-            for pi, (pname, _) in enumerate(props):
-                if pname in coord_map:
-                    vertices[vi, coord_map[pname]] = float(vals[pi])
-                else:
-                    extra_vert_props.setdefault(pname, []).append(float(vals[pi]))
-
-    vertex_attrs = {k: np.array(v) for k, v in extra_vert_props.items()}
-
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
     extra_face_props: dict[str, list] = {}
+    # Edges are held back and appended after the faces, whatever order the
+    # header declares the two in, so a per-face attribute keeps lining up
+    # with the faces it describes.
+    edge_conn: list[int] = []
 
-    if face_elem:
-        face_props = face_elem["properties"]
-        for _fi in range(n_faces):
-            vals = lines[idx].split()
-            idx += 1
-            vi = 0
-            for pname, ptype in face_props:
-                if ptype[0] == "list":
-                    cnt = int(vals[vi])
-                    vi += 1
-                    for _ in range(cnt):
-                        conn_list.append(int(vals[vi]))
-                        vi += 1
-                    offsets_list.append(offsets_list[-1] + cnt)
-                else:
-                    extra_face_props.setdefault(pname, []).append(float(vals[vi]))
-                    vi += 1
+    idx = 0
+    for elem in elements:
+        name, count = elem["name"], elem["count"]
+        if count < 0:
+            raise CodecError(f".ply: element {name!r} declares {count} record(s).")
+        if len(lines) - idx < count:
+            raise CodecError(
+                f".ply: the file ends inside its {count} {name} record(s)."
+            )
+        block = lines[idx : idx + count]
+        idx += count
+        if name == "vertex":
+            _read_ascii_vertices(block, elem["properties"], vertices, extra_vert_props)
+        elif name == "face":
+            _read_ascii_faces(
+                block, elem["properties"], conn_list, offsets_list, extra_face_props
+            )
+        elif name == "edge":
+            _read_ascii_edges(block, elem["properties"], edge_conn)
+        # An element this codec has no place for costs its own records and
+        # nothing else, since each of them is one line.
 
     types_list = _face_types(offsets_list)
     element_attrs = {k: np.array(v) for k, v in extra_face_props.items()}
 
-    # Edges come after the faces, so a per-face attribute keeps lining up with
-    # the faces it describes and the lines simply extend the mesh.
-    if edge_elem:
-        line_code = ELEMENT_TYPES["line"]
-        first, second = _edge_end_slots(edge_elem["properties"])
-        for _ei in range(n_edges):
-            if idx >= len(lines):
-                raise CodecError(
-                    f".ply: the file ends inside its {n_edges} edge record(s)."
-                )
-            vals = lines[idx].split()
-            idx += 1
-            try:
-                conn_list.append(int(vals[first]))
-                conn_list.append(int(vals[second]))
-            except (IndexError, ValueError) as exc:
-                raise CodecError(
-                    f".ply: malformed edge record {' '.join(vals)!r}."
-                ) from exc
-            offsets_list.append(offsets_list[-1] + 2)
-            types_list.append(line_code)
+    if edge_conn:
+        n_edges = len(edge_conn) // 2
+        base = offsets_list[-1]
+        conn_list.extend(edge_conn)
+        offsets_list.extend(range(base + 2, base + 2 * n_edges + 1, 2))
+        types_list.extend([ELEMENT_TYPES["line"]] * n_edges)
         element_attrs = _padded_face_attrs(element_attrs, len(types_list))
-
-    connectivity = _checked_connectivity(conn_list, n_verts)
 
     return PolyData(
         vertices=vertices,
-        connectivity=connectivity,
+        connectivity=_checked_connectivity(conn_list, n_verts),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
-        vertex_attrs=vertex_attrs,
+        vertex_attrs={k: np.array(v) for k, v in extra_vert_props.items()},
         element_attrs=element_attrs,
     )
+
+
+def _read_ascii_vertices(
+    block: list[str],
+    props: list[tuple[str, Any]],
+    vertices: np.ndarray,
+    extra: dict[str, list],
+) -> None:
+    """Fill the vertex table and its extra columns from one block of lines.
+
+    Parameters
+    ----------
+    block
+        The element's records, one per line.
+    props
+        Its ``(name, type)`` properties, in declared order.
+    vertices
+        The table to fill, shape ``(count, 3)``.
+    extra
+        Where the properties that are not coordinates collect.
+
+    Raises
+    ------
+    CodecError
+        On a record that is short or does not spell a number.
+
+    Notes
+    -----
+    Which property sits where is resolved once rather than per record: the
+    inner loop runs once per number in the file, and a dictionary lookup
+    there is a lookup per number.
+    """
+    if not block:
+        return
+    coord_map = {"x": 0, "y": 1, "z": 2}
+    coord_slots = [
+        (pi, coord_map[name]) for pi, (name, _) in enumerate(props) if name in coord_map
+    ]
+    extra_slots = [
+        (pi, name) for pi, (name, _) in enumerate(props) if name not in coord_map
+    ]
+    columns = [(pi, extra.setdefault(name, [])) for pi, name in extra_slots]
+    for vi, ln in enumerate(block):
+        vals = ln.split()
+        try:
+            for pi, axis in coord_slots:
+                vertices[vi, axis] = float(vals[pi])
+            for pi, column in columns:
+                column.append(float(vals[pi]))
+        except (IndexError, ValueError) as exc:
+            raise CodecError(f".ply: malformed vertex record {ln!r}.") from exc
+
+
+def _read_ascii_faces(
+    block: list[str],
+    props: list[tuple[str, Any]],
+    conn_list: list[int],
+    offsets_list: list[int],
+    extra: dict[str, list],
+) -> None:
+    """Read one block of face records, the vertex list and its scalars alike.
+
+    Parameters
+    ----------
+    block
+        The element's records, one per line.
+    props
+        Its ``(name, type)`` properties, in declared order.
+    conn_list, offsets_list
+        The connectivity being built and its running offsets.
+    extra
+        Where the scalar properties collect, one column per name.
+
+    Raises
+    ------
+    CodecError
+        On a record that is short, names a negative vertex count, or does not
+        spell a number.
+
+    Notes
+    -----
+    A scalar property may sit either side of the vertex list - Armadillo.ply
+    puts one ahead of it - so the record is walked property by property and
+    the token positions cannot be resolved ahead of time. Which properties
+    those are still can be.
+    """
+    if not block:
+        return
+    layout = [(name, ptype[0] == "list") for name, ptype in props]
+    columns = {
+        name: extra.setdefault(name, []) for name, is_list in layout if not is_list
+    }
+    running = offsets_list[-1]
+    for ln in block:
+        vals = ln.split()
+        at = 0
+        try:
+            for name, is_list in layout:
+                if is_list:
+                    count = int(vals[at])
+                    at += 1
+                    if count < 0 or at + count > len(vals):
+                        raise CodecError(f".ply: malformed face record {ln!r}.")
+                    conn_list.extend(map(int, vals[at : at + count]))
+                    at += count
+                    running += count
+                    offsets_list.append(running)
+                else:
+                    columns[name].append(float(vals[at]))
+                    at += 1
+        except (IndexError, ValueError) as exc:
+            raise CodecError(f".ply: malformed face record {ln!r}.") from exc
+
+
+def _read_ascii_edges(
+    block: list[str], props: list[tuple[str, Any]], edge_conn: list[int]
+) -> None:
+    """Read one block of edge records into a flat run of vertex pairs.
+
+    Parameters
+    ----------
+    block
+        The element's records, one per line.
+    props
+        Its ``(name, type)`` properties, in declared order.
+    edge_conn
+        Where the pairs collect.
+
+    Raises
+    ------
+    CodecError
+        On a record too short to name two ends, or one that does not spell an
+        integer.
+    """
+    if not block:
+        return
+    first, second = _edge_end_slots(props)
+    for ln in block:
+        vals = ln.split()
+        try:
+            edge_conn.append(int(vals[first]))
+            edge_conn.append(int(vals[second]))
+        except (IndexError, ValueError) as exc:
+            raise CodecError(f".ply: malformed edge record {ln!r}.") from exc
 
 
 def _face_types(offsets_list: list[int]) -> list[int]:
@@ -455,9 +600,9 @@ def _checked_connectivity(conn_list: list[int], n_verts: int) -> np.ndarray:
     if connectivity.size:
         low, high = int(connectivity.min()), int(connectivity.max())
         if low < 0 or high >= n_verts:
+            held = f"0..{n_verts - 1}" if n_verts else "no vertex at all"
             raise CodecError(
-                f".ply: an element references vertex {low}..{high}, outside"
-                f" 0..{n_verts - 1}."
+                f".ply: an element references vertex {low}..{high}, outside {held}."
             )
     return connectivity.astype(np.int32)
 

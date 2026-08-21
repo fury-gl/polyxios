@@ -70,7 +70,9 @@ Quirks worth knowing
 - Element cards are matched on their base name, so the modifier suffixes - ``R`` reduced integration, ``H`` hybrid, ``I``, ``M``, ``T``, ``P``, and the shell degree-of-freedom numbers - resolve to the same element: ``CPS8R`` reads as ``CPS8``.
 - ``*SYSTEM`` transforms every node block that follows it until the next ``*SYSTEM``, which with no data lines restores the global system.
 - ``*INCLUDE`` is resolved against the including file's directory. A path that leaves that directory, or nesting deeper than eight files, is refused - an input deck is untrusted input. A deck read from a buffer has no directory, so it cannot use ``*INCLUDE``.
-- Every ``*PART`` / ``*INSTANCE`` is merged into one mesh, each read under its own node numbering and tagged by its name.
+- Every ``*PART`` / ``*INSTANCE`` is merged into one mesh, each read under its own node numbering and tagged by its name. An instance that only places its part carries no nodes of its own and shares the part's numbering.
+- A set carrying ``INSTANCE=`` is numbered by that instance rather than by whatever numbering is in force where the card sits, which is what lets an assembly keep its sets outside the instance they name. One naming an instance the deck never defines is reported.
+- A ``GENERATE`` range wider than the deck has ids is resolved by walking the ids rather than the range: the card names two numbers and nothing bounds their distance.
 - Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.
 
 .. seealso::

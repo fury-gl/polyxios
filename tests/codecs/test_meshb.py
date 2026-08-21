@@ -258,3 +258,14 @@ def test_a_float_ref_column_is_refused_rather_than_truncated(tmp_path) -> None:
         write(poly=poly, path=out)
     # The tag groups spell the label the float column could not.
     assert set(read(path=out).element_attrs["ref"].tolist()) == {5}
+
+
+def test_a_tag_group_that_holds_no_indices_is_reported(tmp_path) -> None:
+    """A float tag group indexes nothing, so the reference reaches nothing."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.element_tags["ref_7"] = np.array([0.0])
+    with pytest.warns(UserWarning, match="do not hold"):
+        write(poly=poly, path=tmp_path / "bad_tag.meshb")

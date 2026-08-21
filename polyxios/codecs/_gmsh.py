@@ -439,8 +439,8 @@ def _data_section_lines(
     if skipped:
         lines_kind = "vertex" if keyword == "NodeData" else "element"
         warnings.warn(
-            f".msh: only named numeric {lines_kind} attributes of one value per"
-            f" {lines_kind} can be written; skipped {sorted(skipped)}.",
+            f".msh: only named numeric {lines_kind} attributes, one row per"
+            f" {lines_kind}, can be written; skipped {sorted(skipped)}.",
             stacklevel=3,
         )
     return lines
@@ -1265,12 +1265,12 @@ def _resolve_physical_groups(
 
 
 def _sanitize_name(name: str) -> str:
-    """Make a group name safe inside a quoted ``$PhysicalNames`` record."""
+    """Make a name safe inside a quoted record, group or data field alike."""
     cleaned = name.replace('"', "'").replace("\n", " ").replace("\r", " ")
     if cleaned != name:
         warnings.warn(
-            f".msh: physical group name {name!r} contains characters that cannot"
-            f" be quoted; written as {cleaned!r}.",
+            f".msh: the name {name!r} contains characters that cannot be"
+            f" quoted; written as {cleaned!r}.",
             stacklevel=2,
         )
     return cleaned

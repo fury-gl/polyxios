@@ -1057,9 +1057,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     attr_names: list[str] = []
     attr_arrays: list[np.ndarray] = []
     bad_attrs: set[str] = set()
-    for name, arr in (poly.vertex_attrs or {}).items():
+    for name, raw in (poly.vertex_attrs or {}).items():
         # A nameless variable reads back as no variable at all, taking its
         # column with it, so it is dropped here rather than silently on load.
+        # Whatever the mesh holds is asked once what shape it is: a plain
+        # list is a mesh a caller built by hand, not a reason to crash.
+        arr = np.asarray(raw)
         if (
             name.strip()
             and arr.ndim == 1
@@ -1080,9 +1083,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     cell_names: list[str] = []
     cell_arrays: list[np.ndarray] = []
     bad_cells: set[str] = set()
-    for name, arr in (poly.element_attrs or {}).items():
+    for name, raw in (poly.element_attrs or {}).items():
         # Indexed by the mesh's elements, so it is the elements that survive
         # the single-type cut that pick out the values written.
+        arr = np.asarray(raw)
         if (
             name.strip()
             and arr.ndim == 1
@@ -1090,7 +1094,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             and arr.dtype.kind in "fiub"
         ):
             cell_names.append(name)
-            cell_arrays.append(np.asarray(arr, dtype=np.float64)[elem_indices])
+            cell_arrays.append(arr.astype(np.float64, copy=False)[elem_indices])
         else:
             bad_cells.add(name)
     if bad_cells:

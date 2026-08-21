@@ -37,6 +37,10 @@ _BINARY_FACET_SIZE: int = 50  # 3*float32 normal + 3*3*float32 verts + uint16 at
 # file that tells the two apart: it writes a ``COLOR=`` record there. A header
 # without one reads as VisCAM, and VisCAM is what polyxios writes, since its
 # spelling of "no colour here" is the zero word every other writer leaves.
+#
+# A zero word is that under Magics too: read to the letter it claims a facet
+# colour of black, but it is what a writer that coloured nothing leaves behind,
+# and reading an untouched file as uniformly black is the worse mistake.
 _COLOR_VALID_BIT: int = 0x8000
 _COLOR_MAX: float = 31.0
 _COLOR_KEY: str = "colors"
@@ -274,15 +278,22 @@ def _decode_colors(attrs: np.ndarray | None, header: bytes) -> np.ndarray | None
         Shape ``(n_facets, 3)`` in 0..1, NaN on the facets whose word does not
         claim to hold a colour. None when no facet claims one, so an
         uncoloured file grows no attribute.
+
+    Notes
+    -----
+    A zero word is no colour under either convention. Magics read to the
+    letter says otherwise - bit 15 clear, so a facet colour of black - but a
+    zero word is what a writer that coloured nothing leaves behind, and
+    reading an untouched file as black from end to end is the worse mistake.
     """
     if attrs is None or attrs.size == 0:
         return None
     magics = _MAGICS_MARKER in header.upper()
-    words = attrs.astype(np.uint16)
+    words = attrs.astype(np.uint16, copy=False)
     top = (words & _COLOR_VALID_BIT) != 0
-    # Magics sets the top bit to disown the facet's colour; everyone else
-    # sets it to claim one.
-    valid = ~top if magics else top
+    # Magics clears the top bit to claim the facet's own colour and sets it to
+    # defer to the part's; everyone else sets it to claim one.
+    valid = (~top & (words != 0)) if magics else top
     if not valid.any():
         return None
     shifts = _MAGICS_SHIFTS if magics else _VISCAM_SHIFTS

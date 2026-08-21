@@ -419,3 +419,55 @@ def test_a_plane_mesh_lifted_out_of_the_plane_is_written_in_three(tmp_path) -> N
         write(poly, out)
     assert "Dimension 3" in out.read_text()
     np.testing.assert_allclose(read(out).vertices, poly.vertices)
+
+
+def test_a_float_vertex_reference_is_refused_rather_than_truncated(
+    tmp_path,
+) -> None:
+    """A reference is a number the file names exactly; rounding relabels it."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.vertex_attrs["ref"] = np.array([1.7, 2.2, 3.9])
+    out = tmp_path / "float.mesh"
+    with pytest.warns(UserWarning, match="one integer per vertex"):
+        write(poly, out)
+    assert read(out).vertex_attrs == {}
+
+
+def test_an_integer_vertex_reference_is_written_and_read_back(tmp_path) -> None:
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.vertex_attrs["ref"] = np.array([4, 5, 6], dtype=np.int32)
+    out = tmp_path / "refs.mesh"
+    write(poly, out)
+    np.testing.assert_array_equal(read(out).vertex_attrs["ref"], [4, 5, 6])
+
+
+def test_a_dimension_the_format_cannot_mesh_names_itself(tmp_path) -> None:
+    """Medit meshes the plane and space; the message must not call 3 a cap."""
+    path = tmp_path / "four.mesh"
+    path.write_text("MeshVersionFormatted 2\nDimension 4\nVertices\n0\nEnd\n")
+    with pytest.raises(CodecError, match="Dimension 4 is not a mesh"):
+        read(path)
+
+
+def test_a_file_declaring_no_vertices_says_so(tmp_path) -> None:
+    path = tmp_path / "empty.mesh"
+    path.write_text("MeshVersionFormatted 2\nDimension 3\nVertices\n0\nEnd\n")
+    with pytest.raises(CodecError, match="declares no vertices"):
+        read(path)
+
+
+def test_a_tag_group_that_holds_no_indices_is_reported(tmp_path) -> None:
+    """Nothing checks a tag group's dtype on the way in; a float indexes none."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.element_tags["ref_7"] = np.array([0.0])
+    with pytest.warns(UserWarning, match="do not hold"):
+        write(poly, tmp_path / "bad_tag.mesh")

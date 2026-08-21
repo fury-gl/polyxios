@@ -1711,3 +1711,41 @@ def test_issue_1396_the_quadratic_shells_carry_zoffs_too(
     out = tmp_path / "off.bdf"
     write(poly, out)
     np.testing.assert_allclose(read(out).element_attrs["zoffs"], [0.5])
+
+
+def test_a_cquadx_card_reads_as_the_shape_its_grid_points_name(tmp_path) -> None:
+    """The axisymmetric CQUAD carries its grid points the same way CQUAD does."""
+    deck = (
+        "BEGIN BULK\n"
+        + "".join(f"GRID,{i},,{i}.,0.,0.\n" for i in range(1, 9))
+        + "CQUADX,1,2,1,2,3,4\n"
+        + "CQUADX,2,2,1,2,3,4,5,6,+\n+,7,8\n"
+        + "ENDDATA\n"
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [
+        ELEMENT_TYPES["quad"],
+        ELEMENT_TYPES["quadratic_quad"],
+    ]
+    assert not [w for w in caught if "unsupported type" in str(w.message)]
+
+
+def test_a_card_that_grounds_an_end_is_not_called_unsupported(tmp_path) -> None:
+    """CBUSH is a card this codec supports; a grounded one just names no element."""
+    deck = (
+        "BEGIN BULK\n"
+        "GRID,1,,0.,0.,0.\n"
+        "GRID,2,,1.,0.,0.\n"
+        "CBUSH,1,2,1\n"
+        "CROD,2,3,1,2\n"
+        "ENDDATA\n"
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        poly = read(_write(tmp_path, deck))
+    messages = [str(w.message) for w in caught]
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]]
+    assert any("ground an end" in m and "CBUSH" in m for m in messages)
+    assert not any("unsupported type" in m for m in messages)

@@ -1172,3 +1172,20 @@ def test_a_block_run_is_wrapped_rather_than_written_whole(tmp_path) -> None:
     back = read(out)
     np.testing.assert_allclose(back.element_attrs["heat"], poly.element_attrs["heat"])
     np.testing.assert_allclose(back.vertices, poly.vertices)
+
+
+def test_an_attribute_that_is_not_an_array_is_skipped_rather_than_fatal(
+    tmp_path,
+) -> None:
+    """A mesh a caller built by hand holds lists; that is not a reason to crash."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.vertex_attrs["t"] = [1.0, 2.0, 3.0]
+    poly.element_attrs["p"] = [4.0]
+    out = tmp_path / "lists.tec"
+    write(poly, out)
+    back = read(out)
+    np.testing.assert_allclose(back.vertex_attrs["t"], [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(back.element_attrs["p"], [4.0])
