@@ -327,7 +327,7 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
             stacklevel=3,
         )
 
-    refs, unnamed, named, unusable, oversized = values_from_tags(
+    refs, unnamed, named, unusable, oversized, contested = values_from_tags(
         poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32
     )
     if unnamed:
@@ -349,6 +349,15 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
             f".meshb: element tag group(s) {sorted(oversized)} name a reference"
             " wider than the 32-bit field a Medit record carries; they were"
             " not written.",
+            stacklevel=3,
+        )
+    if contested:
+        # A record carries one reference, so an element named by two groups
+        # keeps whichever came last - an order the caller never chose.
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(contested)} name elements"
+            " another group already labelled; a Medit record carries one"
+            " reference, so the later group's is the one written.",
             stacklevel=3,
         )
     return refs if named else None

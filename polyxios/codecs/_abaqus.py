@@ -1103,9 +1103,13 @@ def _set_cards(
         if picked.size != np.asarray(members).size:
             unreachable.add(name)
         ids = picked + 1 if ident is None else ident[picked]
-        kept = np.unique(ids[ids > 0])
-        if kept.size != ids.size:
+        live = ids > 0
+        # Tested on the ids themselves rather than on how many survive the
+        # unique below: that also collapses a member the group names twice,
+        # which is a repeat and not an element that never reached the file.
+        if not live.all():
             unwritten.add(name)
+        kept = np.unique(ids[live])
         if not kept.size:
             continue
         safe = _safe_set_name(name)

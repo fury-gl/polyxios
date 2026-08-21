@@ -59,6 +59,31 @@ _GMSH_NODE_COUNT: dict[str, int] = {
 # sections: a file carries one per field and per time step.
 _DATA_KEYWORDS: frozenset[str] = frozenset({"$NodeData", "$ElementData"})
 
+# The component counts a data section may declare - a scalar, a vector and a
+# tensor. Gmsh refuses a section naming anything else, so a writer has only
+# these three to reach for however wide the field it was handed.
+_DECLARED_WIDTHS: tuple[int, ...] = (1, 3, 9)
+_MAX_DECLARED_WIDTH: int = _DECLARED_WIDTHS[-1]
+
+
+def _declared_width(held: int) -> int:
+    """Return the component count a field of this width is declared at.
+
+    Parameters
+    ----------
+    held
+        How many components the field actually carries.
+
+    Returns
+    -------
+    int
+        The narrowest of 1, 3 and 9 that holds them, or ``held`` itself when
+        the field is wider than any of the three and there is nothing legal
+        to reach for.
+    """
+    return next((w for w in _DECLARED_WIDTHS if w >= held), held)
+
+
 _ELEMENT_DIM: dict[str, int] = {
     "vertex": 0,
     "line": 1,
@@ -400,9 +425,17 @@ def _data_section_lines(
 
     Notes
     -----
-    A field of any width is written, since the format puts no ceiling on the
-    component count. Non-numeric or wrong-length attributes have no data
-    section to sit in and are reported rather than dropped in silence.
+    The reader takes a field of any width, but a writer cannot: MSH2 declares
+    a component count of 1, 3 or 9, and Gmsh refuses a section naming
+    anything else outright. A field of another width is padded out to the next
+    of the three with zero columns, so the values it carries all reach the
+    file and the file still loads; the padding is reported, since it is a
+    column the caller did not hand over. A field wider than 9 has no legal
+    width to reach and is written at its own, which polyxios reads back and
+    Gmsh does not.
+
+    Non-numeric or wrong-length attributes have no data section to sit in and
+    are reported rather than dropped in silence.
 
     A row that is not finite throughout is left out, and the declared entity
     count drops with it: the format spells no "no value here", so a NaN read
@@ -413,6 +446,8 @@ def _data_section_lines(
     lines: list[str] = []
     skipped: set[str] = set()
     thinned: dict[str, int] = {}
+    padded: dict[str, tuple[int, int]] = {}
+    overwide: dict[str, int] = {}
     for name, raw in (attrs or {}).items():
         array = np.asarray(raw)
         if (
@@ -424,6 +459,13 @@ def _data_section_lines(
             skipped.add(name)
             continue
         values = array.reshape(count, -1).astype(np.float64, copy=False)
+        held = values.shape[1]
+        width = _declared_width(held)
+        if width > held:
+            padded[name] = (held, width)
+            values = np.pad(values, ((0, 0), (0, width - held)))
+        elif held > _MAX_DECLARED_WIDTH:
+            overwide[name] = held
         # Element data is numbered by the file, not by the mesh: an element
         # with no Gmsh equivalent never got an id, so its value has no row.
         picked = (
@@ -475,6 +517,26 @@ def _data_section_lines(
         warnings.warn(
             f".msh: the format spells no missing value, so the {kind}(s)"
             f" carrying one were left out of their data section: {named}.",
+            stacklevel=3,
+        )
+    if padded:
+        named = ", ".join(
+            f"{name} ({held} -> {width})"
+            for name, (held, width) in sorted(padded.items())
+        )
+        warnings.warn(
+            f".msh: a data section declares 1, 3 or 9 components and no other"
+            f" count loads, so the {kind} attribute(s) {named} were padded out"
+            " with zero column(s).",
+            stacklevel=3,
+        )
+    if overwide:
+        named = ", ".join(f"{name} ({n})" for name, n in sorted(overwide.items()))
+        warnings.warn(
+            f".msh: the {kind} attribute(s) {named} carry more than"
+            f" {_MAX_DECLARED_WIDTH} components, which no data section can"
+            " declare; they were written at their own width, which polyxios"
+            " reads back and Gmsh refuses.",
             stacklevel=3,
         )
     return lines

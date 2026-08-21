@@ -81,6 +81,8 @@ Quirks worth knowing
 - A 2-D file's vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The file's own ``Dimension`` is kept in ``global_attrs["medit_dimension"]`` and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning.
 - The higher-order sections (``TrianglesP2``, ``TetrahedraP2``, ``HexahedraQ2``, ...) are skipped with a warning naming them. The format fixes no node ordering for high-order elements - libMeshb's own documentation says there are as many orderings as there are programmers, and defers to a companion ``*Ordering`` section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
 - Sections carrying no geometry (``Corners``, ``Ridges``, ``Required*``, ``Normals``, ...) are stepped over without a word; an unrecognised one is named in a warning.
+- A file declares its vertices once. A second ``Vertices`` section is refused rather than allowed to replace the block the elements already read index into - which, when the two counts agree, would move every element onto other geometry without a single index going out of range.
+- A record carries one reference, so an element two ``ref_<n>`` groups both name keeps the later group's and the other is reported. Which group comes later is the order the mesh holds them in, not one the caller chose.
 
 .. seealso::
 

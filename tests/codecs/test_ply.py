@@ -595,3 +595,57 @@ def test_a_file_ending_inside_its_faces_names_the_format(tmp_path) -> None:
     )
     with pytest.raises(CodecError, match="face record"):
         read(path)
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_a_64_bit_attribute_keeps_its_values(binary: bool, tmp_path) -> None:
+    """PLY spells no 64-bit integer, and the narrower one used to wrap."""
+    poly = _synthetic_mesh()
+    poly.element_attrs["big"] = np.array([5, 12345678901234], dtype=np.int64)
+    path = tmp_path / "big.ply"
+    write(poly, path, binary=binary)
+    back = read(path)
+    np.testing.assert_array_equal(back.element_attrs["big"], [5, 12345678901234])
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_a_wide_attribute_does_not_reframe_the_records(binary: bool, tmp_path) -> None:
+    """A field written wider than the header declared cost the next record."""
+    poly = _synthetic_mesh()
+    poly.element_attrs["big"] = np.array([5, 12345678901234], dtype=np.int64)
+    path = tmp_path / "frame.ply"
+    write(poly, path, binary=binary)
+    back = read(path)
+    assert len(back.element_types) == 2
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_a_face_past_255_vertices_widens_its_count(binary: bool, tmp_path) -> None:
+    """A uchar count cannot spell 300, and declaring one that cannot is a lie."""
+    n = 300
+    verts = np.arange(3 * n, dtype=np.float64).reshape(n, 3)
+    poly = make_polydata(verts, [("polygon", np.arange(n).reshape(1, n))])
+    path = tmp_path / "wide.ply"
+    write(poly, path, binary=binary)
+    assert b"property list uchar" not in path.read_bytes().split(b"end_header")[0]
+    back = read(path)
+    np.testing.assert_array_equal(back.connectivity, np.arange(n))
+
+
+def test_an_ordinary_face_still_counts_in_one_byte(tmp_path) -> None:
+    """The usual mesh keeps the uchar count every PLY writer uses."""
+    path = tmp_path / "small.ply"
+    write(_synthetic_mesh(), path, binary=True)
+    header = path.read_bytes().split(b"end_header")[0]
+    assert b"property list uchar int vertex_indices" in header
+
+
+def test_an_integer_attribute_is_not_spelled_in_exponent_form(tmp_path) -> None:
+    """'%.10g' turns a large integer into a token no integer property holds."""
+    poly = _synthetic_mesh()
+    poly.element_attrs["big"] = np.array([5, 12345678901234], dtype=np.int64)
+    path = tmp_path / "ascii.ply"
+    write(poly, path, binary=False)
+    assert "12345678901234" in path.read_text()
+    assert "e+" not in path.read_text()

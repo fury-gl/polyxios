@@ -255,6 +255,11 @@ def build_default_registry() -> dict[str, Codec]:
     # Extensions two owners both claimed the writes of, which is a claim no
     # one gets: whichever won would come down to the module walk order.
     disputed: set[str] = set()
+    # Every codec that claimed an extension outright, so two claiming the same
+    # one can be reported: the registry keeps whichever was walked last, which
+    # is a winner nobody chose. Sharing the extension is the way to hold one
+    # jointly, and a shared one is not reported.
+    owners: dict[str, list[str]] = {}
 
     for mod_info in pkgutil.iter_modules(_search_path):
         if mod_info.name.startswith("_") and not mod_info.name.startswith("__"):
@@ -290,6 +295,7 @@ def build_default_registry() -> dict[str, Codec]:
             # it registers a key nothing can reach.
             for alias in dict.fromkeys(e.lower() for e in (ext, *exts)):
                 registry[alias] = codec
+                owners.setdefault(alias, []).append(mod_info.name.lstrip("_"))
 
             # Same shape guard as EXTENSIONS: a bare string is iterable, and
             # a codec declaring one without a sniffer has nothing to compete
@@ -346,6 +352,19 @@ def build_default_registry() -> dict[str, Codec]:
             [(name.lstrip("_"), codec) for _, name, codec in competing],
             default_writers.get(alias),
         )
+
+    for alias, claimants in owners.items():
+        # Two codecs owning one extension outright leaves the key to whichever
+        # module was walked last, which is alphabetical order standing in for
+        # a decision. Sharing it is how two formats hold one extension between
+        # them, so a shared one is settled and says nothing here.
+        if len(claimants) > 1 and alias not in shared_owned:
+            warnings.warn(
+                f"'{alias}' is claimed outright by {sorted(claimants)};"
+                f" '{claimants[-1]}' keeps it by module order alone. List the"
+                " extension in SNIFF_EXTENSIONS on each of them to share it.",
+                stacklevel=2,
+            )
 
     try:
         from importlib.metadata import entry_points

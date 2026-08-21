@@ -533,3 +533,27 @@ def test_a_reference_wider_than_32_bits_is_read_as_it_is_written(
     np.testing.assert_array_equal(poly.vertex_attrs["ref"], [5000000000, 1, 1])
     np.testing.assert_array_equal(poly.element_attrs["ref"], [3000000000])
     assert "ref_3000000000" in poly.element_tags
+
+
+def test_a_second_vertices_section_is_refused(tmp_path: Path) -> None:
+    """Replacing the block the elements index moves them onto other geometry."""
+    text = (
+        "MeshVersionFormatted 2\nDimension 3\n"
+        "Vertices\n3\n0 0 0 1\n1 0 0 1\n0 1 0 1\n"
+        "Triangles\n1\n1 2 3 5\n"
+        "Vertices\n3\n9 9 9 2\n8 8 8 2\n7 7 7 2\nEnd\n"
+    )
+    with pytest.raises(CodecError, match="second Vertices section"):
+        read(_write_mesh(tmp_path, text))
+
+
+def test_two_groups_naming_one_element_report_the_reference_that_lost(
+    tmp_path: Path,
+) -> None:
+    """A record carries one reference, so the caller is told which won."""
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.element_tags["ref_1"] = np.array([0], dtype=np.int32)
+    poly.element_tags["ref_2"] = np.array([0], dtype=np.int32)
+    with pytest.warns(UserWarning, match="already labelled"):
+        write(poly, tmp_path / "clash.mesh")
