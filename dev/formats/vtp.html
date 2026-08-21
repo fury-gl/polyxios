@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=20e32236"></script>
+    <script src="../_static/documentation_options.js?v=082ce853"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-20"/>
+    <meta name="docbuild:last-update" content="2026-08-21"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -592,6 +592,10 @@
 <ul class="px-quirks simple">
 <li><p>Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.</p></li>
 <li><p>Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.</p></li>
+<li><p>A piece that declares points and does not deliver them raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.</p></li>
+<li><p>A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">Points</span></code> array of a type that holds no numbers - <code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code>, or any type this reader does not know - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the type.</p></li>
+<li><p>Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -709,7 +713,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-20.
+  Last updated on 2026-08-21.
   <br/>
 </p></div>
       

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=20e32236"></script>
+    <script src="../_static/documentation_options.js?v=082ce853"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-20"/>
+    <meta name="docbuild:last-update" content="2026-08-21"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -557,13 +557,13 @@
 <td><p>ASCII or BINARY (binary payload is big-endian)</p></td>
 </tr>
 <tr class="row-odd"><td><p>dataset types</p></td>
-<td><p>STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID</p></td>
+<td><p>STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID, FIELD</p></td>
 </tr>
 <tr class="row-even"><td><p>connectivity</p></td>
 <td><p>CELLS &lt;n&gt; &lt;size&gt; followed by CELL_TYPES &lt;n&gt; integer codes</p></td>
 </tr>
 <tr class="row-odd"><td><p>attributes</p></td>
-<td><p>POINT_DATA / CELL_DATA with SCALARS, VECTORS, NORMALS, FIELD</p></td>
+<td><p>POINT_DATA / CELL_DATA with SCALARS, COLOR_SCALARS, VECTORS, NORMALS, TENSORS, TEXTURE_COORDINATES, FIELD</p></td>
 </tr>
 </tbody>
 </table>
@@ -617,6 +617,23 @@
 <li><p>Binary files can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>; ASCII files must be parsed end to end before any value is available.</p></li>
 <li><p>Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.</p></li>
 <li><p>Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code>, <code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code>, <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.</p></li>
+<li><p>An attribute section that declares more values than the file holds raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array, rather than an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> naming nothing in ASCII or a reshape failure naming nothing in binary.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> keeps <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code> and <code class="docutils literal notranslate"><span class="pre">SPACING</span></code> in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> (<code class="docutils literal notranslate"><span class="pre">vtk_dimensions</span></code>, <code class="docutils literal notranslate"><span class="pre">vtk_origin</span></code>, <code class="docutils literal notranslate"><span class="pre">vtk_spacing</span></code>); <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> and <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> keep <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>. The points are expanded into an explicit array, so without those the grid behind them would be lost.</p></li>
+<li><p>Those <code class="docutils literal notranslate"><span class="pre">vtk_*</span></code> entries are read-only: <code class="docutils literal notranslate"><span class="pre">write</span></code> always emits an <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> and does not consume them.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> is read from the structured datasets as well as the unstructured ones. An array whose declared length matches neither the points nor the cells of the grid the header describes is dropped with a warning naming it, rather than reaching <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> as a validation error about lengths.</p></li>
+<li><p>A structured grid extends along whichever axes its <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> declare: <code class="docutils literal notranslate"><span class="pre">3</span> <span class="pre">1</span> <span class="pre">3</span></code> is a sheet of quads in the x-z plane, not a run of lines, and a column along <code class="docutils literal notranslate"><span class="pre">y</span></code> or <code class="docutils literal notranslate"><span class="pre">z</span></code> is indexed with its own stride.</p></li>
+<li><p>VTK 5.1 cells - the default since VTK 9.0 - are read wherever they appear: <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> in an unstructured grid and <code class="docutils literal notranslate"><span class="pre">POLYGONS</span></code>, <code class="docutils literal notranslate"><span class="pre">LINES</span></code>, <code class="docutils literal notranslate"><span class="pre">VERTICES</span></code> or <code class="docutils literal notranslate"><span class="pre">TRIANGLE_STRIPS</span></code> in polydata. The two numbers on such a line are the length of the <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> array and the length of <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code>, so the mesh holds one cell fewer than the first of them; the offsets are counted up to the <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code> keyword, so a file spelling that line either way is read. <code class="docutils literal notranslate"><span class="pre">write(...,</span> <span class="pre">vtk_version=&quot;5.1&quot;)</span></code> declares the offsets length, which is what VTK’s own reader expects.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block - component names and information keys, written after every array by VTK 4.2 and later - is stepped over rather than read as an array. It is text even in a binary file, and it appears between the entries of a <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block as well as after a section.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block also sits inside a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section, between its offsets and its connectivity, and is stepped over there too.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">DATASET</span> <span class="pre">FIELD</span></code> file carries field arrays and no geometry. It reads as an empty <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code> whose <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> hold the arrays, with a warning saying so.</p></li>
+<li><p>Which cell spelling a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section uses is decided by what follows the header, not by the version in the first line, so a file declaring a version this reader has never heard of is still read by what it holds.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> takes its grid from its coordinate arrays: the points are their outer product, so a <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> header that disagrees with them is warned about and ignored.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> carries an explicit <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> array, which its <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> cannot be reconciled against the way a rectilinear grid’s coordinates can. When the two disagree the points are handed back without cells, with a warning naming both counts: the cells the header describes would index points the file does not hold.</p></li>
+<li><p>An attribute section is read by the count its own header declares, which is the only thing that says where one array ends and the next begins. An array that then covers no point or cell of the mesh is dropped with a warning naming it.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> line after a <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> section is optional, and a binary file without one is read as such rather than losing the head of its payload.</p></li>
+<li><p>A header missing a field, or spelling a count as something that is not a number, raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line it is on - the byte offset, in a binary file. This covers the geometry headers - <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code>, <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code>, <code class="docutils literal notranslate"><span class="pre">SPACING</span></code>, the coordinate arrays - as well as the attribute ones.</p></li>
+<li><p>A binary block is read as the type its header names, <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> included: an integer point array is not read at the width of a float. A type name with no numpy equivalent raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming it rather than being guessed at, since a guessed width reads numbers the file never held. An ASCII payload is text whatever its header calls it, so it is read either way.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -734,7 +751,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-20.
+  Last updated on 2026-08-21.
   <br/>
 </p></div>
       

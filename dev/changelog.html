@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=20e32236"></script>
+    <script src="_static/documentation_options.js?v=082ce853"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-20"/>
+    <meta name="docbuild:last-update" content="2026-08-21"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -633,11 +633,410 @@ codec asking for n bytes could silently get fewer and parse the gap as
 data. A handle from <code class="docutils literal notranslate"><span class="pre">open()</span></code> never came up short, so no codec guarded
 against it. Nothing is read past what was asked for, so a handle the caller
 shares still ends up where the codec’s reading left it.</p></li>
+<li><p>OBJ face indices are resolved the way the format defines them: a negative
+index counts back from what has been declared so far, and an index naming
+a record the file does not have raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line
+instead of wrapping around into a different vertex.</p></li>
+<li><p>OBJ <code class="docutils literal notranslate"><span class="pre">vt</span></code> records are read. They are indexed per face corner, so a file
+may hold more of them than it holds vertices; each corner assigns to its
+vertex, a vertex given two different values keeps the last and warns, and
+records nothing indexes are kept only when there is one per vertex.
+<code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code> are written back, so texture coordinates and normals
+survive a round trip.</p></li>
+<li><p>OBJ writes a bare <code class="docutils literal notranslate"><span class="pre">g</span></code> before a face that belongs to no group, so it no
+longer inherits the group of the face above it, and a bare <code class="docutils literal notranslate"><span class="pre">g</span></code> on read
+clears the active groups rather than inventing a <code class="docutils literal notranslate"><span class="pre">default</span></code> tag.</p></li>
+<li><p>An OBJ file whose <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> records cannot be lined up with its
+vertices now leaves the attribute out. The fold that gives up returned
+None, and only the <code class="docutils literal notranslate"><span class="pre">vt</span></code> path checked for it, so <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> could
+hand back a None where an array belongs and the writer raised
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code> on it.</p></li>
+<li><p>OBJ writes a number where a vertex has no record. A vertex no face names
+carries NaN out of the reader, and <code class="docutils literal notranslate"><span class="pre">vt</span> <span class="pre">nan</span> <span class="pre">nan</span></code> is not a record another
+reader takes; the row nothing indexes is written as zero. A <code class="docutils literal notranslate"><span class="pre">vt</span></code> array
+narrower than two columns is padded rather than indexed past its end.</p></li>
+<li><p>OBJ leaves out a <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> attribute that does not hold one row
+per vertex, with a warning naming its shape. Only the column count was
+checked, so an attribute with fewer rows than the mesh wrote faces
+indexing <code class="docutils literal notranslate"><span class="pre">vt</span></code> records that were not in the file - which no reader can
+take, this one included: a three-vertex mesh carrying one texture
+coordinate wrote a file that read back as <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>. A
+one-dimensional attribute is now read as one value per vertex rather
+than as a single row.</p></li>
+<li><p>Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> files now read <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> and <code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, in both
+the ASCII and the binary flavour. Both used to stop the attribute scan,
+dropping the array and everything after it without a word. A binary
+<code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> component is an unsigned char standing for the 0..1
+float an ASCII file writes, and is scaled onto that range, so the same
+colour reads back the same from either flavour.</p></li>
+<li><p>Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> reads <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code>, and steps over a
+<code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> definition rather than stopping at it. Those were the
+last two attribute keywords the format defines that the scan did not
+know, and in a binary file an unknown keyword ends the scan: a file
+carrying either lost every array after it. A palette is not a value per
+point, so a lookup table becomes no attribute - it is only counted past.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute keyword the reader does not know now warns
+that it and everything after it in that section are being dropped. Its
+payload is binary of unknown length, so the scan still cannot go on, but
+a short read is no longer a silent one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NORMALS</span></code> and <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> are read from <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> and <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> files too. Those three
+datasets scan their attributes themselves rather than through the shared
+parser, and knew only <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code>.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute that runs past the end of the file now
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array and the bytes that are missing.
+The slice came up short in silence and the reshape after it failed with
+a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming neither the array nor the file.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute section that declares more values than the
+file holds raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array and the count, rather
+than running off the end of the line list with an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> that
+names nothing. This covers <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code>.</p></li>
+<li><p>A Nastran real field is now written in whatever spelling fits it. Bulk
+data allows the exponent’s <code class="docutils literal notranslate"><span class="pre">E</span></code> to be dropped when its sign is there
+(<code class="docutils literal notranslate"><span class="pre">1.234-10</span></code>), and nothing reads <code class="docutils literal notranslate"><span class="pre">+07</span></code> differently from <code class="docutils literal notranslate"><span class="pre">+7</span></code>, so the
+writer offers both - three columns back on the explicit form, which is
+three more significant digits in an eight-column field. A value at the
+top of the double range is stepped one digit toward zero rather than
+refused, since rounding it to nearest overflows to infinity. No finite
+coordinate is refused by a field any more.</p></li>
+<li><p>A Nastran real field prefers a spelling that reads back as the value it
+was given. The search spent precision one digit at a time and took the
+first form that fit, so a mantissa stepped toward zero could win a field
+an exact form two digits shorter would also have fit: <code class="docutils literal notranslate"><span class="pre">1e7</span></code> went out as
+<code class="docutils literal notranslate"><span class="pre">9999999.</span></code> where <code class="docutils literal notranslate"><span class="pre">1.E+07</span></code> was available, and <code class="docutils literal notranslate"><span class="pre">1e15</span></code> as
+<code class="docutils literal notranslate"><span class="pre">999999999999999.</span></code> in a large field. Exact spellings are now swept for
+first, at every precision, and only a value no field can hold exactly -
+the top of the double range - falls through to the closest one.</p></li>
+<li><p>The XML writers declare <code class="docutils literal notranslate"><span class="pre">version=&quot;1.0&quot;</span></code> in the <code class="docutils literal notranslate"><span class="pre">&lt;VTKFile&gt;</span></code> header
+rather than <code class="docutils literal notranslate"><span class="pre">version=&quot;0.1&quot;</span></code>, which no VTK release ever defined.
+Reading a file that declares <code class="docutils literal notranslate"><span class="pre">0.1</span></code> is unchanged.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> polyxios cannot decode - a <code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code> label
+array, or any type it does not know - is skipped with a warning naming
+it, and the arrays around it are still read. It used to vanish without
+a word.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> file keeps its <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code>
+and <code class="docutils literal notranslate"><span class="pre">SPACING</span></code> in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> as <code class="docutils literal notranslate"><span class="pre">vtk_dimensions</span></code> /
+<code class="docutils literal notranslate"><span class="pre">vtk_origin</span></code> / <code class="docutils literal notranslate"><span class="pre">vtk_spacing</span></code>, and <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> /
+<code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> keep their <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>. Expanding the header into
+a point array used to throw the grid away.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Piece</span></code> that declares points and does not
+deliver them raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>, whether its <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code> element is
+short or missing altogether. It used to be skipped, leaving the piece’s
+cells indexing points that are not there and every later piece shifted
+by the count that never arrived.</p></li>
+<li><p>A point or cell array that covers only some of a multi-piece <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or
+<code class="docutils literal notranslate"><span class="pre">.vtp</span></code> file is dropped with a warning naming it. Joining the pieces
+that carried it gave an array shorter than the mesh, whose rows then sat
+against the wrong points from the second piece on. An array the pieces
+shape differently - one calling it scalar and the next a vector - is
+dropped the same way, with its shapes named, rather than raising a bare
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> from <code class="docutils literal notranslate"><span class="pre">numpy.concatenate</span></code>.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> section is read from <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> and <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> files. Those three walk
+their own attributes, and the chain that did it asked only about points,
+so every cell array fell past it in silence - the cell scalars in VTK’s
+own <code class="docutils literal notranslate"><span class="pre">SampleStructGrid.vtk</span></code> among them. The three now share one scanner,
+which also gives them <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code> and <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code>. An array
+whose declared length matches neither the points nor the cells is dropped
+with a warning rather than reaching <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> as a validation error
+about lengths.</p></li>
+<li><p>A structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> grid extends along whichever axes it
+declares. A <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span> <span class="pre">3</span> <span class="pre">1</span> <span class="pre">3</span></code> sheet was read as two lines over the
+first two points instead of four quads over all nine, and a column along
+<code class="docutils literal notranslate"><span class="pre">y</span></code> or <code class="docutils literal notranslate"><span class="pre">z</span></code> was read with the stride of a row along <code class="docutils literal notranslate"><span class="pre">x</span></code>. Only grids
+flat in <code class="docutils literal notranslate"><span class="pre">z</span></code> and rows along <code class="docutils literal notranslate"><span class="pre">x</span></code> came out right.</p></li>
+<li><p>An attribute keyword one of the structured readers does not handle now
+warns that its array is being dropped, the way the shared parser’s binary
+scan already did. Skipping the line does not step over the payload, so in
+a binary file the scan carries on inside it.</p></li>
+<li><p>An unknown attribute keyword in an ASCII legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file warns as
+well. Only the binary scan said anything; ASCII skipped the keyword and
+its value lines without a word.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute section whose values run into the next
+header raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array, the line and what it
+holds, rather than <code class="docutils literal notranslate"><span class="pre">float()</span></code> answering with a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> that
+names neither the array nor the file.</p></li>
+<li><p>A binary attribute in a structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file is checked
+against the end of the file before it is sliced, which the shared parser
+already did. A truncated file gave a nameless reshape <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Points</span></code> array whose size is not a whole number
+of tuples per point raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the Piece. Only a short
+array was caught, so ten values for three points reached <code class="docutils literal notranslate"><span class="pre">reshape</span></code> and
+came back as a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming neither the file nor the Piece.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">v</span></code>, <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> record in an OBJ file that does not carry the
+components its directive needs, or carries something that is not a
+number, raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line. Both used to reach the
+caller as a bare <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> or <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. A <code class="docutils literal notranslate"><span class="pre">vt</span></code> carrying a
+third component - the depth of a volumetric texture - keeps the two a
+surface uses rather than making the records ragged.</p></li>
+<li><p>Writing an OBJ <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> entry that holds no numbers - a label per
+vertex, say - drops it with a warning instead of raising out of
+<code class="docutils literal notranslate"><span class="pre">numpy.asarray</span></code>.</p></li>
+<li><p>Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> files written by VTK 5.1 - the default since VTK 9.0 -
+are read. The two numbers on a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> line are the length of the
+<code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> array and the length of <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code>, not the cell count;
+reading the first as a cell count ran the offsets into the
+<code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code> keyword and answered with a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. The
+offsets are now counted up to that keyword, so files spelling the line
+either way are read. <code class="docutils literal notranslate"><span class="pre">POLYDATA</span></code> gained the layout altogether: its
+<code class="docutils literal notranslate"><span class="pre">POLYGONS</span></code>, <code class="docutils literal notranslate"><span class="pre">LINES</span></code>, <code class="docutils literal notranslate"><span class="pre">VERTICES</span></code> and <code class="docutils literal notranslate"><span class="pre">TRIANGLE_STRIPS</span></code> sections
+knew only the v4.2 form, so no polydata file VTK 9 writes could be read
+at all.</p></li>
+<li><p>Writing a v5.1 legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file declares the length of its
+<code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> array on the <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> line. It declared the cell count,
+which VTK’s own reader takes literally: it stopped with “Error reading
+cell array connectivity header” and returned a mesh with no cells.
+Files polyxios wrote before this still read.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block is stepped over. Every VTK writer since 4.2 puts one
+after each array, and it is text even in a binary file. In ASCII it
+warned twice about keywords it named as dropped; in binary it ended the
+attribute scan, so a file with two arrays came back with one. Inside a
+<code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block it was read as an array header, which took the array
+after it with it.</p></li>
+<li><p>A binary <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> keeps the section that follows its points.
+The line cursor was stepped past the payload and then once more over the
+newline that ended it, so whichever section came next - a <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code>
+written before <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code>, as VTK writes it - was skipped.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> follows its coordinate arrays rather than its
+<code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> header. The points are the outer product of the three
+arrays, so a header that disagreed with them generated cells indexing
+points that do not exist and dropped attributes that covered every point
+there is. The header is now checked against them, warned about when it
+differs, and the arrays win.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> honour <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code> when
+reading an attribute. A three-component array on 27 points came back as
+81 rows, which belongs to no mesh and fails <code class="docutils literal notranslate"><span class="pre">validate</span></code>; <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vtp</span></code> of the same family already cut it into tuples.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> declares the component count of the attributes it writes, so a
+vector survives a round trip, and writes each array in the type its
+<code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> declares. Everything was cast to float64 under whatever
+header the original dtype produced, so an <code class="docutils literal notranslate"><span class="pre">Int32</span></code> attribute read back
+as the bit pattern of a double.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Points</span></code> array of a type that holds no numbers -
+<code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code>, or any type this reader does not know - raises
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the type. It warned that the array was skipped and
+then blamed the point count for the zero values that left.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> attribute of a dtype no VTK type names - a boolean mask, a
+float16 - is written as the <code class="docutils literal notranslate"><span class="pre">Float64</span></code> its header declares. Only the
+header fell back; the bytes stayed the dtype’s own, so eight booleans
+went out as eight bytes under a <code class="docutils literal notranslate"><span class="pre">Float64</span></code> header and read back as one
+garbage double.</p></li>
+<li><p>Every XML writer declares the whole width of a tuple, not the second
+dimension of the array holding it. A <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3,</span> <span class="pre">3)</span></code> tensor attribute -
+what a legacy <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> section reads back as - was declared as one
+component in <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> and as three in
+<code class="docutils literal notranslate"><span class="pre">.vtr</span></code>, so nine times the rows came back and belonged to no mesh.</p></li>
+<li><p>The XML writers cast to little endian before taking the bytes, which is
+what the <code class="docutils literal notranslate"><span class="pre">byte_order</span></code> they all declare says those bytes are. On a
+big-endian machine every binary array went out reversed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> drop an attribute whose rows cannot be
+matched to the mesh, with a warning naming it, as <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>
+already did. It used to reach <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> and fail <code class="docutils literal notranslate"><span class="pre">validate</span></code> with a
+message about lengths rather than about the file.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file holds its <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> as binary. Both
+tensor branches of the writer - the 3x3 one and the Voigt 6-component
+one - spelled their numbers whatever was asked for, so a binary file
+carrying either had a run of ASCII in the middle of it and came back as
+a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> about a short block.</p></li>
+<li><p>The ASCII writers spell a value as the shortest decimal that reads back
+as it, rather than to ten significant digits. A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> file declaring <code class="docutils literal notranslate"><span class="pre">double</span></code> or
+<code class="docutils literal notranslate"><span class="pre">Float64</span></code> held seven digits fewer than that, so coordinates came back
+about 1e-10 off what was written; they are now exact.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block written without its blank terminator ends at the
+geometry keyword after it as well as at an attribute one. Left open at
+the end of a <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> section it swallowed the <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> that
+followed and every line to the end of the file - the failure the
+terminator search was added to prevent.</p></li>
+<li><p>A malformed attribute section in a structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file costs
+the section rather than the mesh. A count running past the end of the
+file raised <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> out of a read whose geometry was already
+whole, and those sections were skipped entirely before they were read at
+all, so files that used to load stopped loading.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Piece</span></code> that cannot be read is named by its
+index. A file of forty pieces gave no way to find the one at fault.</p></li>
+<li><p>An OBJ vertex named twice with different values is warned about whichever
+component they differ in. The check asked whether the first component had
+been written yet, so a record whose first component is NaN hid every
+conflict on that vertex.</p></li>
+<li><p>Writing an OBJ <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> attribute wider than the record says how
+many components are being left out, rather than truncating in silence.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> whose <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> does not cover its
+<code class="docutils literal notranslate"><span class="pre">POINTS</span></code> array hands the points back without cells, warning about the
+two counts. The cells are strides through the layout the header
+describes, so a header naming more points than the file delivered
+generated connectivity indexing points that are not there: the read
+returned a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> that fails <code class="docutils literal notranslate"><span class="pre">validate</span></code>. <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code>
+already reconciled the two.</p></li>
+<li><p>An attribute section is read by the count its own header declares rather
+than by the count of the mesh. The two agree in a well-formed file, and
+where they do not the section’s is the only number that says where one
+array ends and the next begins - reading by the mesh’s walked an array
+straight into the header after it. An array that then covers no point or
+cell of the mesh is dropped with a warning naming it, as the structured
+readers already did.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> section without a <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code>
+line - which the format leaves optional - reads its own values. The line
+was consumed unconditionally, so the payload up to its first <code class="docutils literal notranslate"><span class="pre">0x0a</span></code>
+byte was swallowed, and a payload holding none rewound the scan to the
+top of the file.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> or <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> block is
+checked against the end of the file before it is sliced, the way the
+attribute blocks already were. The whole-file bound the header check
+applies clears a block that still runs off the end - a file with a long
+comment header, say - and the reshape after the short slice failed with a
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming neither the array nor the file.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute header missing a field, or spelling a count
+as something that is not a number, names the file and the line it is on.
+<code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> with no array name reached the caller as <code class="docutils literal notranslate"><span class="pre">IndexError:</span> <span class="pre">list</span>
+<span class="pre">index</span> <span class="pre">out</span> <span class="pre">of</span> <span class="pre">range</span></code> and <code class="docutils literal notranslate"><span class="pre">SCALARS</span> <span class="pre">s</span> <span class="pre">float</span> <span class="pre">x</span></code> as a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>,
+in the ASCII scan, the binary scan and the structured one alike. A binary
+file has no line to name, so the byte offset stands in for one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> write each attribute in the
+type the array is held in, as <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> does. Everything was cast to a
+double under a <code class="docutils literal notranslate"><span class="pre">Float64</span></code> header, so an <code class="docutils literal notranslate"><span class="pre">int64</span></code> identifier past 2**53
+came back a different number.</p></li>
+<li><p>The ASCII body of a <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> is parsed into the type the element
+declares rather than through <code class="docutils literal notranslate"><span class="pre">float()</span></code> first. An <code class="docutils literal notranslate"><span class="pre">Int64</span></code> array was
+rounded to a double before the declared type ever saw it, which the top
+of the integer range does not survive.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> block is read as the type its header names. A
+<code class="docutils literal notranslate"><span class="pre">POINTS</span> <span class="pre">n</span> <span class="pre">int</span></code> was read at four bytes a float, so an integer point
+array came back as coordinates the file never held, and a type name the
+reader has no numpy equivalent for - <code class="docutils literal notranslate"><span class="pre">bit</span></code>, or a misspelling - was
+guessed at rather than refused. Every binary header now resolves its type
+the same way and raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming it when it cannot; the
+names VTK writes for 64-bit and signed-char arrays were missing from the
+table and are there now. An ASCII payload is unaffected: its values are
+text whatever the header calls them.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> geometry or section header spelling a count as
+something that is not a number, or leaving it out, names the file and the
+line it is on. <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code>, <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code>, <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code>, <code class="docutils literal notranslate"><span class="pre">SPACING</span></code> and the coordinate
+arrays reached the caller as a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> or <code class="docutils literal notranslate"><span class="pre">IndexError</span></code>,
+which the attribute headers had already stopped doing.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> array in a legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> is measured against
+the cells the mesh ends up with rather than the cells <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>
+describes. A header its <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> array does not cover leaves the mesh
+with no cells, and the array was kept against the header’s count, so the
+read returned a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> that fails <code class="docutils literal notranslate"><span class="pre">validate</span></code>.</p></li>
+<li><p>An OBJ face index spelled with a superscript digit raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming the line. <code class="docutils literal notranslate"><span class="pre">str.isdigit</span></code> admits <code class="docutils literal notranslate"><span class="pre">²</span></code> and <code class="docutils literal notranslate"><span class="pre">int()</span></code> then refuses
+it, so the fast path let a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> out; the test is now
+<code class="docutils literal notranslate"><span class="pre">str.isdecimal</span></code>, which still admits the non-Latin digits <code class="docutils literal notranslate"><span class="pre">int()</span></code>
+reads.</p></li>
+<li><p>A bare <code class="docutils literal notranslate"><span class="pre">mtllib</span></code> or <code class="docutils literal notranslate"><span class="pre">o</span></code> directive in an OBJ file names nothing rather
+than the empty string, which used to be written back as a directive with
+nothing after it.</p></li>
+<li><p>Writing an OBJ <code class="docutils literal notranslate"><span class="pre">element_attrs['material']</span></code> that does not cover the
+faces drops it with a warning naming its length, the way the vertex
+attributes already were. Indexed per face it ran off the end partway
+through, leaving a half-written file and an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> naming an
+axis.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Piece</span></code> whose <code class="docutils literal notranslate"><span class="pre">NumberOfPoints</span></code> is not a count,
+and a <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> <code class="docutils literal notranslate"><span class="pre">Extent</span></code> that is not six whole
+numbers, raise <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the file. They reached the caller as
+a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about <code class="docutils literal notranslate"><span class="pre">int()</span></code> or about unpacking.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> whose <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code> is not a count is read
+flat with a warning naming it, rather than raising a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+from <code class="docutils literal notranslate"><span class="pre">int()</span></code>.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file whose header declares <code class="docutils literal notranslate"><span class="pre">DATASET</span> <span class="pre">FIELD</span></code> is read.
+The dispatch asked what the line starts with while the line still
+carried its <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> keyword, so the branch never ran and every field
+data file was refused by the one below it.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block inside a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section is stepped over. VTK
+follows a cell array with one, so a block sat between the offsets and the
+connectivity of files every release since 9.0 writes; read as offsets it
+raised <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> about a line of words where numbers belong.</p></li>
+<li><p>A v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section is found by what follows the header rather than
+by the version in the first line. Versions were compared as strings, so a
+file declaring <code class="docutils literal notranslate"><span class="pre">10.0</span></code> sorted below <code class="docutils literal notranslate"><span class="pre">5.1</span></code> and its offsets would have
+been read as a v4.2 cell stream. The binary scan already asked this way.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> extent flat along an axis - an image one
+voxel deep - is a sheet of quads, or a run of lines when it is flat along
+two. All three read it as a grid of no cells, which left every
+<code class="docutils literal notranslate"><span class="pre">CellData</span></code> array belonging to nothing.</p></li>
+<li><p>An ASCII <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> holding a value its declared type is too narrow
+for wraps with a warning naming the array, the way a C reader wraps it,
+rather than escaping as a bare <code class="docutils literal notranslate"><span class="pre">OverflowError</span></code> from numpy. A token that
+names no number at all raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array.</p></li>
+<li><p>Writing a point or cell attribute of a kind no <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> can hold -
+a label per vertex, say - raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array and its
+dtype, rather than a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about one element.</p></li>
+<li><p>The warnings the <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, XML and OBJ codecs raise are blamed on the code
+that asked for the file. Every one of them pointed a frame short, at
+<code class="docutils literal notranslate"><span class="pre">polyxios.read</span></code> or <code class="docutils literal notranslate"><span class="pre">polyxios.write</span></code> itself, which tells a caller
+nothing about which of their own calls found the file.</p></li>
+</ul>
+</section>
+<section id="optimizations">
+<h3>Optimizations<a class="headerlink" href="#optimizations" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Reading an OBJ file resolves a face corner inline when it names a plain
+index inside what has been declared, which is what nearly every corner
+does; the rest still go the long way round, where the message naming the
+line lives. A mesh of any size has millions of corners, and the call this
+saves is most of what checking them cost. A <code class="docutils literal notranslate"><span class="pre">v</span></code>, <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> record
+carrying exactly the components its directive spells skips the padding and
+the slice that feeds it.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">float32</span></code> attribute is spelled at its own width in an ASCII
+<code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code>. Widened to a double first, <code class="docutils literal notranslate"><span class="pre">0.1</span></code> went out as
+<code class="docutils literal notranslate"><span class="pre">0.10000000149011612</span></code> - seventeen digits of a value carrying seven -
+which is nearly twice the file for the same numbers.</p></li>
+<li><p>Writing a Nastran large-field deck is roughly ten times faster. Sweeping
+for an exact spelling asked every precision from seventeen digits down,
+spelling and parsing candidates at each; rounding to fewer significant
+digits than <code class="docutils literal notranslate"><span class="pre">repr</span></code> carries cannot be exact whatever form it takes, so
+the sweep now stops there. Neither sweep spells a candidate at a
+precision the field could not hold in the first place, and the stepped
+mantissas - the expensive half - are built only when the rounded ones
+have all missed. Twenty thousand <code class="docutils literal notranslate"><span class="pre">GRID*</span></code> cards went from 10.3 s to
+1.0 s, and every value is written exactly as before.</p></li>
+<li><p>Reading an OBJ file no longer names its source once per line. The name
+costs a path walk and was only ever used to spell an error message.</p></li>
+<li><p>A Nastran real field below one drops its leading zero when the column it
+costs is a significant digit. Bulk data reads <code class="docutils literal notranslate"><span class="pre">.5</span></code> as <code class="docutils literal notranslate"><span class="pre">0.5</span></code>, so a
+third in an eight-column field goes out as <code class="docutils literal notranslate"><span class="pre">.3333333</span></code> rather than
+<code class="docutils literal notranslate"><span class="pre">0.333333</span></code>.</p></li>
+<li><p>Writing an OBJ file looks its material attribute up once rather than once
+per face.</p></li>
+<li><p>Stepping past a binary payload in a structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file is a
+binary search over the line offsets rather than a walk. A binary payload
+carries a newline every few values, so the lines it is cut into number in
+the thousands for a grid of any size; a 5 MB <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> file
+reads about a fifth faster.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> build their hexahedra with array
+arithmetic instead of a Python loop per cell. The corners of a cell are
+strides from its own origin, so the whole connectivity is eight adds over
+the origins; a 40x40x40 grid builds about nine times faster.</p></li>
+<li><p>The structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> readers cut their file into lines in one
+pass rather than a <code class="docutils literal notranslate"><span class="pre">find</span></code> per line, and they all do it in the same
+place. The lines are byte-identical to what the walk produced.</p></li>
+<li><p>Folding OBJ <code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code> records onto their vertices is one pass over
+the corners rather than a numpy row assignment per corner.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> ASCII payload is spelled and written in one pass instead
+of a formatted write per point, which was a syscall per line.</p></li>
 </ul>
 </section>
 <section id="tests">
 <h3>Tests<a class="headerlink" href="#tests" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>Regression tests for the dtype a <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> header declares against the
+bytes under it, the component count of a tensor attribute in every XML
+writer, a binary legacy <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> section, an unterminated <code class="docutils literal notranslate"><span class="pre">METADATA</span></code>
+block followed by geometry, an attribute section declaring more than its
+file holds, an OBJ conflict hiding behind a NaN first component, and the
+<code class="docutils literal notranslate"><span class="pre">Piece</span></code> index in a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> error.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_a_double_section_holds_every_digit_of_a_double</span></code> writes a
+coordinate no ten-digit spelling can hold and asks for it back unchanged.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_a_power_of_ten_is_written_exactly</span></code> spells its powers as literals
+rather than computing them with <code class="docutils literal notranslate"><span class="pre">**</span></code>. <code class="docutils literal notranslate"><span class="pre">pow</span></code> is not correctly rounded
+everywhere - glibc and MSVC answer <code class="docutils literal notranslate"><span class="pre">10.0</span> <span class="pre">**</span> <span class="pre">23</span></code> with the double one unit
+above <code class="docutils literal notranslate"><span class="pre">1e23</span></code>, macOS with <code class="docutils literal notranslate"><span class="pre">1e23</span></code> itself - and that neighbour needs
+seventeen significant digits, which no eight or sixteen character field
+can hold. The test asked the writer for a field wider than the format has,
+and failed on Linux and Windows only.</p></li>
 <li><p>A cross-codec round-trip matrix (<code class="docutils literal notranslate"><span class="pre">tests/test_roundtrip.py</span></code>) writes and
 re-reads five canonical meshes through every writable codec, checked
 against a table declaring exactly what each format keeps. A new codec
@@ -855,6 +1254,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optimizations">Optimizations</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
 </ul>
 </li>
@@ -925,7 +1325,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-20.
+  Last updated on 2026-08-21.
   <br/>
 </p></div>
       

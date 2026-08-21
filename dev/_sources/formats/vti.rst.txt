@@ -67,10 +67,13 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- Multi-component attributes are cut into tuples with ``NumberOfComponents``, so an ``(n, 3)`` vector reads back with its shape rather than as ``3n`` rows.
 - Both the coordinates and the connectivity are materialised on read. A file of a few hundred bytes can expand to a large in-memory mesh, because the extent is all it takes to describe one.
 - ``Origin`` defaults to ``0 0 0`` and ``Spacing`` to ``1 1 1`` when the attributes are absent.
 - A ``<Piece>`` may restate a sub-extent of ``WholeExtent``; the piece's own extent is what gets expanded.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`.
+- Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+- An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every ``CellData`` array belonging to nothing.
 
 .. seealso::
 

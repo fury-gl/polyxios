@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=20e32236"></script>
+    <script src="../_static/documentation_options.js?v=082ce853"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-20"/>
+    <meta name="docbuild:last-update" content="2026-08-21"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -623,6 +623,7 @@ inside the file: a <code class="docutils literal notranslate"><span class="pre">
 here - a numeric table whose first row happens to read <code class="docutils literal notranslate"><span class="pre">SOL</span> <span class="pre">1.0</span> <span class="pre">2.0</span></code> does not.
 <code class="docutils literal notranslate"><span class="pre">px.read(&quot;model.dat&quot;,</span> <span class="pre">fmt=&quot;.bdf&quot;)</span></code> still forces the issue, and writing to <code class="docutils literal notranslate"><span class="pre">.dat</span></code> needs
 <code class="docutils literal notranslate"><span class="pre">fmt=&quot;.bdf&quot;</span></code> because an output file has no content to inspect.</p></li>
+<li><p>A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (<code class="docutils literal notranslate"><span class="pre">1.234-10</span></code> for <code class="docutils literal notranslate"><span class="pre">1.234E-10</span></code>, <code class="docutils literal notranslate"><span class="pre">1.2346+7</span></code> for <code class="docutils literal notranslate"><span class="pre">1.2346E+07</span></code>), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads <code class="docutils literal notranslate"><span class="pre">.5</span></code> as <code class="docutils literal notranslate"><span class="pre">0.5</span></code>. A spelling that reads back as the value itself is always preferred to a longer one that does not, so <code class="docutils literal notranslate"><span class="pre">1e7</span></code> goes out as <code class="docutils literal notranslate"><span class="pre">1.E+07</span></code> rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.</p></li>
 <li><p>Property ids become element tags, so the deck’s grouping is preserved.</p></li>
 </ul>
 <div class="admonition seealso">
@@ -741,7 +742,7 @@ here - a numeric table whose first row happens to read <code class="docutils lit
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-20.
+  Last updated on 2026-08-21.
   <br/>
 </p></div>
       

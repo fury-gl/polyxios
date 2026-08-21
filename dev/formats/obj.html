@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=20e32236"></script>
+    <script src="../_static/documentation_options.js?v=082ce853"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-20"/>
+    <meta name="docbuild:last-update" content="2026-08-21"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -591,8 +591,14 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>Negative (relative) indices are resolved against the vertex count at the point the face appears, not the final count.</p></li>
+<li><p>An index naming a record the file has not declared raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line, rather than wrapping around into another vertex.</p></li>
 <li><p>Faces with more than four vertices are kept as polygons rather than being silently triangulated.</p></li>
 <li><p>Material and group keywords are read as element tags; <code class="docutils literal notranslate"><span class="pre">.mtl</span></code> files are not parsed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code> are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in <code class="docutils literal notranslate"><span class="pre">vertex_attrs['texcoords']</span></code> and <code class="docutils literal notranslate"><span class="pre">vertex_attrs['normals']</span></code>: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.</p></li>
+<li><p>Records that cannot be lined up with the vertices leave the attribute out entirely, on write as well as on read: an attribute that does not hold one row per vertex is warned about and left out, rather than written as faces indexing records that are not in the file. A vertex no face names carries NaN in the array and is written back as zero, since <code class="docutils literal notranslate"><span class="pre">vt</span> <span class="pre">nan</span> <span class="pre">nan</span></code> is not a record another OBJ reader takes.</p></li>
+<li><p>A face belonging to no group is written after a bare <code class="docutils literal notranslate"><span class="pre">g</span></code>, so it does not inherit the group of the face above it; a bare <code class="docutils literal notranslate"><span class="pre">g</span></code> on read clears the active groups rather than inventing a <code class="docutils literal notranslate"><span class="pre">default</span></code> tag.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">v</span></code>, <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> record that does not carry the components its directive needs, or carries something that is not a number, raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line. A <code class="docutils literal notranslate"><span class="pre">vt</span></code> may carry a third component - the depth of a volumetric texture - and <code class="docutils literal notranslate"><span class="pre">texcoords</span></code> keeps the two a surface uses.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">element_attrs['material']</span></code> is written as <code class="docutils literal notranslate"><span class="pre">usemtl</span></code> only when it holds one value per face; a shorter attribute is warned about and left out, the way an ill-fitting vertex attribute is.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -710,7 +716,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-20.
+  Last updated on 2026-08-21.
   <br/>
 </p></div>
       

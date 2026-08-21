@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=20e32236"></script>
+    <script src="../_static/documentation_options.js?v=082ce853"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-20"/>
+    <meta name="docbuild:last-update" content="2026-08-21"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -592,6 +592,9 @@
 <ul class="px-quirks simple">
 <li><p>The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.</p></li>
 <li><p>Appended and base64 payloads are decoded eagerly - the XML container has no seekable layout for mmap, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> has no effect.</p></li>
+<li><p>Multi-component attributes declare and honour <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code>, so an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> vector survives a round trip rather than coming back as <code class="docutils literal notranslate"><span class="pre">3n</span></code> rows.</p></li>
+<li><p>Binary arrays are written in the type their <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> declares, so an integer attribute stays an integer one.</p></li>
+<li><p>An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every <code class="docutils literal notranslate"><span class="pre">CellData</span></code> array belonging to nothing.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -709,7 +712,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-20.
+  Last updated on 2026-08-21.
   <br/>
 </p></div>
       
