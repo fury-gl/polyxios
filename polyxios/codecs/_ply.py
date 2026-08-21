@@ -199,6 +199,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     edge_indices = np.flatnonzero(is_edge).tolist()
     face_indices = np.flatnonzero(~is_edge).tolist()
 
+    # Measured before the header is built: a raise once the writing has
+    # started leaves a file whose header promises records the body never
+    # carries, over whatever was already at that path.
+    _check_edge_widths(poly.offsets, edge_indices)
+
     endian_chr = ("<" if endian == "little" else ">") if binary else ""
     vert_attrs = _writable_attrs(poly.vertex_attrs, n_verts, "vertex", endian_chr)
     elem_attrs = _writable_attrs(poly.element_attrs, n_elems, "element", endian_chr)
@@ -268,9 +273,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                 _write_binary_attrs(fh, elem_attrs, i)
             # Edges: the two ends and the same properties, one record each.
             for i in edge_indices:
-                s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
-                _check_edge_width(i, s, e)
-                fh.write(indices[s:e].tobytes())
+                s = int(poly.offsets[i])
+                fh.write(indices[s : s + 2].tobytes())
                 _write_binary_attrs(fh, elem_attrs, i)
         else:
             # ASCII: each vertex line = x y z [extra_props...]
@@ -290,9 +294,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                 fh.write((" ".join(parts) + "\n").encode())
             # Each edge line = vertex1 vertex2 [extra_props...]
             for i in edge_indices:
-                s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
-                _check_edge_width(i, s, e)
-                ends = poly.connectivity[s:e]
+                s = int(poly.offsets[i])
+                ends = poly.connectivity[s : s + 2]
                 parts = [str(int(ends[0])), str(int(ends[1]))]
                 _extend_ascii_attrs(parts, elem_attrs, i)
                 fh.write((" ".join(parts) + "\n").encode())
@@ -524,26 +527,41 @@ def _list_count_type(offsets: np.ndarray, face_indices: list[int]) -> tuple[str,
     return ("ushort", "u2") if widest <= 0xFFFF else ("uint", "u4")
 
 
-def _check_edge_width(index: int, start: int, end: int) -> None:
+def _check_edge_widths(offsets: np.ndarray, edge_indices: list[int]) -> None:
     """Refuse a line element that does not carry exactly two ends.
 
     Parameters
     ----------
-    index
-        Which element, named in the error.
-    start, end
-        The element's slice of the connectivity.
+    offsets
+        The mesh's element offsets.
+    edge_indices
+        Which elements are written as edge records.
 
     Raises
     ------
     CodecError
-        When the element does not hold exactly two vertices; a PLY edge
+        When an element does not hold exactly two vertices; a PLY edge
         record has room for two and no reader would find the rest.
+
+    Notes
+    -----
+    Every edge is measured here, before the file is opened, rather than as
+    its record is written: raising partway through leaves a header promising
+    records the body does not carry, over whatever file was already there.
+    One subtraction over the whole index array does it, so the check costs a
+    pass and not a Python call per edge.
     """
-    if end - start != 2:
+    if not edge_indices:
+        return
+    picked = np.asarray(edge_indices, dtype=np.int64)
+    bounds = np.asarray(offsets)
+    widths = bounds[picked + 1] - bounds[picked]
+    bad = np.flatnonzero(widths != 2)
+    if bad.size:
+        first = int(picked[bad[0]])
         raise CodecError(
-            f".ply: element {index} is a line with {end - start} vertex(es);"
-            " a PLY edge record holds exactly two."
+            f".ply: element {first} is a line with {int(widths[bad[0]])}"
+            " vertex(es); a PLY edge record holds exactly two."
         )
 
 
@@ -624,7 +642,10 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
 
     types_list = _face_types(offsets_list)
     n_faces = len(types_list)
-    element_attrs = {k: np.array(v) for k, v in extra_face_props.items()}
+    element_attrs = _padded_columns(
+        {k: np.array(v, dtype=np.float64) for k, v in extra_face_props.items()},
+        n_faces,
+    )
 
     if edge_conn:
         n_edges = len(edge_conn) // 2
@@ -634,7 +655,10 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
         types_list.extend([ELEMENT_TYPES["line"]] * n_edges)
         element_attrs = _combined_element_attrs(
             element_attrs,
-            {k: np.array(v) for k, v in extra_edge_props.items()},
+            _padded_columns(
+                {k: np.array(v, dtype=np.float64) for k, v in extra_edge_props.items()},
+                n_edges,
+            ),
             n_faces,
             n_edges,
         )
@@ -736,9 +760,17 @@ def _read_ascii_faces(
     if not block:
         return
     layout = [(name, ptype[0] == "list") for name, ptype in props]
-    columns = {
-        name: extra.setdefault(name, []) for name, is_list in layout if not is_list
-    }
+    # A property only this block declares starts where this block does, so
+    # the faces an earlier one read carry no value for it.
+    base = len(offsets_list) - 1
+    columns: dict[str, list] = {}
+    for name, is_list in layout:
+        if is_list:
+            continue
+        column = extra.setdefault(name, [])
+        if len(column) < base:
+            column.extend([float("nan")] * (base - len(column)))
+        columns[name] = column
     running = offsets_list[-1]
     for ln in block:
         vals = ln.split()
@@ -801,11 +833,17 @@ def _read_ascii_edges(
         (i, name, isinstance(ptype, tuple) and ptype[0] == "list")
         for i, (name, ptype) in enumerate(props)
     ]
-    columns = {
-        name: extra.setdefault(name, [])
-        for i, name, is_list in layout
-        if not is_list and i not in (first, second)
-    }
+    # As with the faces, a property only a later block declares carries no
+    # value for the edges an earlier one read.
+    base = len(edge_conn) // 2
+    columns: dict[str, list] = {}
+    for i, name, is_list in layout:
+        if is_list or i in (first, second):
+            continue
+        column = extra.setdefault(name, [])
+        if len(column) < base:
+            column.extend([float("nan")] * (base - len(column)))
+        columns[name] = column
     ends = [0, 0]
     for ln in block:
         vals = ln.split()
@@ -998,6 +1036,9 @@ def _decode_binary_faces(
     bytes object and builds an array to read one number out of it, which on a
     mesh of a million faces is millions of both.
     """
+    # How many faces the earlier blocks left behind, which is where this
+    # block's property values belong in their columns.
+    n_before = len(offsets_list) - 1
     uniform = _fixed_face_records(mv, pos, count, props, endian)
     if uniform is not None:
         records, list_at, n_nodes, end = uniform
@@ -1008,7 +1049,9 @@ def _decode_binary_faces(
         )
         for i, (pname, _) in enumerate(props):
             if i != list_at:
-                extra_out[pname] = records[f"f{i}"].astype(np.float64)
+                _append_column(
+                    extra_out, pname, records[f"f{i}"].astype(np.float64), n_before
+                )
         return end
 
     # (column or None, format, field size, index character, index size) per
@@ -1061,8 +1104,92 @@ def _decode_binary_faces(
         ) from exc
 
     for pname, values in columns.items():
-        extra_out[pname] = np.array(values)
+        _append_column(extra_out, pname, np.array(values, dtype=np.float64), n_before)
     return pos
+
+
+def _append_column(
+    extra_out: dict[str, np.ndarray], name: str, column: np.ndarray, base: int
+) -> None:
+    """Add one block's column to the property, keeping what came before it.
+
+    Parameters
+    ----------
+    extra_out
+        Where the scalar properties collect, one column per name.
+    name
+        The property this column belongs to.
+    column
+        The values this block read for it.
+    base
+        How many faces were read before this block, which is where its
+        values belong in the column.
+
+    Notes
+    -----
+    A header is free to declare ``face`` more than once, and the records of
+    every such block are elements of the one mesh. Assigning here would keep
+    only the last block's values and hand back a property shorter than the
+    element column, which every reader downstream indexes off the end of.
+
+    A property only the later block declares starts where that block does,
+    not at the first face, so the run ahead of it is NaN: appending it flush
+    would move every value onto a face that never carried it.
+    """
+    held = extra_out.get(name)
+    held = _nan_run(base) if held is None else _resized(held, base)
+    extra_out[name] = np.concatenate([held, column]) if held.size else column
+
+
+def _nan_run(count: int) -> np.ndarray:
+    """Return ``count`` missing values, which is what no record spelled."""
+    return np.full(count, np.nan, dtype=np.float64)
+
+
+def _padded_columns(attrs: dict[str, np.ndarray], count: int) -> dict[str, np.ndarray]:
+    """Return each column at ``count`` rows, NaN over the records it never reached.
+
+    Parameters
+    ----------
+    attrs
+        The columns one element's blocks left behind.
+    count
+        How many of that element the mesh holds.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The same mapping when every column already describes them all, which
+        is every file that declares its element once.
+
+    Notes
+    -----
+    A property one block declares and the next does not stops short of the
+    element column, and an attribute shorter than the mesh is one every
+    reader downstream indexes off the end of.
+    """
+    if all(column.shape[0] == count for column in attrs.values()):
+        return attrs
+    return {name: _resized(column, count) for name, column in attrs.items()}
+
+
+def _resized(column: np.ndarray, count: int) -> np.ndarray:
+    """Return one column at ``count`` rows, whichever way it disagrees.
+
+    Notes
+    -----
+    Short is the ordinary case - a property one block declares and the next
+    does not. Long only happens on a file whose element carries values but no
+    vertex list, so its records are not faces at all; the values past the last
+    face describe nothing, and keeping them is what leaves an attribute the
+    mesh cannot be indexed alongside.
+    """
+    held = column.shape[0]
+    if held == count:
+        return column
+    if held > count:
+        return column[:count]
+    return np.concatenate([column, _nan_run(count - held)])
 
 
 def _fixed_face_records(
@@ -1262,16 +1389,18 @@ def _decode_binary(
             )
             # Extended, not assigned: a header declaring the element twice
             # would otherwise keep only its last block.
+            edge_base = len(edge_conn) // 2
             edge_conn.extend(pairs.ravel().tolist())
             # Whatever else the record carries describes the line the way a
             # face property describes its face, so it travels with it.
             for pi, (pname, ptype) in enumerate(props):
                 if isinstance(ptype, tuple) or pi in (first, second):
                     continue
-                column = np.asarray(ends[pname])
-                held = edge_extra.get(pname)
-                edge_extra[pname] = (
-                    column if held is None else np.concatenate([held, column])
+                _append_column(
+                    edge_extra,
+                    pname,
+                    np.asarray(ends[pname], dtype=np.float64),
+                    edge_base,
                 )
 
         else:
@@ -1279,6 +1408,7 @@ def _decode_binary(
             pos = _skip_binary_element(mv, pos, count, props, endian)
 
     types_list = _face_types(offsets_list)
+    element_attrs = _padded_columns(element_attrs, len(types_list))
     if edge_conn:
         n_faces = len(types_list)
         n_edges = len(edge_conn) // 2
@@ -1287,7 +1417,7 @@ def _decode_binary(
         offsets_list.extend(range(base + 2, base + 2 * n_edges + 1, 2))
         types_list.extend([ELEMENT_TYPES["line"]] * n_edges)
         element_attrs = _combined_element_attrs(
-            element_attrs, edge_extra, n_faces, n_edges
+            element_attrs, _padded_columns(edge_extra, n_edges), n_faces, n_edges
         )
 
     return PolyData(
@@ -1353,6 +1483,17 @@ def _scalar_record_dtype(
     """
     if any(isinstance(ptype, tuple) for _, ptype in props):
         return None
+    names = [pname for pname, _ in props]
+    if len(set(names)) != len(names):
+        # A record is read by naming its fields, and two fields answering to
+        # one name leave no way to say which column a property is. numpy
+        # refuses the dtype outright, which is the right answer said badly:
+        # the error names neither the element nor the file.
+        repeated = sorted({name for name in names if names.count(name) > 1})
+        raise CodecError(
+            f".ply: the {where} element declares {repeated} more than once,"
+            " so a record names no one column for them."
+        )
     return np.dtype(
         [(pname, endian + _scalar_code(ptype, where)) for pname, ptype in props]
     )
@@ -1445,19 +1586,51 @@ def _skip_binary_element(
     props: list[tuple[str, Any]],
     endian: str,
 ) -> int:
+    """Step over an element this codec has no place for, record by record.
+
+    Raises
+    ------
+    CodecError
+        When the file ends inside the block. A list property's length is a
+        number inside the record, so it can only be read once the bytes that
+        hold it are known to be there; reading past the end instead raises an
+        IndexError that names neither the element nor the format.
+
+    Notes
+    -----
+    The record widths are resolved once, ahead of the walk, rather than per
+    field per record: an element skipped here is often the largest in the
+    file, and a dtype built per field is a dtype built millions of times.
+    """
+    limit = len(mv)
+    # (format, field width, index width) per property; a list property has no
+    # value to keep and spends its index width on whatever count it declares.
+    layout: list[tuple[str, int, int]] = []
+    for _, ptype in props:
+        if isinstance(ptype, tuple) and ptype[0] == "list":
+            fmt = endian + _PLY_STRUCT[_PLY_DTYPE.get(ptype[1], "u1")]
+            idx_size = np.dtype(endian + _PLY_DTYPE.get(ptype[2], "i4")).itemsize
+            layout.append((fmt, struct.calcsize(fmt), idx_size))
+        else:
+            size = np.dtype(endian + _PLY_DTYPE.get(ptype, "f4")).itemsize
+            layout.append(("", size, 0))
+
     for _ in range(count):
-        for _, ptype in props:
-            if isinstance(ptype, tuple) and ptype[0] == "list":
-                count_dt = endian + _PLY_DTYPE.get(ptype[1], "u1")
-                cnt_size = np.dtype(count_dt).itemsize
-                cnt = int(
-                    np.frombuffer(bytes(mv[pos : pos + cnt_size]), dtype=count_dt)[0]
+        for fmt, size, idx_size in layout:
+            if pos + size > limit:
+                raise CodecError(
+                    f".ply: the file ends inside its {count} skipped record(s)."
                 )
-                pos += cnt_size
-                idx_size = np.dtype(endian + _PLY_DTYPE.get(ptype[2], "i4")).itemsize
-                pos += cnt * idx_size
-            else:
-                pos += np.dtype(endian + _PLY_DTYPE.get(ptype, "f4")).itemsize
+            if not fmt:
+                pos += size
+                continue
+            cnt = int(struct.unpack_from(fmt, mv, pos)[0])
+            pos += size
+            if cnt < 0:
+                raise CodecError(f".ply: a skipped record names {cnt} list value(s).")
+            pos += cnt * idx_size
+    if pos > limit:
+        raise CodecError(f".ply: the file ends inside its {count} skipped record(s).")
     return pos
 
 
@@ -1675,6 +1848,13 @@ def _parse_header(fh: object) -> tuple[dict, int]:
 
     while True:
         raw = fh.readline()  # type: ignore[union-attr]
+        if not raw:
+            # readline() hands back nothing at the end of the file and goes on
+            # doing so, so a header with no 'end_header' - which is every
+            # truncated file - would otherwise be read forever.
+            raise CodecError(
+                ".ply: the file ends inside its header; no 'end_header' line."
+            )
         offset += len(raw)
         line = raw.decode("ascii", errors="replace").strip()
         lines.append(line)
@@ -1688,19 +1868,57 @@ def _parse_header(fh: object) -> tuple[dict, int]:
         kw = parts[0]
 
         if kw == "format":
+            _need(parts, 2, line)
             header["format"] = parts[1]
         elif kw == "element":
-            current_elem = {"name": parts[1], "count": int(parts[2]), "properties": []}
+            _need(parts, 3, line)
+            try:
+                count = int(parts[2])
+            except ValueError as exc:
+                raise CodecError(
+                    f".ply: element {parts[1]!r} declares a count that is not"
+                    f" a number, in the header line {line!r}."
+                ) from exc
+            current_elem = {"name": parts[1], "count": count, "properties": []}
             header["elements"].append(current_elem)
         elif kw == "property" and current_elem is not None:
+            _need(parts, 2, line)
             if parts[1] == "list":
                 # property list count_type data_type name
+                _need(parts, 5, line)
                 current_elem["properties"].append(
                     (parts[4], ("list", parts[2], parts[3]))
                 )
             else:
                 # property type name
+                _need(parts, 3, line)
                 current_elem["properties"].append((parts[2], parts[1]))
         # ignore comment, obj_info, etc.
 
     return header, offset
+
+
+def _need(parts: list[str], count: int, line: str) -> None:
+    """Refuse a header line that names fewer fields than its keyword needs.
+
+    Parameters
+    ----------
+    parts
+        The line's whitespace-separated fields.
+    count
+        How many the keyword spends.
+    line
+        The line as written, named in the error.
+
+    Raises
+    ------
+    CodecError
+        When the line is short. Indexing past it would raise an IndexError
+        that names nothing about the file, where the reader's whole contract
+        is that a file it cannot read is reported as one.
+    """
+    if len(parts) < count:
+        raise CodecError(
+            f".ply: the header line {line!r} names {len(parts)} field(s),"
+            f" and '{parts[0]}' spends {count}."
+        )

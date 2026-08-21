@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 import tempfile
 
 import numpy as np
@@ -7,6 +8,7 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._types import PolyData
 from polyxios.codecs._ply import read, write
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.fetcher import fetch
@@ -649,3 +651,106 @@ def test_an_integer_attribute_is_not_spelled_in_exponent_form(tmp_path) -> None:
     write(poly, path, binary=False)
     assert "12345678901234" in path.read_text()
     assert "e+" not in path.read_text()
+
+
+def _two_face_blocks(binary: bool) -> bytes:
+    """A header declaring ``face`` twice, the second block adding a property."""
+    fmt = "binary_little_endian" if binary else "ascii"
+    header = (
+        f"ply\nformat {fmt} 1.0\n"
+        "element vertex 3\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "element face 1\n"
+        "property list uchar int vertex_indices\nproperty float q\n"
+        "element face 1\n"
+        "property list uchar int vertex_indices\n"
+        "property float q\nproperty float r\n"
+        "end_header\n"
+    ).encode()
+    if not binary:
+        return header + b"0 0 0\n1 0 0\n0 1 0\n3 0 1 2 5.0\n3 0 1 2 7.0 9.0\n"
+    body = struct.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, 0)
+    body += struct.pack("<B3if", 3, 0, 1, 2, 5.0)
+    body += struct.pack("<B3iff", 3, 0, 1, 2, 7.0, 9.0)
+    return header + body
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_a_second_face_block_keeps_the_first_block_values(tmp_path, binary) -> None:
+    """A header may declare an element twice; both blocks are its records."""
+    path = tmp_path / "two.ply"
+    path.write_bytes(_two_face_blocks(binary))
+    poly = read(path)
+    assert len(poly.element_types) == 2
+    np.testing.assert_allclose(poly.element_attrs["q"], [5.0, 7.0])
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_a_property_only_a_later_block_declares_starts_where_it_does(
+    tmp_path, binary
+) -> None:
+    """Flush-appending it would move its values onto faces that never held it."""
+    path = tmp_path / "two.ply"
+    path.write_bytes(_two_face_blocks(binary))
+    held = read(path).element_attrs["r"]
+    assert held.shape[0] == 2
+    assert np.isnan(held[0])
+    assert held[1] == 9.0
+
+
+def test_a_header_with_no_end_line_is_a_codec_error(tmp_path) -> None:
+    """readline() returns nothing forever at EOF, so the walk has to stop."""
+    path = tmp_path / "cut.ply"
+    path.write_text(
+        "ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\n0 0 0\n"
+    )
+    with pytest.raises(CodecError, match="ends inside its header"):
+        read(path)
+
+
+def test_a_short_header_line_is_a_codec_error(tmp_path) -> None:
+    """Indexing past it would raise an IndexError that names nothing."""
+    path = tmp_path / "short.ply"
+    path.write_text("ply\nformat ascii 1.0\nelement vertex\nend_header\n")
+    with pytest.raises(CodecError, match="spends"):
+        read(path)
+
+
+def test_an_element_count_that_is_not_a_number_is_a_codec_error(tmp_path) -> None:
+    path = tmp_path / "nan.ply"
+    path.write_text("ply\nformat ascii 1.0\nelement vertex many\nend_header\n")
+    with pytest.raises(CodecError, match="not.*a number"):
+        read(path)
+
+
+def test_a_line_of_three_ends_is_refused_before_the_file_is_touched(tmp_path) -> None:
+    """A raise partway through leaves a header promising records that are not
+    there, over whatever file was already at that path."""
+    path = tmp_path / "kept.ply"
+    path.write_bytes(b"PRE-EXISTING")
+    poly = PolyData(
+        vertices=np.zeros((3, 3)),
+        connectivity=np.array([0, 1, 2, 0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 3, 6], dtype=np.int32),
+        element_types=np.array(
+            [ELEMENT_TYPES["triangle"], ELEMENT_TYPES["line"]], dtype=np.uint8
+        ),
+    )
+    with pytest.raises(CodecError, match="edge record holds exactly two"):
+        write(poly, path)
+    assert path.read_bytes() == b"PRE-EXISTING"
+
+
+def test_a_property_declared_twice_is_a_codec_error(tmp_path) -> None:
+    """Two fields answering to one name leave no way to say which is which,
+    and numpy's own refusal names neither the element nor the file."""
+    path = tmp_path / "dup.ply"
+    path.write_text(
+        "ply\nformat binary_little_endian 1.0\n"
+        "element vertex 1\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        "property float z\n"
+        "end_header\n"
+    )
+    with pytest.raises(CodecError, match="more than once"):
+        read(path)
