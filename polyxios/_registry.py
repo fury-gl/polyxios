@@ -251,6 +251,9 @@ def build_default_registry() -> dict[str, Codec]:
     contested: dict[str, list[tuple[int, str, Codec]]] = {}
     # Extensions a codec owns and shares, and the writer that keeps them.
     shared_owned: set[str] = set()
+    # Which codecs declared each of them shared, so an owner that did not can
+    # still be reported: sharing is a thing every owner has to say for itself.
+    shared_by: dict[str, set[str]] = {}
     default_writers: dict[str, tuple[str, Codec]] = {}
     # Extensions two owners both claimed the writes of, which is a claim no
     # one gets: whichever won would come down to the module walk order.
@@ -319,6 +322,7 @@ def build_default_registry() -> dict[str, Codec]:
                 if alias not in owned:
                     continue
                 shared_owned.add(alias)
+                shared_by.setdefault(alias, set()).add(mod_info.name.lstrip("_"))
                 # Only the owner of an extension may keep its writes: a codec
                 # that merely competes to read one has no claim on a write it
                 # never owned, and two owners cannot both keep it - which one
@@ -357,12 +361,18 @@ def build_default_registry() -> dict[str, Codec]:
         # Two codecs owning one extension outright leaves the key to whichever
         # module was walked last, which is alphabetical order standing in for
         # a decision. Sharing it is how two formats hold one extension between
-        # them, so a shared one is settled and says nothing here.
-        if len(claimants) > 1 and alias not in shared_owned:
+        # them, and every owner has to say so for itself: one that stays
+        # silent while another shares is the one that loses the key without a
+        # word, so it is named here even though the extension is shared.
+        if len(claimants) < 2:
+            continue
+        silent = sorted(set(claimants) - shared_by.get(alias, set()))
+        if silent:
             warnings.warn(
-                f"'{alias}' is claimed outright by {sorted(claimants)};"
-                f" '{claimants[-1]}' keeps it by module order alone. List the"
-                " extension in SNIFF_EXTENSIONS on each of them to share it.",
+                f"'{alias}' is claimed outright by {sorted(claimants)}, and"
+                f" {silent} never listed it in SNIFF_EXTENSIONS; the key goes"
+                " by module order alone. List the extension in"
+                " SNIFF_EXTENSIONS on each of them to share it.",
                 stacklevel=2,
             )
 

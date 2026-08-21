@@ -1098,6 +1098,10 @@ def _set_cards(
     unreachable: set[str] = set()
     unwritten: set[str] = set()
     nameless: set[str] = set()
+    # Upper-cased card name to the groups that spell it. Abaqus matches a set
+    # name without regard to case and merges two cards naming one set, so two
+    # groups reaching the same name come back from a round trip as one.
+    spelled: dict[str, list[str]] = {}
     for name, members in (tags or {}).items():
         picked = member_indices(members, count)
         if picked.size != np.asarray(members).size:
@@ -1116,6 +1120,7 @@ def _set_cards(
         if not safe:
             nameless.add(name)
             continue
+        spelled.setdefault(safe.upper(), []).append(name)
         lines.append(f"*{keyword}, {param}={safe}")
         text = [str(i) for i in kept.tolist()]
         lines.extend(
@@ -1138,6 +1143,19 @@ def _set_cards(
         warnings.warn(
             f".inp: {what} tag group(s) {sorted(nameless)} spell no name a"
             " card can carry; they were not written.",
+            stacklevel=3,
+        )
+    merged = [sorted(names) for names in spelled.values() if len(names) > 1]
+    if merged:
+        # Every member still reaches the file - Abaqus merges the cards rather
+        # than dropping one - but the groups stop being told apart, which is
+        # the kind of loss this codec reports everywhere else.
+        named = "; ".join(", ".join(names) for names in sorted(merged))
+        warnings.warn(
+            f".inp: {what} tag group(s) {named} spell one card name between"
+            " them, since a name carrying ',', '=' or '*' cannot be written"
+            " and Abaqus ignores case; their members were merged into one"
+            f" *{keyword}.",
             stacklevel=3,
         )
     return lines

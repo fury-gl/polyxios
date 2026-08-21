@@ -14,6 +14,7 @@ is claimed through the registry's sniff hook instead: a ``.dat`` opening with a
 Tecplot header keyword resolves here, anything else does not.
 """
 
+from collections.abc import Sequence
 import re
 from typing import Any
 import warnings
@@ -141,7 +142,7 @@ _CRITICAL_KEYS: frozenset[str] = frozenset(
 def _writable_variables(
     attrs: dict[str, np.ndarray] | None,
     count: int,
-    picked: np.ndarray | None,
+    picked: Sequence[int] | np.ndarray | None,
     what: str,
 ) -> tuple[list[str], list[np.ndarray]]:
     """Return the attributes that can travel as variables, and their columns.
