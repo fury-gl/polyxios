@@ -222,3 +222,44 @@ def test_mixed_type_write_warns(tmp_path: Path) -> None:
         write(poly, out)
     poly2 = read(out)
     assert len(poly2.element_types) == 1
+
+
+def test_issue_265_a_gmsh_mesh_with_physical_groups_writes(tmp_path: Path) -> None:
+    """A DOLFIN XML holds one cell type; a mixed mesh must not fail the write."""
+    import polyxios
+
+    msh = tmp_path / "g.msh"
+    msh.write_text(
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+        '$PhysicalNames\n2\n2 1 "surface"\n3 2 "volume"\n$EndPhysicalNames\n'
+        "$Nodes\n4\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n$EndNodes\n"
+        "$Elements\n2\n1 2 2 1 1 1 2 3\n2 4 2 2 2 1 2 3 4\n$EndElements\n"
+    )
+    poly = polyxios.read(msh)
+    assert sorted(poly.element_tags) == ["surface", "volume"]
+
+    out = tmp_path / "d.xml"
+    # The surface triangle has no place beside the tetrahedron; it is reported
+    # rather than turning the write into an error.
+    with pytest.warns(UserWarning, match="skipped"):
+        write(poly, out)
+    back = read(out)
+    assert back.vertices.shape == (4, 3)
+    assert len(back.element_types) == 1
+
+
+def test_issue_265_a_single_type_gmsh_mesh_writes_without_a_word(
+    tmp_path: Path,
+) -> None:
+    import polyxios
+
+    msh = tmp_path / "tri.msh"
+    msh.write_text(
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
+        '$PhysicalNames\n1\n2 1 "surface"\n$EndPhysicalNames\n'
+        "$Nodes\n3\n1 0 0 0\n2 1 0 0\n3 0 1 0\n$EndNodes\n"
+        "$Elements\n1\n1 2 2 1 1 1 2 3\n$EndElements\n"
+    )
+    out = tmp_path / "tri.xml"
+    write(polyxios.read(msh), out)
+    assert len(read(out).element_types) == 1

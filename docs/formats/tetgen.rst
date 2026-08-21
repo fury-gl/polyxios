@@ -62,7 +62,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - Pass either path - ``px.read("bar.ele")`` or ``px.read("bar.node")`` - and the paired file is located by basename.
-- Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept.
+- Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.
 - Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
 
 .. seealso::

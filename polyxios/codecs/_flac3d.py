@@ -1,5 +1,6 @@
 """FLAC3D .f3grid ASCII codec - read + write."""
 
+from array import array
 from typing import Any
 import warnings
 
@@ -268,7 +269,7 @@ def _signed_volume(
 
 
 def _resolve_gridpoints(
-    conn_raw: list[int],
+    conn_raw: "array[int]",
     node_map: dict[int, int],
 ) -> np.ndarray:
     """Map file gridpoint ids to zero-based vertex indices.
@@ -293,10 +294,10 @@ def _resolve_gridpoints(
     CodecError
         If a gridpoint id is never declared.
     """
-    if not conn_raw:
+    if not len(conn_raw):
         return np.empty(0, dtype=np.int32)
 
-    raw = np.array(conn_raw, dtype=np.int64)
+    raw = np.frombuffer(conn_raw, dtype=np.int64)
     keys = np.fromiter(node_map.keys(), dtype=np.int64, count=len(node_map))
     vals = np.fromiter(node_map.values(), dtype=np.int64, count=len(node_map))
     order = np.argsort(keys, kind="stable")
@@ -354,21 +355,27 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             stacklevel=2,
         )
 
-    lines = [
+    # Iterated rather than collected: a large grid runs to millions of lines,
+    # and both the list of them and the str each one would be cost more than
+    # the file itself. StringIO hands them over one at a time, so only the
+    # text is held. errors="replace": the format is ASCII-spec, but real files
+    # carry extended characters in comments and group names.
+    lines = (
         stripped
-        # errors="replace": the format is ASCII-spec, but real files carry
-        # extended characters in comments and group names.
         for ln in read_text(
             path, encoding=_READ_ENCODING, errors="replace"
         ).splitlines()
         if (stripped := _strip_comment(ln).strip())
-    ]
+    )
 
     node_map: dict[int, int] = {}
-    coords: list[float] = []
-    conn_raw: list[int] = []
-    offsets_list: list[int] = [0]
-    types_list: list[int] = []
+    # array rather than list: each holds one machine number per entry instead
+    # of a pointer to a boxed one, which is four times less for a coordinate
+    # and the difference between a large grid fitting and not.
+    coords: array[float] = array("d")
+    conn_raw: array[int] = array("q")
+    offsets_list: array[int] = array("q", [0])
+    types_list: array[int] = array("B")
     # Zones and faces are numbered in separate id spaces in FLAC3D, so groups
     # of each kind resolve against their own index.
     record_index: dict[str, dict[int, int]] = {"ZONE": {}, "FACE": {}}
@@ -409,7 +416,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 coords.extend(xyz)
             else:
                 # Redeclared id: last definition wins, no orphan vertex.
-                coords[3 * slot : 3 * slot + 3] = xyz
+                coords[3 * slot : 3 * slot + 3] = array("d", xyz)
                 n_dup_gp += 1
 
         elif kw in _ZONE_KW or kw in _FACE_KW:
@@ -516,7 +523,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             stacklevel=2,
         )
 
-    if not coords:
+    if not len(coords):
         raise CodecError(".f3grid: no GRIDPOINT entries found.")
 
     if not types_list:
@@ -554,7 +561,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     }
 
     n_verts = len(coords) // 3
-    vertices = np.array(coords, dtype=np.float64).reshape(n_verts, 3)
+    vertices = np.frombuffer(coords, dtype=np.float64).reshape(n_verts, 3).copy()
 
     return PolyData(
         vertices=vertices,

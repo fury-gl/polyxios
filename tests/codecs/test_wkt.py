@@ -931,3 +931,73 @@ def test_write_read_is_idempotent(tmp_path: Path) -> None:
     np.testing.assert_array_equal(poly2.offsets, poly3.offsets)
     np.testing.assert_array_equal(poly2.connectivity, poly3.connectivity)
     np.testing.assert_array_equal(poly2.vertices, poly3.vertices)
+
+
+# --- meshio #1382: the ISO surface family -----------------------------------
+
+
+def _wkt(tmp_path: Path, text: str, name: str = "g.wkt") -> Path:
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_issue_1382_tin_empty_parses_to_an_empty_mesh(tmp_path: Path) -> None:
+    """An empty geometry is a valid one; refusing it fails on legal input."""
+    poly = read(_wkt(tmp_path, "TIN EMPTY\n"))
+    assert poly.vertices.shape == (0, 3)
+    assert len(poly.element_types) == 0
+
+
+def test_issue_1382_a_tin_reads_as_triangles(tmp_path: Path) -> None:
+    path = _wkt(
+        tmp_path,
+        "TIN Z (((0 0 0, 1 0 0, 0 1 0, 0 0 0)), ((0 0 0, 1 0 0, 0 0 1, 0 0 0)))\n",
+    )
+    poly = read(path)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]] * 2
+    assert poly.vertices.shape == (4, 3)
+
+
+def test_issue_1382_a_triangle_reads_as_one_triangle(tmp_path: Path) -> None:
+    poly = read(_wkt(tmp_path, "TRIANGLE ((0 0, 1 0, 0 1, 0 0))\n"))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
+
+
+def test_issue_1382_a_polyhedralsurface_reads_as_its_patches(
+    tmp_path: Path,
+) -> None:
+    path = _wkt(
+        tmp_path,
+        "POLYHEDRALSURFACE Z (((0 0 0, 1 0 0, 1 1 0, 0 1 0, 0 0 0)),"
+        " ((0 0 0, 1 0 0, 0 0 1, 0 0 0)))\n",
+    )
+    poly = read(path)
+    assert len(poly.element_types) == 2
+    assert poly.vertices.shape == (5, 3)
+
+
+def test_issue_1382_a_tin_patch_with_four_points_is_refused(tmp_path: Path) -> None:
+    """A TIN is triangles; a four-sided patch means the file is not one."""
+    path = _wkt(tmp_path, "TIN (((0 0, 1 0, 1 1, 0 1, 0 0)))\n")
+    with pytest.raises(CodecError, match="triangular patch"):
+        read(path)
+
+
+def test_issue_1382_a_triangle_with_a_hole_is_refused(tmp_path: Path) -> None:
+    path = _wkt(
+        tmp_path,
+        "TRIANGLE ((0 0, 4 0, 0 4, 0 0), (1 1, 2 1, 1 2, 1 1))\n",
+    )
+    with pytest.raises(CodecError, match="interior ring"):
+        read(path)
+
+
+def test_issue_1382_a_tin_inside_a_collection_reads(tmp_path: Path) -> None:
+    path = _wkt(
+        tmp_path,
+        "GEOMETRYCOLLECTION (POINT (5 5), TIN (((0 0, 1 0, 0 1, 0 0))))\n",
+    )
+    poly = read(path)
+    assert ELEMENT_TYPES["triangle"] in poly.element_types.tolist()
