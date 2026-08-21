@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import struct
 import tempfile
+import warnings
 
 import numpy as np
 import pytest
 
 from polyxios import make_polydata
-from polyxios._element_types import ELEMENT_TYPES
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    ELEMENT_TYPES_INV,
+    NODES_PER_ELEMENT,
+)
 from polyxios._types import PolyData
 from polyxios.codecs._ply import read, write
 from polyxios.exceptions import CodecError, LazyReadError
@@ -754,3 +759,81 @@ def test_a_property_declared_twice_is_a_codec_error(tmp_path) -> None:
     )
     with pytest.raises(CodecError, match="more than once"):
         read(path)
+
+
+def _one_of(name: str) -> PolyData:
+    """A mesh holding a single element of the named type."""
+    k = NODES_PER_ELEMENT[name]
+    return PolyData(
+        vertices=np.zeros((k, 3)),
+        connectivity=np.arange(k, dtype=np.int32),
+        offsets=np.array([0, k], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES[name]], dtype=np.uint8),
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "becomes"),
+    [("tetra", "quad"), ("hexahedron", "polygon"), ("quadratic_tetra", "polygon")],
+)
+def test_an_element_a_face_cannot_hold_is_named(tmp_path, name, becomes) -> None:
+    """A face is a flat ring of vertices, so a solid keeps its vertices and
+    loses the type it was; nothing in the file says what it had been."""
+    with pytest.warns(UserWarning, match=f"{name} \\(1\\) -> {becomes}"):
+        write(_one_of(name), tmp_path / "flat.ply")
+    assert (
+        ELEMENT_TYPES_INV[int(read(tmp_path / "flat.ply").element_types[0])] == becomes
+    )
+
+
+@pytest.mark.parametrize("name", ["triangle", "quad", "line"])
+def test_an_element_the_format_holds_is_not_named(tmp_path, name) -> None:
+    """A triangle, a quad and a line come back as themselves."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write(_one_of(name), tmp_path / "kept.ply")
+
+
+@pytest.mark.parametrize(("width", "becomes"), [(3, "triangle"), (4, "quad")])
+def test_a_narrow_polygon_is_named_too(tmp_path, width, becomes) -> None:
+    """It is a ring the format holds exactly and still changes type."""
+    poly = PolyData(
+        vertices=np.zeros((width, 3)),
+        connectivity=np.arange(width, dtype=np.int32),
+        offsets=np.array([0, width], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["polygon"]], dtype=np.uint8),
+    )
+    with pytest.warns(UserWarning, match=f"polygon \\(1\\) -> {becomes}"):
+        write(poly, tmp_path / "narrow.ply")
+
+
+def test_a_wide_polygon_is_left_alone(tmp_path) -> None:
+    poly = PolyData(
+        vertices=np.zeros((5, 3)),
+        connectivity=np.arange(5, dtype=np.int32),
+        offsets=np.array([0, 5], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["polygon"]], dtype=np.uint8),
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write(poly, tmp_path / "wide.ply")
+
+
+def test_the_types_a_mesh_loses_are_counted_not_listed(tmp_path) -> None:
+    """One entry per (type held, type it reads back as), however many
+    elements the mesh spreads over them."""
+    poly = PolyData(
+        vertices=np.zeros((12, 3)),
+        connectivity=np.arange(12, dtype=np.int32),
+        offsets=np.array([0, 4, 8, 11], dtype=np.int32),
+        element_types=np.array(
+            [
+                ELEMENT_TYPES["tetra"],
+                ELEMENT_TYPES["tetra"],
+                ELEMENT_TYPES["triangle"],
+            ],
+            dtype=np.uint8,
+        ),
+    )
+    with pytest.warns(UserWarning, match=r"tetra \(2\) -> quad\.$"):
+        write(poly, tmp_path / "counted.ply")

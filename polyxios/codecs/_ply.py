@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._faces import report_flattened_faces
 from polyxios._io import (
     Source,
     can_seek,
@@ -170,7 +171,14 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     element as a face. A PLY element is a block and not a column, so the faces
     are written first and the lines after them: a mesh holding both comes back
     from a round trip with its faces ahead of its lines, whatever order it
-    held them in. The ``element_attrs`` are carried along with it and still
+    held them in.
+
+    A face record is a flat ring of vertices and PLY has no other shape, so an
+    element that is not one - a ``tetra``, a ``quadratic_triangle`` - is
+    written as a ring of its nodes in mesh order and reads back as whatever
+    that many vertices name: a triangle at three, a quad at four, a polygon
+    otherwise. The element it was is not in the file, so it is named in a
+    warning rather than lost quietly. The ``element_attrs`` are carried along with it and still
     describe the element they came in on; an index into the element column
     held outside the mesh does not.
 
@@ -203,6 +211,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # started leaves a file whose header promises records the body never
     # carries, over whatever was already at that path.
     _check_edge_widths(poly.offsets, edge_indices)
+    report_flattened_faces(
+        offsets=poly.offsets,
+        element_types=poly.element_types,
+        face_indices=face_indices,
+        fmt=".ply",
+    )
 
     endian_chr = ("<" if endian == "little" else ">") if binary else ""
     vert_attrs = _writable_attrs(poly.vertex_attrs, n_verts, "vertex", endian_chr)
