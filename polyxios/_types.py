@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
 import numpy as np
 
@@ -16,6 +16,13 @@ _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _LINE_CODES = LINE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
 _QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
+
+# TOPOLOGICAL_DIMENSION spread over the whole uint8 code space, -1 where no
+# element type claims the code. Indexing it dimensions every element in one
+# pass, where a dict lookup per element costs a Python call per element.
+_DIMENSION_BY_CODE: Final[np.ndarray] = np.array(
+    [TOPOLOGICAL_DIMENSION.get(code, -1) for code in range(256)], dtype=np.int8
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,15 +82,21 @@ class PolyData:
         UnknownElementTypeError
             If an element carries a type code outside ELEMENT_TYPES.
         """
-        if self.element_types.size == 0:
+        codes = self.element_types
+        if codes.size == 0:
             return 0
-        best = 0
-        for code in np.unique(self.element_types):
-            dim = TOPOLOGICAL_DIMENSION.get(int(code))
-            if dim is None:
-                raise UnknownElementTypeError("polydata", int(code))
-            best = max(best, dim)
-        return best
+        if codes.dtype != np.uint8:
+            # A hand-built mesh may hold codes wider than uint8; those cannot
+            # index the table at all, so they are refused before it is read.
+            codes = np.asarray(codes, dtype=np.int64)
+            outside = codes[(codes < 0) | (codes >= _DIMENSION_BY_CODE.size)]
+            if outside.size:
+                raise UnknownElementTypeError("in-memory PolyData", int(outside[0]))
+        dims = _DIMENSION_BY_CODE[codes]
+        unknown = np.flatnonzero(dims < 0)
+        if unknown.size:
+            raise UnknownElementTypeError("in-memory PolyData", int(codes[unknown[0]]))
+        return int(dims.max())
 
     @property
     def faces(self) -> np.ndarray | None:

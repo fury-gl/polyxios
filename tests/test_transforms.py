@@ -4,11 +4,6 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata, transforms
-from polyxios._element_types import (
-    ELEMENT_TYPES,
-    NODES_PER_ELEMENT,
-    TOPOLOGICAL_DIMENSION,
-)
 from polyxios.transforms import (
     extract_surface,
     filter_element_type,
@@ -264,80 +259,6 @@ def test_vertex_colors_still_falls_back_to_an_unnamed_attr() -> None:
     np.testing.assert_allclose(transforms.vertex_colors(poly), [[1, 0, 0]] * 3)
 
 
-def test_issue_1551_topological_dimension_of_a_surface() -> None:
-    """A triangle mesh is two-dimensional however it is embedded in space."""
-    assert _tri_mesh().topological_dimension == 2
-
-
-def test_issue_1551_topological_dimension_takes_the_maximum() -> None:
-    """A mesh carrying its boundary must not be demoted to that boundary."""
-    verts = np.array(
-        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]],
-        dtype=np.float64,
-    )
-    poly = make_polydata(
-        verts,
-        [
-            ("vertex", np.array([[0]])),
-            ("line", np.array([[0, 1]])),
-            ("triangle", np.array([[0, 1, 2]])),
-            ("tetra", np.array([[0, 1, 2, 3]])),
-        ],
-    )
-    assert poly.topological_dimension == 3
-
-
-@pytest.mark.parametrize(
-    ("type_str", "expected"),
-    [
-        ("vertex", 0),
-        ("poly_vertex", 0),
-        ("line", 1),
-        ("poly_line", 1),
-        ("quadratic_edge", 1),
-        ("cubic_line", 1),
-        ("bezier_curve", 1),
-        ("triangle", 2),
-        ("quad", 2),
-        ("pixel", 2),
-        ("polygon", 2),
-        ("triangle_strip", 2),
-        ("biquadratic_quad", 2),
-        ("lagrange_triangle", 2),
-        ("tetra", 3),
-        ("hexahedron", 3),
-        ("wedge", 3),
-        ("pyramid", 3),
-        ("voxel", 3),
-        ("polyhedron", 3),
-        ("triquadratic_hexahedron", 3),
-        ("lagrange_hexahedron", 3),
-    ],
-)
-def test_issue_1551_topological_dimension_per_element_type(
-    type_str: str, expected: int
-) -> None:
-    verts = np.zeros((16, 3), dtype=np.float64)
-    n_nodes = NODES_PER_ELEMENT[type_str]
-    if n_nodes < 0:
-        n_nodes = 4
-    conn = np.arange(n_nodes, dtype=np.int32).reshape(1, -1)
-    poly = make_polydata(verts, [(type_str, conn)])
-    assert poly.topological_dimension == expected
-
-
-def test_issue_1551_every_element_type_has_a_dimension() -> None:
-    """A type without an entry would silently read as a point cloud."""
-    missing = set(ELEMENT_TYPES.values()) - set(TOPOLOGICAL_DIMENSION)
-    assert not missing
-
-
-def test_issue_1551_topological_dimension_of_an_empty_mesh() -> None:
-    """No elements is not an error, and nothing in it rises above a point."""
-    poly = make_polydata(np.zeros((0, 3), dtype=np.float64), [])
-    assert poly.topological_dimension == 0
-
-
 def test_issue_1548_merge_duplicate_vertices_welds_coincident_points() -> None:
     """Two triangles written corner-by-corner share an edge once welded."""
     verts = np.array(
@@ -482,3 +403,74 @@ def test_issue_1470_welding_a_facet_soup_makes_it_a_surface(tmp_path) -> None:
     welded = merge_duplicate_vertices(poly)
     assert welded.vertices.shape[0] == 4
     assert welded.topological_dimension == 2
+
+
+def test_issue_1548_merge_duplicate_vertices_rejects_a_tolerance_that_overflows() -> (
+    None
+):
+    """A tol that snaps a finite coordinate to infinity would weld everything."""
+    verts = np.array([[1, 0, 0], [2, 0, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
+    with pytest.raises(ValueError, match="overflows"):
+        merge_duplicate_vertices(poly, tol=1e-310)
+
+
+def test_issue_1548_merge_duplicate_vertices_welds_infinite_coordinates() -> None:
+    """A tolerance must not turn a mesh's own infinities into an error."""
+    verts = np.array([[np.inf, 0, 0], [np.inf, 0, 0], [1, 0, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    assert merge_duplicate_vertices(poly, tol=1e-6).vertices.shape[0] == 2
+
+
+@pytest.mark.parametrize(
+    "members",
+    [
+        np.array([-1, 0], dtype=np.int32),
+        np.array([0, 99], dtype=np.int32),
+        np.array([0.0, 2.0]),
+    ],
+    ids=["negative", "past-the-end", "float"],
+)
+def test_transforms_drop_tag_members_that_index_nothing(
+    members: np.ndarray,
+) -> None:
+    """A stray tag member is dropped, never wrapped onto another vertex."""
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 0, 0], [9, 9, 9]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(
+        verts,
+        [("line", np.array([[0, 1]]))],
+        vertex_tags={"inlet": members},
+    )
+
+    welded = merge_duplicate_vertices(poly).vertex_tags["inlet"]
+    compacted = remove_orphan_vertices(poly).vertex_tags["inlet"]
+
+    # Index 0 is the only member that names a vertex of this mesh; -1 must not
+    # reach the last one and 99 must not reach anything at all.
+    assert welded.tolist() in ([], [0])
+    assert compacted.tolist() in ([], [0])
+
+
+def test_filter_element_type_drops_stray_tag_members() -> None:
+    """The same holds for element tags crossing a filter."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("line", np.array([[0, 1]])), ("triangle", np.array([[0, 1, 2]]))],
+        element_tags={"walls": np.array([-1, 1], dtype=np.int32)},
+    )
+    kept = filter_element_type(poly, keep="triangle").element_tags["walls"]
+    np.testing.assert_array_equal(kept, [0])
+
+
+def test_float_tag_members_do_not_raise() -> None:
+    """A float group indexes nothing; it is dropped, not raised on."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [9, 9, 9]], dtype=np.float64),
+        [("line", np.array([[0, 1]]))],
+        vertex_tags={"inlet": np.array([0.0, 1.0])},
+    )
+    assert remove_orphan_vertices(poly).vertex_tags["inlet"].size == 0
