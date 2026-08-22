@@ -21,6 +21,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -1052,7 +1053,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=np.full(n_elems, elem_code, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
-        global_attrs=_zone_metadata(lines, zone_idx, hdr),
+        global_attrs={
+            **_zone_metadata(lines, zone_idx, hdr),
+            **mark_2d(n_spatial),
+        },
     )
 
 
@@ -1149,7 +1153,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             f" wrote {sorted(set(quoted) - set(declared))} instead.",
             stacklevel=2,
         )
-    variables = ", ".join(f'"{n}"' for n in ("X", "Y", "Z", *quoted))
+    n_spatial = output_dimension(poly, fmt=".tec")
+    variables = ", ".join(
+        f'"{n}"' for n in (("X", "Y", "Z")[:n_spatial] + tuple(quoted))
+    )
 
     title = _safe_variable_name(
         str(poly.global_attrs.get("tecplot_title", "polyxios mesh"))
@@ -1164,7 +1171,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     n_written = len(elem_indices)
     zone_keys = f"N={n_verts}, E={n_written}"
     if cell_arrays:
-        first = 3 + len(attr_names) + 1
+        first = n_spatial + len(attr_names) + 1
         last = first + len(cell_arrays) - 1
         span = f"{first}" if first == last else f"{first}-{last}"
         zone_keys += f", F=FEBLOCK, ET={et_str}, VARLOCATION=([{span}]=CELLCENTERED)"
@@ -1176,7 +1183,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         f"VARIABLES = {variables}",
         f'ZONE T="{zone_title}", {zone_keys}',
     ]
-    columns = [poly.vertices[:, 0], poly.vertices[:, 1], poly.vertices[:, 2]]
+    columns = [poly.vertices[:, k] for k in range(n_spatial)]
     columns.extend(attr_arrays)
     if cell_arrays:
         # BLOCK packing runs each variable end to end: every nodal column

@@ -21,6 +21,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -579,6 +580,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         offsets=offsets,
         element_types=np.array(codes, dtype=np.uint8),
         element_tags=element_tags,
+        global_attrs=mark_2d(ndim),
     )
 
 
@@ -837,8 +839,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # A mesh of 3-D cells is 3-D whatever its coordinates say, and a flat one
     # is 2-D: SU2 reads exactly NDIME coordinates per node, so declaring 2 for
     # a mesh with a z extent would flatten it.
-    spatial = bool(n_verts) and bool(np.any(poly.vertices[:, 2] != 0))
-    ndim = 3 if mesh_dim == 3 or spatial else 2
+    ndim = (
+        3
+        if mesh_dim == 3
+        else output_dimension(poly, fmt=".su2", flat_default=2, stacklevel=3)
+    )
     if volume and mesh_dim < ndim:
         # SU2 fills an NDIME-dimensional domain with NDIME-dimensional cells,
         # so a surface with a z extent has no home: NDIME= 2 would flatten it
