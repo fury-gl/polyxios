@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=faf3b3ea"></script>
+    <script src="_static/documentation_options.js?v=e4317d96"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -602,6 +602,25 @@ Tecplot codec, a bulk data card to the Nastran one. It no longer needs
 <li><p><code class="docutils literal notranslate"><span class="pre">.plt</span></code> is registered to the Tecplot codec so a binary Tecplot file is
 told what is wrong instead of resolving nowhere. Reading it is not
 supported.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PolyData.topological_dimension</span></code> reports the highest dimension the mesh
+actually holds - 0 for points, 1 for lines, 2 for surfaces, 3 for volumes -
+taking the maximum over the element types present, so a tetrahedral mesh
+that also carries its boundary triangles still reads as 3-D. It is the
+dimension of the elements, not of the space they sit in: a triangle mesh
+embedded in 3-D is 2-D. An empty mesh is 0.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transforms.merge_duplicate_vertices</span></code> welds coincident vertices into
+one, the equivalent of ParaView’s “Clean to Grid”. Formats that write a
+corner per element - STL above all - hand back a soup of unconnected
+vertices, and welding is what turns it back into a surface. <code class="docutils literal notranslate"><span class="pre">tol=</span></code>
+snaps coordinates to a grid of that step before comparing; the default
+welds only exactly equal ones, and a <code class="docutils literal notranslate"><span class="pre">tol</span></code> so small that snapping
+overflows to infinity is refused rather than welding every point it
+overflowed. The survivor of each group is its lowest original index and
+keeps its own coordinates and attributes, so the result does not depend
+on which duplicate the file listed first and a tolerance never moves a
+point. Welding is not culling: a vertex no
+element references is kept - compose with <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> to
+drop those too.</p></li>
 </ul>
 </section>
 <section id="behaviour-changes">
@@ -617,6 +636,18 @@ receives are the same ones. Every reader already accepted either ending.</p></li
 <section id="bug-fixes">
 <h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>A tag group naming a vertex or an element that this mesh does not have no
+longer moves the label onto one that it does. <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code>,
+<code class="docutils literal notranslate"><span class="pre">merge_duplicate_vertices</span></code> and <code class="docutils literal notranslate"><span class="pre">filter_element_type</span></code> carried a group
+through their index remap after dropping only the members past the end, so
+a negative index reached the array from the far end and landed on a real
+item, and a group holding floats - which nothing stops a reader from
+building - raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> from inside numpy instead. All three now
+go through the same member check the writers use: a member that indexes
+nothing in this mesh is dropped, and what is left is remapped.</p></li>
+<li><p>The documented <code class="docutils literal notranslate"><span class="pre">pipeline(filter_element_type(keep=&quot;triangle&quot;),</span> <span class="pre">...)</span></code>
+raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>: <code class="docutils literal notranslate"><span class="pre">filter_element_type</span></code> takes the mesh first and does
+not curry. The example now composes it with <code class="docutils literal notranslate"><span class="pre">functools.partial</span></code>.</p></li>
 <li><p>A broken binary file now reports what is wrong with it rather than
 <code class="docutils literal notranslate"><span class="pre">BufferError:</span> <span class="pre">cannot</span> <span class="pre">close</span> <span class="pre">exported</span> <span class="pre">pointers</span> <span class="pre">exist</span></code>. The formats that
 parse over a mapping - <code class="docutils literal notranslate"><span class="pre">.ply</span></code>, legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> - build their

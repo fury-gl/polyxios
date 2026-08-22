@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=faf3b3ea"></script>
+    <script src="_static/documentation_options.js?v=e4317d96"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -535,19 +535,26 @@
                   
   <section id="transforms">
 <h1>Transforms<a class="headerlink" href="#transforms" title="Link to this heading">#</a></h1>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">pipeline</span><span class="p">,</span>
     <span class="n">merge</span><span class="p">,</span>
+    <span class="n">merge_duplicate_vertices</span><span class="p">,</span>
     <span class="n">filter_element_type</span><span class="p">,</span>
     <span class="n">remove_orphan_vertices</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Compose transforms into a single function</span>
 <span class="n">clean</span> <span class="o">=</span> <span class="n">pipeline</span><span class="p">(</span>
-    <span class="n">filter_element_type</span><span class="p">(</span><span class="n">keep</span><span class="o">=</span><span class="s2">"triangle"</span><span class="p">),</span>
+    <span class="n">partial</span><span class="p">(</span><span class="n">filter_element_type</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="s2">"triangle"</span><span class="p">),</span>
     <span class="n">remove_orphan_vertices</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">clean</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+
+<span class="c1"># Weld coincident vertices - the STL facet soup back into a surface</span>
+<span class="n">welded</span> <span class="o">=</span> <span class="n">merge_duplicate_vertices</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+<span class="n">snapped</span> <span class="o">=</span> <span class="n">merge_duplicate_vertices</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span>
 
 <span class="c1"># Merge two meshes into one</span>
 <span class="n">combined</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">mesh_a</span><span class="p">,</span> <span class="n">mesh_b</span><span class="p">)</span>

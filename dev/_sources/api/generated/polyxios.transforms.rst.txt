@@ -11,6 +11,7 @@ polyxios.transforms
       extract_surface
       filter_element_type
       merge
+      merge_duplicate_vertices
       pipeline
       reindex
       remove_orphan_vertices

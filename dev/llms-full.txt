@@ -2793,19 +2793,26 @@ Source: https://polyxios.org/stable/transforms.html
 
 Transforms
 
+from functools import partial
+
 from polyxios.transforms import (
     pipeline,
     merge,
+    merge_duplicate_vertices,
     filter_element_type,
     remove_orphan_vertices,
 )
 
 # Compose transforms into a single function
 clean = pipeline(
-    filter_element_type(keep="triangle"),
+    partial(filter_element_type, keep="triangle"),
     remove_orphan_vertices,
 )
 result = clean(mesh)
+
+# Weld coincident vertices - the STL facet soup back into a surface
+welded = merge_duplicate_vertices(mesh)
+snapped = merge_duplicate_vertices(mesh, tol=1e-6)
 
 # Merge two meshes into one
 combined = merge(mesh_a, mesh_b)
@@ -3147,6 +3154,10 @@ Return a new PolyData containing only elements of the specified type(s).
 merge(*polys)
 
 Merge multiple PolyData into one by concatenating vertices and elements.
+
+merge_duplicate_vertices(poly, *[, tol])
+
+Return a new PolyData with coincident vertices welded into one.
 
 pipeline(*fns)
 
@@ -3689,6 +3700,27 @@ fmt=, which still works for the cases sniffing cannot settle.
 told what is wrong instead of resolving nowhere. Reading it is not
 supported.
 
+PolyData.topological_dimension reports the highest dimension the mesh
+actually holds - 0 for points, 1 for lines, 2 for surfaces, 3 for volumes -
+taking the maximum over the element types present, so a tetrahedral mesh
+that also carries its boundary triangles still reads as 3-D. It is the
+dimension of the elements, not of the space they sit in: a triangle mesh
+embedded in 3-D is 2-D. An empty mesh is 0.
+
+transforms.merge_duplicate_vertices welds coincident vertices into
+one, the equivalent of ParaView’s “Clean to Grid”. Formats that write a
+corner per element - STL above all - hand back a soup of unconnected
+vertices, and welding is what turns it back into a surface. tol=
+snaps coordinates to a grid of that step before comparing; the default
+welds only exactly equal ones, and a tol so small that snapping
+overflows to infinity is refused rather than welding every point it
+overflowed. The survivor of each group is its lowest original index and
+keeps its own coordinates and attributes, so the result does not depend
+on which duplicate the file listed first and a tolerance never moves a
+point. Welding is not culling: a vertex no
+element references is kept - compose with remove_orphan_vertices to
+drop those too.
+
 Behaviour changes
 
 Text formats are written with \n line endings on every platform.
@@ -3698,6 +3730,20 @@ buffer does, so the bytes a path receives and the bytes a BytesIO
 receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
+
+A tag group naming a vertex or an element that this mesh does not have no
+longer moves the label onto one that it does. remove_orphan_vertices,
+merge_duplicate_vertices and filter_element_type carried a group
+through their index remap after dropping only the members past the end, so
+a negative index reached the array from the far end and landed on a real
+item, and a group holding floats - which nothing stops a reader from
+building - raised IndexError from inside numpy instead. All three now
+go through the same member check the writers use: a member that indexes
+nothing in this mesh is dropped, and what is left is remapped.
+
+The documented pipeline(filter_element_type(keep="triangle"), ...)
+raised TypeError: filter_element_type takes the mesh first and does
+not curry. The example now composes it with functools.partial.
 
 A broken binary file now reports what is wrong with it rather than
 BufferError: cannot close exported pointers exist. The formats that
@@ -4213,7 +4259,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:524: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:555: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -4261,7 +4307,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:555: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:586: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -4276,7 +4322,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:567: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:598: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -4382,7 +4428,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:640: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:671: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
