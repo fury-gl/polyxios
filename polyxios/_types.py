@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
 import numpy as np
 
@@ -8,12 +8,21 @@ from polyxios._element_types import (
     LINE_ELEMENT_TYPES,
     QUADRATIC_SURFACE_CORNERS,
     SURFACE_ELEMENT_TYPES,
+    TOPOLOGICAL_DIMENSION,
 )
+from polyxios.exceptions import UnknownElementTypeError
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _LINE_CODES = LINE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
 _QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
+
+# TOPOLOGICAL_DIMENSION spread over the whole uint8 code space, -1 where no
+# element type claims the code. Indexing it dimensions every element in one
+# pass, where a dict lookup per element costs a Python call per element.
+_DIMENSION_BY_CODE: Final[np.ndarray] = np.array(
+    [TOPOLOGICAL_DIMENSION.get(code, -1) for code in range(256)], dtype=np.int8
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +60,43 @@ class PolyData:
     vertex_tags: dict[str, np.ndarray] = field(default_factory=dict)
     element_tags: dict[str, np.ndarray] = field(default_factory=dict)
     global_attrs: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def topological_dimension(self) -> int:
+        """Highest topological dimension present, 0 to 3.
+
+        The dimension of the elements themselves, not of the space they sit
+        in: a triangle mesh embedded in 3-D is still 2-D. Points are 0,
+        lines 1, surfaces 2, volumes 3, and a mesh holding several of them
+        reports the largest - a tetrahedral mesh that also carries its
+        boundary triangles is 3-D.
+
+        Returns
+        -------
+        int
+            Maximum dimension over the element types present. 0 when the
+            mesh has no elements.
+
+        Raises
+        ------
+        UnknownElementTypeError
+            If an element carries a type code outside ELEMENT_TYPES.
+        """
+        codes = self.element_types
+        if codes.size == 0:
+            return 0
+        if codes.dtype != np.uint8:
+            # A hand-built mesh may hold codes wider than uint8; those cannot
+            # index the table at all, so they are refused before it is read.
+            codes = np.asarray(codes, dtype=np.int64)
+            outside = codes[(codes < 0) | (codes >= _DIMENSION_BY_CODE.size)]
+            if outside.size:
+                raise UnknownElementTypeError("in-memory PolyData", int(outside[0]))
+        dims = _DIMENSION_BY_CODE[codes]
+        unknown = np.flatnonzero(dims < 0)
+        if unknown.size:
+            raise UnknownElementTypeError("in-memory PolyData", int(codes[unknown[0]]))
+        return int(dims.max())
 
     @property
     def faces(self) -> np.ndarray | None:

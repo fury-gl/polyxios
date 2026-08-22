@@ -11,6 +11,7 @@ from polyxios._element_types import (
     QUADRATIC_SURFACE_CORNERS,
     SURFACE_ELEMENT_TYPES,
 )
+from polyxios._tags import member_indices
 from polyxios._types import PolyData
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
@@ -36,6 +37,47 @@ def pipeline(*fns: Callable[[PolyData], PolyData]) -> Callable[[PolyData], PolyD
         A single function applying all transforms in order.
     """
     return lambda poly: reduce(lambda p, f: f(p), fns, poly)
+
+
+def _remapped_tags(
+    tags: dict[str, np.ndarray],
+    remap: np.ndarray,
+    n_items: int,
+    *,
+    collapse: bool,
+) -> dict[str, np.ndarray]:
+    """Return tag groups carried through an index remap.
+
+    Parameters
+    ----------
+    tags
+        Tag groups as the mesh carries them, name to member indices.
+    remap
+        New index for each old index, negative where the item is gone.
+    n_items
+        How many items the groups were built against.
+    collapse
+        Whether members landing on one new index become a single member.
+        True where the remap welds items together, False where it only
+        moves them.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The groups over the new indices. A member that indexes nothing in
+        this mesh is dropped rather than raising: nothing checks a group on
+        the way in, so one may hold floats, a negative index or an index
+        past the end of the mesh it was built for.
+    """
+    out: dict[str, np.ndarray] = {}
+    for name, members in tags.items():
+        moved = remap[member_indices(members, n_items)]
+        moved = moved[moved >= 0]
+        if collapse:
+            moved = np.unique(moved)
+        dtype = np.asarray(members).dtype
+        out[name] = moved.astype(dtype, copy=False) if dtype.kind in "iu" else moved
+    return out
 
 
 def remove_orphan_vertices(poly: PolyData) -> PolyData:
@@ -66,9 +108,7 @@ def remove_orphan_vertices(poly: PolyData) -> PolyData:
     new_connectivity = remap[poly.connectivity]
 
     new_vertex_attrs = {k: v[kept] for k, v in poly.vertex_attrs.items()}
-    new_vertex_tags = {k: remap[v[v < n_verts]] for k, v in poly.vertex_tags.items()}
-    # filter out -1 from remapped tag arrays
-    new_vertex_tags = {k: v[v >= 0] for k, v in new_vertex_tags.items()}
+    new_vertex_tags = _remapped_tags(poly.vertex_tags, remap, n_verts, collapse=False)
 
     return dataclasses.replace(
         poly,
@@ -285,10 +325,9 @@ def filter_element_type(poly: PolyData, *, keep: str | list[str]) -> PolyData:
     # Remap element_tags to new indices
     idx_map = np.full(len(poly.element_types), -1, dtype=np.int64)
     idx_map[elem_indices] = np.arange(len(elem_indices))
-    new_element_tags: dict[str, np.ndarray] = {}
-    for k, v in poly.element_tags.items():
-        remapped = idx_map[v[v < len(poly.element_types)]]
-        new_element_tags[k] = remapped[remapped >= 0].astype(v.dtype)
+    new_element_tags = _remapped_tags(
+        poly.element_tags, idx_map, len(poly.element_types), collapse=False
+    )
 
     return dataclasses.replace(
         poly,
@@ -297,6 +336,106 @@ def filter_element_type(poly: PolyData, *, keep: str | list[str]) -> PolyData:
         element_types=new_element_types,
         element_attrs=new_element_attrs,
         element_tags=new_element_tags,
+    )
+
+
+def merge_duplicate_vertices(poly: PolyData, *, tol: float = 0.0) -> PolyData:
+    """Return a new PolyData with coincident vertices welded into one.
+
+    The equivalent of ParaView's "Clean to Grid": formats that write a
+    corner per element - STL above all - hand back a soup of unconnected
+    vertices, and welding them is what turns it back into a surface.
+
+    Parameters
+    ----------
+    poly
+        Input PolyData.
+    tol
+        Distance below which two vertices count as the same point. Zero
+        welds only exactly equal coordinates. A positive value snaps each
+        coordinate to a grid of that step before comparing, so vertices
+        merge when they land in the same cell - two points closer than
+        ``tol`` that straddle a cell boundary stay apart.
+
+    Returns
+    -------
+    PolyData
+        New PolyData whose vertices are unique. The survivor of each group
+        is its lowest original index, and the surviving vertices stay in
+        their original relative order, so the result does not depend on
+        which duplicate the file listed first. The survivor keeps its own
+        coordinates and vertex attributes - a tolerance decides who merges,
+        it never moves a point.
+
+    Raises
+    ------
+    ValueError
+        If ``tol`` is negative, or so small that snapping a coordinate
+        overflows to infinity - every overflowed point would then weld,
+        however far apart the points really are.
+
+    Notes
+    -----
+    Welding is not culling: a vertex no element references is not a
+    duplicate of anything and is kept. Compose with
+    ``remove_orphan_vertices`` to drop those as well. Elements that become
+    degenerate because two of their corners welded together are kept as
+    they are - deciding what a collapsed element means belongs to the
+    caller, not here.
+    """
+    if tol < 0:
+        raise ValueError(f"tol must be non-negative, got {tol}")
+
+    n_verts = poly.vertices.shape[0]
+    if n_verts == 0:
+        return poly
+
+    # Snap to a grid so near-coincident points share a key, then sort: a
+    # lexsort is reproducible where grouping through a dict is not.
+    if tol > 0:
+        with np.errstate(over="ignore"):
+            keys = np.round(poly.vertices / tol)
+        # A tol small enough to send a finite coordinate to infinity would
+        # weld every point that overflowed, however far apart they are.
+        if (
+            not np.isfinite(keys).all()
+            and (~np.isfinite(keys) & np.isfinite(poly.vertices)).any()
+        ):
+            raise ValueError(
+                f"tol={tol} is too small for these coordinates: snapping "
+                "overflows to infinity and would weld distinct points."
+            )
+    else:
+        keys = poly.vertices
+    order = np.lexsort((keys[:, 2], keys[:, 1], keys[:, 0]))
+    ordered = keys[order]
+
+    starts_group = np.empty(n_verts, dtype=bool)
+    starts_group[0] = True
+    starts_group[1:] = np.any(ordered[1:] != ordered[:-1], axis=1)
+    if starts_group.all():
+        return poly
+
+    group_of = np.cumsum(starts_group) - 1
+    # The survivor is the lowest original index in its group, which keeps
+    # the kept vertices in the order the file listed them. reduceat over the
+    # group starts does it in one pass - np.minimum.at would not.
+    survivor = np.minimum.reduceat(order, np.flatnonzero(starts_group))
+    kept = np.sort(survivor)
+
+    remap = np.empty(n_verts, dtype=np.int64)
+    remap[order] = np.searchsorted(kept, survivor)[group_of]
+
+    new_vertex_tags = _remapped_tags(poly.vertex_tags, remap, n_verts, collapse=True)
+
+    return dataclasses.replace(
+        poly,
+        vertices=poly.vertices[kept],
+        connectivity=remap[poly.connectivity].astype(
+            poly.connectivity.dtype, copy=False
+        ),
+        vertex_attrs={k: v[kept] for k, v in poly.vertex_attrs.items()},
+        vertex_tags=new_vertex_tags,
     )
 
 
