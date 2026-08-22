@@ -64,6 +64,7 @@ Quirks worth knowing
 - Pass either path - ``px.read("bar.ele")`` or ``px.read("bar.node")`` - and the paired file is located by basename.
 - Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.
 - Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
+- A ``.node`` file declaring 2 dimensions is padded with a zero z, so the vertex array is always ``(n, 3)``, and ``global_attrs["was_2d"]`` records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning.
 
 .. seealso::
 

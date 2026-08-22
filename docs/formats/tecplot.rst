@@ -63,6 +63,7 @@ Quirks worth knowing
 
 - Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.
 - Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
+- A zone declaring only ``X`` and ``Y`` is 2-D: the vertices are padded with a zero z and ``global_attrs["was_2d"]`` records the fact, which is what writes the zone back out with two coordinate variables rather than three. A mesh whose vertices have since left the plane is written in three with a warning.
 - ``.dat`` is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
   inside the file: a ``.dat`` opening with ``TITLE = "``, ``VARIABLES =``, ``ZONE``, ``FILETYPE =``
   or ``DATASETAUXDATA`` lands here. An unquoted ``TITLE =`` decides nothing - Nastran case
