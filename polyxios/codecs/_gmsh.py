@@ -54,7 +54,6 @@ _GMSH_NODE_COUNT: dict[str, int] = {
     name: n_nodes for _, (name, n_nodes) in _GMSH_TO_POLYXIOS.items()
 }
 
-# Topological dimension per element, used for the ``$PhysicalNames`` records.
 # The sections a field travels in, which are collected apart from the mesh
 # sections: a file carries one per field and per time step.
 _DATA_KEYWORDS: frozenset[str] = frozenset({"$NodeData", "$ElementData"})
@@ -84,6 +83,9 @@ def _declared_width(held: int) -> int:
     return next((w for w in _DECLARED_WIDTHS if w >= held), held)
 
 
+# Topological dimension per element, used for the ``$PhysicalNames`` records.
+# Only the types Gmsh can write appear; anything else dimensions to -1 and is
+# left out of the records rather than filed under a dimension it never had.
 _ELEMENT_DIM: dict[str, int] = {
     "vertex": 0,
     "line": 1,
