@@ -10,6 +10,7 @@ Transforms
     from polyxios.transforms import (
         pipeline,
         merge,
+        merge_duplicate_vertices,
         filter_element_type,
         remove_orphan_vertices,
     )
@@ -20,6 +21,10 @@ Transforms
         remove_orphan_vertices,
     )
     result = clean(mesh)
+
+    # Weld coincident vertices - the STL facet soup back into a surface
+    welded = merge_duplicate_vertices(mesh)
+    snapped = merge_duplicate_vertices(mesh, tol=1e-6)
 
     # Merge two meshes into one
     combined = merge(mesh_a, mesh_b)

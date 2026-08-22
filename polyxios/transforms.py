@@ -300,6 +300,93 @@ def filter_element_type(poly: PolyData, *, keep: str | list[str]) -> PolyData:
     )
 
 
+def merge_duplicate_vertices(poly: PolyData, *, tol: float = 0.0) -> PolyData:
+    """Return a new PolyData with coincident vertices welded into one.
+
+    The equivalent of ParaView's "Clean to Grid": formats that write a
+    corner per element - STL above all - hand back a soup of unconnected
+    vertices, and welding them is what turns it back into a surface.
+
+    Parameters
+    ----------
+    poly
+        Input PolyData.
+    tol
+        Distance below which two vertices count as the same point. Zero
+        welds only exactly equal coordinates. A positive value snaps each
+        coordinate to a grid of that step before comparing, so vertices
+        merge when they land in the same cell - two points closer than
+        ``tol`` that straddle a cell boundary stay apart.
+
+    Returns
+    -------
+    PolyData
+        New PolyData whose vertices are unique. The survivor of each group
+        is its lowest original index, and the surviving vertices stay in
+        their original relative order, so the result does not depend on
+        which duplicate the file listed first. The survivor keeps its own
+        coordinates and vertex attributes - a tolerance decides who merges,
+        it never moves a point.
+
+    Raises
+    ------
+    ValueError
+        If ``tol`` is negative.
+
+    Notes
+    -----
+    Welding is not culling: a vertex no element references is not a
+    duplicate of anything and is kept. Compose with
+    ``remove_orphan_vertices`` to drop those as well. Elements that become
+    degenerate because two of their corners welded together are kept as
+    they are - deciding what a collapsed element means belongs to the
+    caller, not here.
+    """
+    if tol < 0:
+        raise ValueError(f"tol must be non-negative, got {tol}")
+
+    n_verts = poly.vertices.shape[0]
+    if n_verts == 0:
+        return poly
+
+    # Snap to a grid so near-coincident points share a key, then sort: a
+    # lexsort is reproducible where grouping through a dict is not.
+    keys = np.round(poly.vertices / tol) if tol > 0 else poly.vertices
+    order = np.lexsort((keys[:, 2], keys[:, 1], keys[:, 0]))
+    ordered = keys[order]
+
+    starts_group = np.empty(n_verts, dtype=bool)
+    starts_group[0] = True
+    starts_group[1:] = np.any(ordered[1:] != ordered[:-1], axis=1)
+    if starts_group.all():
+        return poly
+
+    group_of = np.cumsum(starts_group) - 1
+    # The survivor is the lowest original index in its group, which keeps
+    # the kept vertices in the order the file listed them. reduceat over the
+    # group starts does it in one pass - np.minimum.at would not.
+    survivor = np.minimum.reduceat(order, np.flatnonzero(starts_group))
+    kept = np.sort(survivor)
+
+    remap = np.empty(n_verts, dtype=np.int64)
+    remap[order] = np.searchsorted(kept, survivor)[group_of]
+
+    new_vertex_tags = {}
+    for k, v in poly.vertex_tags.items():
+        welded = np.unique(remap[v[v < n_verts]])
+        new_vertex_tags[k] = welded.astype(v.dtype, copy=False)
+
+    return dataclasses.replace(
+        poly,
+        vertices=poly.vertices[kept],
+        connectivity=remap[poly.connectivity].astype(
+            poly.connectivity.dtype, copy=False
+        ),
+        vertex_attrs={k: v[kept] for k, v in poly.vertex_attrs.items()},
+        vertex_tags=new_vertex_tags,
+    )
+
+
 def reindex(poly: PolyData) -> PolyData:
     """Return a new PolyData with compact vertex indices (removes orphans).
 
