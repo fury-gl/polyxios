@@ -390,7 +390,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
+polyxios ships twenty-six codecs across thirty-six extensions. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
 
@@ -503,6 +503,16 @@ deviates from it, and links to the authoritative document.
       carry node indices plus a trailing reference tag.</p>
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="meshb.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Medit ASCII <span class="px-fmtext">.mesh .medit</span></p>
+    <p class="px-fmtdesc">Named sections of entity records, each ending in the
+      reference integer that carries its surface or region label.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="medit.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
     </p>
   </div>
@@ -998,6 +1008,10 @@ A face belonging to no group is written after a bare g, so it does not inherit t
 
 A v, vn or vt record that does not carry the components its directive needs, or carries something that is not a number, raises CodecError naming the line. A vt may carry a third component - the depth of a volumetric texture - and texcoords keeps the two a surface uses.
 
+An f record is a flat ring of vertices and OBJ spells no other shape, so an element that is not one - a tetra, a line - keeps its vertices and loses the type it was: it comes back a triangle at three vertices, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning.
+
+l and p records name geometry this codec has no element for. They are dropped, and the read says how many of each the file held rather than leaving the loss to be found later.
+
 element_attrs['material'] is written as usemtl only when it holds one value per face; a shorter attribute is warned about and left out, the way an ill-fitting vertex attribute is.
 
 index - the full format table.
@@ -1096,6 +1110,20 @@ Lazy loading applies to binary bodies only; an ASCII file must be parsed in full
 
 Index widths are checked against the declared vertex count, so a mesh too large for the header’s list type raises instead of truncating.
 
+Line elements travel as element edge with vertex1 / vertex2, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, vertex_index1 / vertex_index2 and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.
+
+An element edge record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.
+
+An element index no vertex answers to is refused rather than read into a mesh nothing can draw.
+
+PLY spells no 64-bit integer, so a column of one is written at the narrowest type that holds the values it actually carries - int when they fit a signed 32-bit field, double when they do not. The header and the record are taken from the same decision, so a field’s declared width is always the width written.
+
+A face’s vertex count is declared uchar, as almost every PLY file does, and widens to ushort or uint for a mesh carrying a polygon of more than 255 vertices - a count the narrower type cannot spell.
+
+A face record is a flat ring of vertices and PLY spells no other shape, so an element that is not one - a tetra, a quadratic_triangle - keeps its vertices and loses the type it was: a reader names a record by how many vertices it holds, so it comes back a triangle at three, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning rather than dropped quietly.
+
+An integer attribute is written in full in the ASCII flavour rather than through a float format, which would turn a large one into 1.23456789e+13: not a token a reader expecting the declared integer property accepts.
+
 index - the full format table.
 
 ## STL
@@ -1181,6 +1209,12 @@ Vertices are deduplicated on read so the mesh has shared topology - except in bi
 Facet normals are read but not trusted for orientation; they are kept as element attributes.
 
 The declared triangle count is validated against the real file size before memory is allocated.
+
+A binary facet’s attribute word carries its colour, five bits per channel - but the two conventions in the wild disagree on both the channel order and the top bit. VisCAM and SolidView run blue in bits 0-4 and red in bits 10-14, and set the top bit to say the word holds a colour; Materialise Magics runs red low and blue high, and clears the top bit to say the facet owns its colour. Magics writes a COLOR= record in the 80-byte header, which is the only thing in the file that tells the two apart, so a header carrying one is read the Magics way and every other header the VisCAM way. VisCAM is also what polyxios writes. A zero word is no colour under either convention: read the Magics way to the letter it claims a facet colour of black, but it is what a writer that coloured nothing leaves behind, and an untouched file is not a black one.
+
+Facets that claim a colour land in element_attrs["colors"] as RGB in 0..1; the ones that do not stay NaN, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all. On write a floating point column is taken as 0..1 and an integer one as 0..255, the way every image format counts.
+
+Colours are written back on a binary write. ASCII STL has no field for one, so an ASCII write reports that they were dropped rather than losing them quietly.
 
 index - the full format table.
 
@@ -1300,15 +1334,35 @@ Writing
 
 px.write(mesh, "out.inp")
 
-This codec takes no format-specific options.
+element_type= maps a polyxios element name to the Abaqus card written for
+it, so a deck can ask for reduced integration where the mesh only says
+hexahedron:
+
+px.write(mesh, "out.inp", element_type={"hexahedron": "C3D8R"})
 
 Quirks worth knowing
 
-Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index and the original ids are kept as vertex tags.
+Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index. Several *NODE blocks accumulate, and a repeated id restates that node rather than adding another.
 
-*NSET and *ELSET names become vertex and element tags, and an entity in several sets stays in all of them.
+*NSET and *ELSET names become vertex and element tags, whether declared on the block itself or as a standalone card, with or without GENERATE; an entity in several sets stays in all of them. Abaqus matches a set name without regard to case, so a body naming TOP reaches the set declared as Top, and the same name in two cases is one set.
 
-Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors.
+Element cards are matched on their base name, so the modifier suffixes - R reduced integration, H hybrid, I, M, T, P, and the shell degree-of-freedom numbers - resolve to the same element: CPS8R reads as CPS8.
+
+*SYSTEM transforms every node block that follows it until the next *SYSTEM, which with no data lines restores the global system.
+
+*INCLUDE is resolved against the including file’s directory. A path that leaves that directory, or nesting deeper than eight files, is refused - an input deck is untrusted input. A deck read from a buffer has no directory, so it cannot use *INCLUDE.
+
+Every *PART / *INSTANCE is merged into one mesh, each read under its own node numbering and tagged by its name. An instance that only places its part carries no nodes of its own and shares the part’s numbering.
+
+A set carrying INSTANCE= is numbered by that instance rather than by whatever numbering is in force where the card sits, which is what lets an assembly keep its sets outside the instance they name. One naming an instance the deck never defines is reported.
+
+A GENERATE range wider than the deck has ids is resolved by walking the ids rather than the range: the card names two numbers and nothing bounds their distance.
+
+A *PART sets the deck’s own numbering aside rather than replacing it, so a set out past *End Part still reaches the nodes the deck defined before it.
+
+On write, a tag member that indexes no node or element of the mesh is dropped and reported: a set naming an id no card defines is a deck Abaqus refuses to load. A float column is refused whole rather than rounded, since rounding an index moves a label onto another entity.
+
+Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.
 
 index - the full format table.
 
@@ -1440,11 +1494,110 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
-The trailing reference integer on each entity becomes an element tag, which is how Medit files carry surface and region labels.
+The trailing reference integer on each entity becomes element_attrs["ref"] and one element_tags["ref_<n>"] group per distinct value, which is how Medit files carry surface and region labels. On write, references come from that attribute, failing that from the ref_<n> groups; a group named anything else has nowhere to go in a record that carries a number, so it is reported rather than numbered on the caller’s behalf.
+
+A record spells its reference in one signed 32-bit field, so a label outside that range is reported rather than written narrowed - narrowing one wraps it onto another label. vertex_attrs["ref"] is checked the same way, and a float or wrong-length column is refused rather than truncated or left to a broadcast error.
+
+Edges, Prisms and Pyramids are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.
+
+The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion *Ordering section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
 
 Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.
 
 Binary bodies can be memory-mapped with lazy=True.
+
+index - the full format table.
+
+## Medit ASCII
+
+Source: https://polyxios.org/stable/formats/medit.html
+
+Medit ASCII
+
+.mesh .medit read + write eager
+
+Summary of the specification
+
+A Medit file is a flat sequence of named sections. MeshVersionFormatted opens it and Dimension says whether the coordinates are 2-D or 3-D. Each entity section - Vertices, Edges, Triangles, Quadrilaterals, Tetrahedra, Prisms, Hexahedra, Pyramids - names a count and then that many records, each holding its node indices (1-based) followed by one integer reference. The reference is how a Medit file carries a surface or region label. End closes the file, though not every writer emits it.
+
+Specification at a glance
+
+
+
+
+
+opening keyword
+
+MeshVersionFormatted (mandatory; it is what tells this format from MFEM)
+
+vertex record
+
+x y [z] ref
+
+element record
+
+n1 n2 … ref, indices 1-based
+
+sections read
+
+Vertices, Edges, Triangles, Quadrilaterals, Tetrahedra, Prisms / Pentahedra, Hexahedra, Pyramids
+
+comments
+
+from # to end of line; keywords are case-insensitive
+
+Read the full Medit specification ↗
+
+Sharing .mesh with MFEM
+
+.mesh is MFEM’s extension too, so neither format owns it. Reading resolves by content: a file opening with MeshVersionFormatted lands here, one opening with MFEM mesh lands in mfem. An output file has no content to look at, so a bare write keeps its historical meaning and emits MFEM; name this codec to write Medit.
+
+import polyxios as px
+
+px.read("bamg.mesh")                     # Medit, by its header
+px.read("beam.mesh")                     # MFEM, by its header
+
+px.write(mesh, "out.mesh")               # MFEM, as it has always been
+px.write(mesh, "out.mesh", fmt=".medit")  # Medit
+px.write(mesh, "out.medit")              # Medit, no fmt= needed
+
+Reading
+
+mesh = px.read("model.mesh")
+mesh.element_attrs["ref"]     # per-element reference
+mesh.element_tags["ref_10"]   # the elements labelled 10
+
+Writing
+
+px.write(mesh, "out.medit", float_fmt=".17g")
+
+float_fmt overrides the coordinate format specifier.
+
+Quirks worth knowing
+
+References become both element_attrs["ref"] and one element_tags["ref_<n>"] group per distinct value, so a region label survives a conversion as a named group rather than as an anonymous column. All-zero references label nothing and are not kept.
+
+On write, references come from element_attrs["ref"], failing that from the ref_<n> groups. A group named anything else has nowhere to go - a Medit record carries a number, not a name - so it is reported rather than numbered on the caller’s behalf, as is one whose members are not element indices.
+
+vertex_attrs["ref"] goes the same way onto the vertex records. A float column is refused rather than truncated, for the reason a label is a number the file names exactly: rounding one relabels the vertex it stands for.
+
+References are held at 64 bits. The ASCII format puts no ceiling on one, and narrowing a reference either wraps it onto another label or saturates it onto the largest.
+
+A section’s count may sit on the keyword’s own line or the line after it: bamg writes Dimension 3 where Medit writes the 3 on the next line, and both read. A file need not close with End.
+
+A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The file’s own Dimension is kept in global_attrs["medit_dimension"] and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning.
+
+The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are skipped with a warning naming them. The format fixes no node ordering for high-order elements - libMeshb’s own documentation says there are as many orderings as there are programmers, and defers to a companion *Ordering section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
+
+Sections carrying no geometry (Corners, Ridges, Required*, Normals, …) are stepped over without a word; an unrecognised one is named in a warning.
+
+A file declares its vertices once. A second Vertices section is refused rather than allowed to replace the block the elements already read index into - which, when the two counts agree, would move every element onto other geometry without a single index going out of range.
+
+A record carries one reference, so an element two ref_<n> groups both name keeps the later group’s and the other is reported. Which group comes later is the order the mesh holds them in, not one the caller chose.
+
+meshb - the binary flavour of the same format.
+
+mfem - the other format using .mesh.
 
 index - the full format table.
 
@@ -1578,6 +1731,8 @@ ZGROUP and FGROUP names become element tags; a zone in several groups stays in a
 
 Gridpoint ids are sparse in practice and are remapped to a dense 0-based index on read.
 
+Coordinates and connectivity accumulate into machine-number arrays rather than Python lists while a file is read, which is what keeps a large grid’s peak memory a small multiple of the file rather than a large one.
+
 index - the full format table.
 
 ## Gmsh
@@ -1640,7 +1795,15 @@ ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer s
 
 Physical group names become element tags, so named boundaries and volumes survive the read.
 
-Node tags need not be contiguous; they are remapped to dense indices and kept as vertex tags.
+Node tags need not be contiguous; they are remapped to dense indices.
+
+$NodeData and $ElementData sections become vertex_attrs and element_attrs, at any component count the file declares, and are written back. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays NaN. A row naming an entity the mesh does not hold - an element of a type this codec skipped, say - costs that row rather than the whole field.
+
+A data section declares 1, 3 or 9 components and Gmsh refuses any other count, so a field of another width is padded out to the next of the three with zero columns and the padding is reported. The reader stays lenient and takes whatever width a file declares.
+
+Gmsh numbers the mid-edge and face nodes of the higher-order elements by its own edge and face tables, which are not VTK’s; they are permuted on the way in and back on the way out. Gmsh’s 18-node prism becomes a biquadratic_quadratic_wedge.
+
+Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped with a warning rather than reshaped into something else.
 
 index - the full format table.
 
@@ -1735,6 +1898,20 @@ A real field is written in whichever legal spelling fits it: the plain form firs
 
 Property ids become element tags, so the deck’s grouping is preserved.
 
+A card name does not say the element’s order, so the shape comes from the grid points the card carries: CTETRA with ten grid points is a quadratic_tetra, with four a tetra. Counting stops at the first blank field, because Nastran lets a mid-side grid point be omitted and that card is a linear element.
+
+CPENTA runs the prism’s three vertical edges before its top ring where VTK runs them after, so those mid-side nodes are permuted on read and back on write. Every other card already agrees with VTK.
+
+The axisymmetric cards read as their planar counterparts: CTRAX3, CTRAX6, CTRIAX6, CQUADX, CQUADX4 and CQUADX8, alongside CSHEAR.
+
+One-dimensional cards (CBAR, CBEAM, CROD, CONROD, CTUBE, CBUSH, CGAP, CBEND, CVISC) read as lines rather than being skipped; CONROD names a material where the others name a property, so its grid points sit one field earlier.
+
+A shell’s ZOFFS becomes element_attrs["zoffs"] when any card carries one, and is written back on the shell cards that have a field for it: CTRIA3, CTRIAR, CQUAD4, CQUADR, CTRIA6 and CQUAD8.
+
+Nastran and VTK number the corner grid points alike, but not every mid-side one. CPENTA runs the prism’s vertical edges before its top ring and CHEXA does the same with the brick’s, where VTK runs the verticals last; CTRIAX6 interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in and back on the way out.
+
+CTRIAX6 names a material in the field where the shells name a property, so its second field is not read as a property id. A CBUSH grounding its second end names one grid point and no element, and is skipped with a warning of its own rather than being counted among the cards this codec has no shape for.
+
 index - the full format table.
 
 ## Tecplot ASCII
@@ -1806,6 +1983,8 @@ inside the file: a .dat opening with TITLE = ", VARIABLES =, ZONE, FILETYPE =
 or DATASETAUXDATA lands here. An unquoted TITLE = decides nothing - Nastran case
 control spells its title the same way - so the line under it settles the question. px.read("flow.dat", fmt=".tec") still forces the issue,
 and writing to .dat needs fmt=".tec" because an output file has no content to inspect.
+
+A variable that is not finite throughout is not written. The format spells no missing value, so a NaN - which is what a field covering part of a mesh carries over the rest of it - would go out as the token nan, and a zone holding one is a zone no reader loads.
 
 Binary Tecplot (.plt) is registered so it fails with a clear message rather than not
 resolving at all; only the ASCII flavour is parsed.
@@ -1938,7 +2117,7 @@ Quirks worth knowing
 
 Pass either path - px.read("bar.ele") or px.read("bar.node") - and the paired file is located by basename.
 
-Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept.
+Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.
 
 Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
 
@@ -2005,6 +2184,10 @@ Quirks worth knowing
 Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
 
 An EWKT SRID= prefix is parsed and then dropped - polyxios carries no coordinate reference system.
+
+The ISO/SQL-MM surface family reads too: TRIANGLE as one triangle, TIN as a set of them, POLYHEDRALSURFACE as a set of polygons. A TIN patch that is not a triangle, or a TRIANGLE carrying an interior ring, is refused rather than read as something else.
+
+EMPTY is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.
 
 index - the full format table.
 
@@ -2074,7 +2257,7 @@ The written dimension is inferred from the data: a mesh whose z column is entire
 
 Coordinates are written with .10g, which does not name a float64 exactly - a round trip differs in the last few digits.
 
-An element whose type code has no polyxios equivalent falls back to triangle on write.
+MFEM names eight geometries and no higher-order one. An element it has no geometry for - a quadratic_tetra, a polygon - is skipped on write with a warning naming its type, and the declared element count drops with it. Writing one under another geometry’s code would leave its extra nodes to be read as the record that follows, which costs every element after it rather than the one that did not fit.
 
 index - the full format table.
 
@@ -2155,6 +2338,8 @@ Quirks worth knowing
 Elements are written section by section in the order the format fixes - faces, cells, edges, then point elements - so an element’s index changes unless the mesh already lay in that order.
 
 Node references are 1-based in the file, 0-based in the PolyData; every type whose node order differs from polyxios’s is permuted both ways.
+
+Sections polyxios carries no home for - facedescriptors, identifications, face_colours, the singular_* family - are stepped over by name, and a non-empty one says how many records it dropped rather than reading as a section nobody recognised.
 
 Index 0 means “unset” and is dropped rather than becoming a tag. A bc_<n>-style tag name keeps its number, unless that number is negative or past int64, which the format cannot spell.
 

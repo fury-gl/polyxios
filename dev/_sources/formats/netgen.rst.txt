@@ -73,6 +73,7 @@ Quirks worth knowing
 
 - Elements are written section by section in the order the format fixes - faces, cells, edges, then point elements - so an element's index changes unless the mesh already lay in that order.
 - Node references are 1-based in the file, 0-based in the :class:`~polyxios.PolyData`; every type whose node order differs from polyxios's is permuted both ways.
+- Sections polyxios carries no home for - ``facedescriptors``, ``identifications``, ``face_colours``, the ``singular_*`` family - are stepped over by name, and a non-empty one says how many records it dropped rather than reading as a section nobody recognised.
 - Index ``0`` means "unset" and is dropped rather than becoming a tag. A ``bc_<n>``-style tag name keeps its number, unless that number is negative or past ``int64``, which the format cannot spell.
 - A tag holding elements of more than one dimension is written into each dimension's section, and comes back split one tag per dimension, because the sections number their indices independently.
 - Sections polyxios has no home for - ``identifications``, ``face_colours``, the ``singular_*`` family - are stepped over, with a warning when one is not empty.

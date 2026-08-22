@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="TetGen" />
+<meta property="og:title" content="Medit ASCII" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/tetgen.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/medit.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta property="og:description" content=".mesh.medit read + write eager Summary of the specification: A Medit file is a flat sequence of named sections. MeshVersionFormatted opens it and Dimension says whether the coordinates are 2-D or 3..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_tetgen_df6de378.png" />
-<meta property="og:image:alt" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
-<meta name="description" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_medit_fd8a7c36.png" />
+<meta property="og:image:alt" content=".mesh.medit read + write eager Summary of the specification: A Medit file is a flat sequence of named sections. MeshVersionFormatted opens it and Dimension says whether the coordinates are 2-D or 3..." />
+<meta name="description" content=".mesh.medit read + write eager Summary of the specification: A Medit file is a flat sequence of named sections. MeshVersionFormatted opens it and Dimension says whether the coordinates are 2-D or 3..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>TetGen &#8212; polyxios</title>
+    <title>Medit ASCII &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/tetgen';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/medit';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/tetgen.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/medit.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Well-Known Text" href="wkt.html" />
-    <link rel="prev" title="SU2" href="su2.html" />
+    <link rel="next" title="DOLFIN / FEniCS XML" href="dolfin.html" />
+    <link rel="prev" title="Medit binary" href="meshb.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
@@ -433,14 +433,14 @@
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
-<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">TetGen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
@@ -519,7 +519,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">TetGen</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Medit ASCII</span></li>
   </ul>
 </nav>
 </div>
@@ -536,12 +536,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="tetgen">
-<span id="format-tetgen"></span><h1>TetGen<a class="headerlink" href="#tetgen" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.ele</span> <span class="pre">+</span> <span class="pre">.node</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+  <section id="medit-ascii">
+<span id="format-medit"></span><h1>Medit ASCII<a class="headerlink" href="#medit-ascii" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.mesh</span></code> <code class="docutils literal notranslate"><span class="pre">.medit</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>TetGen splits a mesh across sidecar files that share a basename. <code class="docutils literal notranslate"><span class="pre">.node</span></code> starts with a counts line - number of points, dimension, number of attributes, boundary-marker flag - then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. <code class="docutils literal notranslate"><span class="pre">.ele</span></code> starts with its own counts line - number of tetrahedra, nodes per tetrahedron, region-attribute flag - then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.</p>
+<p>A Medit file is a flat sequence of named sections. <code class="docutils literal notranslate"><span class="pre">MeshVersionFormatted</span></code> opens it and <code class="docutils literal notranslate"><span class="pre">Dimension</span></code> says whether the coordinates are 2-D or 3-D. Each entity section - <code class="docutils literal notranslate"><span class="pre">Vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Triangles</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilaterals</span></code>, <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Prisms</span></code>, <code class="docutils literal notranslate"><span class="pre">Hexahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Pyramids</span></code> - names a count and then that many records, each holding its node indices (1-based) followed by one integer reference. The reference is how a Medit file carries a surface or region label. <code class="docutils literal notranslate"><span class="pre">End</span></code> closes the file, though not every writer emits it.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -551,55 +551,73 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>.node header</p></td>
-<td><p>npoints dim nattrs boundary_marker_flag</p></td>
+<tr class="row-odd"><td><p>opening keyword</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">MeshVersionFormatted</span></code> (mandatory; it is what tells this format from MFEM)</p></td>
 </tr>
-<tr class="row-even"><td><p>.node line</p></td>
-<td><p>index x y z [attrs…] [marker]</p></td>
+<tr class="row-even"><td><p>vertex record</p></td>
+<td><p>x y [z] ref</p></td>
 </tr>
-<tr class="row-odd"><td><p>.ele header</p></td>
-<td><p>ntetrahedra nodes_per_tet region_attr_flag</p></td>
+<tr class="row-odd"><td><p>element record</p></td>
+<td><p>n1 n2 … ref, indices 1-based</p></td>
 </tr>
-<tr class="row-even"><td><p>.ele line</p></td>
-<td><p>index n1 n2 n3 n4 [region]</p></td>
+<tr class="row-even"><td><p>sections read</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Triangles</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilaterals</span></code>, <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Prisms</span></code> / <code class="docutils literal notranslate"><span class="pre">Pentahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Hexahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Pyramids</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>index base</p></td>
-<td><p>0 or 1, inferred from the first index</p></td>
-</tr>
-<tr class="row-even"><td><p>companions</p></td>
-<td><p>.face, .edge, .neigh use the same convention</p></td>
+<tr class="row-odd"><td><p>comments</p></td>
+<td><p>from <code class="docutils literal notranslate"><span class="pre">#</span></code> to end of line; keywords are case-insensitive</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://wias-berlin.de/software/tetgen/fformats.html">Read the full TetGen specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">Read the full Medit specification ↗</a></p>
+</section>
+<section id="sharing-mesh-with-mfem">
+<h2>Sharing <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> with MFEM<a class="headerlink" href="#sharing-mesh-with-mfem" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">.mesh</span></code> is MFEM’s extension too, so neither format owns it. Reading resolves by content: a file opening with <code class="docutils literal notranslate"><span class="pre">MeshVersionFormatted</span></code> lands here, one opening with <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">mesh</span></code> lands in <a class="reference internal" href="mfem.html"><span class="doc">MFEM mesh</span></a>. An output file has no content to look at, so a bare write keeps its historical meaning and emits MFEM; name this codec to write Medit.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
+
+<span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"bamg.mesh"</span><span class="p">)</span>                     <span class="c1"># Medit, by its header</span>
+<span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"beam.mesh"</span><span class="p">)</span>                     <span class="c1"># MFEM, by its header</span>
+
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.mesh"</span><span class="p">)</span>               <span class="c1"># MFEM, as it has always been</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.mesh"</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">".medit"</span><span class="p">)</span>  <span class="c1"># Medit</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.medit"</span><span class="p">)</span>              <span class="c1"># Medit, no fmt= needed</span>
+</pre></div>
+</div>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
-
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.ele"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.mesh"</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_attrs</span><span class="p">[</span><span class="s2">"ref"</span><span class="p">]</span>     <span class="c1"># per-element reference</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span><span class="p">[</span><span class="s2">"ref_10"</span><span class="p">]</span>   <span class="c1"># the elements labelled 10</span>
 </pre></div>
 </div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.ele"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.medit"</span><span class="p">,</span> <span class="n">float_fmt</span><span class="o">=</span><span class="s2">".17g"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+<p><code class="docutils literal notranslate"><span class="pre">float_fmt</span></code> overrides the coordinate format specifier.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>Pass either path - <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.ele&quot;)</span></code> or <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.node&quot;)</span></code> - and the paired file is located by basename.</p></li>
-<li><p>Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.</p></li>
-<li><p>Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.</p></li>
+<li><p>References become both <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;ref&quot;]</span></code> and one <code class="docutils literal notranslate"><span class="pre">element_tags[&quot;ref_&lt;n&gt;&quot;]</span></code> group per distinct value, so a region label survives a conversion as a named group rather than as an anonymous column. All-zero references label nothing and are not kept.</p></li>
+<li><p>On write, references come from <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;ref&quot;]</span></code>, failing that from the <code class="docutils literal notranslate"><span class="pre">ref_&lt;n&gt;</span></code> groups. A group named anything else has nowhere to go - a Medit record carries a number, not a name - so it is reported rather than numbered on the caller’s behalf, as is one whose members are not element indices.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">vertex_attrs[&quot;ref&quot;]</span></code> goes the same way onto the vertex records. A float column is refused rather than truncated, for the reason a label is a number the file names exactly: rounding one relabels the vertex it stands for.</p></li>
+<li><p>References are held at 64 bits. The ASCII format puts no ceiling on one, and narrowing a reference either wraps it onto another label or saturates it onto the largest.</p></li>
+<li><p>A section’s count may sit on the keyword’s own line or the line after it: bamg writes <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">3</span></code> where Medit writes the 3 on the next line, and both read. A file need not close with <code class="docutils literal notranslate"><span class="pre">End</span></code>.</p></li>
+<li><p>A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The file’s own <code class="docutils literal notranslate"><span class="pre">Dimension</span></code> is kept in <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;medit_dimension&quot;]</span></code> and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning.</p></li>
+<li><p>The higher-order sections (<code class="docutils literal notranslate"><span class="pre">TrianglesP2</span></code>, <code class="docutils literal notranslate"><span class="pre">TetrahedraP2</span></code>, <code class="docutils literal notranslate"><span class="pre">HexahedraQ2</span></code>, …) are skipped with a warning naming them. The format fixes no node ordering for high-order elements - libMeshb’s own documentation says there are as many orderings as there are programmers, and defers to a companion <code class="docutils literal notranslate"><span class="pre">*Ordering</span></code> section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.</p></li>
+<li><p>Sections carrying no geometry (<code class="docutils literal notranslate"><span class="pre">Corners</span></code>, <code class="docutils literal notranslate"><span class="pre">Ridges</span></code>, <code class="docutils literal notranslate"><span class="pre">Required*</span></code>, <code class="docutils literal notranslate"><span class="pre">Normals</span></code>, …) are stepped over without a word; an unrecognised one is named in a warning.</p></li>
+<li><p>A file declares its vertices once. A second <code class="docutils literal notranslate"><span class="pre">Vertices</span></code> section is refused rather than allowed to replace the block the elements already read index into - which, when the two counts agree, would move every element onto other geometry without a single index going out of range.</p></li>
+<li><p>A record carries one reference, so an element two <code class="docutils literal notranslate"><span class="pre">ref_&lt;n&gt;</span></code> groups both name keeps the later group’s and the other is reported. Which group comes later is the order the mesh holds them in, not one the caller chose.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
+<p><a class="reference internal" href="meshb.html"><span class="doc">Medit binary</span></a> - the binary flavour of the same format.</p>
+<p><a class="reference internal" href="mfem.html"><span class="doc">MFEM mesh</span></a> - the other format using <code class="docutils literal notranslate"><span class="pre">.mesh</span></code>.</p>
 <p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
@@ -616,20 +634,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="su2.html"
+       href="meshb.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">SU2</p>
+        <p class="prev-next-title">Medit binary</p>
       </div>
     </a>
     <a class="right-next"
-       href="wkt.html"
+       href="dolfin.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Well-Known Text</p>
+        <p class="prev-next-title">DOLFIN / FEniCS XML</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -654,6 +672,7 @@
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-of-the-specification">Summary of the specification</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sharing-mesh-with-mfem">Sharing <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> with MFEM</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
@@ -664,7 +683,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/tetgen.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/medit.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

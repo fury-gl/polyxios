@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=082ce853"></script>
+    <script src="../_static/documentation_options.js?v=faf3b3ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-21"/>
+    <meta name="docbuild:last-update" content="2026-08-22"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -433,6 +433,7 @@
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
@@ -625,6 +626,13 @@ here - a numeric table whose first row happens to read <code class="docutils lit
 <code class="docutils literal notranslate"><span class="pre">fmt=&quot;.bdf&quot;</span></code> because an output file has no content to inspect.</p></li>
 <li><p>A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (<code class="docutils literal notranslate"><span class="pre">1.234-10</span></code> for <code class="docutils literal notranslate"><span class="pre">1.234E-10</span></code>, <code class="docutils literal notranslate"><span class="pre">1.2346+7</span></code> for <code class="docutils literal notranslate"><span class="pre">1.2346E+07</span></code>), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads <code class="docutils literal notranslate"><span class="pre">.5</span></code> as <code class="docutils literal notranslate"><span class="pre">0.5</span></code>. A spelling that reads back as the value itself is always preferred to a longer one that does not, so <code class="docutils literal notranslate"><span class="pre">1e7</span></code> goes out as <code class="docutils literal notranslate"><span class="pre">1.E+07</span></code> rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.</p></li>
 <li><p>Property ids become element tags, so the deck’s grouping is preserved.</p></li>
+<li><p>A card name does not say the element’s order, so the shape comes from the grid points the card carries: <code class="docutils literal notranslate"><span class="pre">CTETRA</span></code> with ten grid points is a <code class="docutils literal notranslate"><span class="pre">quadratic_tetra</span></code>, with four a <code class="docutils literal notranslate"><span class="pre">tetra</span></code>. Counting stops at the first blank field, because Nastran lets a mid-side grid point be omitted and that card is a linear element.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CPENTA</span></code> runs the prism’s three vertical edges before its top ring where VTK runs them after, so those mid-side nodes are permuted on read and back on write. Every other card already agrees with VTK.</p></li>
+<li><p>The axisymmetric cards read as their planar counterparts: <code class="docutils literal notranslate"><span class="pre">CTRAX3</span></code>, <code class="docutils literal notranslate"><span class="pre">CTRAX6</span></code>, <code class="docutils literal notranslate"><span class="pre">CTRIAX6</span></code>, <code class="docutils literal notranslate"><span class="pre">CQUADX</span></code>, <code class="docutils literal notranslate"><span class="pre">CQUADX4</span></code> and <code class="docutils literal notranslate"><span class="pre">CQUADX8</span></code>, alongside <code class="docutils literal notranslate"><span class="pre">CSHEAR</span></code>.</p></li>
+<li><p>One-dimensional cards (<code class="docutils literal notranslate"><span class="pre">CBAR</span></code>, <code class="docutils literal notranslate"><span class="pre">CBEAM</span></code>, <code class="docutils literal notranslate"><span class="pre">CROD</span></code>, <code class="docutils literal notranslate"><span class="pre">CONROD</span></code>, <code class="docutils literal notranslate"><span class="pre">CTUBE</span></code>, <code class="docutils literal notranslate"><span class="pre">CBUSH</span></code>, <code class="docutils literal notranslate"><span class="pre">CGAP</span></code>, <code class="docutils literal notranslate"><span class="pre">CBEND</span></code>, <code class="docutils literal notranslate"><span class="pre">CVISC</span></code>) read as lines rather than being skipped; <code class="docutils literal notranslate"><span class="pre">CONROD</span></code> names a material where the others name a property, so its grid points sit one field earlier.</p></li>
+<li><p>A shell’s <code class="docutils literal notranslate"><span class="pre">ZOFFS</span></code> becomes <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;zoffs&quot;]</span></code> when any card carries one, and is written back on the shell cards that have a field for it: <code class="docutils literal notranslate"><span class="pre">CTRIA3</span></code>, <code class="docutils literal notranslate"><span class="pre">CTRIAR</span></code>, <code class="docutils literal notranslate"><span class="pre">CQUAD4</span></code>, <code class="docutils literal notranslate"><span class="pre">CQUADR</span></code>, <code class="docutils literal notranslate"><span class="pre">CTRIA6</span></code> and <code class="docutils literal notranslate"><span class="pre">CQUAD8</span></code>.</p></li>
+<li><p>Nastran and VTK number the corner grid points alike, but not every mid-side one. <code class="docutils literal notranslate"><span class="pre">CPENTA</span></code> runs the prism’s vertical edges before its top ring and <code class="docutils literal notranslate"><span class="pre">CHEXA</span></code> does the same with the brick’s, where VTK runs the verticals last; <code class="docutils literal notranslate"><span class="pre">CTRIAX6</span></code> interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in and back on the way out.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CTRIAX6</span></code> names a material in the field where the shells name a property, so its second field is not read as a property id. A <code class="docutils literal notranslate"><span class="pre">CBUSH</span></code> grounding its second end names one grid point and no element, and is skipped with a warning of its own rather than being counted among the cards this codec has no shape for.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -742,7 +750,7 @@ here - a numeric table whose first row happens to read <code class="docutils lit
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-21.
+  Last updated on 2026-08-22.
   <br/>
 </p></div>
       

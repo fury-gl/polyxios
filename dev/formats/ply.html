@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=082ce853"></script>
+    <script src="../_static/documentation_options.js?v=faf3b3ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-21"/>
+    <meta name="docbuild:last-update" content="2026-08-22"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -433,6 +433,7 @@
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
@@ -624,6 +625,13 @@
 <li><p>Vertex properties beyond x/y/z - colour, normals, confidence, intensity - are preserved as named vertex attributes rather than dropped.</p></li>
 <li><p>Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.</p></li>
 <li><p>Index widths are checked against the declared vertex count, so a mesh too large for the header’s list type raises instead of truncating.</p></li>
+<li><p>Line elements travel as <code class="docutils literal notranslate"><span class="pre">element</span> <span class="pre">edge</span></code> with <code class="docutils literal notranslate"><span class="pre">vertex1</span></code> / <code class="docutils literal notranslate"><span class="pre">vertex2</span></code>, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, <code class="docutils literal notranslate"><span class="pre">vertex_index1</span></code> / <code class="docutils literal notranslate"><span class="pre">vertex_index2</span></code> and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">element</span> <span class="pre">edge</span></code> record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.</p></li>
+<li><p>An element index no vertex answers to is refused rather than read into a mesh nothing can draw.</p></li>
+<li><p>PLY spells no 64-bit integer, so a column of one is written at the narrowest type that holds the values it actually carries - <code class="docutils literal notranslate"><span class="pre">int</span></code> when they fit a signed 32-bit field, <code class="docutils literal notranslate"><span class="pre">double</span></code> when they do not. The header and the record are taken from the same decision, so a field’s declared width is always the width written.</p></li>
+<li><p>A face’s vertex count is declared <code class="docutils literal notranslate"><span class="pre">uchar</span></code>, as almost every PLY file does, and widens to <code class="docutils literal notranslate"><span class="pre">ushort</span></code> or <code class="docutils literal notranslate"><span class="pre">uint</span></code> for a mesh carrying a polygon of more than 255 vertices - a count the narrower type cannot spell.</p></li>
+<li><p>A face record is a flat ring of vertices and PLY spells no other shape, so an element that is not one - a <code class="docutils literal notranslate"><span class="pre">tetra</span></code>, a <code class="docutils literal notranslate"><span class="pre">quadratic_triangle</span></code> - keeps its vertices and loses the type it was: a reader names a record by how many vertices it holds, so it comes back a triangle at three, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning rather than dropped quietly.</p></li>
+<li><p>An integer attribute is written in full in the ASCII flavour rather than through a float format, which would turn a large one into <code class="docutils literal notranslate"><span class="pre">1.23456789e+13</span></code>: not a token a reader expecting the declared integer property accepts.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -741,7 +749,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-21.
+  Last updated on 2026-08-22.
   <br/>
 </p></div>
       

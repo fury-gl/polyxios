@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=082ce853"></script>
+    <script src="../_static/documentation_options.js?v=faf3b3ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-21"/>
+    <meta name="docbuild:last-update" content="2026-08-22"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -433,6 +433,7 @@
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
@@ -593,6 +594,8 @@
 <li><p>2D geometry is padded to z = 0 so the vertex array is always (n, 3).</p></li>
 <li><p>Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.</p></li>
 <li><p>An EWKT <code class="docutils literal notranslate"><span class="pre">SRID=</span></code> prefix is parsed and then dropped - polyxios carries no coordinate reference system.</p></li>
+<li><p>The ISO/SQL-MM surface family reads too: <code class="docutils literal notranslate"><span class="pre">TRIANGLE</span></code> as one triangle, <code class="docutils literal notranslate"><span class="pre">TIN</span></code> as a set of them, <code class="docutils literal notranslate"><span class="pre">POLYHEDRALSURFACE</span></code> as a set of polygons. A <code class="docutils literal notranslate"><span class="pre">TIN</span></code> patch that is not a triangle, or a <code class="docutils literal notranslate"><span class="pre">TRIANGLE</span></code> carrying an interior ring, is refused rather than read as something else.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">EMPTY</span></code> is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -710,7 +713,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-21.
+  Last updated on 2026-08-22.
   <br/>
 </p></div>
       

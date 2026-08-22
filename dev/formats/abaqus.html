@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=082ce853"></script>
+    <script src="../_static/documentation_options.js?v=faf3b3ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-21"/>
+    <meta name="docbuild:last-update" content="2026-08-22"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -433,6 +433,7 @@
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
@@ -585,14 +586,27 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.inp"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+<p><code class="docutils literal notranslate"><span class="pre">element_type=</span></code> maps a polyxios element name to the Abaqus card written for
+it, so a deck can ask for reduced integration where the mesh only says
+<code class="docutils literal notranslate"><span class="pre">hexahedron</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.inp"</span><span class="p">,</span> <span class="n">element_type</span><span class="o">=</span><span class="p">{</span><span class="s2">"hexahedron"</span><span class="p">:</span> <span class="s2">"C3D8R"</span><span class="p">})</span>
+</pre></div>
+</div>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index and the original ids are kept as vertex tags.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">*NSET</span></code> and <code class="docutils literal notranslate"><span class="pre">*ELSET</span></code> names become vertex and element tags, and an entity in several sets stays in all of them.</p></li>
-<li><p>Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors.</p></li>
+<li><p>Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index. Several <code class="docutils literal notranslate"><span class="pre">*NODE</span></code> blocks accumulate, and a repeated id restates that node rather than adding another.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*NSET</span></code> and <code class="docutils literal notranslate"><span class="pre">*ELSET</span></code> names become vertex and element tags, whether declared on the block itself or as a standalone card, with or without <code class="docutils literal notranslate"><span class="pre">GENERATE</span></code>; an entity in several sets stays in all of them. Abaqus matches a set name without regard to case, so a body naming <code class="docutils literal notranslate"><span class="pre">TOP</span></code> reaches the set declared as <code class="docutils literal notranslate"><span class="pre">Top</span></code>, and the same name in two cases is one set.</p></li>
+<li><p>Element cards are matched on their base name, so the modifier suffixes - <code class="docutils literal notranslate"><span class="pre">R</span></code> reduced integration, <code class="docutils literal notranslate"><span class="pre">H</span></code> hybrid, <code class="docutils literal notranslate"><span class="pre">I</span></code>, <code class="docutils literal notranslate"><span class="pre">M</span></code>, <code class="docutils literal notranslate"><span class="pre">T</span></code>, <code class="docutils literal notranslate"><span class="pre">P</span></code>, and the shell degree-of-freedom numbers - resolve to the same element: <code class="docutils literal notranslate"><span class="pre">CPS8R</span></code> reads as <code class="docutils literal notranslate"><span class="pre">CPS8</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*SYSTEM</span></code> transforms every node block that follows it until the next <code class="docutils literal notranslate"><span class="pre">*SYSTEM</span></code>, which with no data lines restores the global system.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*INCLUDE</span></code> is resolved against the including file’s directory. A path that leaves that directory, or nesting deeper than eight files, is refused - an input deck is untrusted input. A deck read from a buffer has no directory, so it cannot use <code class="docutils literal notranslate"><span class="pre">*INCLUDE</span></code>.</p></li>
+<li><p>Every <code class="docutils literal notranslate"><span class="pre">*PART</span></code> / <code class="docutils literal notranslate"><span class="pre">*INSTANCE</span></code> is merged into one mesh, each read under its own node numbering and tagged by its name. An instance that only places its part carries no nodes of its own and shares the part’s numbering.</p></li>
+<li><p>A set carrying <code class="docutils literal notranslate"><span class="pre">INSTANCE=</span></code> is numbered by that instance rather than by whatever numbering is in force where the card sits, which is what lets an assembly keep its sets outside the instance they name. One naming an instance the deck never defines is reported.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">GENERATE</span></code> range wider than the deck has ids is resolved by walking the ids rather than the range: the card names two numbers and nothing bounds their distance.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">*PART</span></code> sets the deck’s own numbering aside rather than replacing it, so a set out past <code class="docutils literal notranslate"><span class="pre">*End</span> <span class="pre">Part</span></code> still reaches the nodes the deck defined before it.</p></li>
+<li><p>On write, a tag member that indexes no node or element of the mesh is dropped and reported: a set naming an id no card defines is a deck Abaqus refuses to load. A float column is refused whole rather than rounded, since rounding an index moves a label onto another entity.</p></li>
+<li><p>Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -710,7 +724,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-21.
+  Last updated on 2026-08-22.
   <br/>
 </p></div>
       

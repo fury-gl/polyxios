@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=082ce853"></script>
+    <script src="../_static/documentation_options.js?v=faf3b3ea"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-21"/>
+    <meta name="docbuild:last-update" content="2026-08-22"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -433,6 +433,7 @@
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Gmsh</a></li>
@@ -592,7 +593,11 @@
 <ul class="px-quirks simple">
 <li><p>ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer still understands.</p></li>
 <li><p>Physical group names become element tags, so named boundaries and volumes survive the read.</p></li>
-<li><p>Node tags need not be contiguous; they are remapped to dense indices and kept as vertex tags.</p></li>
+<li><p>Node tags need not be contiguous; they are remapped to dense indices.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">$NodeData</span></code> and <code class="docutils literal notranslate"><span class="pre">$ElementData</span></code> sections become <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> and <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code>, at any component count the file declares, and are written back. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays <code class="docutils literal notranslate"><span class="pre">NaN</span></code>. A row naming an entity the mesh does not hold - an element of a type this codec skipped, say - costs that row rather than the whole field.</p></li>
+<li><p>A data section declares 1, 3 or 9 components and Gmsh refuses any other count, so a field of another width is padded out to the next of the three with zero columns and the padding is reported. The reader stays lenient and takes whatever width a file declares.</p></li>
+<li><p>Gmsh numbers the mid-edge and face nodes of the higher-order elements by its own edge and face tables, which are not VTK’s; they are permuted on the way in and back on the way out. Gmsh’s 18-node prism becomes a <code class="docutils literal notranslate"><span class="pre">biquadratic_quadratic_wedge</span></code>.</p></li>
+<li><p>Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped with a warning rather than reshaped into something else.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -710,7 +715,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-21.
+  Last updated on 2026-08-22.
   <br/>
 </p></div>
       

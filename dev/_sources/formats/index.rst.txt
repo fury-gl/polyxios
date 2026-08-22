@@ -4,10 +4,10 @@ Supported formats
 =================
 
 .. meta::
-   :description: The twenty-five 3D mesh and geometry formats polyxios reads and writes, across thirty-four extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, UGRID and more, one reference page each.
+   :description: The twenty-six 3D mesh and geometry formats polyxios reads and writes, across thirty-six extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, UGRID and more, one reference page each.
 
 
-polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
+polyxios ships twenty-six codecs across thirty-six extensions. Each is registered by
 extension, so :func:`polyxios.read` picks the right reader from the filename - pass
 ``fmt=`` to override it.
 
@@ -40,6 +40,7 @@ Writing them is not supported.
    abaqus
    avs
    meshb
+   medit
    dolfin
    flac3d
    gmsh
