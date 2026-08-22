@@ -8,48 +8,77 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, open_block, open_write
+from polyxios._tags import group_by_value, integer_column, values_from_tags
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".meshb"
 
-# GmFlib keyword codes - decoded sections
+# GmFlib keyword codes - decoded sections. The GmfKwdCod enum is implicit, so
+# a code is its position in it; GmfEnd at 54 and GmfNormals at 60 are the two
+# that pin the numbering down.
 _KW_VERSION = 1
 _KW_DIMENSION = 3
 _KW_VERTICES = 4
+_KW_EDGES = 5
 _KW_TRIANGLES = 6
 _KW_QUADRILATERALS = 7
 _KW_TETRAHEDRA = 8
+_KW_PRISMS = 9
 _KW_HEXAHEDRA = 10
+_KW_PYRAMIDS = 49
 
 # GmFlib keyword codes - scanned (record size known) but not decoded
-_KW_EDGES = 5  # 2 node indices + ref
-_KW_PRISMS = 9  # 6 node indices + ref
 _KW_NORMALS = 60  # dim floats, no ref (size is dim-dependent)
 
 _KW_END = 54
 
-# Keyword → (polyxios element name, nodes per element).
-# Insertion order defines the write and read section order: tri < quad < tetra < hex.
+# The higher-order sections. libMeshb's own documentation says the format
+# fixes no node ordering for them - "there is as many HO nodes ordering in
+# each kind of elements as there are programmers" - and leaves it to a
+# companion ``*Ordering`` section. Reading one without that section would mean
+# guessing a permutation, and a silently bent element is worse than a skipped
+# one, so their record sizes are known only so the scanner can step over them.
+_KW_TRIANGLES_P2 = 24
+_KW_EDGES_P2 = 25
+_KW_QUADRILATERALS_Q2 = 27
+_KW_TETRAHEDRA_P2 = 30
+_KW_HEXAHEDRA_Q2 = 33
+_KW_PRISMS_P2 = 86
+_KW_PYRAMIDS_P2 = 87
+_HIGHER_ORDER: dict[int, tuple[str, int]] = {
+    _KW_EDGES_P2: ("EdgesP2", 3),
+    _KW_TRIANGLES_P2: ("TrianglesP2", 6),
+    _KW_QUADRILATERALS_Q2: ("QuadrilateralsQ2", 9),
+    _KW_TETRAHEDRA_P2: ("TetrahedraP2", 10),
+    _KW_HEXAHEDRA_Q2: ("HexahedraQ2", 27),
+    _KW_PRISMS_P2: ("PrismsP2", 18),
+    _KW_PYRAMIDS_P2: ("PyramidsP2", 14),
+}
+
+# Keyword → (polyxios element name, nodes per element). Medit numbers the
+# corner nodes of every one of these the way VTK does, so no permutation
+# applies. Insertion order defines the write and read section order, which
+# runs up the topological dimensions the way Medit's own writers emit them.
 _KW_TO_ELEM: dict[int, tuple[str, int]] = {
+    _KW_EDGES: ("line", 2),
     _KW_TRIANGLES: ("triangle", 3),
     _KW_QUADRILATERALS: ("quad", 4),
     _KW_TETRAHEDRA: ("tetra", 4),
+    _KW_PYRAMIDS: ("pyramid", 5),
+    _KW_PRISMS: ("wedge", 6),
     _KW_HEXAHEDRA: ("hexahedron", 8),
 }
-_ELEM_TO_KW: dict[str, int] = {
-    "triangle": _KW_TRIANGLES,
-    "quad": _KW_QUADRILATERALS,
-    "tetra": _KW_TETRAHEDRA,
-    "hexahedron": _KW_HEXAHEDRA,
-}
+_ELEM_TO_KW: dict[str, int] = {name: kw for kw, (name, _) in _KW_TO_ELEM.items()}
+
+# Tag group per distinct reference, the same shape the Medit ASCII codec uses.
+_REF_TAG_PREFIX: str = "ref_"
 
 # Fixed record sizes (bytes) for keywords that are scanned but not decoded.
 # Lets the scanner skip over INRIA extras (corners, ridges, normals-at-vertices,
 # required-* lists) without failing. Anything absent here → UserWarning + stop.
 _SKIP_REC: dict[int, int] = {
-    _KW_EDGES: 2 * 4 + 4,
-    _KW_PRISMS: 6 * 4 + 4,
+    **{kw: n * 4 + 4 for kw, (_, n) in _HIGHER_ORDER.items()},
     13: 1 * 4,  # GmfCorners: 1 vertex index, no ref
     14: 1 * 4,  # GmfRidges: 1 edge index, no ref
     15: 1 * 4,  # GmfRequiredVertices
@@ -162,13 +191,13 @@ def write(*, poly: PolyData, path: Source) -> None:
         vert_dt = np.dtype([("xyz", "<f8", (dim,)), ("ref", "<i4")])
         buf = np.zeros(n_verts, dtype=vert_dt)
         buf["xyz"] = poly.vertices
-        vref = poly.vertex_attrs.get("ref")
+        vref = _vertex_refs(poly, n_verts)
         if vref is not None:
             buf["ref"] = vref
         fh.write(buf.tobytes())
 
         # Element sections - vectorised gather per type
-        refs_attr = poly.element_attrs.get("ref")
+        refs_attr = _element_refs(poly, n_elems)
         for kw, idx in groups.items():
             _, n_nodes = _KW_TO_ELEM[kw]
             _write_i32(fh, kw)
@@ -180,7 +209,7 @@ def write(*, poly: PolyData, path: Source) -> None:
                 np.int32
             )
             if refs_attr is not None:
-                refs_col = refs_attr[idx].reshape(-1, 1).astype(np.int32)
+                refs_col = refs_attr[idx].reshape(-1, 1)
             else:
                 refs_col = np.zeros((len(idx), 1), dtype=np.int32)
             fh.write(np.concatenate([nodes, refs_col], axis=1).tobytes())
@@ -191,6 +220,145 @@ def write(*, poly: PolyData, path: Source) -> None:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+# A Medit record spells its reference in one signed 32-bit field, so a label
+# outside this cannot be written down at all.
+_REF_MIN: int = -(2**31)
+_REF_MAX: int = 2**31 - 1
+
+
+def _fits_a_reference(values: np.ndarray, what: str) -> np.ndarray | None:
+    """Return the column as int32, or None when a value has no field to fit in.
+
+    Parameters
+    ----------
+    values
+        One integer label per entity.
+    what
+        ``vertex`` or ``element``, named in the warning.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        The column at the width a record carries, or None when a value is
+        wider than that - narrowing one wraps it onto another label, which is
+        the silent relabelling this codec refuses everywhere else.
+    """
+    if values.dtype.itemsize > 4:
+        low, high = int(values.min()), int(values.max())
+        if low < _REF_MIN or high > _REF_MAX:
+            warnings.warn(
+                f".meshb: {'a' if what == 'vertex' else 'an'} {what} reference"
+                f" of {low if low < _REF_MIN else high}"
+                " is wider than the 32-bit field a Medit record carries; the"
+                f" {what} references were not written.",
+                stacklevel=4,
+            )
+            return None
+    return values.astype(np.int32, copy=False)
+
+
+def _vertex_refs(poly: PolyData, n_verts: int) -> np.ndarray | None:
+    """Return one reference per vertex, or None when there is none to write.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    n_verts
+        How many vertices it holds.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        One int32 per vertex, or None when the mesh names none and the column
+        stays zero.
+
+    Notes
+    -----
+    A float column is refused rather than truncated, the way the element
+    references are: a reference is a number the file names exactly, and
+    rounding one relabels the vertices it stands for.
+    """
+    stored = (poly.vertex_attrs or {}).get("ref")
+    if stored is None:
+        return None
+    values = integer_column(stored, n_verts)
+    if values is None:
+        warnings.warn(
+            ".meshb: vertex_attrs['ref'] is not one integer per vertex; the"
+            " vertex references were written as 0.",
+            stacklevel=3,
+        )
+        return None
+    return _fits_a_reference(values, "vertex")
+
+
+def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
+    """Return one reference per element, from the attribute or the tag groups.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    n_elems
+        How many elements it holds.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        One int32 per element, or None when nothing names a reference.
+
+    Notes
+    -----
+    A Medit record carries a number, not a name, so a tag group called
+    anything but ``ref_<n>`` has nowhere to go. Numbering them here would
+    write labels the caller never chose, so they are reported instead.
+    """
+    stored = (poly.element_attrs or {}).get("ref")
+    if stored is not None:
+        values = integer_column(stored, n_elems)
+        if values is not None:
+            return _fits_a_reference(values, "element")
+        warnings.warn(
+            ".meshb: element_attrs['ref'] is not one integer per element; the"
+            " references were taken from element_tags instead.",
+            stacklevel=3,
+        )
+
+    held = values_from_tags(poly.element_tags, _REF_TAG_PREFIX, n_elems, dtype=np.int32)
+    if held.unnamed:
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(held.unnamed)} are not named"
+            " 'ref_<n>' and a Medit reference is a number; they were not"
+            " written.",
+            stacklevel=3,
+        )
+    if held.unusable:
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(held.unusable)} do not hold"
+            " element indices, so the reference they name reaches nothing;"
+            " they were not written.",
+            stacklevel=3,
+        )
+    if held.oversized:
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(held.oversized)} name a reference"
+            " wider than the 32-bit field a Medit record carries; they were"
+            " not written.",
+            stacklevel=3,
+        )
+    if held.contested:
+        # A record carries one reference, so an element named by two groups
+        # keeps whichever came last - an order the caller never chose.
+        warnings.warn(
+            f".meshb: element tag group(s) {sorted(held.contested)} name elements"
+            " another group already labelled; a Medit record carries one"
+            " reference, so the later group's is the one written.",
+            stacklevel=3,
+        )
+    return held.values if held.named else None
 
 
 def _write_i32(fh, v: int) -> None:
@@ -232,6 +400,37 @@ def _parse_header(mm: mmap.mmap | bytes) -> tuple[int, int, str]:
     return version, dim, endian
 
 
+def _fits(count: int, rec: int, data_start: int, total: int, what: str) -> None:
+    """Refuse a section that declares more records than the file carries.
+
+    Parameters
+    ----------
+    count
+        How many records the section declares.
+    rec
+        How many bytes one of them spends.
+    data_start
+        Where the section's records begin.
+    total
+        How long the file is.
+    what
+        The section's name, for the error.
+
+    Raises
+    ------
+    CodecError
+        When the records run past the end of the file. Left to the decoder,
+        the same file raises a ValueError out of ``np.frombuffer`` that names
+        neither the section nor the format, and a count wide enough would ask
+        for the allocation before saying so.
+    """
+    if data_start + count * rec > total:
+        raise CodecError(
+            f".meshb: the {what} section declares {count} record(s) of"
+            f" {rec} bytes, which runs past the end of the file."
+        )
+
+
 def _scan_sections(
     mm: mmap.mmap | bytes, version: int, dim: int, endian: str
 ) -> dict[int, tuple[int, int]]:
@@ -265,11 +464,13 @@ def _scan_sections(
 
         if kw == _KW_VERTICES:
             rec = vert_rec
+            _fits(count, rec, data_start, total, "Vertices")
             sections[kw] = (count, data_start)
         elif kw == _KW_NORMALS:
             rec = dim * float_size  # dim-dependent, no ref
         elif kw in decode_rec:
             rec = decode_rec[kw]
+            _fits(count, rec, data_start, total, _KW_TO_ELEM[kw][0])
             sections[kw] = (count, data_start)
         elif kw in _SKIP_REC:
             rec = _SKIP_REC[kw]
@@ -327,10 +528,15 @@ def _decode(mm: mmap.mmap | bytes) -> PolyData:
         elem_sizes_parts.append(np.repeat(n_nodes, n_elems))
 
     elem_attrs: dict[str, np.ndarray] = {}
+    elem_tags: dict[str, np.ndarray] = {}
     if refs_arr_parts:
         refs_flat = np.concatenate(refs_arr_parts)
         if refs_flat.any():
             elem_attrs["ref"] = refs_flat
+            # A reference is what a Medit file uses for a surface or region
+            # label, and a label that stays a column of integers does not
+            # survive a conversion as a named group.
+            elem_tags = group_by_value(refs_flat, _REF_TAG_PREFIX)
 
     sizes_arr = (
         np.concatenate(elem_sizes_parts).astype(np.int32)
@@ -350,4 +556,5 @@ def _decode(mm: mmap.mmap | bytes) -> PolyData:
         else np.empty(0, np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=elem_attrs,
+        element_tags=elem_tags,
     )

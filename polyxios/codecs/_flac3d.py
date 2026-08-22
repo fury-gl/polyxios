@@ -1,5 +1,7 @@
 """FLAC3D .f3grid ASCII codec - read + write."""
 
+from array import array
+import io
 from typing import Any
 import warnings
 
@@ -267,8 +269,43 @@ def _signed_volume(
     return total
 
 
+# Ids are held and matched as int64, which is as wide as the arrays that
+# collect them and the numpy sort that resolves them against each other.
+_MAX_ID: int = 2**63 - 1
+
+
+def _record_id(field: str) -> int:
+    """Return an id a record names, refusing one no machine integer holds.
+
+    Parameters
+    ----------
+    field
+        The id as the record spells it.
+
+    Returns
+    -------
+    int
+        The id.
+
+    Raises
+    ------
+    ValueError
+        On a field that is not an integer, which the caller reports as a
+        non-numeric record.
+    CodecError
+        On an integer past the width every id here is held at. Python counts
+        as high as memory allows and the arrays and the numpy sort behind
+        them do not, so an id that overflows would otherwise surface as an
+        OverflowError from whichever of them reached it first.
+    """
+    value = int(field)
+    if not -_MAX_ID - 1 <= value <= _MAX_ID:
+        raise CodecError(f".f3grid: the id {field} does not fit in a 64-bit integer.")
+    return value
+
+
 def _resolve_gridpoints(
-    conn_raw: list[int],
+    conn_raw: "array[int]",
     node_map: dict[int, int],
 ) -> np.ndarray:
     """Map file gridpoint ids to zero-based vertex indices.
@@ -293,10 +330,10 @@ def _resolve_gridpoints(
     CodecError
         If a gridpoint id is never declared.
     """
-    if not conn_raw:
+    if not len(conn_raw):
         return np.empty(0, dtype=np.int32)
 
-    raw = np.array(conn_raw, dtype=np.int64)
+    raw = np.frombuffer(conn_raw, dtype=np.int64)
     keys = np.fromiter(node_map.keys(), dtype=np.int64, count=len(node_map))
     vals = np.fromiter(node_map.values(), dtype=np.int64, count=len(node_map))
     order = np.argsort(keys, kind="stable")
@@ -354,21 +391,28 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             stacklevel=2,
         )
 
-    lines = [
+    # Iterated rather than collected: a large grid runs to millions of lines,
+    # and the list of them costs more than the file itself - str.splitlines()
+    # would build every one of them up front and hold them all at once.
+    # StringIO hands them over one at a time instead, so only the text and the
+    # line in hand are held. errors="replace": the format is ASCII-spec, but
+    # real files carry extended characters in comments and group names.
+    lines = (
         stripped
-        # errors="replace": the format is ASCII-spec, but real files carry
-        # extended characters in comments and group names.
-        for ln in read_text(
-            path, encoding=_READ_ENCODING, errors="replace"
-        ).splitlines()
+        for ln in io.StringIO(
+            read_text(path, encoding=_READ_ENCODING, errors="replace")
+        )
         if (stripped := _strip_comment(ln).strip())
-    ]
+    )
 
     node_map: dict[int, int] = {}
-    coords: list[float] = []
-    conn_raw: list[int] = []
-    offsets_list: list[int] = [0]
-    types_list: list[int] = []
+    # array rather than list: each holds one machine number per entry instead
+    # of a pointer to a boxed one, which is four times less for a coordinate
+    # and the difference between a large grid fitting and not.
+    coords: array[float] = array("d")
+    conn_raw: array[int] = array("q")
+    offsets_list: array[int] = array("q", [0])
+    types_list: array[int] = array("B")
     # Zones and faces are numbered in separate id spaces in FLAC3D, so groups
     # of each kind resolve against their own index.
     record_index: dict[str, dict[int, int]] = {"ZONE": {}, "FACE": {}}
@@ -397,7 +441,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 first_bad_gp = first_bad_gp or ln
                 continue
             try:
-                gp_id = int(parts[1])
+                gp_id = _record_id(parts[1])
                 xyz = [float(parts[2]), float(parts[3]), float(parts[4])]
             except ValueError as exc:
                 raise CodecError(
@@ -409,7 +453,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 coords.extend(xyz)
             else:
                 # Redeclared id: last definition wins, no orphan vertex.
-                coords[3 * slot : 3 * slot + 3] = xyz
+                coords[3 * slot : 3 * slot + 3] = array("d", xyz)
                 n_dup_gp += 1
 
         elif kw in _ZONE_KW or kw in _FACE_KW:
@@ -434,8 +478,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 first_bad[kind] = first_bad[kind] or ln
                 continue
             try:
-                rec_id = int(parts[2])
-                ids = [int(parts[3 + j]) for j in range(n_ids)]
+                rec_id = _record_id(parts[2])
+                ids = [_record_id(parts[3 + j]) for j in range(n_ids)]
             except ValueError as exc:
                 raise CodecError(
                     f".f3grid: non-numeric {kind} record: {ln!r}."
@@ -516,7 +560,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             stacklevel=2,
         )
 
-    if not coords:
+    if not len(coords):
         raise CodecError(".f3grid: no GRIDPOINT entries found.")
 
     if not types_list:
@@ -554,7 +598,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     }
 
     n_verts = len(coords) // 3
-    vertices = np.array(coords, dtype=np.float64).reshape(n_verts, 3)
+    # A view rather than a copy: copying would double the peak for the largest
+    # array a grid holds and hand back the same numbers. The view keeps the
+    # array alive as its base and pins it against resizing for as long as the
+    # mesh lives, which costs nothing here - nothing appends to it again.
+    vertices = np.frombuffer(coords, dtype=np.float64).reshape(n_verts, 3)
 
     return PolyData(
         vertices=vertices,

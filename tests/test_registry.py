@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -296,12 +298,44 @@ def test_a_codec_without_a_sniffer_cannot_contest(monkeypatch) -> None:
 
 
 def test_an_owned_extension_is_never_contested(monkeypatch) -> None:
-    """A codec owning '.dat' outright keeps it, whatever else competes."""
+    """A codec owning '.dat' outright keeps it, whatever else competes.
+
+    The claim has to come from a codec that does not also list '.dat' among
+    its sniffed extensions: listing an extension in both places is how a
+    codec says it shares its own extension, which is the opposite claim.
+    """
+    import polyxios.codecs._off as off
+
+    monkeypatch.setattr(off, "EXTENSIONS", (".off", ".dat"), raising=False)
+    registry = build_default_registry()
+    assert registry[".dat"] is registry[".off"]
+    assert registry[".dat"].candidates == ()
+
+
+def test_a_sniffed_extension_a_codec_does_not_own_keeps_no_writes(
+    monkeypatch,
+) -> None:
+    """Competing to read '.dat' is no claim on writing it."""
     import polyxios.codecs._nastran as nastran
 
-    monkeypatch.setattr(nastran, "EXTENSIONS", (".bdf", ".dat"), raising=True)
+    monkeypatch.setattr(nastran, "SNIFF_DEFAULT_WRITER", True, raising=False)
     registry = build_default_registry()
-    assert registry[".dat"] is registry[".bdf"]
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        registry[".dat"].write(_tri_mesh(), "out.dat")
+
+
+def test_two_owners_cannot_both_keep_the_writes_of_a_shared_extension(
+    monkeypatch, tmp_path
+) -> None:
+    """Which one won would otherwise come down to the module walk order."""
+    import polyxios.codecs._medit as medit
+
+    monkeypatch.setattr(medit, "SNIFF_DEFAULT_WRITER", True, raising=False)
+    with pytest.warns(UserWarning, match="default writer"):
+        registry = build_default_registry()
+    # Neither keeps it: a bare write raises and names the way out.
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        registry[".mesh"].write(_tri_mesh(), tmp_path / "shared.mesh")
 
 
 def test_an_entry_point_outranks_the_dispatcher_it_collides_with(monkeypatch) -> None:
@@ -415,3 +449,52 @@ def test_a_capitalised_extension_registers_in_lower_case(monkeypatch) -> None:
     registry = build_default_registry()
     assert ".BDF" not in registry
     assert registry[".bdf"] is registry[".nas"]
+
+
+def test_the_owner_of_a_shared_extension_reads_what_no_sniffer_claims(
+    tmp_path,
+) -> None:
+    """Sharing an extension must not narrow what its owner reads.
+
+    '.mesh' is MFEM's and Medit ASCII uses it too, so it dispatches by
+    content. A file neither sniffer recognises still belongs under MFEM's
+    key, which held it before the extension was shared - and MFEM's own
+    reader says what is wrong with the file, where the dispatcher can only
+    report that nobody spoke up.
+    """
+    path = tmp_path / "junk.mesh"
+    path.write_text("hello world\n")
+    with pytest.raises(CodecError, match="MFEM mesh"):
+        polyxios.read(path)
+
+
+def test_an_unowned_shared_extension_still_stops_at_the_dispatcher(
+    tmp_path,
+) -> None:
+    """'.dat' belongs to nobody, so there is no reader to fall back to."""
+    path = tmp_path / "junk.dat"
+    path.write_text("hello world\n")
+    with pytest.raises(UnsupportedFormatError, match="fmt="):
+        polyxios.read(path)
+
+
+def test_an_owner_that_never_shared_a_shared_extension_is_named(monkeypatch) -> None:
+    """Sharing is a thing every owner has to say for itself.
+
+    One that stays silent while another shares loses the key by module order
+    alone, and reporting the extension as settled because somebody shared it
+    is what leaves that silent.
+    """
+    import polyxios.codecs._nastran as nastran
+
+    monkeypatch.setattr(nastran, "EXTENSIONS", (".bdf", ".nas", ".mesh"), raising=True)
+    with pytest.warns(UserWarning, match="never listed it in SNIFF_EXTENSIONS"):
+        build_default_registry()
+
+
+def test_an_extension_every_owner_shares_says_nothing(monkeypatch) -> None:
+    """'.mesh' is MFEM's and Medit's, and both of them declare it shared."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        registry = build_default_registry()
+    assert ".mesh" in registry

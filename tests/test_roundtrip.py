@@ -286,13 +286,32 @@ CAPABILITIES: dict[str, Cap] = {
     ),
     ".inp": Cap(
         "mixed",
-        note="The Abaqus writer emits geometry only; see P1.9/P1.10.",
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        note="Abaqus node and element sets carry the tags; attributes have no"
+        " card in a mesh deck.",
     ),
-    ".mesh": Cap("mixed", note="Medit stores geometry and per-element refs only."),
-    ".meshb": Cap("mixed", note="Binary Medit, same payload as .mesh."),
+    ".medit": Cap(
+        "mixed",
+        warns=(r"element tag group\(s\) \['a', 'b'\] are not named 'ref_<n>'",),
+        global_attrs=("medit_dimension",),
+        note="A Medit record carries a reference number, not a name, so only"
+        " groups already called 'ref_<n>' survive; the writer warns rather"
+        " than numbering the rest itself. The file's own Dimension comes back"
+        " in global_attrs, which is what carries a 2-D file out as one.",
+    ),
+    ".mesh": Cap("mixed", note="MFEM stores geometry only."),
+    ".meshb": Cap(
+        "mixed",
+        warns=(r"element tag group\(s\) \['a', 'b'\] are not named 'ref_<n>'",),
+        note="A Medit record carries a reference number, not a name, so only"
+        " groups already called 'ref_<n>' survive; the writer warns rather"
+        " than numbering the rest itself.",
+    ),
     ".msh": Cap(
         "mixed",
-        element_attrs=("phys_tag",),
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint", "phys_tag"),
         element_tags=("a",),
         warns=(r"element tag group\(s\) \['b'\] were not written",),
         note="A Gmsh element carries one physical tag, so overlaps cannot both"
@@ -355,9 +374,13 @@ CAPABILITIES: dict[str, Cap] = {
     ".tec": Cap(
         "volume",
         vertex_attrs=("scalar",),
+        element_attrs=("efloat", "eint"),
+        global_attrs=("tecplot_title", "tecplot_zone_title"),
         warns=(r"only named 1-D numeric vertex_attrs can be written",),
-        note="A Tecplot FE zone is single-type and node-centred: vectors and"
-        " element attributes have no column.",
+        note="A Tecplot FE zone is single-type: vectors have no column, while"
+        " element attributes travel as VARLOCATION cell-centred variables. Every"
+        " zone carries a title, so the caller's global_attrs are replaced by the"
+        " file and zone names.",
     ),
     ".ugrid": Cap(
         "mixed",

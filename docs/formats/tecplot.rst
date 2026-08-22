@@ -68,6 +68,7 @@ Quirks worth knowing
   or ``DATASETAUXDATA`` lands here. An unquoted ``TITLE =`` decides nothing - Nastran case
   control spells its title the same way - so the line under it settles the question. ``px.read("flow.dat", fmt=".tec")`` still forces the issue,
   and writing to ``.dat`` needs ``fmt=".tec"`` because an output file has no content to inspect.
+- A variable that is not finite throughout is not written. The format spells no missing value, so a NaN - which is what a field covering part of a mesh carries over the rest of it - would go out as the token ``nan``, and a zone holding one is a zone no reader loads.
 - Binary Tecplot (``.plt``) is registered so it fails with a clear message rather than not
   resolving at all; only the ASCII flavour is parsed.
 

@@ -740,3 +740,75 @@ def test_the_registry_serves_su2(tmp_path: Path) -> None:
     path = tmp_path / "t.su2"
     api_write(poly, path)
     np.testing.assert_array_equal(api_read(path).connectivity, poly.connectivity)
+
+
+# --- meshio #1429, #1419 -----------------------------------------------------
+
+
+def _tagged_volume() -> PolyData:
+    """A tetrahedron with one of its faces named as a boundary marker."""
+    verts = np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    return PolyData(
+        vertices=verts,
+        connectivity=np.array([0, 1, 2, 3, 0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 4, 7], dtype=np.int32),
+        element_types=np.array(
+            [ELEMENT_TYPES["tetra"], ELEMENT_TYPES["triangle"]], dtype=np.uint8
+        ),
+        element_tags={"wall": np.array([1], dtype=np.int32)},
+    )
+
+
+def test_issue_1429_boundary_markers_survive_a_write(tmp_path: Path) -> None:
+    """A marker lost on write is a boundary condition the solver never sees."""
+    poly = _tagged_volume()
+    out = tmp_path / "markers.su2"
+    write(poly, out)
+    text = out.read_text()
+    assert "NMARK= 1" in text
+    assert "MARKER_TAG= wall" in text
+
+    back = read(out)
+    np.testing.assert_array_equal(back.element_tags["wall"], [1])
+
+
+def test_issue_1429_several_markers_are_all_written(tmp_path: Path) -> None:
+    verts = np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    poly = PolyData(
+        vertices=verts,
+        connectivity=np.array([0, 1, 2, 3, 0, 1, 2, 0, 1, 3], dtype=np.int32),
+        offsets=np.array([0, 4, 7, 10], dtype=np.int32),
+        element_types=np.array(
+            [
+                ELEMENT_TYPES["tetra"],
+                ELEMENT_TYPES["triangle"],
+                ELEMENT_TYPES["triangle"],
+            ],
+            dtype=np.uint8,
+        ),
+        element_tags={
+            "wall": np.array([1], dtype=np.int32),
+            "inlet": np.array([2], dtype=np.int32),
+        },
+    )
+    out = tmp_path / "two.su2"
+    write(poly, out)
+    back = read(out)
+    np.testing.assert_array_equal(back.element_tags["wall"], [1])
+    np.testing.assert_array_equal(back.element_tags["inlet"], [2])
+
+
+def test_issue_1419_a_medit_mesh_converts_to_su2(tmp_path: Path) -> None:
+    """The conversion meshio reports failing, end to end through the API."""
+    src = tmp_path / "src.medit"
+    # A Medit record carries a reference number, not a name, so the tag does
+    # not make the trip; the geometry is what this conversion is about.
+    with pytest.warns(UserWarning, match="not named 'ref_<n>'"):
+        api_write(_tagged_volume(), src)
+    poly = api_read(src)
+
+    out = tmp_path / "converted.su2"
+    api_write(poly, out)
+    back = api_read(out)
+    np.testing.assert_allclose(back.vertices, _tagged_volume().vertices)
+    assert len(back.element_types) == 2

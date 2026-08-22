@@ -48,7 +48,11 @@ class Codec(NamedTuple):
 _SNIFF_BYTES: int = 8192
 
 
-def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
+def _make_dispatcher(
+    ext: str,
+    entries: list[tuple[str, Codec]],
+    default_writer: tuple[str, Codec] | None = None,
+) -> Codec:
     """Build the Codec that resolves one contested extension by content.
 
     Parameters
@@ -58,14 +62,28 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
     entries
         Candidate ``(label, codec)`` pairs, already in the order their
         ``sniff`` should be tried.
+    default_writer
+        The ``(label, codec)`` that owns this extension and shares it. Only
+        for an extension a format owns rather than one several formats merely
+        happen to use: ``.dat`` belongs to nobody and gets None, while
+        ``.mesh`` is MFEM's own and keeps it. None makes a bare write raise.
 
     Returns
     -------
     Codec
         A codec whose ``read`` delegates to the first candidate that
-        recognises the file, whose ``write`` always raises - an output file
-        has no content to sniff yet - and whose ``candidates`` names the
-        competitors.
+        recognises the file, whose ``write`` goes to ``default_writer`` or
+        raises when there is none - an output file has no content to sniff -
+        and whose ``candidates`` names the competitors.
+
+    Notes
+    -----
+    The owner of a shared extension keeps both directions: a write with no
+    format named goes to it, and so does a read no sniffer claimed. The
+    second is what stops sharing an extension from narrowing what its owner
+    reads - the owner answered every file under that key before it was
+    shared, and its own reader gives a better account of a file it cannot
+    read than the dispatcher can.
     """
     labels = tuple(label for label, _ in entries)
     named = ", ".join(labels)
@@ -131,6 +149,15 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
             if matched:
                 return codec.read(path=path, lazy=lazy)
 
+        # Nothing recognised the file. An extension a format owns and merely
+        # shares still belongs to that format, so the read goes to it rather
+        # than stopping here: it held the key before the extension was shared
+        # and its own error names the real problem, where a verdict from the
+        # dispatcher can only say that no sniffer spoke up. An extension no
+        # one owns has no such fallback and does stop here.
+        if default_writer is not None:
+            return default_writer[1].read(path=path, lazy=lazy)
+
         # A sniffer that raised never answered, so reporting that the content
         # matched nothing would state a verdict no one reached; say what
         # actually happened, and name the failures either way.
@@ -148,6 +175,8 @@ def _make_dispatcher(ext: str, entries: list[tuple[str, Codec]]) -> Codec:
         raise UnsupportedFormatError(" ".join(parts))
 
     def write(poly: object, path: Source, **opts: object) -> None:
+        if default_writer is not None:
+            return default_writer[1].write(poly=poly, path=path, **opts)
         raise UnsupportedFormatError(
             f"{shared}, so a writer cannot be chosen from the extension "
             f"alone. Pass fmt= to choose one explicitly."
@@ -180,7 +209,15 @@ def build_default_registry() -> dict[str, Codec]:
     codec recognising them. ``SNIFF_PRIORITY : int`` orders the attempts, the
     lowest first, ties broken by module name; a codec whose test is narrow
     should sort ahead of one whose test is broad. An extension a codec owns
-    outright through ``EXTENSION``/``EXTENSIONS`` is never contested.
+    outright through ``EXTENSION``/``EXTENSIONS`` is never contested - unless
+    that same codec also lists it under ``SNIFF_EXTENSIONS``, which is how a
+    format says it shares its own extension: ``.mesh`` is MFEM's, and Medit
+    ASCII uses it too. A shared extension still needs a writer, since an
+    output file has no content to sniff, so the owner declares
+    ``SNIFF_DEFAULT_WRITER = True`` and keeps writing it; without one, a bare
+    write raises and asks for ``fmt=``. Only an owner may claim the writes,
+    and only one may: two claims are warned about and both dropped, since
+    which of them won would otherwise come down to module walk order.
 
     Also loads third-party codecs declared under the ``polyxios.codecs``
     entry-point group; those stay one extension per entry point, and they are
@@ -212,6 +249,20 @@ def build_default_registry() -> dict[str, Codec]:
     # Contested extension -> the codecs competing for it, each carrying the
     # sort key that decides which sniffer runs first.
     contested: dict[str, list[tuple[int, str, Codec]]] = {}
+    # Extensions a codec owns and shares, and the writer that keeps them.
+    shared_owned: set[str] = set()
+    # Which codecs declared each of them shared, so an owner that did not can
+    # still be reported: sharing is a thing every owner has to say for itself.
+    shared_by: dict[str, set[str]] = {}
+    default_writers: dict[str, tuple[str, Codec]] = {}
+    # Extensions two owners both claimed the writes of, which is a claim no
+    # one gets: whichever won would come down to the module walk order.
+    disputed: set[str] = set()
+    # Every codec that claimed an extension outright, so two claiming the same
+    # one can be reported: the registry keeps whichever was walked last, which
+    # is a winner nobody chose. Sharing the extension is the way to hold one
+    # jointly, and a shared one is not reported.
+    owners: dict[str, list[str]] = {}
 
     for mod_info in pkgutil.iter_modules(_search_path):
         if mod_info.name.startswith("_") and not mod_info.name.startswith("__"):
@@ -247,6 +298,7 @@ def build_default_registry() -> dict[str, Codec]:
             # it registers a key nothing can reach.
             for alias in dict.fromkeys(e.lower() for e in (ext, *exts)):
                 registry[alias] = codec
+                owners.setdefault(alias, []).append(mod_info.name.lstrip("_"))
 
             # Same shape guard as EXTENSIONS: a bare string is iterable, and
             # a codec declaring one without a sniffer has nothing to compete
@@ -263,18 +315,66 @@ def build_default_registry() -> dict[str, Codec]:
             if not isinstance(priority, int) or isinstance(priority, bool):
                 priority = 0
 
+            owned = {e.lower() for e in (ext, *exts)}
+            wants_writes = getattr(mod, "SNIFF_DEFAULT_WRITER", False) is True
             for alias in dict.fromkeys(e.lower() for e in sniff_exts):
                 contested.setdefault(alias, []).append((priority, mod_info.name, codec))
+                if alias not in owned:
+                    continue
+                shared_owned.add(alias)
+                shared_by.setdefault(alias, set()).add(mod_info.name.lstrip("_"))
+                # Only the owner of an extension may keep its writes: a codec
+                # that merely competes to read one has no claim on a write it
+                # never owned, and two owners cannot both keep it - which one
+                # won would come down to the order the modules were walked.
+                if not wants_writes:
+                    continue
+                held = default_writers.pop(alias, None)
+                if held is not None or alias in disputed:
+                    disputed.add(alias)
+                    other = held[0] if held is not None else "another codec"
+                    warnings.warn(
+                        f"'{alias}' is claimed as the default writer by both"
+                        f" '{other}' and '{mod_info.name.lstrip('_')}';"
+                        " neither keeps it, so a bare write there raises and"
+                        " asks for fmt=.",
+                        stacklevel=2,
+                    )
+                    continue
+                default_writers[alias] = (mod_info.name.lstrip("_"), codec)
 
     for alias, competing in contested.items():
         # An extension one codec owns outright is not contested, whatever
         # another codec believes it competes for: the owner keeps the key.
-        if alias in registry:
+        # A codec listing its own extension among the contested ones is
+        # saying the opposite - that it shares it - so that one dispatches.
+        if alias in registry and alias not in shared_owned:
             continue
         competing.sort(key=lambda entry: (entry[0], entry[1]))
         registry[alias] = _make_dispatcher(
-            alias, [(name.lstrip("_"), codec) for _, name, codec in competing]
+            alias,
+            [(name.lstrip("_"), codec) for _, name, codec in competing],
+            default_writers.get(alias),
         )
+
+    for alias, claimants in owners.items():
+        # Two codecs owning one extension outright leaves the key to whichever
+        # module was walked last, which is alphabetical order standing in for
+        # a decision. Sharing it is how two formats hold one extension between
+        # them, and every owner has to say so for itself: one that stays
+        # silent while another shares is the one that loses the key without a
+        # word, so it is named here even though the extension is shared.
+        if len(claimants) < 2:
+            continue
+        silent = sorted(set(claimants) - shared_by.get(alias, set()))
+        if silent:
+            warnings.warn(
+                f"'{alias}' is claimed outright by {sorted(claimants)}, and"
+                f" {silent} never listed it in SNIFF_EXTENSIONS; the key goes"
+                " by module order alone. List the extension in"
+                " SNIFF_EXTENSIONS on each of them to share it.",
+                stacklevel=2,
+            )
 
     try:
         from importlib.metadata import entry_points

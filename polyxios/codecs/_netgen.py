@@ -196,6 +196,9 @@ _SKIP_SECTIONS: frozenset[str] = frozenset(
     {
         "identifications",
         "face_colours",
+        # Netgen writes one per surface, and a second-order mesh always has
+        # them; a file carrying one is not an unknown file.
+        "facedescriptors",
         "singular_points",
         "singular_edge_left",
         "singular_edge_right",

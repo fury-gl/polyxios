@@ -112,9 +112,15 @@ def test_write_rejects_non_finite_coordinates(tmp_path) -> None:
 
 
 def test_write_rejects_unmapped_element_type(tmp_path) -> None:
-    verts = np.array([[0, 0, 0], [1, 0, 0]], dtype=np.float64)
-    poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
-    with pytest.raises(CodecError):
+    # A polyhedron has no Nastran card at all, so it cannot be written.
+    verts = np.zeros((8, 3), dtype=np.float64)
+    poly = PolyData(
+        vertices=verts,
+        connectivity=np.arange(8, dtype=np.int32),
+        offsets=np.array([0, 8], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["polyhedron"]], dtype=np.uint8),
+    )
+    with pytest.raises(CodecError, match="no write mapping"):
         write(poly, tmp_path / "test.bdf")
 
 
@@ -415,15 +421,15 @@ def test_local_coordinate_system_warns(tmp_path) -> None:
         read(tmp)
 
 
-def test_higher_order_card_keeps_corner_nodes(tmp_path) -> None:
+def test_higher_order_card_keeps_its_midside_nodes(tmp_path) -> None:
     grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(10))
     tmp = _write(
         tmp_path,
         "BEGIN BULK\n" + grids + "CTETRA,1,1,1,2,3,4,5,6,+\n+,7,8,9,10\nENDDATA\n",
     )
     poly = read(tmp)
-    assert poly.element_types.tolist() == [ELEMENT_TYPES["tetra"]]
-    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 3])
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["quadratic_tetra"]]
+    np.testing.assert_array_equal(poly.connectivity, np.arange(10))
 
 
 def test_explicit_plus_sign_real_is_not_a_marker(tmp_path) -> None:
@@ -643,9 +649,9 @@ def test_unknown_field_format_raises(tmp_path) -> None:
 @pytest.mark.parametrize(
     ("card", "expected"),
     [
-        ("CTRIA6,1,1,1,2,3,4,5,6", "triangle"),
+        ("CTRIA6,1,1,1,2,3,4,5,6", "quadratic_triangle"),
         ("CTRIAR,1,1,1,2,3", "triangle"),
-        ("CQUAD8,1,1,1,2,3,4,5,6,+\n+,7,8", "quad"),
+        ("CQUAD8,1,1,1,2,3,4,5,6,+\n+,7,8", "quadratic_quad"),
         ("CQUADR,1,1,1,2,3,4", "quad"),
         ("CPYRA,1,1,1,2,3,4,5", "pyramid"),
     ],
@@ -655,7 +661,13 @@ def test_higher_order_and_revised_cards(tmp_path, card, expected) -> None:
     tmp = _write(tmp_path, "BEGIN BULK\n" + grids + card + "\nENDDATA\n")
     poly = read(tmp)
     assert poly.element_types.tolist() == [ELEMENT_TYPES[expected]]
-    n_nodes = {"triangle": 3, "quad": 4, "pyramid": 5}[expected]
+    n_nodes = {
+        "triangle": 3,
+        "quad": 4,
+        "pyramid": 5,
+        "quadratic_triangle": 6,
+        "quadratic_quad": 8,
+    }[expected]
     np.testing.assert_array_equal(poly.connectivity, np.arange(n_nodes))
 
 
@@ -665,12 +677,12 @@ def test_unsupported_element_cards_warn(tmp_path) -> None:
         "BEGIN BULK\n"
         "GRID,1,,0.,0.,0.\n"
         "GRID,2,,1.,0.,0.\n"
-        "CBAR,1,1,1,2,0.,0.,1.\n"
-        "CROD,2,1,1,2\n"
-        "CROD,3,1,2,1\n"
+        "CFOO1,1,1,1,2,0.,0.,1.\n"
+        "CBAZ2,2,1,1,2\n"
+        "CBAZ2,3,1,2,1\n"
         "ENDDATA\n",
     )
-    with pytest.warns(UserWarning, match=r"CBAR \(1\), CROD \(2\)"):
+    with pytest.warns(UserWarning, match=r"CBAZ2 \(2\), CFOO1 \(1\)"):
         poly = read(tmp)
     assert len(poly.element_types) == 0
 
@@ -1166,7 +1178,10 @@ def test_marker_past_column_seventy_two_leaves_field_nine_as_data(tmp_path) -> N
     """A card reaching the continuation field cannot hide a marker before it.
 
     Field 9 spans columns 64 to 72, so '+9' there is grid point 9, and the
-    '+11' past column 72 is the marker.
+    '+11' past column 72 is the marker. Nine grid point fields come out of
+    that, one more than a hexahedron holds, so the card also reports the
+    mid-side point it dropped - the marker is what this test is about, and
+    the ninth field is what the deck happens to carry past it.
     """
     grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(12))
     card = "CHEXA   1       1       1       2       3       4       5       +9      +11"
@@ -1174,7 +1189,9 @@ def test_marker_past_column_seventy_two_leaves_field_nine_as_data(tmp_path) -> N
         tmp_path,
         "BEGIN BULK\n" + grids + card + "\n+11     6       7       8\nENDDATA\n",
     )
-    np.testing.assert_array_equal(read(tmp).connectivity, [0, 1, 2, 3, 4, 8, 5, 6])
+    with pytest.warns(UserWarning, match="mid-side grid points"):
+        poly = read(tmp)
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 3, 4, 8, 5, 6])
 
 
 def test_begin_bulk_tolerates_extra_blanks(tmp_path) -> None:
@@ -1460,3 +1477,312 @@ def test_a_field_below_one_drops_its_leading_zero(value: float, expected: str) -
 def test_a_field_that_fits_keeps_its_leading_zero() -> None:
     """The zero goes only when the column it costs is needed."""
     assert _fmt_real(0.5, width=8) == "0.5"
+
+
+# --- meshio #1505: higher-order solid cards ----------------------------------
+
+
+def _grids(n: int) -> str:
+    """Return n GRID cards, each at a distinct point on the x axis."""
+    return "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(n))
+
+
+def _deck(cards: str, n_grids: int) -> str:
+    return "BEGIN BULK\n" + _grids(n_grids) + cards + "ENDDATA\n"
+
+
+def _card(name: str, *fields: str) -> str:
+    """Return a free-field card, continued once every eight payload fields."""
+    lines: list[str] = []
+    head, rest = list(fields[:8]), list(fields[8:])
+    lines.append(",".join([name, *head]))
+    while rest:
+        chunk, rest = rest[:8], rest[8:]
+        lines[-1] += ",+"
+        lines.append(",".join(["+", *chunk]))
+    return "\n".join(lines) + "\n"
+
+
+def _elem_card(name: str, n_nodes: int) -> str:
+    return _card(name, "1", "1", *(str(i + 1) for i in range(n_nodes)))
+
+
+@pytest.mark.parametrize(
+    ("card", "n_nodes", "kind"),
+    [
+        ("CTETRA", 4, "tetra"),
+        ("CTETRA", 10, "quadratic_tetra"),
+        ("CPENTA", 6, "wedge"),
+        ("CPENTA", 15, "quadratic_wedge"),
+        ("CHEXA", 8, "hexahedron"),
+        ("CHEXA", 20, "quadratic_hexahedron"),
+        ("CPYRAM", 5, "pyramid"),
+        ("CPYRAM", 13, "quadratic_pyramid"),
+        ("CTRIA6", 6, "quadratic_triangle"),
+        ("CQUAD8", 8, "quadratic_quad"),
+        ("CQUAD", 9, "biquadratic_quad"),
+    ],
+)
+def test_issue_1505_a_card_holds_the_element_its_grid_count_names(
+    tmp_path, card: str, n_nodes: int, kind: str
+) -> None:
+    """A card name does not say its order; the grid points it carries do."""
+    deck = _deck(_elem_card(card, n_nodes), n_nodes)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES[kind]]
+    assert len(poly.connectivity) == n_nodes
+
+
+def test_issue_1505_cpenta15_midside_nodes_are_permuted_to_vtk(tmp_path) -> None:
+    """Nastran runs the prism's vertical edges last, VTK runs the top ring last."""
+    deck = _deck(_elem_card("CPENTA", 15), 15)
+    poly = read(_write(tmp_path, deck))
+    cell = poly.connectivity[:15].tolist()
+    # Nastran G7..G9 are the bottom ring, G10..G12 the verticals, G13..G15 the
+    # top ring; VTK wants bottom ring, top ring, then the verticals.
+    assert cell == [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 9, 10, 11]
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "quadratic_tetra",
+        "quadratic_wedge",
+        "quadratic_hexahedron",
+        "quadratic_pyramid",
+        "quadratic_triangle",
+        "quadratic_quad",
+        "biquadratic_quad",
+    ],
+)
+def test_issue_1505_higher_order_types_survive_a_round_trip(tmp_path, kind) -> None:
+    """A type read and not written back is lost at the first export."""
+    n_nodes = {
+        "quadratic_tetra": 10,
+        "quadratic_wedge": 15,
+        "quadratic_hexahedron": 20,
+        "quadratic_pyramid": 13,
+        "quadratic_triangle": 6,
+        "quadratic_quad": 8,
+        "biquadratic_quad": 9,
+    }[kind]
+    verts = np.arange(3 * n_nodes, dtype=np.float64).reshape(n_nodes, 3)
+    poly = make_polydata(verts, [(kind, np.arange(n_nodes).reshape(1, n_nodes))])
+    out = tmp_path / "q.bdf"
+    write(poly, out)
+    back = read(out)
+    assert back.element_types.tolist() == [ELEMENT_TYPES[kind]]
+    np.testing.assert_array_equal(back.connectivity, np.arange(n_nodes))
+
+
+def test_a_solid_card_with_blank_midside_fields_falls_back_to_its_corners(
+    tmp_path,
+) -> None:
+    """Nastran lets a mid-side field be blank; that is a linear element."""
+    deck = _deck("CTETRA,1,1,1,2,3,4\n", 10)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["tetra"]]
+
+
+def test_a_solid_card_short_of_its_corners_is_refused(tmp_path) -> None:
+    deck = _deck("CTETRA,1,1,1,2,3\n", 4)
+    with pytest.raises(CodecError, match="grid point"):
+        read(_write(tmp_path, deck))
+
+
+@pytest.mark.parametrize(
+    ("card", "n_nodes", "kind"),
+    [
+        ("CBAR,1,1,1,2,0.,0.,1.", 2, "line"),
+        ("CBEAM,1,1,1,2,0.,0.,1.", 2, "line"),
+        ("CROD,1,1,1,2", 2, "line"),
+        ("CONROD,1,1,2,1,1.0", 2, "line"),
+        ("CTUBE,1,1,1,2", 2, "line"),
+        ("CBUSH,1,1,1,2", 2, "line"),
+        ("CGAP,1,1,1,2,0.,0.,1.", 2, "line"),
+        ("CSHEAR,1,1,1,2,3,4", 4, "quad"),
+        ("CTRAX3,1,1,1,2,3", 3, "triangle"),
+        ("CQUADX4,1,1,1,2,3,4", 4, "quad"),
+    ],
+)
+def test_the_card_table_covers_the_common_element_families(
+    tmp_path, card: str, n_nodes: int, kind: str
+) -> None:
+    """A deck of beams and rods read as an empty mesh is a read that failed."""
+    poly = read(_write(tmp_path, _deck(card + "\n", 4)))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES[kind]]
+    assert len(poly.connectivity) == n_nodes
+
+
+def test_conrod_reads_its_grids_from_the_property_free_fields(tmp_path) -> None:
+    """CONROD carries a material id where every other card carries a property."""
+    poly = read(_write(tmp_path, _deck("CONROD,1,2,3,7,1.0\n", 4)))
+    np.testing.assert_array_equal(poly.connectivity, [1, 2])
+
+
+def test_an_unknown_element_card_still_warns(tmp_path) -> None:
+    poly_deck = _deck("CQUUX9,1,1,1,2,3,4\n", 4)
+    with pytest.warns(UserWarning, match=r"CQUUX9 \(1\)"):
+        poly = read(_write(tmp_path, poly_deck))
+    assert len(poly.element_types) == 0
+
+
+# --- meshio #1396: shell offsets ---------------------------------------------
+
+
+def test_issue_1396_shell_zoffs_is_read_and_written(tmp_path) -> None:
+    """A shell's offset moves its mid-surface; dropping it moves the geometry."""
+    deck = _deck("CTRIA3,1,1,1,2,3,0.,0.5\nCQUAD4,2,1,1,2,3,4,0.,-0.25\n", 4)
+    poly = read(_write(tmp_path, deck))
+    np.testing.assert_allclose(poly.element_attrs["zoffs"], [0.5, -0.25])
+
+    out = tmp_path / "off.bdf"
+    write(poly, out)
+    np.testing.assert_allclose(read(out).element_attrs["zoffs"], [0.5, -0.25])
+
+
+def test_issue_1396_a_deck_without_offsets_carries_no_zoffs(tmp_path) -> None:
+    """An attribute of zeros invented for every mesh is noise, not data."""
+    poly = read(_write(tmp_path, _deck("CTRIA3,1,1,1,2,3\n", 4)))
+    assert "zoffs" not in poly.element_attrs
+
+
+def test_chexa20_midside_nodes_are_permuted_to_vtk(tmp_path) -> None:
+    """Nastran runs the brick's vertical edges before its top face, VTK last."""
+    deck = _deck(_elem_card("CHEXA", 20), 20)
+    poly = read(_write(tmp_path, deck))
+    cell = poly.connectivity[:20].tolist()
+    # Nastran G9..G12 are the bottom face edges, G13..G16 the verticals and
+    # G17..G20 the top face; VTK wants bottom face, top face, then verticals.
+    assert cell == [*range(12), 16, 17, 18, 19, 12, 13, 14, 15]
+
+
+def test_chexa20_survives_a_round_trip_in_nastran_order(tmp_path) -> None:
+    """The write permutation has to undo the read one, or a hop bends the cell."""
+    deck = _deck(_elem_card("CHEXA", 20), 20)
+    poly = read(_write(tmp_path, deck))
+    out = tmp_path / "hex20.bdf"
+    write(poly, out)
+    np.testing.assert_array_equal(read(out).connectivity, poly.connectivity)
+
+
+def test_ctriax6_interleaves_its_corner_and_midside_grids(tmp_path) -> None:
+    """CTRIAX6 numbers corner, mid, corner, mid; VTK wants the corners first."""
+    deck = _deck(_card("CTRIAX6", "1", "9", *(str(i + 1) for i in range(6))), 6)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["quadratic_triangle"]]
+    assert poly.connectivity.tolist() == [0, 2, 4, 1, 3, 5]
+
+
+def test_ctriax6_without_its_midside_grids_is_a_linear_triangle(tmp_path) -> None:
+    """G2, G4 and G6 are optional, and a card without them is still a triangle."""
+    deck = _deck(_card("CTRIAX6", "1", "9", "1", "", "2", "", "3", ""), 3)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["triangle"]]
+    assert poly.connectivity.tolist() == [0, 1, 2]
+
+
+def test_ctriax6_second_field_is_a_material_not_a_property(tmp_path) -> None:
+    """CTRIAX6 names a material where the shells name a property id."""
+    deck = _deck(_card("CTRIAX6", "1", "77", *(str(i + 1) for i in range(6))), 6)
+    poly = read(_write(tmp_path, deck))
+    assert poly.element_attrs["pid"].tolist() == [1]
+
+
+def test_a_grounded_cbush_is_skipped_rather_than_refused(tmp_path) -> None:
+    """A CBUSH may ground its second end; refusing one sinks the whole deck."""
+    deck = _deck("CBUSH,1,1,1,,0.,0.,1.\nCROD,2,1,1,2\n", 4)
+    with pytest.warns(UserWarning, match="CBUSH"):
+        poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]]
+
+
+@pytest.mark.parametrize(
+    ("card", "n_nodes", "zoffs_at"),
+    [("CTRIA6", 6, 10), ("CQUAD8", 8, 16)],
+)
+def test_issue_1396_the_quadratic_shells_carry_zoffs_too(
+    tmp_path, card: str, n_nodes: int, zoffs_at: int
+) -> None:
+    """A quadratic shell's offset moves its mid-surface just as a linear one's."""
+    # The grid points fill fields 3..2+n; the blanks are the corner
+    # thicknesses and the material angle that sit between them and ZOFFS.
+    fields = [str(i + 1) for i in range(n_nodes)]
+    fields.extend([""] * (zoffs_at - n_nodes - 3))
+    deck = _deck(_card(card, "1", "1", *fields, "0.5"), n_nodes)
+    poly = read(_write(tmp_path, deck))
+    np.testing.assert_allclose(poly.element_attrs["zoffs"], [0.5])
+
+    out = tmp_path / "off.bdf"
+    write(poly, out)
+    np.testing.assert_allclose(read(out).element_attrs["zoffs"], [0.5])
+
+
+def test_a_cquadx_card_reads_as_the_shape_its_grid_points_name(tmp_path) -> None:
+    """The axisymmetric CQUAD carries its grid points the same way CQUAD does."""
+    deck = (
+        "BEGIN BULK\n"
+        + "".join(f"GRID,{i},,{i}.,0.,0.\n" for i in range(1, 9))
+        + "CQUADX,1,2,1,2,3,4\n"
+        + "CQUADX,2,2,1,2,3,4,5,6,+\n+,7,8\n"
+        + "ENDDATA\n"
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        poly = read(_write(tmp_path, deck))
+    assert poly.element_types.tolist() == [
+        ELEMENT_TYPES["quad"],
+        ELEMENT_TYPES["quadratic_quad"],
+    ]
+    assert not [w for w in caught if "unsupported type" in str(w.message)]
+
+
+def test_a_card_that_grounds_an_end_is_not_called_unsupported(tmp_path) -> None:
+    """CBUSH is a card this codec supports; a grounded one just names no element."""
+    deck = (
+        "BEGIN BULK\n"
+        "GRID,1,,0.,0.,0.\n"
+        "GRID,2,,1.,0.,0.\n"
+        "CBUSH,1,2,1\n"
+        "CROD,2,3,1,2\n"
+        "ENDDATA\n"
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        poly = read(_write(tmp_path, deck))
+    messages = [str(w.message) for w in caught]
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["line"]]
+    assert any("ground an end" in m and "CBUSH" in m for m in messages)
+    assert not any("unsupported type" in m for m in messages)
+
+
+def test_a_card_missing_one_mid_side_point_reports_the_rest_it_drops(
+    tmp_path,
+) -> None:
+    """Nastran lets a mid-side grid point be left out, polyxios cannot.
+
+    The card reads as the linear element, which is the right shape - but the
+    mid-side points it did carry have nowhere to go, and a CHEXA quietly
+    losing eleven of its twenty nodes is the kind of loss a mesh is judged on
+    later, not here.
+    """
+    grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(10))
+    partial = "CTETRA,1,1,1,2,3,4,5,6,+\n+,7,8,9\n"
+    complete = "CTETRA,2,1,1,2,3,4\n"
+    tmp = _write(tmp_path, "BEGIN BULK\n" + grids + partial + complete + "ENDDATA\n")
+    with pytest.warns(UserWarning, match=r"mid-side grid points.*CTETRA \(1\)"):
+        poly = read(tmp)
+    # Both read as linear tetrahedra; only the partial card is reported.
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["tetra"]] * 2
+    np.testing.assert_array_equal(poly.offsets, [0, 4, 8])
+
+
+def test_a_card_carrying_every_mid_side_point_keeps_them(tmp_path) -> None:
+    """The counterpart: a complete quadratic card is not a demotion."""
+    grids = "".join(f"GRID,{i + 1},,{float(i)},0.,0.\n" for i in range(10))
+    card = "CTETRA,1,1,1,2,3,4,5,6,+\n+,7,8,9,10\n"
+    tmp = _write(tmp_path, "BEGIN BULK\n" + grids + card + "ENDDATA\n")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        poly = read(tmp)
+    assert poly.element_types.tolist() == [ELEMENT_TYPES["quadratic_tetra"]]

@@ -1,5 +1,7 @@
 """STL (Stereolithography) codec - binary and ASCII, read + write."""
 
+import warnings
+
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
@@ -21,6 +23,34 @@ EXTENSION: str = ".stl"
 # Binary STL layout constants
 _HEADER_SIZE: int = 80
 _BINARY_FACET_SIZE: int = 50  # 3*float32 normal + 3*3*float32 verts + uint16 attr
+
+# The attribute word of a binary facet is where the tools that colour an STL
+# put the colour, five bits per channel - but the two conventions in the wild
+# disagree on both the channel order and the meaning of the top bit:
+#
+#   VisCAM / SolidView: bits 0-4 blue, 5-9 green, 10-14 red, and bit 15 set
+#     when the word holds a colour at all.
+#   Materialise Magics: bits 0-4 red, 5-9 green, 10-14 blue, and bit 15 clear
+#     when the facet has a colour of its own, set when it takes the part's.
+#
+# Magics names itself in the 80-byte header, which is the only thing in the
+# file that tells the two apart: it writes a ``COLOR=`` record there. A header
+# without one reads as VisCAM, and VisCAM is what polyxios writes, since its
+# spelling of "no colour here" is the zero word every other writer leaves.
+#
+# A zero word is that under Magics too: read to the letter it claims a facet
+# colour of black, but it is what a writer that coloured nothing leaves behind,
+# and reading an untouched file as uniformly black is the worse mistake.
+_COLOR_VALID_BIT: int = 0x8000
+_COLOR_MAX: float = 31.0
+_COLOR_KEY: str = "colors"
+_MAGICS_MARKER: bytes = b"COLOR="
+# Bit position of red, green and blue under each convention.
+_VISCAM_SHIFTS: tuple[int, int, int] = (10, 5, 0)
+_MAGICS_SHIFTS: tuple[int, int, int] = (0, 5, 10)
+# An integer colour column counts 0..255 the way every image format does; a
+# float one runs 0..1. Scaling both as 0..1 turns an 8-bit colour white.
+_INT_COLOR_MAX: float = 255.0
 
 
 def read(
@@ -73,8 +103,11 @@ def read(
 
     if _is_ascii(raw):
         vertices, normals = _read_ascii(raw)
+        attrs = None
+        header = b""
     else:
-        vertices, normals = _read_binary(raw)
+        vertices, normals, attrs = _read_binary(raw)
+        header = raw[:_HEADER_SIZE]
 
     n_tris = vertices.shape[0]
     if n_tris == 0:
@@ -102,6 +135,9 @@ def read(
     element_attrs: dict[str, np.ndarray] = {}
     if normals is not None:
         element_attrs["normals"] = normals
+    colors = _decode_colors(attrs, header)
+    if colors is not None:
+        element_attrs[_COLOR_KEY] = colors
 
     return PolyData(
         vertices=unique_verts.astype(np.float64),
@@ -145,10 +181,20 @@ def write(poly: PolyData, path: Source, *, binary: bool = True) -> None:
     facet_verts = verts[vertex_indices].astype(np.float32)
 
     normals = _compute_normals(facet_verts)
+    colors = _facet_colors(poly, tri_indices)
 
     if binary:
-        _write_binary(path, facet_verts, normals)
+        _write_binary(path, facet_verts, normals, colors)
     else:
+        if colors is not None:
+            # ASCII STL has no field for a colour, so one carried in would be
+            # dropped without a word by a plain write.
+            warnings.warn(
+                ".stl: ASCII STL has no field for a facet colour; the"
+                " element_attrs['colors'] were not written. Pass binary=True"
+                " to keep them.",
+                stacklevel=2,
+            )
         _write_ascii(path, facet_verts, normals)
 
 
@@ -178,6 +224,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
     with open_block(path, fmt=".stl") as mm:
         if len(mm) < _HEADER_SIZE + 4:
             raise CodecError("Binary STL too short.")
+        header = bytes(mm[:_HEADER_SIZE])
         n_tris = int(np.frombuffer(mm[_HEADER_SIZE : _HEADER_SIZE + 4], dtype="<u4")[0])
         data_start = _HEADER_SIZE + 4
         expected = data_start + n_tris * _BINARY_FACET_SIZE
@@ -191,6 +238,7 @@ def _read_binary_lazy(path: Source) -> PolyData:
         )
         normals = facets["normal"].copy()
         vertices = facets["verts"].reshape(-1, 3).copy()
+        attrs = facets["attr"].copy()
         del facets  # release the view before the block goes
 
     tri_code = ELEMENT_TYPES["triangle"]
@@ -198,13 +246,83 @@ def _read_binary_lazy(path: Source) -> PolyData:
     offsets = np.arange(0, n_tris * 3 + 1, 3, dtype=np.int32)
     element_types = np.full(n_tris, tri_code, dtype=np.uint8)
 
+    element_attrs: dict[str, np.ndarray] = {"normals": normals}
+    colors = _decode_colors(attrs, header)
+    if colors is not None:
+        element_attrs[_COLOR_KEY] = colors
+
     return PolyData(
         vertices=vertices.astype(np.float64),
         connectivity=connectivity,
         offsets=offsets,
         element_types=element_types,
-        element_attrs={"normals": normals},
+        element_attrs=element_attrs,
     )
+
+
+def _decode_colors(attrs: np.ndarray | None, header: bytes) -> np.ndarray | None:
+    """Return per-facet RGB from the attribute words, or None when none carry one.
+
+    Parameters
+    ----------
+    attrs
+        One uint16 attribute word per facet, or None for an ASCII file, which
+        has no field for one.
+    header
+        The file's 80-byte header, which is where Magics says the words are
+        its own; empty for an ASCII file.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Shape ``(n_facets, 3)`` in 0..1, NaN on the facets whose word does not
+        claim to hold a colour. None when no facet claims one, so an
+        uncoloured file grows no attribute.
+
+    Notes
+    -----
+    A zero word is no colour under either convention. Magics read to the
+    letter says otherwise - bit 15 clear, so a facet colour of black - but a
+    zero word is what a writer that coloured nothing leaves behind, and
+    reading an untouched file as black from end to end is the worse mistake.
+    """
+    if attrs is None or attrs.size == 0:
+        return None
+    magics = _MAGICS_MARKER in header.upper()
+    words = attrs.astype(np.uint16, copy=False)
+    top = (words & _COLOR_VALID_BIT) != 0
+    # Magics clears the top bit to claim the facet's own colour and sets it to
+    # defer to the part's; everyone else sets it to claim one.
+    valid = (~top & (words != 0)) if magics else top
+    if not valid.any():
+        return None
+    shifts = _MAGICS_SHIFTS if magics else _VISCAM_SHIFTS
+    live = words[valid]
+    colors = np.full((words.size, 3), np.nan, dtype=np.float64)
+    for channel, shift in enumerate(shifts):
+        colors[valid, channel] = ((live >> shift) & 0x1F) / _COLOR_MAX
+    return colors
+
+
+def _encode_colors(colors: np.ndarray | None, n_facets: int) -> np.ndarray:
+    """Return the attribute word for each facet, 0 where there is no colour.
+
+    Written under the VisCAM convention the reader falls back on, since the
+    header polyxios writes carries no Magics ``COLOR=`` record.
+    """
+    words = np.zeros(n_facets, dtype="<u2")
+    if colors is None:
+        return words
+    values = np.asarray(colors, dtype=np.float64).reshape(n_facets, -1)[:, :3]
+    valid = np.isfinite(values).all(axis=1)
+    if not valid.any():
+        return words
+    scaled = np.clip(np.rint(values[valid] * _COLOR_MAX), 0, 31).astype(np.uint16)
+    packed = np.uint16(_COLOR_VALID_BIT)
+    for channel, shift in enumerate(_VISCAM_SHIFTS):
+        packed = packed | (scaled[:, channel] << shift)
+    words[valid] = packed
+    return words
 
 
 def _is_ascii(raw: bytes, *, file_size: int | None = None) -> bool:
@@ -237,7 +355,7 @@ def _is_ascii(raw: bytes, *, file_size: int | None = None) -> bool:
     return size < expected_size
 
 
-def _read_binary(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
+def _read_binary(raw: bytes) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Parse binary STL bytes.
 
     Returns
@@ -262,7 +380,7 @@ def _read_binary(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
     )
     facets = np.frombuffer(raw[data_start:expected], dtype=facet_dt)
-    return facets["verts"].copy(), facets["normal"].copy()
+    return facets["verts"].copy(), facets["normal"].copy(), facets["attr"].copy()
 
 
 def _read_ascii(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
@@ -348,7 +466,53 @@ def _compute_normals(facet_verts: np.ndarray) -> np.ndarray:
     return result
 
 
-def _write_binary(path: Source, facet_verts: np.ndarray, normals: np.ndarray) -> None:
+def _facet_colors(poly: PolyData, tri_indices: np.ndarray) -> np.ndarray | None:
+    """Return the colour of each triangle written, or None when there is none.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    tri_indices
+        Which of its elements become facets, in the order they are written.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Shape ``(n_facets, 3)`` in 0..1, or None when the mesh carries no
+        usable colour attribute. An integer attribute is read as 0..255 and a
+        floating point one as 0..1.
+    """
+    stored = (poly.element_attrs or {}).get(_COLOR_KEY)
+    if stored is None:
+        return None
+    values = np.asarray(stored)
+    if (
+        values.ndim != 2
+        or values.shape[0] != len(poly.element_types)
+        or values.shape[1] < 3
+        or values.dtype.kind not in "fiub"
+    ):
+        warnings.warn(
+            f".stl: element_attrs['{_COLOR_KEY}'] is not three components per"
+            " element; the colours were not written.",
+            stacklevel=3,
+        )
+        return None
+    picked = values[tri_indices].astype(np.float64, copy=False)
+    # An integer column counts 0..255; scaling it as 0..1 saturates every
+    # channel and writes a white mesh.
+    if values.dtype.kind in "iu":
+        picked = picked / _INT_COLOR_MAX
+    return picked
+
+
+def _write_binary(
+    path: Source,
+    facet_verts: np.ndarray,
+    normals: np.ndarray,
+    colors: np.ndarray | None = None,
+) -> None:
     n_tris = facet_verts.shape[0]
     facet_dt = np.dtype(
         [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
@@ -356,6 +520,7 @@ def _write_binary(path: Source, facet_verts: np.ndarray, normals: np.ndarray) ->
     facets = np.zeros(n_tris, dtype=facet_dt)
     facets["normal"] = normals.astype("<f4")
     facets["verts"] = facet_verts.astype("<f4")
+    facets["attr"] = _encode_colors(colors, n_tris)
     with open_write(path) as fh:
         hdr = b"Written by polyxios"
         fh.write(hdr + b"\x00" * (_HEADER_SIZE - len(hdr)))

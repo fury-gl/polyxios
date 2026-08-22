@@ -10,6 +10,50 @@ from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".mesh"
+# '.mesh' belongs to Medit ASCII as well, so it is shared rather than owned:
+# the two are told apart by the keyword the file opens with. MFEM keeps the
+# writes, since an output file has no content to sniff and '.mesh' has meant
+# MFEM here since before Medit ASCII was read at all.
+SNIFF_EXTENSIONS: tuple[str, ...] = (".mesh",)
+SNIFF_DEFAULT_WRITER: bool = True
+SNIFF_PRIORITY: int = 0
+
+# Every MFEM flavour opens with one of these; the header is mandatory.
+_MFEM_HEADERS: tuple[str, ...] = (
+    "MFEM MESH",
+    "MFEM INLINE",
+    "MFEM NURBS",
+    "MFEM NC-MESH",
+    "MFEM NC MESH",
+)
+
+
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like an MFEM mesh.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes, as handed over by the registry.
+
+    Returns
+    -------
+    bool
+        True when the first meaningful line names an MFEM mesh flavour.
+
+    Notes
+    -----
+    Used to resolve ``.mesh``, which Medit ASCII uses too. The test is
+    deliberately narrow: the header is mandatory and opens no other format.
+    """
+    text = head.decode("utf-8-sig", errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        return stripped.upper().startswith(_MFEM_HEADERS)
+    return False
+
 
 # MFEM geometry type code → (polyxios element name, number of vertices)
 _MFEM_GEOM: dict[int, tuple[str, int]] = {
@@ -134,10 +178,55 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         PolyData to write.
     path
         Output file path.
+
+    Raises
+    ------
+    CodecError
+        When an element does not carry the node count its MFEM geometry
+        holds.
+
+    Notes
+    -----
+    MFEM names eight geometries and no higher-order one, so an element it has
+    no geometry for - a ``quadratic_tetra``, a ``polygon`` - is skipped with a
+    warning naming its type. Writing one under another geometry's code would
+    leave its extra nodes to be read as the record that follows.
     """
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
     dim = 3 if np.any(poly.vertices[:, 2] != 0) else 2
+
+    # An MFEM record names a geometry and then exactly the nodes that geometry
+    # holds, so an element with no geometry of its own cannot be written at
+    # all: spelling one as a triangle and following it with ten indices leaves
+    # the reader seven tokens into the next record, and every element after it
+    # is read as something else. They are skipped and named instead.
+    records: list[str] = []
+    skipped: set[str] = set()
+    for i in range(n_elems):
+        code = int(poly.element_types[i])
+        poly_name = ELEMENT_TYPES_INV.get(code, "")
+        geom = _POLY_TO_MFEM.get(poly_name)
+        if geom is None:
+            skipped.add(poly_name or f"type id {code}")
+            continue
+        s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
+        expected = _MFEM_GEOM[geom][1]
+        if e - s != expected:
+            raise CodecError(
+                f".mesh: element {i} of type {poly_name!r} has {e - s}"
+                f" node(s), expected {expected}; an MFEM record holds a fixed"
+                " number of nodes per geometry."
+            )
+        indices = " ".join(str(int(v)) for v in poly.connectivity[s:e])
+        records.append(f"1 {geom} {indices}")
+
+    if skipped:
+        warnings.warn(
+            f".mesh: no MFEM geometry holds {sorted(skipped)}; those elements"
+            " were skipped.",
+            stacklevel=2,
+        )
 
     lines: list[str] = []
     lines.append("MFEM mesh v1.0")
@@ -146,13 +235,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(str(dim))
     lines.append("")
     lines.append("elements")
-    lines.append(str(n_elems))
-    for i in range(n_elems):
-        s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
-        poly_name = ELEMENT_TYPES_INV.get(int(poly.element_types[i]), "triangle")
-        geom = _POLY_TO_MFEM.get(poly_name, 2)
-        indices = " ".join(str(int(v)) for v in poly.connectivity[s:e])
-        lines.append(f"1 {geom} {indices}")
+    lines.append(str(len(records)))
+    lines.extend(records)
     lines.append("")
     lines.append("vertices")
     lines.append(str(n_verts))

@@ -64,7 +64,7 @@ Quirks worth knowing
 - INLINE and NURBS meshes raise :class:`~polyxios.exceptions.UnsupportedFormatError`; they store a recipe rather than an explicit mesh.
 - The written ``dimension`` is inferred from the data: a mesh whose ``z`` column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.
 - Coordinates are written with ``.10g``, which does not name a float64 exactly - a round trip differs in the last few digits.
-- An element whose type code has no polyxios equivalent falls back to ``triangle`` on write.
+- MFEM names eight geometries and no higher-order one. An element it has no geometry for - a ``quadratic_tetra``, a ``polygon`` - is skipped on write with a warning naming its type, and the declared element count drops with it. Writing one under another geometry's code would leave its extra nodes to be read as the record that follows, which costs every element after it rather than the one that did not fit.
 
 .. seealso::
 
