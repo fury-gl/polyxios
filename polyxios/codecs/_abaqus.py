@@ -18,6 +18,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -592,6 +593,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     node_map: dict[int, int] = {}
     elem_map: dict[int, int] = {}
     coords: list[float] = []
+    # An Abaqus node card spells the third coordinate only in a 3-D model, so
+    # a deck where none does is a plane and is written back out as one.
+    saw_z = False
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
     types_list: list[int] = []
@@ -779,7 +783,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             try:
                 node_id = int(parts[0])
                 xyz = [float(parts[1]), float(parts[2])]
-                xyz.append(float(parts[3]) if len(parts) >= 4 and parts[3] else 0.0)
+                spelled_z = len(parts) >= 4 and bool(parts[3])
+                xyz.append(float(parts[3]) if spelled_z else 0.0)
+                saw_z = saw_z or spelled_z
             except ValueError as exc:
                 raise CodecError(f".inp: malformed node line {stripped!r}.") from exc
             point = np.array(xyz, dtype=np.float64)
@@ -877,6 +883,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_tags=vertex_tags,
         element_tags=element_tags,
+        global_attrs=mark_2d(3 if saw_z else 2),
     )
 
 
@@ -964,8 +971,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         "** exported by polyxios",
         "*Node",
     ]
+    n_spatial = output_dimension(poly, fmt=".inp")
     lines.extend(
-        f"{i + 1}, {v[0]:.10g}, {v[1]:.10g}, {v[2]:.10g}"
+        f"{i + 1}, " + ", ".join(f"{c:.10g}" for c in v[:n_spatial])
         for i, v in enumerate(poly.vertices)
     )
 

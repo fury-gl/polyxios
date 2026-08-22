@@ -450,8 +450,11 @@ CAPABILITIES: dict[str, Cap] = {
         geometry=False,
         coords=False,
         element_attrs=("wkt_polygon_id", "wkt_ring"),
+        global_attrs=("was_2d",),
         note="WKT has geometries, not elements: both faces come back as"
-        " polygons and the ring bookkeeping replaces the caller's data.",
+        " polygons and the ring bookkeeping replaces the caller's data. The"
+        " canonical surface is flat, so it is written without a Z suffix and"
+        " reads back flagged two-dimensional.",
     ),
     ".xml": Cap("volume", note="DOLFIN XML stores a single-type mesh only."),
 }

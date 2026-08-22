@@ -126,7 +126,12 @@ def pad_to_3d(values: np.ndarray, dim: int) -> np.ndarray:
 
 
 def output_dimension(
-    poly: Any, *, fmt: str, flat_default: int = 3, stacklevel: int = 3
+    poly: Any,
+    *,
+    fmt: str,
+    flat_default: int = 3,
+    flat: bool | None = None,
+    stacklevel: int = 3,
 ) -> int:
     """Return how many coordinate columns to write, 2 or 3.
 
@@ -137,6 +142,11 @@ def output_dimension(
     fmt
         The format's own name, ``".su2"`` and the like, so the warning a
         lifted mesh raises names the file it is about to land in.
+    flat
+        Whether the mesh has stayed in the plane, for a codec whose own test
+        is narrower than "no vertex carries a z" - WKT reads only the
+        vertices an element reaches, and ignores a non-finite one. None asks
+        the coordinates directly.
     flat_default
         What a flat mesh that carries no ``was_2d`` flag is written as. 2 for
         a format whose writer already inferred the dimension from the
@@ -160,7 +170,8 @@ def output_dimension(
         is what gives way.
     """
     vertices = poly.vertices
-    flat = not vertices.shape[0] or not bool(np.any(vertices[:, 2]))
+    if flat is None:
+        flat = not vertices.shape[0] or not bool(np.any(vertices[:, 2]))
     flagged = was_2d(poly)
     if not flat:
         if flagged:
