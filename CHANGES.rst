@@ -80,6 +80,17 @@ New features
   that also carries its boundary triangles still reads as 3-D. It is the
   dimension of the elements, not of the space they sit in: a triangle mesh
   embedded in 3-D is 2-D. An empty mesh is 0.
+- ``transforms.merge_duplicate_vertices`` welds coincident vertices into
+  one, the equivalent of ParaView's "Clean to Grid". Formats that write a
+  corner per element - STL above all - hand back a soup of unconnected
+  vertices, and welding is what turns it back into a surface. ``tol=``
+  snaps coordinates to a grid of that step before comparing; the default
+  welds only exactly equal ones. The survivor of each group is its lowest
+  original index and keeps its own coordinates and attributes, so the
+  result does not depend on which duplicate the file listed first and a
+  tolerance never moves a point. Welding is not culling: a vertex no
+  element references is kept - compose with ``remove_orphan_vertices`` to
+  drop those too.
 
 Behaviour changes
 ~~~~~~~~~~~~~~~~~

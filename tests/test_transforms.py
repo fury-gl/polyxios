@@ -13,6 +13,7 @@ from polyxios.transforms import (
     extract_surface,
     filter_element_type,
     merge,
+    merge_duplicate_vertices,
     pipeline,
     remove_orphan_vertices,
 )
@@ -335,3 +336,149 @@ def test_issue_1551_topological_dimension_of_an_empty_mesh() -> None:
     """No elements is not an error, and nothing in it rises above a point."""
     poly = make_polydata(np.zeros((0, 3), dtype=np.float64), [])
     assert poly.topological_dimension == 0
+
+
+def test_issue_1548_merge_duplicate_vertices_welds_coincident_points() -> None:
+    """Two triangles written corner-by-corner share an edge once welded."""
+    verts = np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 1, 0],
+        ],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2], [3, 4, 5]]))])
+
+    result = merge_duplicate_vertices(poly)
+
+    assert result.vertices.shape[0] == 4
+    np.testing.assert_allclose(result.vertices, verts[[0, 1, 2, 5]])
+    np.testing.assert_array_equal(
+        result.connectivity.reshape(2, 3), np.array([[0, 1, 2], [1, 2, 3]])
+    )
+    assert result.connectivity.dtype == poly.connectivity.dtype
+
+
+def test_issue_1548_merge_duplicate_vertices_keeps_a_clean_mesh_untouched() -> None:
+    poly = _tri_mesh()
+    result = merge_duplicate_vertices(poly)
+    np.testing.assert_allclose(result.vertices, poly.vertices)
+    np.testing.assert_array_equal(result.connectivity, poly.connectivity)
+
+
+def test_issue_1548_merge_duplicate_vertices_keeps_the_first_of_each_group() -> None:
+    """The survivor is the lowest original index, so vertex order is stable."""
+    verts = np.array(
+        [[2, 0, 0], [0, 0, 0], [2, 0, 0], [1, 0, 0], [0, 0, 0]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("line", np.array([[0, 1], [2, 3], [4, 0]]))])
+
+    result = merge_duplicate_vertices(poly)
+
+    np.testing.assert_allclose(result.vertices, verts[[0, 1, 3]])
+    np.testing.assert_array_equal(
+        result.connectivity.reshape(3, 2), np.array([[0, 1], [0, 2], [1, 0]])
+    )
+
+
+def test_issue_1548_merge_duplicate_vertices_is_order_independent() -> None:
+    """Welding must not depend on the order the duplicates arrive in."""
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 0, 0], [1, 0, 0], [0, 0, 0]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("line", np.array([[0, 1], [2, 3], [4, 1]]))])
+    result = merge_duplicate_vertices(poly)
+    assert result.vertices.shape[0] == 2
+    np.testing.assert_array_equal(
+        result.connectivity.reshape(3, 2), np.array([[0, 1], [0, 1], [0, 1]])
+    )
+
+
+def test_issue_1548_merge_duplicate_vertices_tolerance() -> None:
+    """Points within the tolerance weld; points outside it survive apart."""
+    verts = np.array(
+        [[0, 0, 0], [1e-9, 0, 0], [1, 0, 0]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+
+    assert merge_duplicate_vertices(poly).vertices.shape[0] == 3
+    welded = merge_duplicate_vertices(poly, tol=1e-6)
+    assert welded.vertices.shape[0] == 2
+    np.testing.assert_allclose(welded.vertices, verts[[0, 2]])
+
+
+def test_issue_1548_merge_duplicate_vertices_keeps_the_original_coordinates() -> None:
+    """A tolerance decides who merges; it must not move the survivor."""
+    verts = np.array([[0.3333333, 0, 0], [0.3333334, 0, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
+    result = merge_duplicate_vertices(poly, tol=1e-3)
+    np.testing.assert_allclose(result.vertices, verts[[0]])
+
+
+def test_issue_1548_merge_duplicate_vertices_rejects_a_negative_tolerance() -> None:
+    with pytest.raises(ValueError, match="tol"):
+        merge_duplicate_vertices(_tri_mesh(), tol=-1.0)
+
+
+def test_issue_1548_merge_duplicate_vertices_carries_attrs_and_tags() -> None:
+    """The survivor keeps its own attributes, and tags follow the remap."""
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 3], [2, 1, 3]]))],
+        vertex_attrs={"temperature": np.array([1.0, 2.0, 3.0, 4.0])},
+        vertex_tags={"inlet": np.array([0, 2], dtype=np.int32)},
+        element_attrs={"material": np.array([7, 8], dtype=np.int32)},
+    )
+
+    result = merge_duplicate_vertices(poly)
+
+    np.testing.assert_allclose(result.vertex_attrs["temperature"], [1.0, 2.0, 4.0])
+    # 0 and 2 weld into one vertex, so the tag names it once.
+    np.testing.assert_array_equal(result.vertex_tags["inlet"], [0])
+    np.testing.assert_array_equal(result.element_attrs["material"], [7, 8])
+    assert result.vertex_tags["inlet"].dtype == poly.vertex_tags["inlet"].dtype
+
+
+def test_issue_1548_merge_duplicate_vertices_of_an_empty_mesh() -> None:
+    poly = make_polydata(np.zeros((0, 3), dtype=np.float64), [])
+    assert merge_duplicate_vertices(poly).vertices.shape[0] == 0
+
+
+def test_issue_1548_merge_duplicate_vertices_leaves_orphans_alone() -> None:
+    """Welding is not culling - an unreferenced vertex is not a duplicate."""
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [9, 9, 9]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    assert merge_duplicate_vertices(poly).vertices.shape[0] == 4
+
+
+def test_issue_1470_welding_a_facet_soup_makes_it_a_surface(tmp_path) -> None:
+    """The STL corner-per-facet soup becomes a connected mesh once welded."""
+    verts = np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0],
+        ],
+        dtype=np.float64,
+    )
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2], [3, 4, 5]]))])
+    welded = merge_duplicate_vertices(poly)
+    assert welded.vertices.shape[0] == 4
+    assert welded.topological_dimension == 2
