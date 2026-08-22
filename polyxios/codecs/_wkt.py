@@ -39,6 +39,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -225,6 +226,9 @@ class _Parser:
         self._next_polygon_id = 0
 
         self._dropped_measures = False
+        # Whether any geometry in the file spelled a third coordinate. A
+        # file of nothing but 2-D geometries is written back as one.
+        self._saw_z = False
 
     # ── helpers ───────────────────────────────────────────────────────────
 
@@ -369,16 +373,19 @@ class _Parser:
 
         if suffix == "Z":
             z = self._number()
+            self._saw_z = True
         elif suffix == "M":
             self._number()
             self._dropped_measures = True
         elif suffix == "ZM":
             z = self._number()
+            self._saw_z = True
             self._number()
             self._dropped_measures = True
         elif self._at_number():
             # Undeclared dimensions: a third value is z, a fourth is a measure.
             z = self._number()
+            self._saw_z = True
             if self._at_number():
                 self._number()
                 self._dropped_measures = True
@@ -642,6 +649,7 @@ class _Parser:
             offsets=np.array(self._offsets, dtype=np.int32),
             element_types=np.array(self._types, dtype=np.uint8),
             element_attrs=element_attrs,
+            global_attrs=mark_2d(3 if self._saw_z else 2),
         )
 
 
@@ -933,7 +941,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     else:
         groups, anchor_of = _polygon_groups(poly, ring_attrs, n_elems)
 
-    has_z = _mesh_has_z(poly)
+    has_z = (
+        output_dimension(
+            poly, fmt=".wkt", flat_default=2, flat=not _mesh_has_z(poly), stacklevel=3
+        )
+        == 3
+    )
     suffix = " Z" if has_z else ""
 
     for i in range(n_elems):

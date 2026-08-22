@@ -66,6 +66,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -779,6 +780,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         offsets=offsets,
         element_types=element_types,
         element_tags=_element_tags(indices, dims, dimension, names),
+        global_attrs=mark_2d(dimension),
     )
 
 

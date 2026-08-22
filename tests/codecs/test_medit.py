@@ -400,7 +400,7 @@ def test_a_two_dimensional_file_goes_back_out_in_two_dimensions(tmp_path) -> Non
     """A bamg file promoted to 3-D is one bamg no longer reads."""
     poly = read(_plane_mesh(tmp_path))
     assert poly.vertices.shape == (3, 3)
-    assert poly.global_attrs["medit_dimension"] == 2
+    assert poly.global_attrs["was_2d"] is True
 
     out = tmp_path / "back.mesh"
     write(poly, out)

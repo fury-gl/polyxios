@@ -62,7 +62,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - INLINE and NURBS meshes raise :class:`~polyxios.exceptions.UnsupportedFormatError`; they store a recipe rather than an explicit mesh.
-- The written ``dimension`` is inferred from the data: a mesh whose ``z`` column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.
+- A 2-D file's coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. The written ``dimension`` follows it, and a mesh whose ``z`` column is entirely zero goes out as 2-D whether it was flagged or not. A flagged mesh whose vertices have since left the plane is written in three with a warning.
 - Coordinates are written with ``.10g``, which does not name a float64 exactly - a round trip differs in the last few digits.
 - MFEM names eight geometries and no higher-order one. An element it has no geometry for - a ``quadratic_tetra``, a ``polygon`` - is skipped on write with a warning naming its type, and the declared element count drops with it. Writing one under another geometry's code would leave its extra nodes to be read as the record that follows, which costs every element after it rather than the one that did not fit.
 

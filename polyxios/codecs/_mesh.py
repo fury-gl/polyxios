@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
 from polyxios._io import Source, open_text, source_name, source_size, write_text
 from polyxios._types import PolyData
@@ -133,7 +134,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     if coord_dim_token in ("nodes", "elements", "boundary", ""):
         # High-order mesh: read coordinates from the 'nodes' FEM field instead
-        vertices = _parse_nodes_field(all_tokens, n_verts)
+        vertices, coord_dim = _parse_nodes_field(all_tokens, n_verts)
     else:
         coord_dim = int(coord_dim_token)
         for vi in range(n_verts):
@@ -166,6 +167,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_attrs={},
         element_attrs={},
+        global_attrs=mark_2d(coord_dim),
     )
 
 
@@ -194,7 +196,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
-    dim = 3 if np.any(poly.vertices[:, 2] != 0) else 2
+    dim = output_dimension(poly, fmt=".mesh", flat_default=2)
 
     # An MFEM record names a geometry and then exactly the nodes that geometry
     # holds, so an element with no geometry of its own cannot be written at
@@ -488,7 +490,7 @@ def _read_nurbs(
     validate_header(n_verts, n_elems, n_elems * 4, file_size)
 
     # Control points live in the nodes FiniteElementSpace field
-    vertices = _parse_nodes_field(tokens, n_verts)
+    vertices, _vdim = _parse_nodes_field(tokens, n_verts)
 
     # Parse element connectivity (same layout as standard mesh)
     conn_list: list[int] = []
@@ -627,6 +629,7 @@ def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> Po
 
     # Build full vertex table from base coordinates + midpoint rules
     vertices = np.zeros((0, 3), dtype=np.float64)
+    nc_dim = 3
     try:
         c_idx = tokens.index("coordinates")
         n_base = int(tokens[c_idx + 1])
@@ -653,6 +656,7 @@ def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> Po
             pass
 
         vertices = full
+        nc_dim = coord_dim
     except (ValueError, IndexError):
         pass
 
@@ -666,11 +670,12 @@ def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> Po
         global_attrs={
             "mfem_nc_n_total_elements": n_elems_total,
             "mfem_nc_n_leaf_elements": n_leaf,
+            **mark_2d(nc_dim),
         },
     )
 
 
-def _parse_nodes_field(tokens: list[str], n_verts: int) -> np.ndarray:
+def _parse_nodes_field(tokens: list[str], n_verts: int) -> tuple[np.ndarray, int]:
     """Extract vertex coordinates from an MFEM 'nodes' FiniteElementSpace field.
 
     High-order MFEM meshes omit explicit coordinates in the ``vertices`` section
@@ -682,7 +687,7 @@ def _parse_nodes_field(tokens: list[str], n_verts: int) -> np.ndarray:
     try:
         idx = tokens.index("nodes")
     except ValueError:
-        return np.zeros((n_verts, 3), dtype=np.float64)
+        return np.zeros((n_verts, 3), dtype=np.float64), 3
 
     # Scan forward: skip FiniteElementSpace header keywords until float values start
     vdim = 3
@@ -712,7 +717,7 @@ def _parse_nodes_field(tokens: list[str], n_verts: int) -> np.ndarray:
             break
 
     if not float_vals:
-        return np.zeros((n_verts, 3), dtype=np.float64)
+        return np.zeros((n_verts, 3), dtype=np.float64), 3
 
     n_nodes = len(float_vals) // vdim
     arr = np.array(float_vals[: n_nodes * vdim], dtype=np.float64)
@@ -727,7 +732,7 @@ def _parse_nodes_field(tokens: list[str], n_verts: int) -> np.ndarray:
     take = min(n_verts, len(coords))
     out = np.zeros((n_verts, 3), dtype=np.float64)
     out[:take, :vdim] = coords[:take]
-    return out
+    return out, vdim
 
 
 def _read_header_and_tokens(path: Source) -> tuple[str, list[str]]:

@@ -76,6 +76,7 @@ Quirks worth knowing
 - Sections polyxios carries no home for - ``facedescriptors``, ``identifications``, ``face_colours``, the ``singular_*`` family - are stepped over by name, and a non-empty one says how many records it dropped rather than reading as a section nobody recognised.
 - Index ``0`` means "unset" and is dropped rather than becoming a tag. A ``bc_<n>``-style tag name keeps its number, unless that number is negative or past ``int64``, which the format cannot spell.
 - A tag holding elements of more than one dimension is written into each dimension's section, and comes back split one tag per dimension, because the sections number their indices independently.
+- A ``dimension 2`` file's points are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. Netgen writes ``mesh3d`` whatever it is handed, so the flag does not come back through a ``.vol`` round trip - but it does carry the plane into a format that can spell one, so a 2-D ``.vol`` written as SU2 lands as ``NDIME= 2``.
 - Sections polyxios has no home for - ``identifications``, ``face_colours``, the ``singular_*`` family - are stepped over, with a warning when one is not empty.
 - ``lazy=True`` warns and loads eagerly; the format is ASCII.
 

@@ -23,6 +23,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -169,12 +170,6 @@ _REF_KEY: str = "ref"
 
 _MAGIC: str = "MESHVERSIONFORMATTED"
 
-# Where the file's own Dimension is kept, so a two-dimensional mesh - what a
-# bamg file is - does not come back as a flat three-dimensional one. The
-# vertices are held with three columns whatever the file said, the way every
-# other codec here holds them.
-_DIM_KEY: str = "medit_dimension"
-
 
 def sniff(head: bytes) -> bool:
     """Report whether a file's opening bytes look like Medit ASCII.
@@ -302,8 +297,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         Vertex references land in ``vertex_attrs["ref"]`` when any is
         non-zero; element references in ``element_attrs["ref"]`` and in one
         ``element_tags["ref_<n>"]`` group per distinct value. Vertices always
-        have three columns, the file's own ``Dimension`` being kept in
-        ``global_attrs["medit_dimension"]`` so a write can restore it.
+        have three columns; a ``Dimension 2`` file is padded with ``z=0`` and
+        sets ``global_attrs["was_2d"]`` so a write can restore it.
 
     Raises
     ------
@@ -529,7 +524,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
         element_tags=element_tags,
-        global_attrs={_DIM_KEY: dim},
+        global_attrs=mark_2d(dim),
     )
 
 
@@ -558,9 +553,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     reference; failing that, references come from the ``ref_<n>`` groups in
     ``element_tags``, and failing that they are 0. ``vertex_attrs["ref"]``
     goes the same way onto the vertex records. The file is written in
-    three dimensions unless ``global_attrs["medit_dimension"]`` is 2 and the
-    vertices have stayed in the plane, which is what carries a two-dimensional
-    file back out as one. Elements whose type has no
+    three dimensions unless ``global_attrs["was_2d"]`` is set and the vertices
+    have stayed in the plane, which is what carries a two-dimensional file
+    back out as one. Elements whose type has no
     Medit section are skipped with a warning. Sections are written in order
     of topological dimension, which is the order Medit's own writers use.
     """
@@ -589,7 +584,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         )
 
     n_verts = poly.vertices.shape[0]
-    dim = _write_dimension(poly)
+    dim = output_dimension(poly, fmt=".mesh")
     lines: list[str] = ["MeshVersionFormatted 2", "", f"Dimension {dim}", ""]
 
     vertex_refs = _vertex_refs(poly, n_verts)
@@ -658,35 +653,6 @@ def _vertex_refs(poly: PolyData, n_verts: int) -> np.ndarray:
         )
         return np.zeros(n_verts, dtype=np.int64)
     return values.astype(np.int64, copy=False)
-
-
-def _write_dimension(poly: PolyData) -> int:
-    """Return the Dimension to write, which is the one the mesh came in under.
-
-    Parameters
-    ----------
-    poly
-        The mesh being written.
-
-    Returns
-    -------
-    int
-        2 or 3. A mesh read from a two-dimensional file goes back out as one,
-        which is what a reader expecting a plane needs; anything else, and a
-        two-dimensional mesh whose vertices left the plane, is written in
-        three.
-    """
-    stored = (poly.global_attrs or {}).get(_DIM_KEY)
-    if stored != 2:
-        return 3
-    if poly.vertices.shape[0] and np.any(poly.vertices[:, 2]):
-        warnings.warn(
-            f".mesh: global_attrs['{_DIM_KEY}'] is 2 but the vertices carry a"
-            " third coordinate; the file was written in three dimensions.",
-            stacklevel=3,
-        )
-        return 3
-    return 2
 
 
 def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray:
