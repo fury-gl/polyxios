@@ -71,6 +71,12 @@ _MFEM_GEOM: dict[int, tuple[str, int]] = {
 # Reverse: polyxios name → MFEM geometry type code
 _POLY_TO_MFEM: dict[str, int] = {name: code for code, (name, _) in _MFEM_GEOM.items()}
 
+# The geometry codes whose vertices cannot lie in a plane. A mesh of these
+# written under a two-column ``vertices`` block is one MFEM does not load: it
+# reads exactly as many coordinates per vertex as the block declares, and a
+# tetrahedron of two-coordinate vertices is not a cell.
+_SOLID_GEOMS: frozenset[int] = frozenset({4, 5, 6, 7})
+
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an MFEM mesh file (.mesh) and return a PolyData.
@@ -189,6 +195,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     Notes
     -----
+    The ``dimension`` and the width of the ``vertices`` block are 2 for a
+    mesh whose z column is entirely zero - a mesh carrying
+    ``global_attrs["was_2d"]`` and one built flat by hand alike - and 3
+    otherwise. A mesh of solid cells keeps three however flat it lies: MFEM
+    reads exactly as many coordinates per vertex as the block declares, and a
+    tetrahedron of two-coordinate vertices is not a cell.
+
     MFEM names eight geometries and no higher-order one, so an element it has
     no geometry for - a ``quadratic_tetra``, a ``polygon`` - is skipped with a
     warning naming its type. Writing one under another geometry's code would
@@ -205,6 +218,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # is read as something else. They are skipped and named instead.
     records: list[str] = []
     skipped: set[str] = set()
+    solid = False
     for i in range(n_elems):
         code = int(poly.element_types[i])
         poly_name = ELEMENT_TYPES_INV.get(code, "")
@@ -212,6 +226,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         if geom is None:
             skipped.add(poly_name or f"type id {code}")
             continue
+        solid = solid or geom in _SOLID_GEOMS
         s, e = int(poly.offsets[i]), int(poly.offsets[i + 1])
         expected = _MFEM_GEOM[geom][1]
         if e - s != expected:
@@ -229,6 +244,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             " were skipped.",
             stacklevel=2,
         )
+
+    if dim == 2 and solid:
+        # A flat mesh of solid cells: the coordinates keep their third column,
+        # since a tetrahedron or a hexahedron of two-coordinate vertices is a
+        # mesh MFEM refuses. Quietly, since nothing is lost - a flat mesh
+        # writes a zero z either way.
+        dim = 3
 
     lines: list[str] = []
     lines.append("MFEM mesh v1.0")
@@ -489,8 +511,9 @@ def _read_nurbs(
 
     validate_header(n_verts, n_elems, n_elems * 4, file_size)
 
-    # Control points live in the nodes FiniteElementSpace field
-    vertices, _vdim = _parse_nodes_field(tokens, n_verts)
+    # Control points live in the nodes FiniteElementSpace field, and its vdim
+    # is the geometric dimension the same way a standard mesh's coord_dim is.
+    vertices, coord_dim = _parse_nodes_field(tokens, n_verts)
 
     # Parse element connectivity (same layout as standard mesh)
     conn_list: list[int] = []
@@ -566,6 +589,7 @@ def _read_nurbs(
         global_attrs={
             "mfem_nurbs_knotvectors": kv_list,
             "mfem_nurbs_weights": weights,
+            **mark_2d(coord_dim),
         },
     )
 

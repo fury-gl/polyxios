@@ -29,15 +29,30 @@ A format with no two-dimensional spelling at all - Netgen writes ``mesh3d``,
 OBJ and the VTK family always carry three - keeps writing three columns and
 ignores the flag. It is recorded on the way in all the same, so that a mesh
 read from a 2-D ``.vol`` and written as ``.su2`` still lands as ``NDIME= 2``.
+
+Two columns sometimes constrain the rest of the file, and a writer keeps the
+two in step rather than emitting one no reader loads. A flat mesh of solid
+cells - a tetrahedron is one however flat it lies - keeps its third column
+wherever the node count per element is declared apart from the coordinate
+count, which :func:`has_solid_cells` is the test for; Abaqus goes further and
+picks its element cards to match, a node's dimensionality there coming from
+the element that references it.
 """
 
-from typing import Any, Final
+from typing import TYPE_CHECKING, Final
 import warnings
 
 import numpy as np
 
+from polyxios._element_types import TOPOLOGICAL_DIMENSION
+from polyxios.exceptions import CodecError
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle at runtime
+    from polyxios._types import PolyData
+
 __all__ = [
     "WAS_2D_KEY",
+    "has_solid_cells",
     "mark_2d",
     "output_dimension",
     "pad_to_3d",
@@ -46,6 +61,52 @@ __all__ = [
 
 #: Where a reader records that its file declared two dimensions.
 WAS_2D_KEY: Final[str] = "was_2d"
+
+# One entry per element type code, counting the three-dimensional ones. A
+# bincount over the uint8 type column indexes straight into it, so the test
+# below is one linear sweep with no array the length of the mesh behind it.
+_SOLID_CODES: Final[np.ndarray] = np.array(
+    sorted(code for code, dim in TOPOLOGICAL_DIMENSION.items() if dim == 3),
+    dtype=np.intp,
+)
+
+
+def has_solid_cells(poly: "PolyData") -> bool:
+    """Report whether the mesh holds a cell that cannot lie in a plane.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+
+    Returns
+    -------
+    bool
+        True when any element is three-dimensional. A tetrahedron is one
+        however flat it lies, so a format that reads its node count per
+        element from a keyword and its coordinate count from a header has to
+        keep writing three columns for it whatever ``was_2d`` says.
+
+    Notes
+    -----
+    Every element the mesh holds is counted, not only the ones a given writer
+    has a spelling for. A codec that would skip a solid it cannot write then
+    keeps a third column it did not need, which costs a column of zeros and
+    never a coordinate.
+
+    Examples
+    --------
+    >>> from polyxios import make_polydata
+    >>> import numpy as np
+    >>> flat = make_polydata(np.zeros((3, 3)), [("triangle", np.array([[0, 1, 2]]))])
+    >>> has_solid_cells(flat)
+    False
+    """
+    codes = np.asarray(poly.element_types)
+    if codes.size == 0:
+        return False
+    counts = np.bincount(codes.ravel(), minlength=int(_SOLID_CODES[-1]) + 1)
+    return bool(counts[_SOLID_CODES].any())
 
 
 def mark_2d(dim: int) -> dict[str, bool]:
@@ -73,7 +134,7 @@ def mark_2d(dim: int) -> dict[str, bool]:
     return {WAS_2D_KEY: True} if dim == 2 else {}
 
 
-def was_2d(poly: Any) -> bool:
+def was_2d(poly: "PolyData") -> bool:
     """Report whether a mesh is known to have come from a 2-D file.
 
     Parameters
@@ -110,14 +171,16 @@ def pad_to_3d(values: np.ndarray, dim: int) -> np.ndarray:
 
     Raises
     ------
-    ValueError
+    CodecError
         If ``dim`` is not 2 or 3, or the block has fewer columns than that.
+        A codec error rather than a ValueError because the block comes off a
+        file: every other malformed-input path in a codec raises this.
     """
     if dim not in (2, 3):
-        raise ValueError(f"dimension must be 2 or 3, got {dim}.")
+        raise CodecError(f"dimension must be 2 or 3, got {dim}.")
     values = np.asarray(values)
     if values.ndim != 2 or values.shape[1] < dim:
-        raise ValueError(
+        raise CodecError(
             f"expected an (n, {dim}) coordinate block, got {values.shape}."
         )
     out = np.zeros((values.shape[0], 3), dtype=np.float64)
@@ -126,7 +189,7 @@ def pad_to_3d(values: np.ndarray, dim: int) -> np.ndarray:
 
 
 def output_dimension(
-    poly: Any,
+    poly: "PolyData",
     *,
     fmt: str,
     flat_default: int = 3,
@@ -142,17 +205,17 @@ def output_dimension(
     fmt
         The format's own name, ``".su2"`` and the like, so the warning a
         lifted mesh raises names the file it is about to land in.
-    flat
-        Whether the mesh has stayed in the plane, for a codec whose own test
-        is narrower than "no vertex carries a z" - WKT reads only the
-        vertices an element reaches, and ignores a non-finite one. None asks
-        the coordinates directly.
     flat_default
         What a flat mesh that carries no ``was_2d`` flag is written as. 2 for
         a format whose writer already inferred the dimension from the
         coordinates - dropping that inference would turn a hand-built plane
         into a file the target solver refuses - and 3 for one that has always
         written three columns.
+    flat
+        Whether the mesh has stayed in the plane, for a codec whose own test
+        is narrower than "no vertex carries a z" - WKT reads only the
+        vertices an element reaches, and ignores a non-finite one. None asks
+        the coordinates directly.
     stacklevel
         Passed to :func:`warnings.warn`. The default points at the caller of
         the codec's own ``write``, which is two frames above this helper.
@@ -160,7 +223,13 @@ def output_dimension(
     Returns
     -------
     int
-        2 or 3.
+        2 or 3. A mesh whose vertices carry only two columns answers 2
+        whatever the flag says: the third coordinate is not there to write.
+
+    Raises
+    ------
+    CodecError
+        If the vertices are not a block of at least two coordinate columns.
 
     Warns
     -----
@@ -170,8 +239,22 @@ def output_dimension(
         is what gives way.
     """
     vertices = poly.vertices
+    if vertices.ndim != 2 or vertices.shape[1] < 2:
+        raise CodecError(
+            f"expected an (n, 2) or wider coordinate block, got {vertices.shape}."
+        )
+    if vertices.shape[1] < 3:
+        # Narrower than a PolyData holds - a caller built it by hand, or it
+        # came from a release of the meshb reader that handed back (n, dim).
+        # The columns it has are the whole dimension; there is no flag to ask.
+        return 2
     if flat is None:
-        flat = not vertices.shape[0] or not bool(np.any(vertices[:, 2]))
+        # ``any`` on the z column alone: one pass, and an empty mesh answers
+        # False without a length test of its own. A NaN z counts as non-flat -
+        # it is a coordinate the mesh carries, and dropping the column would
+        # lose it. A codec that reads its z otherwise - WKT ignores a
+        # non-finite one - passes ``flat`` in rather than having it recomputed.
+        flat = not vertices[:, 2].any()
     flagged = was_2d(poly)
     if not flat:
         if flagged:

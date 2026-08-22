@@ -6,7 +6,12 @@ import warnings
 
 import numpy as np
 
-from polyxios._dimension import mark_2d, output_dimension, pad_to_3d
+from polyxios._dimension import (
+    has_solid_cells,
+    mark_2d,
+    output_dimension,
+    pad_to_3d,
+)
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, open_block, open_write
 from polyxios._tags import group_by_value, integer_column, values_from_tags
@@ -142,8 +147,10 @@ def write(*, poly: PolyData, path: Source) -> None:
     """Serialise PolyData to a Medit binary mesh file (.meshb).
 
     Writes version 2 (float64, 32-bit counts). ``Dimension`` is 2 when the
-    mesh carries ``global_attrs["was_2d"]`` and its vertices have stayed in
-    the plane, 3 otherwise. Elements are written grouped
+    mesh carries ``global_attrs["was_2d"]``, its vertices have stayed in the
+    plane and it holds no solid cell - a ``Tetrahedra`` section under
+    ``Dimension 2`` is a file no reader loads - and 3 otherwise. Elements are
+    written grouped
     by type in the fixed order triangles → quads → tetrahedra → hexahedra;
     the original element ordering in ``poly`` is not preserved. If
     element_attrs["ref"] is present those integers are written as section
@@ -164,9 +171,14 @@ def write(*, poly: PolyData, path: Source) -> None:
             f"meshb write: vertices must carry 2 or 3 columns, got {n_cols}."
         )
     # A two-column array is not what a PolyData holds, but an earlier release
-    # of this reader handed one back, so it is taken at its word rather than
-    # widened to three and written as a 3-D file.
-    dim = 2 if n_cols == 2 else output_dimension(poly, fmt=".meshb")
+    # of this reader handed one back; output_dimension takes it at its word
+    # rather than widening it to three and writing a 3-D file.
+    dim = output_dimension(poly, fmt=".meshb")
+    if dim == 2 and n_cols == 3 and has_solid_cells(poly):
+        # A Tetrahedra or Hexahedra section under Dimension 2 is a file no
+        # reader loads, the way it is in the ASCII spelling. A mesh that came
+        # in two columns wide has no third to restore and keeps its word.
+        dim = 3
 
     # Map element type codes → meshb keywords via LUT (pure numpy, O(n))
     if n_elems > 0:

@@ -28,7 +28,7 @@ import warnings
 
 import numpy as np
 
-from polyxios._dimension import mark_2d, output_dimension
+from polyxios._dimension import mark_2d, output_dimension, pad_to_3d
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -303,8 +303,7 @@ def _read_node(
     n_cols = 1 + dim + n_attrs + has_markers
     rows = _records(tokens, 4, n_pts, n_cols, "node(s)", where)
 
-    vertices = np.zeros((n_pts, 3), dtype=np.float64)
-    vertices[:, :dim] = rows[:, 1 : 1 + dim]
+    vertices = pad_to_3d(rows[:, 1 : 1 + dim], dim)
     ids = _as_ints(rows[:, 0], "node number", where)
 
     # TetGen gives its node attributes no names, so they are numbered; dropping
@@ -826,7 +825,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     ``element_attrs`` entry becomes the element attribute - ``region`` when the
     mesh has it, else the first name, warned about because it reads back as
     ``region``. The ``.node`` header declares 2 dimensions when the mesh
-    carries ``global_attrs["was_2d"]`` and has stayed flat, 3 otherwise.
+    carries ``global_attrs["was_2d"]``, has stayed flat and has no tetrahedron
+    to write - the ``.ele`` file declares four nodes per element, which has no
+    home in a plane - and 3 otherwise.
     ``element_tags`` and the rest of ``global_attrs`` have nowhere to go and
     are not written.
     """
@@ -872,6 +873,16 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             )
 
     regions = _region_column(poly, keep)
+
+    dim = output_dimension(poly, fmt=".node")
+    if dim == 2 and refs.size:
+        # The .ele file this writer emits always declares four nodes per
+        # element, and a tetrahedron has no home in a plane. TetGen's own 2-D
+        # mode fills the plane with triangles instead, so a two-column .node
+        # beside a .ele of tetrahedra is a pair it does not load. Quietly,
+        # since nothing is lost - a flat mesh writes z=0 either way.
+        dim = 3
+
     # Every check the mesh can fail runs above, so a rejected mesh does not
     # leave a .node file behind with no .ele to go with it. An OSError from the
     # filesystem itself can still land between the two writes.
@@ -881,6 +892,6 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         _node_attrs(poly),
         _boundary_markers(poly),
         float_fmt,
-        output_dimension(poly, fmt=".node"),
+        dim,
     )
     _write_ele(ele_path, refs, regions, float_fmt)

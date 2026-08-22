@@ -62,7 +62,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - The format holds a single cell type per file; writing a mixed mesh raises rather than dropping the elements that do not fit.
-- 2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+- A 2-D file's coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. The ``dim`` attribute follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning. An inferred ``dim`` is 3 for a mesh of solid cells however flat it lies, DOLFIN needing its geometric dimension to be at least its topological one; a ``dim=`` given by the caller is left alone.
 - Mesh function and mesh value collection blocks are read as attributes where present.
 
 .. seealso::

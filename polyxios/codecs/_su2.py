@@ -839,11 +839,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # A mesh of 3-D cells is 3-D whatever its coordinates say, and a flat one
     # is 2-D: SU2 reads exactly NDIME coordinates per node, so declaring 2 for
     # a mesh with a z extent would flatten it.
-    ndim = (
-        3
-        if mesh_dim == 3
-        else output_dimension(poly, fmt=".su2", flat_default=2, stacklevel=3)
-    )
+    ndim = 3 if mesh_dim == 3 else output_dimension(poly, fmt=".su2", flat_default=2)
     if volume and mesh_dim < ndim:
         # SU2 fills an NDIME-dimensional domain with NDIME-dimensional cells,
         # so a surface with a z extent has no home: NDIME= 2 would flatten it

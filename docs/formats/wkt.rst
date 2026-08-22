@@ -59,7 +59,7 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- 2D geometry is padded to z = 0 so the vertex array is always (n, 3).
+- A 2-D file's coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. The ``Z`` suffix follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning.
 - Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
 - An EWKT ``SRID=`` prefix is parsed and then dropped - polyxios carries no coordinate reference system.
 - The ISO/SQL-MM surface family reads too: ``TRIANGLE`` as one triangle, ``TIN`` as a set of them, ``POLYHEDRALSURFACE`` as a set of polygons. A ``TIN`` patch that is not a triangle, or a ``TRIANGLE`` carrying an interior ring, is refused rather than read as something else.

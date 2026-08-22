@@ -23,7 +23,7 @@ import warnings
 
 import numpy as np
 
-from polyxios._dimension import mark_2d, output_dimension
+from polyxios._dimension import has_solid_cells, mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -555,7 +555,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     goes the same way onto the vertex records. The file is written in
     three dimensions unless ``global_attrs["was_2d"]`` is set and the vertices
     have stayed in the plane, which is what carries a two-dimensional file
-    back out as one. Elements whose type has no
+    back out as one; a mesh holding a solid cell keeps three whatever the flag
+    says, a ``Tetrahedra`` section under ``Dimension 2`` being a file no
+    reader loads. Elements whose type has no
     Medit section are skipped with a warning. Sections are written in order
     of topological dimension, which is the order Medit's own writers use.
     """
@@ -585,6 +587,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     n_verts = poly.vertices.shape[0]
     dim = output_dimension(poly, fmt=".mesh")
+    if dim == 2 and has_solid_cells(poly):
+        # A Medit file spells its element sections in the dimension its header
+        # declares: a Tetrahedra section under Dimension 2 is one no reader
+        # loads. Quietly, since nothing is lost - a flat mesh writes a zero z.
+        dim = 3
     lines: list[str] = ["MeshVersionFormatted 2", "", f"Dimension {dim}", ""]
 
     vertex_refs = _vertex_refs(poly, n_verts)
