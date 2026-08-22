@@ -74,6 +74,25 @@ New features
 - ``.plt`` is registered to the Tecplot codec so a binary Tecplot file is
   told what is wrong instead of resolving nowhere. Reading it is not
   supported.
+- ``PolyData.topological_dimension`` reports the highest dimension the mesh
+  actually holds - 0 for points, 1 for lines, 2 for surfaces, 3 for volumes -
+  taking the maximum over the element types present, so a tetrahedral mesh
+  that also carries its boundary triangles still reads as 3-D. It is the
+  dimension of the elements, not of the space they sit in: a triangle mesh
+  embedded in 3-D is 2-D. An empty mesh is 0.
+- ``transforms.merge_duplicate_vertices`` welds coincident vertices into
+  one, the equivalent of ParaView's "Clean to Grid". Formats that write a
+  corner per element - STL above all - hand back a soup of unconnected
+  vertices, and welding is what turns it back into a surface. ``tol=``
+  snaps coordinates to a grid of that step before comparing; the default
+  welds only exactly equal ones, and a ``tol`` so small that snapping
+  overflows to infinity is refused rather than welding every point it
+  overflowed. The survivor of each group is its lowest original index and
+  keeps its own coordinates and attributes, so the result does not depend
+  on which duplicate the file listed first and a tolerance never moves a
+  point. Welding is not culling: a vertex no
+  element references is kept - compose with ``remove_orphan_vertices`` to
+  drop those too.
 
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
@@ -87,6 +106,18 @@ Behaviour changes
 Bug fixes
 ~~~~~~~~~
 
+- A tag group naming a vertex or an element that this mesh does not have no
+  longer moves the label onto one that it does. ``remove_orphan_vertices``,
+  ``merge_duplicate_vertices`` and ``filter_element_type`` carried a group
+  through their index remap after dropping only the members past the end, so
+  a negative index reached the array from the far end and landed on a real
+  item, and a group holding floats - which nothing stops a reader from
+  building - raised ``IndexError`` from inside numpy instead. All three now
+  go through the same member check the writers use: a member that indexes
+  nothing in this mesh is dropped, and what is left is remapped.
+- The documented ``pipeline(filter_element_type(keep="triangle"), ...)``
+  raised ``TypeError``: ``filter_element_type`` takes the mesh first and does
+  not curry. The example now composes it with ``functools.partial``.
 - A broken binary file now reports what is wrong with it rather than
   ``BufferError: cannot close exported pointers exist``. The formats that
   parse over a mapping - ``.ply``, legacy ``.vtk``, ``.meshb`` - build their
