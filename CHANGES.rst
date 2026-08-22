@@ -74,6 +74,12 @@ New features
 - ``.plt`` is registered to the Tecplot codec so a binary Tecplot file is
   told what is wrong instead of resolving nowhere. Reading it is not
   supported.
+- ``PolyData.topological_dimension`` reports the highest dimension the mesh
+  actually holds - 0 for points, 1 for lines, 2 for surfaces, 3 for volumes -
+  taking the maximum over the element types present, so a tetrahedral mesh
+  that also carries its boundary triangles still reads as 3-D. It is the
+  dimension of the elements, not of the space they sit in: a triangle mesh
+  embedded in 3-D is 2-D. An empty mesh is 0.
 
 Behaviour changes
 ~~~~~~~~~~~~~~~~~

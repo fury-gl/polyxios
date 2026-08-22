@@ -8,7 +8,9 @@ from polyxios._element_types import (
     LINE_ELEMENT_TYPES,
     QUADRATIC_SURFACE_CORNERS,
     SURFACE_ELEMENT_TYPES,
+    TOPOLOGICAL_DIMENSION,
 )
+from polyxios.exceptions import UnknownElementTypeError
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _LINE_CODES = LINE_ELEMENT_TYPES
@@ -51,6 +53,37 @@ class PolyData:
     vertex_tags: dict[str, np.ndarray] = field(default_factory=dict)
     element_tags: dict[str, np.ndarray] = field(default_factory=dict)
     global_attrs: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def topological_dimension(self) -> int:
+        """Highest topological dimension present, 0 to 3.
+
+        The dimension of the elements themselves, not of the space they sit
+        in: a triangle mesh embedded in 3-D is still 2-D. Points are 0,
+        lines 1, surfaces 2, volumes 3, and a mesh holding several of them
+        reports the largest - a tetrahedral mesh that also carries its
+        boundary triangles is 3-D.
+
+        Returns
+        -------
+        int
+            Maximum dimension over the element types present. 0 when the
+            mesh has no elements.
+
+        Raises
+        ------
+        UnknownElementTypeError
+            If an element carries a type code outside ELEMENT_TYPES.
+        """
+        if self.element_types.size == 0:
+            return 0
+        best = 0
+        for code in np.unique(self.element_types):
+            dim = TOPOLOGICAL_DIMENSION.get(int(code))
+            if dim is None:
+                raise UnknownElementTypeError("polydata", int(code))
+            best = max(best, dim)
+        return best
 
     @property
     def faces(self) -> np.ndarray | None:
