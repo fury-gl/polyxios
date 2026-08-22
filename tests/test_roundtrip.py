@@ -294,11 +294,10 @@ CAPABILITIES: dict[str, Cap] = {
     ".medit": Cap(
         "mixed",
         warns=(r"element tag group\(s\) \['a', 'b'\] are not named 'ref_<n>'",),
-        global_attrs=("was_2d",),
         note="A Medit record carries a reference number, not a name, so only"
         " groups already called 'ref_<n>' survive; the writer warns rather"
-        " than numbering the rest itself. The file's own Dimension comes back"
-        " in global_attrs, which is what carries a 2-D file out as one.",
+        " than numbering the rest itself. A 3-D file leaves global_attrs"
+        " empty; only a 2-D one sets 'was_2d'.",
     ),
     ".mesh": Cap("mixed", note="MFEM stores geometry only."),
     ".meshb": Cap(

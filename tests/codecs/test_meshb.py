@@ -357,3 +357,62 @@ def test_a_section_running_past_the_end_of_the_file_is_a_codec_error(
     path.write_bytes(bytes(raw))
     with pytest.raises(CodecError, match="runs past the end of the file"):
         read(path=path)
+
+
+def _flat_meshb(dim: int) -> bytes:
+    """Hand-build a one-triangle .meshb of the given Dimension."""
+    xy = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]
+    out = struct.pack("<iiii", 1, 2, 3, dim)
+    out += struct.pack("<ii", 4, len(xy))
+    for x, y in xy:
+        coords = (x, y) if dim == 2 else (x, y, 0.0)
+        out += struct.pack(f"<{dim}di", *coords, 0)
+    out += struct.pack("<ii", 6, 1) + struct.pack("<4i", 1, 2, 3, 0)
+    out += struct.pack("<i", 54)
+    return out
+
+
+def test_a_two_dimensional_file_reads_with_three_columns(tmp_path) -> None:
+    """A Dimension 2 file is padded with z=0, not handed back two columns wide."""
+    tmp = tmp_path / "flat.meshb"
+    tmp.write_bytes(_flat_meshb(2))
+
+    poly = read(path=tmp)
+
+    assert poly.vertices.shape == (3, 3)
+    np.testing.assert_allclose(poly.vertices[:, 2], 0.0)
+    assert poly.global_attrs["was_2d"] is True
+
+
+def test_a_three_dimensional_file_is_not_flagged_two_dimensional(tmp_path) -> None:
+    tmp = tmp_path / "solid.meshb"
+    tmp.write_bytes(_flat_meshb(3))
+
+    assert "was_2d" not in read(path=tmp).global_attrs
+
+
+def test_a_two_dimensional_file_is_written_back_as_one(tmp_path) -> None:
+    src = tmp_path / "flat.meshb"
+    src.write_bytes(_flat_meshb(2))
+    out = tmp_path / "again.meshb"
+
+    write(poly=read(path=src), path=out)
+
+    assert struct.unpack_from("<i", out.read_bytes(), 12)[0] == 2
+    np.testing.assert_allclose(read(path=out).vertices, read(path=src).vertices)
+
+
+def test_a_lifted_two_dimensional_mesh_is_written_in_three(tmp_path) -> None:
+    src = tmp_path / "flat.meshb"
+    src.write_bytes(_flat_meshb(2))
+    poly = read(path=src)
+    lifted = dataclasses.replace(
+        poly, vertices=poly.vertices + np.array([0.0, 0.0, 1.0])
+    )
+    out = tmp_path / "lifted.meshb"
+
+    with pytest.warns(UserWarning, match="now carry a third coordinate"):
+        write(poly=lifted, path=out)
+
+    assert struct.unpack_from("<i", out.read_bytes(), 12)[0] == 3
+    np.testing.assert_allclose(read(path=out).vertices, lifted.vertices)
