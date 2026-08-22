@@ -649,6 +649,9 @@ class _Parser:
             offsets=np.array(self._offsets, dtype=np.int32),
             element_types=np.array(self._types, dtype=np.uint8),
             element_attrs=element_attrs,
+            # A file with no coordinate at all left above as an empty mesh,
+            # so reaching here means at least one geometry was read and its
+            # suffix - or its absence - is the dimension.
             global_attrs=mark_2d(3 if self._saw_z else 2),
         )
 
@@ -942,9 +945,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         groups, anchor_of = _polygon_groups(poly, ring_attrs, n_elems)
 
     has_z = (
-        output_dimension(
-            poly, fmt=".wkt", flat_default=2, flat=not _mesh_has_z(poly), stacklevel=3
-        )
+        output_dimension(poly, fmt=".wkt", flat_default=2, flat=not _mesh_has_z(poly))
         == 3
     )
     suffix = " Z" if has_z else ""

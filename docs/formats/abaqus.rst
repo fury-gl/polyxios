@@ -76,6 +76,7 @@ Quirks worth knowing
 - A ``*PART`` sets the deck's own numbering aside rather than replacing it, so a set out past ``*End Part`` still reaches the nodes the deck defined before it.
 - On write, a tag member that indexes no node or element of the mesh is dropped and reported: a set naming an id no card defines is a deck Abaqus refuses to load. A float column is refused whole rather than rounded, since rounding an index moves a label onto another entity.
 - Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.
+- A node card spells the third coordinate only in a 3-D model, so a deck where none does is a plane: the vertices are padded with a zero z and ``global_attrs["was_2d"]`` records the fact, which is what writes the cards back out two columns wide. Abaqus takes a node's dimensionality from the element referencing it, so a two-column deck is written under the planar cards - ``CPS3``, ``CPS4``, ``T2D2`` - rather than the ``S3``/``S4`` shells a 3-D deck gets. A mesh holding a type with no planar card, or an ``element_type=`` override naming a 3-D one, stays three-dimensional. A mesh whose vertices have since left the plane is written in three with a warning.
 
 .. seealso::
 

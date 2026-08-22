@@ -80,6 +80,12 @@ _POLYXIOS_TO_ET: dict[str, str] = {
     "hexahedron": "BRICK",
 }
 
+# The zone element types whose nodes cannot lie in a plane. A zone declaring
+# only X and Y under one of these is one no reader loads: Tecplot takes the
+# node count per element from ET and the coordinate count from VARIABLES, and
+# a tetrahedron of two-coordinate nodes is not a cell.
+_VOLUME_ET: frozenset[str] = frozenset({"TETRAHEDRON", "BRICK"})
+
 # POINT packing writes one record per node; BLOCK packing writes each variable
 # as its own run over every node. The two need different readers, and reading
 # one as the other yields silent garbage, so the spelling is never guessed.
@@ -1091,6 +1097,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     as ``VARLOCATION`` cell-centred variables, which switches the zone to BLOCK
     packing. ``global_attrs["tecplot_title"]`` and
     ``global_attrs["tecplot_zone_title"]`` name the file and the zone.
+
+    The zone declares ``X`` and ``Y`` alone for a flat mesh carrying
+    ``global_attrs["was_2d"]``, and ``X``, ``Y``, ``Z`` otherwise. It keeps
+    the third for a ``TETRAHEDRON`` or ``BRICK`` zone however flat it lies,
+    and for a mesh carrying a variable of its own named ``Z``: Tecplot names
+    the coordinates by position, so either would read back wrong.
     """
     if opts:
         warnings.warn(
@@ -1154,6 +1166,17 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             stacklevel=2,
         )
     n_spatial = output_dimension(poly, fmt=".tec")
+    if n_spatial == 2 and et_str in _VOLUME_ET:
+        # A flat mesh of solid cells: the zone keeps its Z variable, since a
+        # tetrahedron or a brick of two-coordinate nodes is a zone no reader
+        # loads. Quietly, since nothing is lost - a flat mesh writes z=0.
+        n_spatial = 3
+    if n_spatial == 2 and quoted and quoted[0].upper() == "Z":
+        # Tecplot names the coordinates by position, so "X", "Y", "Z" where
+        # the third is a solution variable is a zone every reader - this one
+        # included - takes for three coordinates. A column of zeros is cheaper
+        # than the variable, so the zone stays three-dimensional.
+        n_spatial = 3
     variables = ", ".join(
         f'"{n}"' for n in (("X", "Y", "Z")[:n_spatial] + tuple(quoted))
     )
