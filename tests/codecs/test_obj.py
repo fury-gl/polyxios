@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import tempfile
+import warnings
 
 import numpy as np
 import pytest
 
 from polyxios import make_polydata
+from polyxios._element_types import (
+    ELEMENT_TYPES,
+    ELEMENT_TYPES_INV,
+    NODES_PER_ELEMENT,
+)
+from polyxios._types import PolyData
 from polyxios.codecs._obj import read, write
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -410,3 +417,52 @@ def test_a_material_that_does_not_cover_the_faces_is_not_written(tmp_path) -> No
         write(poly, path)
 
     assert "usemtl" not in path.read_text()
+
+
+def _one_of(name: str) -> PolyData:
+    """A mesh holding a single element of the named type."""
+    k = NODES_PER_ELEMENT[name]
+    return PolyData(
+        vertices=np.zeros((k, 3)),
+        connectivity=np.arange(k, dtype=np.int32),
+        offsets=np.array([0, k], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES[name]], dtype=np.uint8),
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "becomes"),
+    [("tetra", "quad"), ("hexahedron", "polygon"), ("line", "polygon")],
+)
+def test_an_element_an_f_record_cannot_hold_is_named(tmp_path, name, becomes) -> None:
+    """An 'f' record is a flat ring of vertices, so an element that is not one
+    keeps its vertices and loses the type it was."""
+    path = tmp_path / "flat.obj"
+    with pytest.warns(UserWarning, match=f"{name} \\(1\\) -> {becomes}"):
+        write(_one_of(name), path)
+    assert ELEMENT_TYPES_INV[int(read(path).element_types[0])] == becomes
+
+
+@pytest.mark.parametrize("name", ["triangle", "quad"])
+def test_an_element_obj_holds_is_not_named(tmp_path, name) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write(_one_of(name), tmp_path / "kept.obj")
+
+
+def test_line_and_point_records_are_reported_rather_than_dropped(tmp_path) -> None:
+    """They name geometry this codec has no element for, which is a loss and
+    not a directive stepped over."""
+    path = tmp_path / "lines.obj"
+    path.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\nl 1 2\nl 2 3\np 1\n")
+    with pytest.warns(UserWarning, match=r"'l' \(2\), 'p' \(1\)"):
+        poly = read(path)
+    assert len(poly.element_types) == 1
+
+
+def test_a_file_carrying_neither_says_nothing(tmp_path) -> None:
+    path = tmp_path / "plain.obj"
+    path.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\ns off\n")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert len(read(path).element_types) == 1

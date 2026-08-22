@@ -320,17 +320,16 @@ def test_disagreeing_count_spellings_rejected(
 @pytest.mark.parametrize(
     ("feature", "match"),
     [
-        ("VARLOCATION=([4]=CELLCENTERED)", "CELLCENTERED"),
         ("VARSHARELIST=([1-3]=1)", "VARSHARELIST"),
         ("PASSIVEVARLIST=[4]", "PASSIVEVARLIST"),
         ("CONNECTIVITYSHAREZONE=1", "CONNECTIVITYSHAREZONE"),
     ],
-    ids=["cellcentered", "varshare", "passive", "connshare"],
+    ids=["varshare", "passive", "connshare"],
 )
 def test_zone_features_that_move_data_are_rejected(
     tmp_path: Path, feature: str, match: str
 ) -> None:
-    """A cell-centred run holds E values, not N — reading it as nodal is wrong."""
+    """These move the zone's data into another zone this codec never reads."""
     path = _write_tec(
         tmp_path,
         'VARIABLES = "X","Y","Z","P"\n'
@@ -1021,3 +1020,206 @@ def test_meshio_point_data_survives_the_read(tmp_path: Path) -> None:
     ).write(out, file_format="tecplot")
 
     np.testing.assert_allclose(read(out).vertex_attrs["P"], [1.0, 2.0, 3.0, 4.0])
+
+
+# --- meshio #1368: VARLOCATION cell-centered variables -----------------------
+
+
+def test_issue_1368_cellcentered_variable_lands_in_element_attrs(
+    tmp_path: Path,
+) -> None:
+    """A CELLCENTERED run holds E values; landing them on N nodes is wrong data."""
+    path = _write_tec(
+        tmp_path,
+        'VARIABLES = "X","Y","Z","P"\n'
+        "ZONE N=4, E=2, F=FEBLOCK, ET=TRIANGLE,"
+        " VARLOCATION=([4]=CELLCENTERED)\n"
+        "0 1 0 1\n0 0 1 1\n0 0 0 0\n"
+        "7 8\n"
+        "1 2 3\n1 2 4\n",
+    )
+    poly = read(path)
+    assert "P" not in poly.vertex_attrs
+    np.testing.assert_allclose(poly.element_attrs["P"], [7.0, 8.0])
+    assert poly.vertices.shape == (4, 3)
+
+
+def test_issue_1368_nodal_and_cellcentered_clause_both_honoured(
+    tmp_path: Path,
+) -> None:
+    """The clause Tecplot itself writes names the nodal variables too."""
+    path = _write_tec(
+        tmp_path,
+        'VARIABLES = "X","Y","Z","T","P"\n'
+        "ZONE N=4, E=2, F=FEBLOCK, ET=TRIANGLE,"
+        " VARLOCATION=([1-3,4]=NODAL,[5]=CELLCENTERED)\n"
+        "0 1 0 1\n0 0 1 1\n0 0 0 0\n"
+        "10 11 12 13\n"
+        "7 8\n"
+        "1 2 3\n1 2 4\n",
+    )
+    poly = read(path)
+    np.testing.assert_allclose(poly.vertex_attrs["T"], [10, 11, 12, 13])
+    np.testing.assert_allclose(poly.element_attrs["P"], [7, 8])
+
+
+def test_issue_1368_cellcentered_coordinate_is_rejected(tmp_path: Path) -> None:
+    """A coordinate has to sit on the nodes; reading E of them would misplace them."""
+    path = _write_tec(
+        tmp_path,
+        'VARIABLES = "X","Y","Z"\n'
+        "ZONE N=3, E=1, F=FEBLOCK, ET=TRIANGLE,"
+        " VARLOCATION=([3]=CELLCENTERED)\n"
+        "0 1 0\n0 0 1\n0\n1 2 3\n",
+    )
+    with pytest.raises(CodecError, match="coordinate"):
+        read(path)
+
+
+def test_issue_1368_cellcentered_needs_block_packing(tmp_path: Path) -> None:
+    """POINT packing writes one record per node, so it cannot carry E values."""
+    path = _write_tec(
+        tmp_path,
+        'VARIABLES = "X","Y","Z","P"\n'
+        "ZONE N=3, E=1, F=FEPOINT, ET=TRIANGLE,"
+        " VARLOCATION=([4]=CELLCENTERED)\n"
+        "0 0 0 1\n1 0 0 1\n0 1 0 1\n1 2 3\n",
+    )
+    with pytest.raises(CodecError, match="BLOCK"):
+        read(path)
+
+
+def test_issue_1368_cellcentered_without_variables_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """VARLOCATION indexes the VARIABLES list; without it no index means anything."""
+    path = _write_tec(
+        tmp_path,
+        "ZONE N=3, E=1, F=FEBLOCK, ET=TRIANGLE, VARLOCATION=([4]=CELLCENTERED)\n"
+        "0 1 0\n0 0 1\n0 0 0\n7\n1 2 3\n",
+    )
+    with pytest.raises(CodecError, match="VARIABLES"):
+        read(path)
+
+
+def test_issue_1368_element_attrs_survive_a_round_trip(tmp_path: Path) -> None:
+    """Cell data written as nodal - or dropped - is the same bug from the other end."""
+    poly = _tri_mesh()
+    poly = PolyData(
+        vertices=poly.vertices,
+        connectivity=poly.connectivity,
+        offsets=poly.offsets,
+        element_types=poly.element_types,
+        element_attrs={"P": np.array([3.5, 4.5])},
+    )
+    tmp = tmp_path / "cc.tec"
+    write(poly, tmp)
+    back = read(tmp)
+    np.testing.assert_allclose(back.element_attrs["P"], [3.5, 4.5])
+    assert "P" not in back.vertex_attrs
+
+
+# --- meshio #1372: zone labels ----------------------------------------------
+
+
+def test_issue_1372_zone_title_survives_a_round_trip(tmp_path: Path) -> None:
+    """A zone label names the part; dropping it merges parts on the far side."""
+    path = _write_tec(
+        tmp_path,
+        'TITLE = "study 7"\n'
+        'VARIABLES = "X","Y","Z"\n'
+        'ZONE T="wing surface", N=3, E=1, F=FEPOINT, ET=TRIANGLE\n'
+        "0 0 0\n1 0 0\n0 1 0\n1 2 3\n",
+    )
+    poly = read(path)
+    assert poly.global_attrs["tecplot_zone_title"] == "wing surface"
+    assert poly.global_attrs["tecplot_title"] == "study 7"
+
+    tmp = tmp_path / "out.tec"
+    write(poly, tmp)
+    assert 'T="wing surface"' in tmp.read_text()
+    assert read(tmp).global_attrs["tecplot_zone_title"] == "wing surface"
+
+
+def test_issue_1372_zone_title_holding_a_quote_is_folded(tmp_path: Path) -> None:
+    """A raw quote closes the header string early and breaks the file it names."""
+    poly = _tri_mesh()
+    poly = PolyData(
+        vertices=poly.vertices,
+        connectivity=poly.connectivity,
+        offsets=poly.offsets,
+        element_types=poly.element_types,
+        global_attrs={"tecplot_zone_title": 'a "quoted" zone'},
+    )
+    tmp = tmp_path / "q.tec"
+    write(poly, tmp)
+    assert read(tmp).global_attrs["tecplot_zone_title"] == "a 'quoted' zone"
+
+
+def test_a_block_run_is_wrapped_rather_than_written_whole(tmp_path) -> None:
+    """A run written as one line is as long as the mesh; readers refuse that."""
+    n = 40
+    verts = np.column_stack([np.arange(n, dtype=np.float64), np.zeros(n), np.zeros(n)])
+    cells = np.column_stack([np.arange(n - 2), np.arange(1, n - 1), np.arange(2, n)])
+    poly = make_polydata(verts, [("triangle", cells)])
+    poly.element_attrs["heat"] = np.arange(len(cells), dtype=np.float64)
+
+    out = tmp_path / "block.tec"
+    write(poly, out)
+    body = out.read_text().splitlines()
+    assert max(len(ln.split()) for ln in body[3:]) <= 10
+
+    back = read(out)
+    np.testing.assert_allclose(back.element_attrs["heat"], poly.element_attrs["heat"])
+    np.testing.assert_allclose(back.vertices, poly.vertices)
+
+
+def test_an_attribute_that_is_not_an_array_is_skipped_rather_than_fatal(
+    tmp_path,
+) -> None:
+    """A mesh a caller built by hand holds lists; that is not a reason to crash."""
+    poly = make_polydata(
+        np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.vertex_attrs["t"] = [1.0, 2.0, 3.0]
+    poly.element_attrs["p"] = [4.0]
+    out = tmp_path / "lists.tec"
+    write(poly, out)
+    back = read(out)
+    np.testing.assert_allclose(back.vertex_attrs["t"], [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(back.element_attrs["p"], [4.0])
+
+
+def _tetra_with(**attrs) -> PolyData:
+    return PolyData(
+        vertices=np.array(
+            [[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64
+        ),
+        connectivity=np.array([0, 1, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 4], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["tetra"]], dtype=np.uint8),
+        **attrs,
+    )
+
+
+def test_a_cell_variable_carrying_a_missing_value_is_not_written(
+    tmp_path: Path,
+) -> None:
+    """A zone holding the token 'nan' is one no reader loads."""
+    out = tmp_path / "nan.tec"
+    with pytest.warns(UserWarning, match="spells no missing value"):
+        write(_tetra_with(element_attrs={"q": np.array([np.nan])}), out)
+    body = out.read_text()
+    assert "nan" not in body
+    assert not read(out).element_attrs
+
+
+def test_a_nodal_variable_carrying_a_missing_value_is_not_written(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "nan_nodal.tec"
+    with pytest.warns(UserWarning, match="spells no missing value"):
+        write(_tetra_with(vertex_attrs={"t": np.array([1.0, 2.0, np.nan, 4.0])}), out)
+    assert "nan" not in out.read_text()
+    assert not read(out).vertex_attrs

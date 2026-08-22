@@ -13,6 +13,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, read_text, write_text
+from polyxios._tags import member_indices
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -21,9 +22,9 @@ EXTENSION: str = ".msh"
 # Gmsh element type code → (polyxios name, n_nodes). Numbering is fixed by the
 # MSH specification and is shared by every format version.
 #
-# Gmsh types 13 (18-node prism) and 14 (14-node pyramid) are deliberately
-# absent: their node ordering relative to VTK is not settled here, and emitting
-# a wrong permutation is worse than skipping the element with a warning.
+# Gmsh type 14 (14-node pyramid) is deliberately absent: VTK has no 14-node
+# pyramid, so there is nowhere correct to put one, and inventing a place is
+# worse than skipping the element with a warning.
 _GMSH_TO_POLYXIOS: dict[int, tuple[str, int]] = {
     1: ("line", 2),
     2: ("triangle", 3),
@@ -37,6 +38,7 @@ _GMSH_TO_POLYXIOS: dict[int, tuple[str, int]] = {
     10: ("biquadratic_quad", 9),
     11: ("quadratic_tetra", 10),
     12: ("triquadratic_hexahedron", 27),
+    13: ("biquadratic_quadratic_wedge", 18),
     15: ("vertex", 1),
     16: ("quadratic_quad", 8),
     17: ("quadratic_hexahedron", 20),
@@ -53,6 +55,35 @@ _GMSH_NODE_COUNT: dict[str, int] = {
 }
 
 # Topological dimension per element, used for the ``$PhysicalNames`` records.
+# The sections a field travels in, which are collected apart from the mesh
+# sections: a file carries one per field and per time step.
+_DATA_KEYWORDS: frozenset[str] = frozenset({"$NodeData", "$ElementData"})
+
+# The component counts a data section may declare - a scalar, a vector and a
+# tensor. Gmsh refuses a section naming anything else, so a writer has only
+# these three to reach for however wide the field it was handed.
+_DECLARED_WIDTHS: tuple[int, ...] = (1, 3, 9)
+_MAX_DECLARED_WIDTH: int = _DECLARED_WIDTHS[-1]
+
+
+def _declared_width(held: int) -> int:
+    """Return the component count a field of this width is declared at.
+
+    Parameters
+    ----------
+    held
+        How many components the field actually carries.
+
+    Returns
+    -------
+    int
+        The narrowest of 1, 3 and 9 that holds them, or ``held`` itself when
+        the field is wider than any of the three and there is nothing legal
+        to reach for.
+    """
+    return next((w for w in _DECLARED_WIDTHS if w >= held), held)
+
+
 _ELEMENT_DIM: dict[str, int] = {
     "vertex": 0,
     "line": 1,
@@ -70,6 +101,7 @@ _ELEMENT_DIM: dict[str, int] = {
     "quadratic_hexahedron": 3,
     "triquadratic_hexahedron": 3,
     "quadratic_wedge": 3,
+    "biquadratic_quadratic_wedge": 3,
     "quadratic_pyramid": 3,
 }
 
@@ -95,6 +127,29 @@ _READ_ORDER: dict[str, tuple[int, ...]] = {
     "quadratic_wedge": (0, 1, 2, 3, 4, 5, 6, 9, 7, 12, 14, 13, 8, 10, 11),
     # Base edges, then the four lateral edges meeting at the apex.
     "quadratic_pyramid": (0, 1, 2, 3, 4, 5, 8, 10, 6, 7, 9, 11, 12),
+    # The 15-node wedge's edges, then the three quadrilateral face centres:
+    # VTK orders them (0,1,4,3), (1,2,5,4), (2,0,3,5) while Gmsh's face table
+    # runs (0,1,4,3), (0,3,5,2), (1,2,5,4), so the last two swap.
+    "biquadratic_quadratic_wedge": (
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        9,
+        7,
+        12,
+        14,
+        13,
+        8,
+        10,
+        11,
+        15,
+        17,
+        16,
+    ),
 }
 _WRITE_ORDER: dict[str, tuple[int, ...]] = {
     name: tuple(order.index(i) for i in range(len(order)))
@@ -137,12 +192,16 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     Notes
     -----
-    Gmsh types 13 (18-node prism) and 14 (14-node pyramid) are unsupported and
-    skipped with a warning, as are any element types outside the MSH spec.
+    Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped
+    with a warning, as are any element types outside the MSH spec.
 
-    Only the mesh itself is read. ``$NodeData``, ``$ElementData``,
-    ``$ElementNodeData``, ``$Periodic`` and every other section are ignored, so
-    field data attached to a file is not preserved by a read/write round trip.
+    ``$NodeData`` and ``$ElementData`` become ``vertex_attrs`` and
+    ``element_attrs``, at whatever component count the file declares; a field
+    is scattered by the tag each row names, so one covering part of the mesh
+    lands where it belongs and the rest stays ``NaN``. A row naming an entity
+    the mesh does not hold is dropped with a warning, and a field the mesh
+    cannot hold at all costs that field alone.
+    ``$ElementNodeData``, ``$Periodic`` and every other section are ignored.
     Duplicate node tags are reported with a warning and the last definition of
     each wins.
     """
@@ -159,7 +218,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             ".msh: file is not ASCII/UTF-8 text; binary .msh is not supported."
         ) from exc
 
-    sections = _split_sections(text)
+    sections, data_blocks = _split_sections(text)
     for required in ("$MeshFormat", "$Nodes", "$Elements"):
         if required not in sections:
             raise CodecError(f".msh: missing {required} section.")
@@ -191,11 +250,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     node_index = _build_node_index(tags)
 
     if version.startswith("2"):
-        conn_raw, offsets, types, phys_tags = _parse_elements_v2(sections["$Elements"])
+        builder = _parse_elements_v2(sections["$Elements"])
     else:
-        conn_raw, offsets, types, phys_tags = _parse_elements_v41(
-            sections["$Elements"], entity_phys
-        )
+        builder = _parse_elements_v41(sections["$Elements"], entity_phys)
+    conn_raw, offsets, types, phys_tags = builder.finish()
 
     connectivity = _resolve_nodes(conn_raw, node_index, vertices.shape[0])
 
@@ -204,11 +262,25 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         sections.get("$PhysicalNames", []), phys_tags, types
     )
 
+    vertex_attrs: dict[str, np.ndarray] = {}
+    _read_data_sections(
+        data_blocks,
+        node_index,
+        # Gmsh numbers its elements from 1, so a 0 is an element that answers
+        # to no tag and must not be reachable from a data row.
+        {tag: i for i, tag in enumerate(builder.ids) if tag > 0},
+        vertices.shape[0],
+        len(types),
+        vertex_attrs,
+        element_attrs,
+    )
+
     return PolyData(
         vertices=vertices,
         connectivity=connectivity,
         offsets=offsets,
         element_types=types,
+        vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
         element_tags=element_tags,
     )
@@ -241,6 +313,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     long as each stays within a dimension of its own.
     Elements whose type has no Gmsh equivalent are skipped with a warning, as
     are groups that cannot be reduced to one physical tag.
+    Numeric ``vertex_attrs`` and ``element_attrs`` are written as ``$NodeData``
+    and ``$ElementData`` sections; the rest are skipped with a warning.
     """
     float_fmt = opts.get("float_fmt", _DEFAULT_FLOAT_FMT)
     n_elems = len(poly.element_types)
@@ -300,14 +374,206 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             f"{out_idx + 1} {_POLYXIOS_TO_GMSH[name]} 2 {tag} {tag} {node_str}"
         )
     lines.append("$EndElements")
+
+    lines.extend(
+        _data_section_lines(
+            poly.vertex_attrs, "NodeData", poly.vertices.shape[0], None, float_fmt
+        )
+    )
+    lines.extend(
+        _data_section_lines(
+            {k: v for k, v in (poly.element_attrs or {}).items() if k != "phys_tag"},
+            "ElementData",
+            n_elems,
+            writable,
+            float_fmt,
+        )
+    )
     lines.append("")
 
     write_text(path, "\n".join(lines), encoding=_WRITE_ENCODING)
 
 
-def _split_sections(text: str) -> dict[str, list[str]]:
-    """Split a .msh file into ``$Keyword`` → content lines, blanks removed."""
+def _data_section_lines(
+    attrs: dict[str, np.ndarray],
+    keyword: str,
+    count: int,
+    written: list[int] | None,
+    float_fmt: str,
+) -> list[str]:
+    """Return one ``$NodeData`` / ``$ElementData`` section per numeric attribute.
+
+    Parameters
+    ----------
+    attrs
+        Named attribute arrays.
+    keyword
+        ``NodeData`` or ``ElementData``.
+    count
+        How many entities the mesh holds, which is how long an attribute has
+        to be to describe them.
+    written
+        For element data, the mesh indices that made it into the file, in the
+        order they were written; None for node data, where every node goes.
+    float_fmt
+        Format specifier for the values.
+
+    Returns
+    -------
+    list of str
+        The section lines, empty when nothing could be written.
+
+    Notes
+    -----
+    The reader takes a field of any width, but a writer cannot: MSH2 declares
+    a component count of 1, 3 or 9, and Gmsh refuses a section naming
+    anything else outright. A field of another width is padded out to the next
+    of the three with zero columns, so the values it carries all reach the
+    file and the file still loads; the padding is reported, since it is a
+    column the caller did not hand over. A field wider than 9 has no legal
+    width to reach and is written at its own, which polyxios reads back and
+    Gmsh does not.
+
+    Non-numeric or wrong-length attributes have no data section to sit in and
+    are reported rather than dropped in silence.
+
+    A row that is not finite throughout is left out, and the declared entity
+    count drops with it: the format spells no "no value here", so a NaN read
+    in from a field covering part of the mesh would go back out as the token
+    ``nan``, which is not a number a reader expecting one accepts. A field
+    covering part of the mesh is written over that part, the way it came in.
+    """
+    lines: list[str] = []
+    skipped: set[str] = set()
+    thinned: dict[str, int] = {}
+    padded: dict[str, tuple[int, int]] = {}
+    overwide: dict[str, int] = {}
+    # Element data is numbered by the file, not by the mesh: an element with
+    # no Gmsh equivalent never got an id, so its value has no row. Which rows
+    # those are is the same for every attribute, so it is settled once here
+    # rather than rebuilt per field.
+    picked = (
+        np.arange(count, dtype=np.int64)
+        if written is None
+        else np.asarray(written, dtype=np.int64)
+    )
+    for name, raw in (attrs or {}).items():
+        array = np.asarray(raw)
+        if (
+            not name.strip()
+            or array.dtype.kind not in "fiub"
+            or array.ndim not in (1, 2)
+            or array.shape[0] != count
+        ):
+            skipped.add(name)
+            continue
+        values = array.reshape(count, -1).astype(np.float64, copy=False)
+        held = values.shape[1]
+        width = _declared_width(held)
+        if width > held:
+            padded[name] = (held, width)
+            values = np.pad(values, ((0, 0), (0, width - held)))
+        elif held > _MAX_DECLARED_WIDTH:
+            overwide[name] = held
+        if not picked.size:
+            # Nothing reached the file, so there is no section to write - but
+            # the walk goes on, since what an attribute cannot spell is worth
+            # reporting whether or not a row of it was ever written.
+            continue
+        rows = values[picked]
+        # The tag names the entity as this file numbers it, which is the row's
+        # place among the ones written - so dropping a row must not renumber
+        # the rest.
+        live = np.isfinite(rows).all(axis=1)
+        if not live.all():
+            thinned[name] = int(np.count_nonzero(~live))
+            rows = rows[live]
+        tags = np.flatnonzero(live) + 1
+        if not tags.size:
+            continue
+        lines.extend(
+            [
+                f"${keyword}",
+                "1",
+                f'"{_sanitize_name(name)}"',
+                "1",
+                "0.0",
+                "3",
+                "0",
+                str(values.shape[1]),
+                str(tags.size),
+            ]
+        )
+        lines.extend(
+            f"{tag} " + " ".join(f"{value:{float_fmt}}" for value in row)
+            for tag, row in zip(tags.tolist(), rows)
+        )
+        lines.append(f"$End{keyword}")
+
+    kind = "vertex" if keyword == "NodeData" else "element"
+    if skipped:
+        warnings.warn(
+            f".msh: only named numeric {kind} attributes, one row per"
+            f" {kind}, can be written; skipped {sorted(skipped)}.",
+            stacklevel=3,
+        )
+    if thinned:
+        named = ", ".join(f"{name} ({n})" for name, n in sorted(thinned.items()))
+        warnings.warn(
+            f".msh: the format spells no missing value, so the {kind}(s)"
+            f" carrying one were left out of their data section: {named}.",
+            stacklevel=3,
+        )
+    if padded:
+        named = ", ".join(
+            f"{name} ({held} -> {width})"
+            for name, (held, width) in sorted(padded.items())
+        )
+        warnings.warn(
+            f".msh: a data section declares 1, 3 or 9 components and no other"
+            f" count loads, so the {kind} attribute(s) {named} were padded out"
+            " with zero column(s).",
+            stacklevel=3,
+        )
+    if overwide:
+        named = ", ".join(f"{name} ({n})" for name, n in sorted(overwide.items()))
+        warnings.warn(
+            f".msh: the {kind} attribute(s) {named} carry more than"
+            f" {_MAX_DECLARED_WIDTH} components, which no data section can"
+            " declare; they were written at their own width, which polyxios"
+            " reads back and Gmsh refuses.",
+            stacklevel=3,
+        )
+    return lines
+
+
+def _split_sections(
+    text: str,
+) -> tuple[dict[str, list[str]], list[tuple[str, list[str]]]]:
+    """Split a .msh file into its sections, blanks removed.
+
+    Parameters
+    ----------
+    text
+        The whole file.
+
+    Returns
+    -------
+    dict of str to list of str
+        ``$Keyword`` to its content lines, one entry per keyword.
+    list of (str, list of str)
+        The ``$NodeData`` / ``$ElementData`` blocks, in file order.
+
+    Notes
+    -----
+    The data blocks come back alongside rather than through the mapping: a
+    file carries one per field and per time step, and a mapping keyed by the
+    keyword keeps one and drops the rest. Both are collected in this one walk,
+    since the file runs to millions of lines and splitting it twice costs as
+    much again.
+    """
     sections: dict[str, list[str]] = {}
+    data: list[tuple[str, list[str]]] = []
     current: str | None = None
     content: list[str] = []
     for raw in text.splitlines():
@@ -317,6 +583,8 @@ def _split_sections(text: str) -> dict[str, list[str]]:
         if ln.startswith("$End"):
             if current is not None:
                 sections[current] = content
+                if current in _DATA_KEYWORDS:
+                    data.append((current, content))
             current = None
             content = []
         elif ln.startswith("$"):
@@ -325,9 +593,12 @@ def _split_sections(text: str) -> dict[str, list[str]]:
         elif current is not None:
             content.append(ln)
     # An unterminated final section still carries usable records.
-    if current is not None and current not in sections:
-        sections[current] = content
-    return sections
+    if current is not None:
+        if current not in sections:
+            sections[current] = content
+        if current in _DATA_KEYWORDS:
+            data.append((current, content))
+    return sections, data
 
 
 def _parse_mesh_format(lines: list[str]) -> tuple[str, bool]:
@@ -498,6 +769,20 @@ def _lenient_int(field: str) -> int:
         return int(float(field))
 
 
+def _element_id(field: str) -> int:
+    """Read an element tag, or 0 for one no number can be made of.
+
+    A tag names the element a ``$ElementData`` row describes and nothing else,
+    so a file that spells one strangely is still a file whose mesh is worth
+    reading. Gmsh numbers its elements from 1, which is what leaves 0 free to
+    mean "this element answers to no tag".
+    """
+    try:
+        return _lenient_int(field)
+    except (ValueError, OverflowError):
+        return 0
+
+
 def _parse_entities_v41(lines: list[str]) -> dict[tuple[int, int], int]:
     """Map (dimension, entity tag) → first physical tag from ``$Entities``.
 
@@ -537,9 +822,7 @@ def _parse_entities_v41(lines: list[str]) -> dict[tuple[int, int], int]:
     return out
 
 
-def _parse_elements_v2(
-    lines: list[str],
-) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray]:
+def _parse_elements_v2(lines: list[str]) -> "_ElementBuilder":
     """Parse a format 2.x ``$Elements`` section."""
     if not lines:
         raise CodecError(".msh: empty $Elements section.")
@@ -570,14 +853,13 @@ def _parse_elements_v2(
             phys_tag = int(parts[3]) if n_tags > 0 else 0
         except ValueError as exc:
             raise CodecError(f".msh: non-integer physical tag in {ln!r}.") from exc
-        builder.add(gmsh_type, parts[3 + n_tags :], phys_tag, ln)
-    return builder.finish()
+        builder.add(gmsh_type, parts[3 + n_tags :], phys_tag, ln, _element_id(parts[0]))
+    return builder
 
 
 def _parse_elements_v41(
-    lines: list[str],
-    entity_phys: dict[tuple[int, int], int],
-) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray]:
+    lines: list[str], entity_phys: dict[tuple[int, int], int]
+) -> "_ElementBuilder":
     """Parse a format 4.1 ``$Elements`` section, one block per entity."""
     if not lines:
         raise CodecError(".msh: empty $Elements section.")
@@ -613,7 +895,14 @@ def _parse_elements_v41(
         for j in range(n_in_block):
             ln = lines[cursor + j]
             # Field 0 is the element tag; the rest are node tags.
-            builder.add(gmsh_type, ln.split()[1:], phys_tag, ln)
+            fields = ln.split()
+            builder.add(
+                gmsh_type,
+                fields[1:],
+                phys_tag,
+                ln,
+                _element_id(fields[0]) if fields else 0,
+            )
         cursor += n_in_block
         seen += n_in_block
 
@@ -626,7 +915,7 @@ def _parse_elements_v41(
             f" hold {seen}; the blocks were used.",
             stacklevel=2,
         )
-    return builder.finish()
+    return builder
 
 
 class _ElementBuilder:
@@ -638,6 +927,9 @@ class _ElementBuilder:
         self.types: list[int] = []
         self.phys: list[int] = []
         self.skipped: set[int] = set()
+        # Element tags as the file numbers them, so a $ElementData field can
+        # be matched to the elements that survived the read.
+        self.ids: list[int] = []
 
     def add(
         self,
@@ -645,6 +937,7 @@ class _ElementBuilder:
         node_fields: list[str],
         phys_tag: int,
         record: str,
+        elem_id: int = 0,
     ) -> None:
         """Append one element; unsupported Gmsh types are recorded and dropped."""
         mapped = _GMSH_TO_POLYXIOS.get(gmsh_type)
@@ -677,6 +970,7 @@ class _ElementBuilder:
         self.offsets.append(self.offsets[-1] + n_nodes)
         self.types.append(ELEMENT_TYPES[name])
         self.phys.append(phys_tag)
+        self.ids.append(elem_id)
 
     def finish(self) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray]:
         """Emit (raw node tags, offsets, element types, physical tags)."""
@@ -697,6 +991,170 @@ class _ElementBuilder:
             np.array(self.offsets, dtype=np.int32),
             np.array(self.types, dtype=np.uint8),
             phys,
+        )
+
+
+def _parse_data_block(
+    lines: list[str], kind: str
+) -> tuple[str, np.ndarray, np.ndarray]:
+    """Return a data block's name, the tags it names, and its values.
+
+    Parameters
+    ----------
+    lines
+        The block's content lines, blanks already removed.
+    kind
+        ``$NodeData`` or ``$ElementData``, named in any error raised.
+
+    Returns
+    -------
+    str
+        The field name, from the first string tag.
+    numpy.ndarray
+        The node or element tags the block names, one per row.
+    numpy.ndarray
+        Values, shape ``(n_rows, n_components)``.
+
+    Raises
+    ------
+    CodecError
+        On a header that does not spell three tag counts, a component count
+        that is absent or not positive, or a row that is short or not numeric.
+    """
+    cursor = 0
+
+    def take_count(what: str) -> int:
+        nonlocal cursor
+        if cursor >= len(lines):
+            raise CodecError(f".msh: {kind} ends before its {what} count.")
+        try:
+            count = int(lines[cursor])
+        except ValueError as exc:
+            raise CodecError(
+                f".msh: {kind} {what} count {lines[cursor]!r} is not an integer."
+            ) from exc
+        cursor += 1
+        if count < 0:
+            raise CodecError(f".msh: {kind} declares {count} {what} tag(s).")
+        if cursor + count > len(lines):
+            raise CodecError(f".msh: {kind} ends inside its {what} tags.")
+        return count
+
+    n_strings = take_count("string")
+    strings = lines[cursor : cursor + n_strings]
+    cursor += n_strings
+    n_reals = take_count("real")
+    cursor += n_reals
+    n_ints = take_count("integer")
+    int_tags = lines[cursor : cursor + n_ints]
+    cursor += n_ints
+
+    if not strings:
+        raise CodecError(f".msh: {kind} carries no name.")
+    name = strings[0].strip().strip('"').strip()
+    if not name:
+        raise CodecError(f".msh: {kind} carries an empty name.")
+
+    # Integer tags are (time step, components, entities, [partition]); the
+    # spec puts no ceiling on the component count, so any positive width is
+    # read rather than only the 1/3/9 a tensor field happens to use.
+    if len(int_tags) < 2:
+        raise CodecError(f".msh: {kind} '{name}' declares no component count.")
+    try:
+        n_components = int(int_tags[1])
+        n_rows = int(int_tags[2]) if len(int_tags) > 2 else len(lines) - cursor
+    except ValueError as exc:
+        raise CodecError(f".msh: {kind} '{name}' has a non-integer tag.") from exc
+    if n_components <= 0:
+        raise CodecError(f".msh: {kind} '{name}' declares {n_components} component(s).")
+    if n_rows < 0 or cursor + n_rows > len(lines):
+        raise CodecError(
+            f".msh: {kind} '{name}' declares {n_rows} row(s) but only"
+            f" {len(lines) - cursor} follow."
+        )
+
+    tags = np.empty(n_rows, dtype=np.int64)
+    values = np.empty((n_rows, n_components), dtype=np.float64)
+    for i, ln in enumerate(lines[cursor : cursor + n_rows]):
+        fields = ln.split()
+        if len(fields) < n_components + 1:
+            raise CodecError(
+                f".msh: {kind} '{name}' row {ln!r} holds {len(fields) - 1}"
+                f" value(s), expected {n_components}."
+            )
+        try:
+            tags[i] = int(fields[0])
+            values[i] = [float(tok) for tok in fields[1 : n_components + 1]]
+        except ValueError as exc:
+            raise CodecError(
+                f".msh: {kind} '{name}' has a malformed row {ln!r}."
+            ) from exc
+    return name, tags, values
+
+
+def _unique_key(name: str, taken: dict[str, np.ndarray]) -> str:
+    """Return a name free in ``taken``, so a clash does not hide a field."""
+    candidate, k = name, 1
+    while candidate in taken:
+        k += 1
+        candidate = f"{name}_{k}"
+    return candidate
+
+
+def _read_data_sections(
+    blocks: list[tuple[str, list[str]]],
+    node_index: dict[int, int] | None,
+    elem_index: dict[int, int],
+    n_verts: int,
+    n_elems: int,
+    vertex_attrs: dict[str, np.ndarray],
+    element_attrs: dict[str, np.ndarray],
+) -> None:
+    """Read every ``$NodeData`` / ``$ElementData`` block into the attribute dicts.
+
+    A field is scattered by the tag each row names rather than by row order,
+    so a block covering half the mesh lands on the half it names; the rest
+    stays NaN rather than shifting onto the wrong entities. A row naming an
+    entity the mesh does not hold - an element of a type this codec skipped,
+    say - costs that row and not the whole field, and a block whose every row
+    does is dropped. A malformed block costs that field alone: the mesh around
+    it is still worth having.
+    """
+    for kind, lines in blocks:
+        try:
+            name, tags, values = _parse_data_block(lines, kind)
+        except CodecError as exc:
+            warnings.warn(f".msh: skipping a data section - {exc}", stacklevel=2)
+            continue
+
+        if kind == "$NodeData":
+            target, count = vertex_attrs, n_verts
+            rows = (
+                [node_index.get(int(t), -1) for t in tags]
+                if node_index is not None
+                else [int(t) - 1 for t in tags]
+            )
+        else:
+            target, count = element_attrs, n_elems
+            rows = [elem_index.get(int(t), -1) for t in tags]
+
+        index = np.array(rows, dtype=np.int64)
+        held = (index >= 0) & (index < count)
+        unknown = int(np.count_nonzero(~held))
+        if unknown:
+            warnings.warn(
+                f".msh: {kind} '{name}' names {unknown} tag(s) the mesh does not"
+                f" hold, first {int(tags[np.argmax(~held)])}; those rows are"
+                " dropped.",
+                stacklevel=2,
+            )
+        if count == 0 or not held.any():
+            continue
+
+        field = np.full((count, values.shape[1]), np.nan, dtype=np.float64)
+        field[index[held]] = values[held]
+        target[_unique_key(name, target)] = (
+            field[:, 0].copy() if values.shape[1] == 1 else field
         )
 
 
@@ -844,7 +1302,7 @@ def _resolve_physical_groups(
         # for an element that belongs to several groups.
         phys_tags = np.zeros(n_elems, dtype=np.int32)
         for next_tag, members in enumerate(poly.element_tags.values(), start=1):
-            idx = np.asarray(members, dtype=np.int64)
+            idx = member_indices(members, n_elems)
             unassigned = idx[phys_tags[idx] == 0]
             phys_tags[unassigned] = next_tag
 
@@ -859,8 +1317,13 @@ def _resolve_physical_groups(
     claimed: dict[int, set[int] | None] = {}
     unnamed: list[str] = []
     typeless: list[str] = []
+    unreachable: list[str] = []
     for name, members in poly.element_tags.items():
-        idx = np.asarray(members, dtype=np.int64)
+        idx = member_indices(members, n_elems)
+        if idx.size != np.asarray(members).size:
+            # Members that index no element of this mesh cost the group the
+            # part of itself they stood for, so say which group lost them.
+            unreachable.append(name)
         if not idx.size:
             continue
         group_tags = np.unique(phys_tags[idx])
@@ -904,16 +1367,23 @@ def _resolve_physical_groups(
             " $PhysicalNames; no member has a Gmsh element type.",
             stacklevel=3,
         )
+    if unreachable:
+        warnings.warn(
+            f".msh: element tag group(s) {sorted(set(unreachable))} name"
+            " members that index no element of this mesh; those members were"
+            " dropped.",
+            stacklevel=3,
+        )
     return phys_tags, names
 
 
 def _sanitize_name(name: str) -> str:
-    """Make a group name safe inside a quoted ``$PhysicalNames`` record."""
+    """Make a name safe inside a quoted record, group or data field alike."""
     cleaned = name.replace('"', "'").replace("\n", " ").replace("\r", " ")
     if cleaned != name:
         warnings.warn(
-            f".msh: physical group name {name!r} contains characters that cannot"
-            f" be quoted; written as {cleaned!r}.",
+            f".msh: the name {name!r} contains characters that cannot be"
+            f" quoted; written as {cleaned!r}.",
             stacklevel=2,
         )
     return cleaned

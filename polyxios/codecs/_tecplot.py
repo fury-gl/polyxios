@@ -3,8 +3,9 @@
 Reads a single finite-element zone under either POINT or BLOCK packing, in
 both the classic ``F=FEPOINT, ET=TRIANGLE`` spelling and the modern
 ``DATAPACKING=POINT, ZONETYPE=FETRIANGLE`` one. Variables past the node
-coordinates travel as ``vertex_attrs``. Zones are written back under POINT
-packing.
+coordinates travel as ``vertex_attrs``, or as ``element_attrs`` when
+``VARLOCATION`` cell-centres them. Zones are written back under POINT packing,
+or BLOCK packing when the mesh carries element data.
 
 Registered for ``.tec`` and, so the error names the real problem, for the
 binary ``.plt`` this codec cannot read. Tecplot's most common spelling in the
@@ -13,6 +14,7 @@ is claimed through the registry's sniff hook instead: a ``.dat`` opening with a
 Tecplot header keyword resolves here, anything else does not.
 """
 
+from collections.abc import Sequence
 import re
 from typing import Any
 import warnings
@@ -105,6 +107,17 @@ _HEADER_LINE_RE = re.compile(r"[A-Za-z_]+\s*=")
 # zone titled ``T="cellcentered run"`` from being refused for its own title.
 _VARLOCATION_RE = re.compile(r"VARLOCATION\s*=\s*(\([^)]*\)|[A-Za-z]+)", re.IGNORECASE)
 
+# One group of a VARLOCATION clause: ``[1-3,5]=CELLCENTERED``. The bracket list
+# is 1-based and indexes the VARIABLES list, so a clause without VARIABLES
+# names nothing and a group naming a coordinate moves it off the nodes.
+_VARLOC_GROUP_RE = re.compile(r"\[([^\]]*)\]\s*=\s*([A-Za-z]+)", re.IGNORECASE)
+_VARLOC_RANGE_RE = re.compile(r"(\d+)\s*-\s*(\d+)")
+
+# How many values of a BLOCK-packed run go on one line. The format itself puts
+# no limit on a line, but readers with a fixed line buffer do, and a run
+# written whole is as long as the mesh.
+_BLOCK_PER_LINE: int = 10
+
 # One variable name: quoted whole, or a bare token. Keeping a quoted name whole
 # is what stops ``"Pressure (Pa)"`` from counting as two variables.
 _VAR_RE = re.compile(r"\"([^\"]*)\"|'([^']*)'|([^\s,]+)")
@@ -124,6 +137,85 @@ _UNSUPPORTED_KEYS: tuple[str, ...] = (
 _CRITICAL_KEYS: frozenset[str] = frozenset(
     {"N", "NODES", "E", "ELEMENTS", "ET", "ZONETYPE", "F", "DATAPACKING"}
 )
+
+
+def _writable_variables(
+    attrs: dict[str, np.ndarray] | None,
+    count: int,
+    picked: Sequence[int] | np.ndarray | None,
+    what: str,
+) -> tuple[list[str], list[np.ndarray]]:
+    """Return the attributes that can travel as variables, and their columns.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's ``vertex_attrs`` or ``element_attrs``.
+    count
+        How many entities the mesh holds, which is how long an attribute has
+        to be to describe them.
+    picked
+        Which entities reach the file, in the order they are written; None
+        when every one does, as every node does.
+    what
+        ``vertex_attrs`` or ``element_attrs``, named in the warnings.
+
+    Returns
+    -------
+    list of str
+        The names to declare, in the order the runs are written.
+    list of numpy.ndarray
+        One column per name, already cut down to the entities written.
+
+    Notes
+    -----
+    A nameless variable reads back as no variable at all, taking its column
+    with it, so it is dropped here rather than silently on load. Whatever the
+    mesh holds is asked once what shape it is: a plain list is a mesh a caller
+    built by hand, not a reason to crash.
+
+    A column that is not finite throughout is dropped as well. The format
+    spells no "no value here", so a NaN - which is what a field covering part
+    of a mesh carries over the rest of it - would go out as the token ``nan``,
+    and a zone holding one is a zone no reader loads. Losing the variable is
+    the smaller loss, and it is reported either way.
+    """
+    names: list[str] = []
+    columns: list[np.ndarray] = []
+    refused: set[str] = set()
+    unspellable: set[str] = set()
+    for name, raw in (attrs or {}).items():
+        arr = np.asarray(raw)
+        if not (
+            name.strip()
+            and arr.ndim == 1
+            and arr.shape[0] == count
+            and arr.dtype.kind in "fiub"
+        ):
+            refused.add(name)
+            continue
+        values = arr.astype(np.float64, copy=False)
+        if picked is not None:
+            values = values[picked]
+        if not bool(np.isfinite(values).all()):
+            unspellable.add(name)
+            continue
+        names.append(name)
+        columns.append(values)
+    if refused:
+        warnings.warn(
+            f".tec: only named 1-D numeric {what} can be written;"
+            f" skipped {sorted(refused)}.",
+            stacklevel=3,
+        )
+    if unspellable:
+        warnings.warn(
+            f".tec: the format spells no missing value, so the {what}"
+            f" {sorted(unspellable)} carrying one were not written; a zone"
+            " holding 'nan' is one no reader loads.",
+            stacklevel=3,
+        )
+    return names, columns
 
 
 def _safe_variable_name(name: str) -> str:
@@ -430,14 +522,26 @@ def _read_block(
     n_conn: int,
     *,
     cut: bool,
-) -> tuple[np.ndarray, np.ndarray]:
+    cell_centred: frozenset[int] = frozenset(),
+    n_elems: int = 0,
+) -> tuple[list[np.ndarray], np.ndarray]:
     """Read a BLOCK-packed zone, whose values run one variable at a time.
 
     BLOCK packing wraps a variable's run across as many lines as it likes, so
-    the data is consumed as a token stream rather than line by line.
+    the data is consumed as a token stream rather than line by line. A
+    cell-centred variable's run is ``n_elems`` long rather than ``n_nodes``,
+    which is what makes the runs after it line up.
+
+    Returns
+    -------
+    list of numpy.ndarray
+        One run per variable, in file order.
+    numpy.ndarray
+        The connectivity tokens, still 1-based.
     """
+    widths = [n_elems if k in cell_centred else n_nodes for k in range(n_vars)]
     tokens = [tok for _, ln in zone_lines for tok in ln.split()]
-    n_values = n_nodes * n_vars
+    n_values = sum(widths)
     if len(tokens) < n_values + n_conn:
         _raise_short(cut, len(tokens), n_values + n_conn, "values")
     if len(tokens) > n_values + n_conn:
@@ -449,15 +553,19 @@ def _read_block(
             " the declared N=/E= counts; ignored.",
             stacklevel=2,
         )
+    runs: list[np.ndarray] = []
+    pos = 0
     try:
-        grid = np.array(tokens[:n_values], dtype=np.float64).reshape(n_vars, n_nodes)
+        for width in widths:
+            runs.append(np.array(tokens[pos : pos + width], dtype=np.float64))
+            pos += width
     except ValueError as exc:
         raise CodecError(f".tec: malformed value in the zone's data: {exc}.") from exc
     try:
         nodes = np.array(tokens[n_values : n_values + n_conn], dtype=np.int64)
     except ValueError as exc:
         raise CodecError(f".tec: malformed node reference: {exc}.") from exc
-    return np.ascontiguousarray(grid.T), nodes
+    return runs, nodes
 
 
 def _raise_short(cut: bool, got: int, want: int, unit: str) -> None:
@@ -471,22 +579,190 @@ def _raise_short(cut: bool, got: int, want: int, unit: str) -> None:
 
 
 def _reject_unsupported_zone(hdr: dict[str, str], zone_hdr: str) -> None:
-    """Refuse a zone whose data does not sit where this codec looks for it."""
+    """Refuse a zone that keeps its data in another zone entirely."""
     for key in _UNSUPPORTED_KEYS:
         if key in hdr:
             raise CodecError(
                 f".tec: zone uses {key}=, which moves data out of the zone;"
                 " this codec cannot read it."
             )
-    location = _VARLOCATION_RE.search(zone_hdr)
-    if location is not None and "CELLCENTERED" in location.group(1).upper():
-        # A cell-centred variable holds E values, not N. Reading it as nodal
-        # would land element data on the nodes, and when E equals N it would
-        # do so without a single count disagreeing.
+
+
+def _zone_metadata(
+    lines: list[str], zone_idx: int, hdr: dict[str, str]
+) -> dict[str, Any]:
+    """Return the file and zone titles, so a round trip does not merge zones.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    zone_idx
+        Index of the line opening the zone.
+    hdr
+        The zone header's parsed ``KEY=VALUE`` pairs.
+
+    Returns
+    -------
+    dict
+        ``tecplot_title`` and ``tecplot_zone_title`` when the file names them.
+    """
+    meta: dict[str, Any] = {}
+    for ln in lines[:zone_idx]:
+        stripped = ln.strip()
+        if _TITLE_RE.match(stripped.upper()) and "=" in stripped:
+            title = stripped.split("=", 1)[1].strip()
+            if len(title) >= 2 and title[0] in "\"'" and title[-1] == title[0]:
+                title = title[1:-1]
+            if title:
+                meta["tecplot_title"] = title
+    zone_title = hdr.get("T", "").strip()
+    if zone_title:
+        meta["tecplot_zone_title"] = zone_title
+    return meta
+
+
+def _parse_varlocation(
+    zone_hdr: str, n_vars: int, n_spatial: int, *, declared: bool, block: bool
+) -> frozenset[int]:
+    """Return the zero-based indices of the zone's cell-centred variables.
+
+    A cell-centred variable holds one value per element, not per node. Reading
+    its run as nodal lands element data on the nodes, and when E equals N it
+    does so without a single count disagreeing - so the clause is parsed rather
+    than guessed at.
+
+    Parameters
+    ----------
+    zone_hdr
+        The zone header, joined over its continuation lines.
+    n_vars
+        How many variables the zone carries.
+    n_spatial
+        How many leading variables hold the node coordinates.
+    declared
+        Whether the file declared a ``VARIABLES`` list.
+    block
+        Whether the zone is BLOCK-packed.
+
+    Returns
+    -------
+    frozenset of int
+        Indices into the variable list, empty when every variable is nodal.
+
+    Raises
+    ------
+    CodecError
+        When the clause is unreadable, names a coordinate, indexes past the
+        variable list, appears without a ``VARIABLES`` list, or asks for
+        cell-centred data under POINT packing.
+    """
+    match = _VARLOCATION_RE.search(zone_hdr)
+    if match is None:
+        return frozenset()
+    clause = match.group(1).strip()
+
+    # ``VARLOCATION=NODAL`` is the default spelled out; the bare CELLCENTERED
+    # form would put the coordinates on the elements, which is not a mesh.
+    if not clause.startswith("("):
+        if clause.upper() == "NODAL":
+            return frozenset()
         raise CodecError(
-            ".tec: zone declares a CELLCENTERED variable; only node-centred"
-            " variables can be read."
+            f".tec: VARLOCATION={clause!r} places every variable off the nodes,"
+            " including the coordinates."
         )
+
+    indices: set[int] = set()
+    body = clause[1:-1]
+    groups = _VARLOC_GROUP_RE.findall(body)
+    if not groups:
+        raise CodecError(f".tec: unreadable VARLOCATION clause {clause!r}.")
+    for spec, where in groups:
+        location = where.upper()
+        if location not in ("NODAL", "CELLCENTERED"):
+            raise CodecError(
+                f".tec: VARLOCATION names an unknown location {where!r};"
+                " expected NODAL or CELLCENTERED."
+            )
+        if location == "NODAL":
+            continue
+        indices.update(_parse_varloc_spec(spec, clause))
+
+    if not indices:
+        return frozenset()
+    if not declared:
+        raise CodecError(
+            ".tec: VARLOCATION indexes the VARIABLES list, which the zone does"
+            " not declare, so its cell-centred variables cannot be named."
+        )
+    beyond = sorted(k + 1 for k in indices if k >= n_vars)
+    if beyond:
+        raise CodecError(
+            f".tec: VARLOCATION names variable {beyond[0]}, past the"
+            f" {n_vars} the zone declares."
+        )
+    coords = sorted(k + 1 for k in indices if k < n_spatial)
+    if coords:
+        raise CodecError(
+            f".tec: VARLOCATION cell-centres variable {coords[0]}, which is a"
+            " coordinate; coordinates sit on the nodes."
+        )
+    if not block:
+        # Tecplot only allows cell-centred data under BLOCK packing, and a
+        # POINT record holds one value per variable per node with nowhere to
+        # put the E-long run.
+        raise CodecError(
+            ".tec: cell-centred variables need BLOCK packing; this zone is"
+            " POINT-packed."
+        )
+    return frozenset(indices)
+
+
+def _parse_varloc_spec(spec: str, clause: str) -> set[int]:
+    """Return the zero-based indices a ``[1-3,5]`` bracket list names."""
+    indices: set[int] = set()
+    for part in spec.split(","):
+        token = part.strip()
+        if not token:
+            continue
+        span = _VARLOC_RANGE_RE.fullmatch(token)
+        try:
+            if span is not None:
+                lo, hi = int(span.group(1)), int(span.group(2))
+                if lo < 1 or hi < lo:
+                    raise ValueError(token)
+                indices.update(range(lo - 1, hi))
+            else:
+                one = int(token)
+                if one < 1:
+                    raise ValueError(token)
+                indices.add(one - 1)
+        except ValueError as exc:
+            raise CodecError(
+                f".tec: unreadable variable index {token!r} in VARLOCATION={clause!r}."
+            ) from exc
+    return indices
+
+
+def _wrapped_values(values: np.ndarray) -> list[str]:
+    """Return one variable's run as lines of at most ``_BLOCK_PER_LINE`` values.
+
+    Parameters
+    ----------
+    values
+        The run, one value per node or per element.
+
+    Returns
+    -------
+    list of str
+        The lines to write. Empty for an empty run, which a zone declaring no
+        nodes or no elements has.
+    """
+    formatted = [f"{value:.10g}" for value in values]
+    return [
+        " ".join(formatted[start : start + _BLOCK_PER_LINE])
+        for start in range(0, len(formatted), _BLOCK_PER_LINE)
+    ]
 
 
 def _resolve_count(hdr: dict[str, str], keys: tuple[str, str], what: str) -> str | None:
@@ -605,16 +881,18 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     CodecError
         On a binary ``.plt`` file, a missing or malformed ZONE header, two
         header spellings of the same field disagreeing, one field declared
-        twice with two values, a zone that shares or cell-centres its data, an
-        unsupported element type or data packing, a truncated file, or an
-        out-of-range node reference.
+        twice with two values, a zone that shares its data with another, an
+        unreadable ``VARLOCATION`` clause, an unsupported element type or data
+        packing, a truncated file, or an out-of-range node reference.
 
     Notes
     -----
     Only the first zone of a multi-zone file is read; the rest are skipped with
     a warning. Variables beyond the node coordinates become ``vertex_attrs``,
-    under names made unique when the file declares one twice. POINT records
-    wrapped over several lines are joined back together.
+    or ``element_attrs`` for the ones ``VARLOCATION`` cell-centres, under names
+    made unique when the file declares one twice. POINT records wrapped over
+    several lines are joined back together. The file and zone titles land in
+    ``global_attrs`` under ``tecplot_title`` and ``tecplot_zone_title``.
     """
     if lazy:
         warnings.warn(
@@ -721,13 +999,25 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             f".tec: need at least 2 coordinate variables, the zone declares {n_vars}."
         )
     names = _variable_names(var_names, n_vars)
+    cell_centred = _parse_varlocation(
+        zone_hdr, n_vars, n_spatial, declared=bool(var_names), block=is_block
+    )
 
     if is_block:
-        values, nodes = _read_block(zone_lines, n_nodes, n_vars, n_conn, cut=cut)
+        runs, nodes = _read_block(
+            zone_lines,
+            n_nodes,
+            n_vars,
+            n_conn,
+            cut=cut,
+            cell_centred=cell_centred,
+            n_elems=n_elems,
+        )
     else:
-        values, nodes = _read_point(
+        point_values, nodes = _read_point(
             zone_lines, n_nodes, n_vars, n_elems, n_per_elem, et, cut=cut
         )
+        runs = [np.ascontiguousarray(point_values[:, k]) for k in range(n_vars)]
 
     if nodes.size and (int(nodes.min()) < 1 or int(nodes.max()) > n_nodes):
         # Tecplot node references are 1-based; 0 or an overshoot would wrap to
@@ -738,11 +1028,20 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         )
 
     coords = np.zeros((n_nodes, 3), dtype=np.float64)
-    coords[:, :n_spatial] = values[:, :n_spatial]
-    vertex_attrs = {
-        name: np.ascontiguousarray(values[:, n_spatial + k])
-        for k, name in enumerate(_unique_names(names[n_spatial:]))
-    }
+    for k in range(n_spatial):
+        coords[:, k] = runs[k]
+
+    # The names are made unique across both dictionaries at once: a zone is
+    # free to declare the same name for a nodal and a cell-centred variable,
+    # and renaming each dictionary on its own would hand back two attributes
+    # that look like the same quantity read twice.
+    unique = _unique_names(names[n_spatial:])
+    vertex_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = {}
+    for k, name in enumerate(unique):
+        index = n_spatial + k
+        target = element_attrs if index in cell_centred else vertex_attrs
+        target[name] = np.ascontiguousarray(runs[index])
 
     conn = (nodes - 1).astype(np.int32)
 
@@ -752,6 +1051,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         offsets=np.arange(n_elems + 1, dtype=np.int32) * n_per_elem,
         element_types=np.full(n_elems, elem_code, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
+        global_attrs=_zone_metadata(lines, zone_idx, hdr),
     )
 
 
@@ -782,8 +1083,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     type encountered is written; every other element is skipped with a warning.
     Named one-dimensional numeric ``vertex_attrs`` are written as extra
     variables; the rest are skipped with a warning, as is the double quote a
-    variable name cannot carry. ``element_attrs`` have no place in a
-    node-centred zone and are dropped.
+    variable name cannot carry. ``element_attrs`` of the same shape are written
+    as ``VARLOCATION`` cell-centred variables, which switches the zone to BLOCK
+    packing. ``global_attrs["tecplot_title"]`` and
+    ``global_attrs["tecplot_zone_title"]`` name the file and the zone.
     """
     if opts:
         warnings.warn(
@@ -831,45 +1134,62 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     et_str = _POLYXIOS_TO_ET[et_name]
 
-    attr_names: list[str] = []
-    attr_arrays: list[np.ndarray] = []
-    bad_attrs: set[str] = set()
-    for name, arr in (poly.vertex_attrs or {}).items():
-        # A nameless variable reads back as no variable at all, taking its
-        # column with it, so it is dropped here rather than silently on load.
-        if (
-            name.strip()
-            and arr.ndim == 1
-            and arr.shape[0] == n_verts
-            and arr.dtype.kind in "fiub"
-        ):
-            attr_names.append(name)
-            attr_arrays.append(arr)
-        else:
-            bad_attrs.add(name)
-    if bad_attrs:
-        warnings.warn(
-            f".tec: only named 1-D numeric vertex_attrs can be written;"
-            f" skipped {sorted(bad_attrs)}.",
-            stacklevel=2,
-        )
+    attr_names, attr_arrays = _writable_variables(
+        poly.vertex_attrs, n_verts, None, "vertex_attrs"
+    )
+    cell_names, cell_arrays = _writable_variables(
+        poly.element_attrs, n_elems, elem_indices, "element_attrs"
+    )
 
-    quoted = [_safe_variable_name(name) for name in attr_names]
-    if quoted != attr_names:
+    quoted = [_safe_variable_name(name) for name in (*attr_names, *cell_names)]
+    declared = [*attr_names, *cell_names]
+    if quoted != declared:
         warnings.warn(
             ".tec: a variable name cannot hold a double quote or a line break;"
-            f" wrote {sorted(set(quoted) - set(attr_names))} instead.",
+            f" wrote {sorted(set(quoted) - set(declared))} instead.",
             stacklevel=2,
         )
     variables = ", ".join(f'"{n}"' for n in ("X", "Y", "Z", *quoted))
+
+    title = _safe_variable_name(
+        str(poly.global_attrs.get("tecplot_title", "polyxios mesh"))
+    )
+    zone_title = _safe_variable_name(
+        str(poly.global_attrs.get("tecplot_zone_title", "Zone 1"))
+    )
+
+    # A cell-centred variable holds one value per element, and Tecplot only
+    # carries that under BLOCK packing - so a mesh with element data switches
+    # packing rather than losing the data or writing it onto the nodes.
+    n_written = len(elem_indices)
+    zone_keys = f"N={n_verts}, E={n_written}"
+    if cell_arrays:
+        first = 3 + len(attr_names) + 1
+        last = first + len(cell_arrays) - 1
+        span = f"{first}" if first == last else f"{first}-{last}"
+        zone_keys += f", F=FEBLOCK, ET={et_str}, VARLOCATION=([{span}]=CELLCENTERED)"
+    else:
+        zone_keys += f", F=FEPOINT, ET={et_str}"
+
     lines: list[str] = [
-        'TITLE = "polyxios mesh"',
+        f'TITLE = "{title}"',
         f"VARIABLES = {variables}",
-        f'ZONE T="Zone 1", N={n_verts}, E={len(elem_indices)}, F=FEPOINT, ET={et_str}',
+        f'ZONE T="{zone_title}", {zone_keys}',
     ]
     columns = [poly.vertices[:, 0], poly.vertices[:, 1], poly.vertices[:, 2]]
     columns.extend(attr_arrays)
-    lines.extend(" ".join(f"{col[i]:.10g}" for col in columns) for i in range(n_verts))
+    if cell_arrays:
+        # BLOCK packing runs each variable end to end: every nodal column
+        # first, then the E-long cell-centred ones. A run is wrapped rather
+        # than written as one line, since a mesh of any size would otherwise
+        # spell a variable in a line megabytes long that readers with a line
+        # buffer refuse.
+        for col in (*columns, *cell_arrays):
+            lines.extend(_wrapped_values(col))
+    else:
+        lines.extend(
+            " ".join(f"{col[i]:.10g}" for col in columns) for i in range(n_verts)
+        )
 
     n_per_elem = _ET_TO_POLYXIOS[et_str][1]
     for ei in elem_indices:

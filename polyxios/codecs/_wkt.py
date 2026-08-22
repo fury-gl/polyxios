@@ -81,6 +81,13 @@ _GEOMETRY_KEYWORDS: frozenset[str] = frozenset(
         "POINT",
         "LINESTRING",
         "POLYGON",
+        # The surface family of the ISO/SQL-MM extension. A TIN is a set of
+        # triangular patches and a POLYHEDRALSURFACE a set of polygonal ones,
+        # both spelled like a MULTIPOLYGON; a TRIANGLE is one patch, spelled
+        # like a POLYGON.
+        "TIN",
+        "POLYHEDRALSURFACE",
+        "TRIANGLE",
     )
 )
 
@@ -434,8 +441,10 @@ class _Parser:
             self._parse_point(dim)
         elif keyword == "LINESTRING":
             self._parse_linestring(dim)
-        elif keyword == "POLYGON":
-            self._parse_polygon(dim)
+        elif keyword in ("POLYGON", "TRIANGLE"):
+            self._parse_polygon(dim, triangle=keyword == "TRIANGLE")
+        elif keyword in ("TIN", "POLYHEDRALSURFACE"):
+            self._parse_multipolygon(dim, triangle=keyword == "TIN")
         else:
             raise self._error(f"unsupported geometry type '{keyword}'.")
 
@@ -456,8 +465,20 @@ class _Parser:
             raise self._error("LINESTRING must have at least 2 points.")
         self._add_element("poly_line", indices)
 
-    def _parse_ring(self, suffix: str, *, what: str) -> list[int]:
-        """Parse one polygon ring and strip its closing duplicate."""
+    def _parse_ring(self, suffix: str, *, what: str, keyword: str) -> list[int]:
+        """Parse one ring and strip its closing duplicate.
+
+        Parameters
+        ----------
+        suffix
+            The ``Z`` / ``M`` / ``ZM`` dimension suffix in force.
+        what
+            Which ring of its geometry this is, named in the error.
+        keyword
+            The geometry the ring belongs to, named in the error: a TRIANGLE
+            reporting a POLYGON's complaint names a geometry the file does
+            not hold.
+        """
         indices = self._parse_coord_list(suffix)
         # Some writers repeat the closing point more than once; strip every
         # trailing copy so a ring is always stored in its open form.
@@ -466,10 +487,20 @@ class _Parser:
         # Vertices are interned, so distinct indices are distinct points:
         # a ring collapsed onto one or two points encloses no area.
         if len(indices) < 3 or len(set(indices)) < 3:
-            raise self._error(f"POLYGON {what} must have at least 3 distinct points.")
+            raise self._error(f"{keyword} {what} must have at least 3 distinct points.")
         return indices
 
-    def _parse_polygon(self, suffix: str) -> None:
+    def _parse_polygon(self, suffix: str, *, triangle: bool = False) -> None:
+        """Parse one polygon, or one triangular patch of a TIN.
+
+        Parameters
+        ----------
+        suffix
+            The ``Z`` / ``M`` / ``ZM`` dimension suffix in force.
+        triangle
+            Set for a ``TRIANGLE`` or a patch of a ``TIN``, whose ring has to
+            hold exactly three distinct points and which carries no holes.
+        """
         if self._maybe_empty():
             return
         self._expect("(")
@@ -477,13 +508,29 @@ class _Parser:
         polygon_id = self._next_polygon_id
         self._next_polygon_id += 1
 
-        ring_indices = self._parse_ring(suffix, what="exterior ring")
-        self._add_element("polygon", ring_indices, polygon_id=polygon_id, ring=0)
+        what = "ring" if triangle else "exterior ring"
+        ring_indices = self._parse_ring(
+            suffix, what=what, keyword="TRIANGLE" if triangle else "POLYGON"
+        )
+        if triangle and len(ring_indices) != 3:
+            raise self._error(
+                f"a triangular patch has 3 distinct points, not {len(ring_indices)}."
+            )
+        self._add_element(
+            "triangle" if triangle else "polygon",
+            ring_indices,
+            polygon_id=polygon_id,
+            ring=0,
+        )
 
         ring_num = 1
         while self._peek() == ",":
             self._advance()
-            hole_indices = self._parse_ring(suffix, what="interior ring")
+            if triangle:
+                raise self._error("a triangular patch carries no interior ring.")
+            hole_indices = self._parse_ring(
+                suffix, what="interior ring", keyword="POLYGON"
+            )
             self._add_element(
                 "polygon", hole_indices, polygon_id=polygon_id, ring=ring_num
             )
@@ -530,12 +577,12 @@ class _Parser:
                 break
         self._expect(")")
 
-    def _parse_multipolygon(self, suffix: str) -> None:
+    def _parse_multipolygon(self, suffix: str, *, triangle: bool = False) -> None:
         if self._maybe_empty():
             return
         self._expect("(")
         while True:
-            self._parse_polygon(suffix)
+            self._parse_polygon(suffix, triangle=triangle)
             if self._peek() == ",":
                 self._advance()
             else:

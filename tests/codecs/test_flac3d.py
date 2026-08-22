@@ -1179,3 +1179,71 @@ def test_write_ignores_unknown_options(tmp_path: Path) -> None:
     """The generic write signature passes format options to every codec."""
     write(_tet_mesh(), tmp_path / "opts.f3grid", float_fmt=".6f")
     assert len(read(tmp_path / "opts.f3grid").element_types) == 1
+
+
+def test_issue_584_a_large_grid_reads_without_boxing_every_number(
+    tmp_path: Path,
+) -> None:
+    """A read that boxes each coordinate costs several times the file itself.
+
+    The accumulators are machine-number arrays rather than Python lists, which
+    is what keeps a large grid's peak within a fixed multiple of its size. The
+    bound is loose on purpose - it is a guard against the boxed-object
+    regression, not a benchmark.
+    """
+    import tracemalloc
+
+    n = 20
+    ids = {
+        (i, j, k): 1 + (i * n + j) * n + k
+        for i in range(n)
+        for j in range(n)
+        for k in range(n)
+    }
+    lines = ["* GRIDPOINTS"]
+    lines.extend(
+        f"G {gid} {float(p[0])} {float(p[1])} {float(p[2])}" for p, gid in ids.items()
+    )
+    lines.append("* ZONES")
+    zid = 0
+    for i in range(n - 1):
+        for j in range(n - 1):
+            for k in range(n - 1):
+                zid += 1
+                corners = [
+                    ids[(i, j, k)],
+                    ids[(i + 1, j, k)],
+                    ids[(i, j + 1, k)],
+                    ids[(i + 1, j + 1, k)],
+                    ids[(i, j, k + 1)],
+                    ids[(i + 1, j, k + 1)],
+                    ids[(i, j + 1, k + 1)],
+                    ids[(i + 1, j + 1, k + 1)],
+                ]
+                lines.append(f"Z B8 {zid} " + " ".join(str(c) for c in corners))
+    path = tmp_path / "big.f3grid"
+    path.write_text("\n".join(lines))
+
+    size = path.stat().st_size
+    tracemalloc.start()
+    try:
+        poly = read(path)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert len(poly.element_types) == (n - 1) ** 3
+    assert peak < 12 * size, f"peak {peak} is {peak / size:.1f}x the file"
+
+
+def test_an_id_wider_than_a_machine_integer_names_the_format(tmp_path) -> None:
+    """Python counts as high as memory allows; the arrays behind it do not.
+
+    Ids are collected into int64 arrays and matched by a numpy sort, so an id
+    past that width reaches whichever of them touches it first and surfaces
+    as an OverflowError naming none of the file.
+    """
+    path = tmp_path / "wide.f3grid"
+    path.write_text(f"* GRIDPOINTS\nG {2**64} 0.0 0.0 0.0\nG 2 1.0 0.0 0.0\n* ZONES\n")
+    with pytest.raises(CodecError, match="64-bit integer"):
+        read(path)
