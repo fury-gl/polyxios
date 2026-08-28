@@ -12,6 +12,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._ids import IDS_KEY, ids_for_write, record_ids
 from polyxios._io import Source, read_text, write_text
 from polyxios._tags import member_indices
 from polyxios._types import PolyData
@@ -259,12 +260,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     connectivity = _resolve_nodes(conn_raw, node_index, vertices.shape[0])
 
-    element_attrs = {"phys_tag": phys_tags} if len(phys_tags) else {}
+    element_attrs: dict[str, np.ndarray] = (
+        {"phys_tag": phys_tags} if len(phys_tags) else {}
+    )
+    element_attrs |= record_ids(builder.ids, count=len(types))
     element_tags = _physical_name_tags(
         sections.get("$PhysicalNames", []), phys_tags, types
     )
 
-    vertex_attrs: dict[str, np.ndarray] = {}
+    vertex_attrs: dict[str, np.ndarray] = dict(
+        record_ids(tags, count=vertices.shape[0])
+    )
     _read_data_sections(
         data_blocks,
         node_index,
@@ -333,6 +339,17 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             stacklevel=2,
         )
 
+    n_verts = poly.vertices.shape[0]
+    node_ids = ids_for_write(poly, kind="vertex", count=n_verts, fmt=".msh")
+    # An element with no Gmsh spelling never reaches the file, so a mesh that
+    # remembers no numbering keeps the dense run over the ones that do - which
+    # is what this writer emitted before ids were kept at all.
+    dense_elems = np.zeros(n_elems, dtype=np.int64)
+    dense_elems[writable] = np.arange(1, len(writable) + 1)
+    elem_ids = ids_for_write(
+        poly, kind="element", count=n_elems, fmt=".msh", default=dense_elems
+    )
+
     phys_tags, phys_names = _resolve_physical_groups(poly)
 
     lines: list[str] = ["$MeshFormat", "2.2 0 8", "$EndMeshFormat"]
@@ -347,17 +364,17 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         lines.append("$EndPhysicalNames")
 
     lines.append("$Nodes")
-    lines.append(str(poly.vertices.shape[0]))
+    lines.append(str(n_verts))
     lines.extend(
-        f"{i + 1} {v[0]:{float_fmt}} {v[1]:{float_fmt}} {v[2]:{float_fmt}}"
-        for i, v in enumerate(poly.vertices)
+        f"{node_id} {v[0]:{float_fmt}} {v[1]:{float_fmt}} {v[2]:{float_fmt}}"
+        for node_id, v in zip(node_ids.tolist(), poly.vertices)
     )
     lines.append("$EndNodes")
 
     lines.append("$Elements")
     lines.append(str(len(writable)))
     connectivity = np.asarray(poly.connectivity)
-    for out_idx, ei in enumerate(writable):
+    for ei in writable:
         name = ELEMENT_TYPES_INV[int(poly.element_types[ei])]
         nodes = connectivity[int(poly.offsets[ei]) : int(poly.offsets[ei + 1])]
         expected = _GMSH_NODE_COUNT[name]
@@ -370,24 +387,34 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         order = _WRITE_ORDER.get(name)
         if order is not None:
             nodes = nodes[list(order)]
-        node_str = " ".join(str(int(n) + 1) for n in nodes)
+        node_str = " ".join(str(int(node_ids[n])) for n in nodes)
         tag = int(phys_tags[ei])
         lines.append(
-            f"{out_idx + 1} {_POLYXIOS_TO_GMSH[name]} 2 {tag} {tag} {node_str}"
+            f"{int(elem_ids[ei])} {_POLYXIOS_TO_GMSH[name]} 2 {tag} {tag} {node_str}"
         )
     lines.append("$EndElements")
 
     lines.extend(
         _data_section_lines(
-            poly.vertex_attrs, "NodeData", poly.vertices.shape[0], None, float_fmt
+            {k: v for k, v in (poly.vertex_attrs or {}).items() if k != IDS_KEY},
+            "NodeData",
+            n_verts,
+            None,
+            node_ids,
+            float_fmt,
         )
     )
     lines.extend(
         _data_section_lines(
-            {k: v for k, v in (poly.element_attrs or {}).items() if k != "phys_tag"},
+            {
+                k: v
+                for k, v in (poly.element_attrs or {}).items()
+                if k not in ("phys_tag", IDS_KEY)
+            },
             "ElementData",
             n_elems,
             writable,
+            elem_ids,
             float_fmt,
         )
     )
@@ -401,6 +428,7 @@ def _data_section_lines(
     keyword: str,
     count: int,
     written: list[int] | None,
+    ids: np.ndarray,
     float_fmt: str,
 ) -> list[str]:
     """Return one ``$NodeData`` / ``$ElementData`` section per numeric attribute.
@@ -417,6 +445,9 @@ def _data_section_lines(
     written
         For element data, the mesh indices that made it into the file, in the
         order they were written; None for node data, where every node goes.
+    ids
+        The id written for each entity of this kind, one per entity, as the
+        ``$Nodes`` / ``$Elements`` section spelled it.
     float_fmt
         Format specifier for the values.
 
@@ -483,14 +514,15 @@ def _data_section_lines(
             # reporting whether or not a row of it was ever written.
             continue
         rows = values[picked]
-        # The tag names the entity as this file numbers it, which is the row's
-        # place among the ones written - so dropping a row must not renumber
-        # the rest.
+        # The tag names the entity as this file numbers it, which is the id
+        # its $Nodes or $Elements record carries - so dropping a row must not
+        # renumber the rest, and a mesh that kept the ids of the deck it came
+        # from has its data rows follow them.
         live = np.isfinite(rows).all(axis=1)
         if not live.all():
             thinned[name] = int(np.count_nonzero(~live))
             rows = rows[live]
-        tags = np.flatnonzero(live) + 1
+        tags = np.asarray(ids, dtype=np.int64)[picked][live]
         if not tags.size:
             continue
         lines.extend(

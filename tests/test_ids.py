@@ -162,3 +162,87 @@ def test_unwritable_is_the_one_test_both_ends_of_the_policy_ask(
         assert got is None
     else:
         assert why in got
+
+
+# ---------------------------------------------------------------------------
+# Per-format round trips: one sparsely-numbered fixture per id-carrying format
+# ---------------------------------------------------------------------------
+
+_MSH_SPARSE = """$MeshFormat
+2.2 0 8
+$EndMeshFormat
+$Nodes
+4
+101 0.0 0.0 0.0
+102 1.0 0.0 0.0
+103 0.0 1.0 0.0
+104 0.0 0.0 1.0
+$EndNodes
+$Elements
+2
+7001 2 2 1 1 101 102 103
+7002 4 2 1 1 101 102 103 104
+$EndElements
+"""
+
+
+def test_issue_1533_gmsh_keeps_the_numbers_the_file_gave(tmp_path) -> None:
+    """meshio #1533 / #1531: a .msh numbering its nodes from 101 and its
+    elements from 7001 came back numbered 1..n, so a load case naming node
+    103 pointed at a different node after a round trip."""
+    src = tmp_path / "sparse.msh"
+    src.write_text(_MSH_SPARSE)
+
+    poly = polyxios.read(src)
+
+    np.testing.assert_array_equal(poly.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(poly.element_attrs[IDS_KEY], [7001, 7002])
+
+    out = tmp_path / "out.msh"
+    polyxios.write(poly, out)
+    back = polyxios.read(out)
+
+    np.testing.assert_array_equal(back.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(back.element_attrs[IDS_KEY], [7001, 7002])
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+
+
+def test_gmsh_numbering_from_one_is_not_recorded(tmp_path) -> None:
+    """The common case stays exactly as it was: nothing stored, nothing to
+    slice through every transform, and the same file back out."""
+    src = tmp_path / "dense.msh"
+    src.write_text(
+        _MSH_SPARSE.replace("101", "1")
+        .replace("102", "2")
+        .replace("103", "3")
+        .replace("104", "4")
+        .replace("7001", "1")
+        .replace("7002", "2")
+    )
+
+    poly = polyxios.read(src)
+
+    assert IDS_KEY not in poly.vertex_attrs
+    assert IDS_KEY not in poly.element_attrs
+
+
+def test_gmsh_data_rows_follow_the_ids_the_nodes_were_written_under(
+    tmp_path,
+) -> None:
+    """A $NodeData row names a node by its tag. Writing the tags the deck gave
+    while tagging the data rows 1..n would point every value at another node."""
+    src = tmp_path / "sparse.msh"
+    src.write_text(_MSH_SPARSE)
+    poly = polyxios.read(src)
+    poly.vertex_attrs["temperature"] = np.array([10.0, 20.0, 30.0, 40.0])
+
+    out = tmp_path / "out.msh"
+    polyxios.write(poly, out)
+
+    text = out.read_text()
+    body = text.split("$NodeData")[1]
+    assert "101 10" in body
+    np.testing.assert_array_equal(
+        polyxios.read(out).vertex_attrs["temperature"], [10.0, 20.0, 30.0, 40.0]
+    )
