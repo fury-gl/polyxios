@@ -26,6 +26,7 @@ from polyxios._element_types import (
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._ids import ids_for_write, record_ids
 from polyxios._io import Source, is_buffer, read_text, source_name, write_text
 from polyxios._tags import member_indices
 from polyxios._types import PolyData
@@ -637,6 +638,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     lines = _logical_lines(_expand_includes(text, base, source_name(path), 0, (), root))
 
     node_map: dict[int, int] = {}
+    # The ids in mesh index order, which the maps above cannot give: they are
+    # reset per part, and a repeated id points its key at the later cell.
+    node_id_list: list[int] = []
+    elem_id_list: list[int] = []
     elem_map: dict[int, int] = {}
     coords: list[float] = []
     # An Abaqus node card spells the third coordinate only in a 3-D model, so
@@ -846,6 +851,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                         f".inp: node count exceeds the safety cap {MAX_SAFE_VERTICES}."
                     )
                 node_map[node_id] = index
+                node_id_list.append(node_id)
                 coords.extend(point.tolist())
             else:
                 # A repeated id restates the same node; appending would leave
@@ -882,6 +888,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 # last answers to the id, so a set naming it reaches one.
                 repeated_elems += 1
             elem_map[elem_id] = index
+            elem_id_list.append(elem_id)
             conn_list.extend(nodes)
             offsets_list.append(offsets_list[-1] + n_nodes)
             types_list.append(ELEMENT_TYPES[elem_name])
@@ -927,6 +934,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         connectivity=np.array(conn_list, dtype=np.int32),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
+        vertex_attrs=dict(record_ids(node_id_list, count=n_verts)),
+        element_attrs=dict(record_ids(elem_id_list, count=len(types_list))),
         vertex_tags=vertex_tags,
         element_tags=element_tags,
         # A deck with no node card at all was refused above, so reaching
@@ -1047,34 +1056,45 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         )
 
     n_verts = poly.vertices.shape[0]
+    node_ids = ids_for_write(poly, kind="vertex", count=n_verts, fmt=".inp")
     lines: list[str] = [
         "*Heading",
         "** exported by polyxios",
         "*Node",
     ]
     lines.extend(
-        f"{i + 1}, " + ", ".join(f"{c:.10g}" for c in v[:n_spatial])
-        for i, v in enumerate(poly.vertices)
+        f"{node_id}, " + ", ".join(f"{c:.10g}" for c in v[:n_spatial])
+        for node_id, v in zip(node_ids.tolist(), poly.vertices)
     )
 
-    # Element ids are handed out as the groups are written, so a set naming an
-    # element has to be resolved against the numbering, not the mesh order. A
-    # column rather than a dictionary: a set resolves its whole membership in
-    # one gather, and 0 marks an element that never reached the file.
-    elem_ids = np.zeros(n_elems, dtype=np.int64)
+    # Grouping by card reorders the elements, so a mesh that remembers no
+    # numbering is numbered as the groups are written rather than as the mesh
+    # holds them - which is what this writer emitted before ids were kept. An
+    # *Elset then names ids, not mesh indices, so it resolves against this
+    # column rather than the mesh order. A column rather than a dictionary:
+    # a set resolves its whole membership in one gather.
+    in_write_order = np.zeros(n_elems, dtype=np.int64)
     elem_id = 0
+    for indices in groups.values():
+        for ei in indices:
+            elem_id += 1
+            in_write_order[ei] = elem_id
+    elem_ids = ids_for_write(
+        poly, kind="element", count=n_elems, fmt=".inp", default=in_write_order
+    )
+
     for inp_type, indices in groups.items():
         lines.append(f"*Element, type={inp_type}")
         for ei in indices:
-            elem_id += 1
-            elem_ids[ei] = elem_id
             s, e = int(poly.offsets[ei]), int(poly.offsets[ei + 1])
             node_str = ", ".join(
-                str(poly.connectivity[s + j] + 1) for j in range(e - s)
+                str(int(node_ids[poly.connectivity[s + j]])) for j in range(e - s)
             )
-            lines.append(f"{elem_id}, {node_str}")
+            lines.append(f"{int(elem_ids[ei])}, {node_str}")
 
-    lines.extend(_set_cards(poly.vertex_tags, "Nset", "nset", None, n_verts, "node"))
+    lines.extend(
+        _set_cards(poly.vertex_tags, "Nset", "nset", node_ids, n_verts, "node")
+    )
     lines.extend(
         _set_cards(poly.element_tags, "Elset", "elset", elem_ids, n_elems, "element")
     )
@@ -1176,7 +1196,7 @@ def _set_cards(
     tags: dict[str, np.ndarray] | None,
     keyword: str,
     param: str,
-    ident: np.ndarray | None,
+    ident: np.ndarray,
     count: int,
     what: str,
 ) -> list[str]:
@@ -1191,9 +1211,8 @@ def _set_cards(
     param
         Parameter naming the set on that card.
     ident
-        The 1-based id written for each index, 0 for an index that never
-        reached the file; None when the ids are the indices themselves, as a
-        node's is.
+        The id written for each index, 0 for an index that never reached the
+        file.
     count
         How many nodes or elements the mesh holds, which bounds an index.
     what
@@ -1225,7 +1244,7 @@ def _set_cards(
         picked = member_indices(members, count)
         if picked.size != np.asarray(members).size:
             unreachable.add(name)
-        ids = picked + 1 if ident is None else ident[picked]
+        ids = ident[picked]
         live = ids > 0
         # Tested on the ids themselves rather than on how many survive the
         # unique below: that also collapses a member the group names twice,
