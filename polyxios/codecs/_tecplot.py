@@ -21,6 +21,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -78,6 +79,12 @@ _POLYXIOS_TO_ET: dict[str, str] = {
     "tetra": "TETRAHEDRON",
     "hexahedron": "BRICK",
 }
+
+# The zone element types whose nodes cannot lie in a plane. A zone declaring
+# only X and Y under one of these is one no reader loads: Tecplot takes the
+# node count per element from ET and the coordinate count from VARIABLES, and
+# a tetrahedron of two-coordinate nodes is not a cell.
+_VOLUME_ET: frozenset[str] = frozenset({"TETRAHEDRON", "BRICK"})
 
 # POINT packing writes one record per node; BLOCK packing writes each variable
 # as its own run over every node. The two need different readers, and reading
@@ -1052,7 +1059,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=np.full(n_elems, elem_code, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
-        global_attrs=_zone_metadata(lines, zone_idx, hdr),
+        global_attrs={
+            **_zone_metadata(lines, zone_idx, hdr),
+            **mark_2d(n_spatial),
+        },
     )
 
 
@@ -1087,6 +1097,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     as ``VARLOCATION`` cell-centred variables, which switches the zone to BLOCK
     packing. ``global_attrs["tecplot_title"]`` and
     ``global_attrs["tecplot_zone_title"]`` name the file and the zone.
+
+    The zone declares ``X`` and ``Y`` alone for a flat mesh carrying
+    ``global_attrs["was_2d"]``, and ``X``, ``Y``, ``Z`` otherwise. It keeps
+    the third for a ``TETRAHEDRON`` or ``BRICK`` zone however flat it lies,
+    and for a mesh carrying a variable of its own named ``Z``: Tecplot names
+    the coordinates by position, so either would read back wrong.
     """
     if opts:
         warnings.warn(
@@ -1149,7 +1165,21 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             f" wrote {sorted(set(quoted) - set(declared))} instead.",
             stacklevel=2,
         )
-    variables = ", ".join(f'"{n}"' for n in ("X", "Y", "Z", *quoted))
+    n_spatial = output_dimension(poly, fmt=".tec")
+    if n_spatial == 2 and et_str in _VOLUME_ET:
+        # A flat mesh of solid cells: the zone keeps its Z variable, since a
+        # tetrahedron or a brick of two-coordinate nodes is a zone no reader
+        # loads. Quietly, since nothing is lost - a flat mesh writes z=0.
+        n_spatial = 3
+    if n_spatial == 2 and quoted and quoted[0].upper() == "Z":
+        # Tecplot names the coordinates by position, so "X", "Y", "Z" where
+        # the third is a solution variable is a zone every reader - this one
+        # included - takes for three coordinates. A column of zeros is cheaper
+        # than the variable, so the zone stays three-dimensional.
+        n_spatial = 3
+    variables = ", ".join(
+        f'"{n}"' for n in (("X", "Y", "Z")[:n_spatial] + tuple(quoted))
+    )
 
     title = _safe_variable_name(
         str(poly.global_attrs.get("tecplot_title", "polyxios mesh"))
@@ -1164,7 +1194,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     n_written = len(elem_indices)
     zone_keys = f"N={n_verts}, E={n_written}"
     if cell_arrays:
-        first = 3 + len(attr_names) + 1
+        first = n_spatial + len(attr_names) + 1
         last = first + len(cell_arrays) - 1
         span = f"{first}" if first == last else f"{first}-{last}"
         zone_keys += f", F=FEBLOCK, ET={et_str}, VARLOCATION=([{span}]=CELLCENTERED)"
@@ -1176,7 +1206,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         f"VARIABLES = {variables}",
         f'ZONE T="{zone_title}", {zone_keys}',
     ]
-    columns = [poly.vertices[:, 0], poly.vertices[:, 1], poly.vertices[:, 2]]
+    columns = [poly.vertices[:, k] for k in range(n_spatial)]
     columns.extend(attr_arrays)
     if cell_arrays:
         # BLOCK packing runs each variable end to end: every nodal column

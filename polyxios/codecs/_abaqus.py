@@ -18,6 +18,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -140,6 +141,35 @@ _POLYXIOS_TO_INP: dict[str, str] = {
     "quadratic_hexahedron": "C3D20",
 }
 
+# The card written for each polyxios type when the deck is two-dimensional.
+# Abaqus takes a node's dimensionality from the element that references it, so
+# a node card carrying two coordinates loads only under a planar element: the
+# shells and 3-D trusses of ``_POLYXIOS_TO_INP`` would be rejected. A type with
+# no planar spelling - a biquadratic quad, any solid - is missing here, and a
+# mesh holding one is written in three dimensions instead.
+_POLYXIOS_TO_INP_2D: dict[str, str] = {
+    "line": "T2D2",
+    "quadratic_edge": "T2D3",
+    "triangle": "CPS3",
+    "quadratic_triangle": "CPS6",
+    "quad": "CPS4",
+    "quadratic_quad": "CPS8",
+}
+
+# Cards from ``_INP_BASE_TYPES`` whose nodes live in the plane. Only used to
+# judge an ``element_type=`` override: a caller who names a 3-D card has asked
+# for a 3-D deck, whatever the mesh was read from.
+_PLANAR_CARDS: frozenset[str] = frozenset(
+    {
+        "T2D2", "T2D3", "B21", "B22",
+        "CPS3", "CPE3", "CPEG3", "CAX3", "CGAX3",
+        "CPS4", "CPE4", "CPEG4", "CAX4", "CGAX4",
+        "CPS6", "CPE6", "CPEG6", "CAX6", "CGAX6",
+        "CPS8", "CPE8", "CPEG8", "CAX8", "CGAX8",
+        "DC2D3", "DC2D4", "DC2D6", "DC2D8", "COH2D4",
+    }
+)  # fmt: skip
+
 
 def _inp_type_info(type_str: str) -> tuple[str, int] | None:
     """Return the polyxios type a card names, ignoring its modifier suffixes.
@@ -162,14 +192,31 @@ def _inp_type_info(type_str: str) -> tuple[str, int] | None:
     and ``CPS8`` resolve alike while ``C3D20RH`` does not fall back to
     ``C3D2``.
     """
+    base = _inp_base_card(type_str)
+    return None if base is None else _INP_BASE_TYPES[base]
+
+
+def _inp_base_card(type_str: str) -> str | None:
+    """Return the key in ``_INP_BASE_TYPES`` a card resolves to.
+
+    Parameters
+    ----------
+    type_str
+        The ``TYPE=`` value of an ``*ELEMENT`` card.
+
+    Returns
+    -------
+    str or None
+        The base card with its modifier suffixes removed, or None when no
+        known card is a prefix of this one.
+    """
     up = type_str.upper().strip()
     for end in range(len(up), 0, -1):
         if not up[end - 1].isdigit():
             continue
-        info = _INP_BASE_TYPES.get(up[:end])
-        if info is not None:
-            return info
-    return _INP_BASE_TYPES.get(up)
+        if up[:end] in _INP_BASE_TYPES:
+            return up[:end]
+    return up if up in _INP_BASE_TYPES else None
 
 
 def _parse_params(card: str) -> dict[str, str]:
@@ -592,6 +639,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     node_map: dict[int, int] = {}
     elem_map: dict[int, int] = {}
     coords: list[float] = []
+    # An Abaqus node card spells the third coordinate only in a 3-D model, so
+    # a deck where none does is a plane and is written back out as one.
+    saw_z = False
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
     types_list: list[int] = []
@@ -779,7 +829,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             try:
                 node_id = int(parts[0])
                 xyz = [float(parts[1]), float(parts[2])]
-                xyz.append(float(parts[3]) if len(parts) >= 4 and parts[3] else 0.0)
+                spelled_z = len(parts) >= 4 and bool(parts[3])
+                xyz.append(float(parts[3]) if spelled_z else 0.0)
+                saw_z = saw_z or spelled_z
             except ValueError as exc:
                 raise CodecError(f".inp: malformed node line {stripped!r}.") from exc
             point = np.array(xyz, dtype=np.float64)
@@ -877,6 +929,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_tags=vertex_tags,
         element_tags=element_tags,
+        # A deck with no node card at all was refused above, so reaching
+        # here means coordinates were read and a deck that never spelled a
+        # third one is a plane.
+        global_attrs=mark_2d(3 if saw_z else 2),
     )
 
 
@@ -908,6 +964,14 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     ``vertex_tags`` and ``element_tags`` are written as ``*Nset`` and
     ``*Elset`` cards, so a boundary named on the way in is still named on the
     way out. Elements are grouped by type, one ``*Element`` card per group.
+
+    A mesh carrying ``global_attrs["was_2d"]`` whose vertices have stayed flat
+    is written as a two-dimensional deck: two coordinates per ``*Node`` card,
+    and the planar element cards - ``CPS3``, ``CPS4``, ``T2D2`` - that hold
+    them. Abaqus takes a node's dimensionality from the element referencing
+    it, so the two go together. A mesh holding a type with no planar card - a
+    solid, a biquadratic quad - or an ``element_type=`` override naming a
+    three-dimensional one, is written in three dimensions instead.
     """
     overrides = opts.pop("element_type", None) or {}
     if opts:
@@ -924,6 +988,22 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     n_elems = len(poly.element_types)
 
+    # The card table is settled before the elements are grouped, because the
+    # node cards and the element cards have to agree: two coordinates per node
+    # only load under a planar element. A bincount over the uint8 type column
+    # rather than a pass in Python or a sorting np.unique: one linear sweep,
+    # and a handful of distinct codes come out however long the mesh is.
+    n_spatial = output_dimension(poly, fmt=".inp")
+    if n_spatial == 2 and not all(
+        _is_planar(ELEMENT_TYPES_INV.get(int(code)), overrides)
+        for code in np.flatnonzero(np.bincount(poly.element_types, minlength=256))
+    ):
+        # A solid, a biquadratic quad, or an override naming a 3-D card: the
+        # mesh is flat but the deck cannot say so, so it stays 3-D. Quietly,
+        # since nothing is lost - a flat mesh writes z=0 either way.
+        n_spatial = 3
+    cards = _POLYXIOS_TO_INP_2D if n_spatial == 2 else _POLYXIOS_TO_INP
+
     groups: dict[str, list[int]] = {}
     used: set[str] = set()
     # Which element type each card was given to, so one card asked to hold two
@@ -936,7 +1016,15 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             raise CodecError(f".inp: unknown element type id {type_id}")
         if name not in _POLYXIOS_TO_INP:
             raise CodecError(f".inp: no write mapping for element type '{name}'")
-        inp_type = overrides.get(name, _POLYXIOS_TO_INP[name])
+        # ``overrides[name] if ... else`` rather than ``.get(name, default)``:
+        # the default is evaluated either way, and a type outside the planar
+        # table would raise a bare KeyError before _check_override could name
+        # the card the caller actually asked for.
+        inp_type = (
+            overrides[name]
+            if name in overrides
+            else cards.get(name, _POLYXIOS_TO_INP[name])
+        )
         if name not in used:
             used.add(name)
             _check_override(name, inp_type)
@@ -965,7 +1053,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         "*Node",
     ]
     lines.extend(
-        f"{i + 1}, {v[0]:.10g}, {v[1]:.10g}, {v[2]:.10g}"
+        f"{i + 1}, " + ", ".join(f"{c:.10g}" for c in v[:n_spatial])
         for i, v in enumerate(poly.vertices)
     )
 
@@ -993,6 +1081,37 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines.append("")
     write_text(path, "\n".join(lines))
+
+
+def _is_planar(name: str | None, overrides: dict[str, str]) -> bool:
+    """Report whether this element type can be written into a 2-D deck.
+
+    Parameters
+    ----------
+    name
+        The polyxios element type, or None for a code this codec has no name
+        for - which is not planar, so the deck stays 3-D and the grouping loop
+        raises about it with the message it always did.
+    overrides
+        The ``element_type=`` mapping, whose card wins over the codec's own.
+
+    Returns
+    -------
+    bool
+        True when the card this type will be written under holds its nodes in
+        the plane. An override outside ``_INP_BASE_TYPES`` counts as 3-D: the
+        caller is writing for a solver this codec does not read back, and a
+        deck of two-column nodes is not what they asked for.
+    """
+    if name is None:
+        return False
+    card = overrides.get(name)
+    if card is not None:
+        # Through the same suffix-stripping the reader uses, so a CPS4R asked
+        # for by a caller counts as the planar CPS4 that it is.
+        base = _inp_base_card(card)
+        return base is not None and base in _PLANAR_CARDS
+    return name in _POLYXIOS_TO_INP_2D
 
 
 def _check_override(name: str, card: str) -> None:

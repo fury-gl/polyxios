@@ -60,7 +60,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - Boundary marker names become element tags, so named inlets, outlets and walls survive a round trip.
-- 2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+- A 2-D file's coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. ``NDIME`` follows it: a flagged flat mesh, or any mesh with no z extent, goes out as 2. A mesh whose vertices have since left it is written in three with a warning.
 - The trailing per-element index is read but not trusted for ordering; elements keep file order.
 
 .. seealso::

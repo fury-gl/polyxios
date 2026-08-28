@@ -24,6 +24,7 @@ py.install_sources(
     '_backend.py',
     '_core.pxd',
     '_core_fallback.py',
+    '_dimension.py',
     '_element_types.py',
     '_faces.py',
     '_io.py',

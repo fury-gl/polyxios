@@ -6,6 +6,12 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import (
+    has_solid_cells,
+    mark_2d,
+    output_dimension,
+    pad_to_3d,
+)
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, open_block, open_write
 from polyxios._tags import group_by_value, integer_column, values_from_tags
@@ -113,8 +119,9 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
     Returns
     -------
     PolyData
-        Parsed mesh. Vertices have shape ``(n, dim)`` where ``dim`` is the mesh
-        dimension (2 or 3) stored in the file - no zero-padding to 3 columns.
+        Parsed mesh. Vertices always have three columns; a file declaring
+        ``Dimension 2`` is padded with ``z=0`` and sets
+        ``global_attrs["was_2d"]`` so a write can restore it.
         Elements are returned grouped by type in the fixed order triangles →
         quads → tetrahedra → hexahedra, regardless of the order they appear in
         the file. vertex_attrs["ref"] and element_attrs["ref"] are populated
@@ -139,7 +146,11 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
 def write(*, poly: PolyData, path: Source) -> None:
     """Serialise PolyData to a Medit binary mesh file (.meshb).
 
-    Writes version 2 (float64, 32-bit counts). Elements are written grouped
+    Writes version 2 (float64, 32-bit counts). ``Dimension`` is 2 when the
+    mesh carries ``global_attrs["was_2d"]``, its vertices have stayed in the
+    plane and it holds no solid cell - a ``Tetrahedra`` section under
+    ``Dimension 2`` is a file no reader loads - and 3 otherwise. Elements are
+    written grouped
     by type in the fixed order triangles → quads → tetrahedra → hexahedra;
     the original element ordering in ``poly`` is not preserved. If
     element_attrs["ref"] is present those integers are written as section
@@ -154,10 +165,20 @@ def write(*, poly: PolyData, path: Source) -> None:
     """
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
-    dim = poly.vertices.shape[1]
-
-    if dim not in (2, 3):
-        raise CodecError(f"meshb write: dim must be 2 or 3, got {dim}.")
+    n_cols = poly.vertices.shape[1]
+    if n_cols not in (2, 3):
+        raise CodecError(
+            f"meshb write: vertices must carry 2 or 3 columns, got {n_cols}."
+        )
+    # A two-column array is not what a PolyData holds, but an earlier release
+    # of this reader handed one back; output_dimension takes it at its word
+    # rather than widening it to three and writing a 3-D file.
+    dim = output_dimension(poly, fmt=".meshb")
+    if dim == 2 and n_cols == 3 and has_solid_cells(poly):
+        # A Tetrahedra or Hexahedra section under Dimension 2 is a file no
+        # reader loads, the way it is in the ASCII spelling. A mesh that came
+        # in two columns wide has no third to restore and keeps its word.
+        dim = 3
 
     # Map element type codes → meshb keywords via LUT (pure numpy, O(n))
     if n_elems > 0:
@@ -190,7 +211,7 @@ def write(*, poly: PolyData, path: Source) -> None:
         _write_i32(fh, n_verts)
         vert_dt = np.dtype([("xyz", "<f8", (dim,)), ("ref", "<i4")])
         buf = np.zeros(n_verts, dtype=vert_dt)
-        buf["xyz"] = poly.vertices
+        buf["xyz"] = poly.vertices[:, :dim]
         vref = _vertex_refs(poly, n_verts)
         if vref is not None:
             buf["ref"] = vref
@@ -495,13 +516,13 @@ def _decode(mm: mmap.mmap | bytes) -> PolyData:
     float_dt = endian + ("f4" if version == 1 else "f8")
 
     # --- Vertices ---
-    vertices = np.zeros((0, dim), dtype=np.float64)
+    vertices = np.zeros((0, 3), dtype=np.float64)
     vertex_attrs: dict[str, np.ndarray] = {}
     if _KW_VERTICES in sections:
         n_verts, vstart = sections[_KW_VERTICES]
         vert_dt = np.dtype([("xyz", float_dt, (dim,)), ("ref", endian + "i4")])
         verts_arr = np.frombuffer(mm, dtype=vert_dt, count=n_verts, offset=vstart)
-        vertices = verts_arr["xyz"].astype(np.float64)
+        vertices = pad_to_3d(verts_arr["xyz"], dim)
         vrefs = verts_arr["ref"].astype(np.int32)
         if vrefs.any():
             vertex_attrs["ref"] = vrefs
@@ -557,4 +578,5 @@ def _decode(mm: mmap.mmap | bytes) -> PolyData:
         vertex_attrs=vertex_attrs,
         element_attrs=elem_attrs,
         element_tags=elem_tags,
+        global_attrs=mark_2d(dim),
     )

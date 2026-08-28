@@ -28,6 +28,7 @@ import warnings
 
 import numpy as np
 
+from polyxios._dimension import mark_2d, output_dimension, pad_to_3d
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
@@ -274,15 +275,16 @@ def _records(
 
 def _read_node(
     path: Path,
-) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray], np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray], np.ndarray, int]:
     """Read a ``.node`` file.
 
     Returns
     -------
     tuple
-        ``(vertices, node ids, vertex attributes, boundary markers)``. The ids
-        are what element node references resolve against, and the markers are
-        an all-zero array when the file declares none.
+        ``(vertices, node ids, vertex attributes, boundary markers, dimension)``.
+        The ids are what element node references resolve against, the markers
+        are an all-zero array when the file declares none, and the vertices
+        carry three columns whatever dimension the header declared.
     """
     tokens = _tokenize(path)
     if len(tokens) < 4:
@@ -301,8 +303,7 @@ def _read_node(
     n_cols = 1 + dim + n_attrs + has_markers
     rows = _records(tokens, 4, n_pts, n_cols, "node(s)", where)
 
-    vertices = np.zeros((n_pts, 3), dtype=np.float64)
-    vertices[:, :dim] = rows[:, 1 : 1 + dim]
+    vertices = pad_to_3d(rows[:, 1 : 1 + dim], dim)
     ids = _as_ints(rows[:, 0], "node number", where)
 
     # TetGen gives its node attributes no names, so they are numbered; dropping
@@ -315,7 +316,7 @@ def _read_node(
         if has_markers
         else np.zeros(n_pts, dtype=np.int64)
     )
-    return vertices, ids, attrs, markers
+    return vertices, ids, attrs, markers, dim
 
 
 def _resolve_ids(refs: np.ndarray, ids: np.ndarray, n_pts: int) -> np.ndarray:
@@ -466,7 +467,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     -----
     Node numbers are the ``.node`` file's own, so a mesh numbered from 0, from
     1, or with gaps resolves the same way; the ``.ele`` file's element numbers
-    are never used to shift them. A 2-D ``.node`` file is padded to ``z=0``.
+    are never used to shift them. A 2-D ``.node`` file is padded to ``z=0`` and
+    sets ``global_attrs["was_2d"]``, so a write puts it back out as 2-D.
 
     Node attributes become ``vertex_attrs`` named ``attr_<k>`` - TetGen gives
     them no names - and element attributes become ``element_attrs``, named
@@ -498,7 +500,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     if not _exists(node_path):
         raise CodecError(f".tetgen: .node file not found: '{node_path}'.")
 
-    vertices, ids, vertex_attrs, markers = _read_node(node_path)
+    vertices, ids, vertex_attrs, markers, dim = _read_node(node_path)
     n_pts = vertices.shape[0]
 
     if _exists(ele_path):
@@ -545,6 +547,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
         vertex_tags=vertex_tags,
+        global_attrs=mark_2d(dim),
     )
 
 
@@ -742,13 +745,14 @@ def _write_node(
     attrs: list[np.ndarray],
     markers: np.ndarray,
     float_fmt: str,
+    dim: int,
 ) -> None:
     n_verts = vertices.shape[0]
     has_markers = int(bool(np.any(markers)))
-    lines = [f"{n_verts} 3 {len(attrs)} {has_markers}"]
+    lines = [f"{n_verts} {dim} {len(attrs)} {has_markers}"]
     # One crossing into Python per array rather than one per number: indexing a
     # numpy array a scalar at a time is what costs on a mesh of any size.
-    coords = np.asarray(vertices, dtype=np.float64).tolist()
+    coords = np.asarray(vertices[:, :dim], dtype=np.float64).tolist()
     attr_rows = np.column_stack(attrs).tolist() if attrs else [()] * n_verts
     marker_list = markers.tolist() if has_markers else ()
     for i, xyz in enumerate(coords):
@@ -820,7 +824,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     that lands on disk is always one this codec reads back. One scalar
     ``element_attrs`` entry becomes the element attribute - ``region`` when the
     mesh has it, else the first name, warned about because it reads back as
-    ``region``. ``element_tags`` and ``global_attrs`` have nowhere to go and
+    ``region``. The ``.node`` header declares 2 dimensions when the mesh
+    carries ``global_attrs["was_2d"]``, has stayed flat and has no tetrahedron
+    to write - the ``.ele`` file declares four nodes per element, which has no
+    home in a plane - and 3 otherwise.
+    ``element_tags`` and the rest of ``global_attrs`` have nowhere to go and
     are not written.
     """
     float_fmt = opts.pop("float_fmt", _DEFAULT_FLOAT_FMT)
@@ -865,10 +873,25 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             )
 
     regions = _region_column(poly, keep)
+
+    dim = output_dimension(poly, fmt=".node")
+    if dim == 2 and refs.size:
+        # The .ele file this writer emits always declares four nodes per
+        # element, and a tetrahedron has no home in a plane. TetGen's own 2-D
+        # mode fills the plane with triangles instead, so a two-column .node
+        # beside a .ele of tetrahedra is a pair it does not load. Quietly,
+        # since nothing is lost - a flat mesh writes z=0 either way.
+        dim = 3
+
     # Every check the mesh can fail runs above, so a rejected mesh does not
     # leave a .node file behind with no .ele to go with it. An OSError from the
     # filesystem itself can still land between the two writes.
     _write_node(
-        node_path, poly.vertices, _node_attrs(poly), _boundary_markers(poly), float_fmt
+        node_path,
+        poly.vertices,
+        _node_attrs(poly),
+        _boundary_markers(poly),
+        float_fmt,
+        dim,
     )
     _write_ele(ele_path, refs, regions, float_fmt)
