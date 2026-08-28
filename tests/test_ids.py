@@ -400,3 +400,73 @@ def test_abaqus_numbering_from_one_is_not_recorded(tmp_path) -> None:
 
     assert IDS_KEY not in poly.vertex_attrs
     assert IDS_KEY not in poly.element_attrs
+
+
+_F3GRID_SPARSE = """* FLAC3D grid
+* GRIDPOINTS
+G 101  0.0  0.0  0.0
+G 102  1.0  0.0  0.0
+G 103  0.0  1.0  0.0
+G 104  0.0  0.0  1.0
+* ZONES
+Z  T4  4001  101  102  103  104
+* ZONE GROUPS
+ZGROUP "rock" SLOT 1
+     4001
+"""
+
+
+def test_issue_1533_flac3d_keeps_the_gridpoint_and_record_ids(tmp_path) -> None:
+    src = tmp_path / "sparse.f3grid"
+    src.write_text(_F3GRID_SPARSE)
+
+    poly = polyxios.read(src)
+
+    np.testing.assert_array_equal(poly.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(poly.element_attrs[IDS_KEY], [4001])
+
+    out = tmp_path / "out.f3grid"
+    polyxios.write(poly, out)
+
+    text = out.read_text()
+    assert "G 101" in text
+    assert "Z  T4  4001  101  102  103  104" in text
+    assert "     4001" in text
+
+    back = polyxios.read(out)
+    np.testing.assert_array_equal(back.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(back.element_attrs[IDS_KEY], [4001])
+    np.testing.assert_array_equal(back.element_tags["rock"], [0])
+
+
+def test_flac3d_drops_a_numbering_its_two_id_spaces_spell_twice(tmp_path) -> None:
+    """FLAC3D numbers zones and faces separately, so a grid holding both may
+    spell one number twice. The polyxios writer gives the two one shared
+    space, so such a column cannot be put back and is not kept at all."""
+    src = tmp_path / "both.f3grid"
+    src.write_text(
+        _F3GRID_SPARSE.replace(
+            "* ZONE GROUPS", "* FACES\nF  T3  4001  101  102  103\n* ZONE GROUPS"
+        )
+    )
+
+    poly = polyxios.read(src)
+
+    assert IDS_KEY not in poly.element_attrs
+    np.testing.assert_array_equal(poly.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+
+
+def test_flac3d_numbering_from_one_is_not_recorded(tmp_path) -> None:
+    src = tmp_path / "dense.f3grid"
+    src.write_text(
+        _F3GRID_SPARSE.replace("101", "1")
+        .replace("102", "2")
+        .replace("103", "3")
+        .replace("104", "4")
+        .replace("4001", "1")
+    )
+
+    poly = polyxios.read(src)
+
+    assert IDS_KEY not in poly.vertex_attrs
+    assert IDS_KEY not in poly.element_attrs
