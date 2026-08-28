@@ -2,6 +2,7 @@
 
 from array import array
 import io
+from itertools import chain
 from typing import Any
 import warnings
 
@@ -715,29 +716,39 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # records are formed, and a group names a record by id.
     record_of_elem: list[int] = [0] * n_elems
     is_face_elem: list[bool] = [False] * n_elems
-    record_id = 0
-    for face in (False, True):
-        table = _POLYXIOS_TO_FACE if face else _POLYXIOS_TO_ZONE
-        for i, name in enumerate(names):
-            # Counted in the emission loops below, which is where the record
-            # this one stands in for would have gone.
-            if name not in table or offsets[i + 1] - offsets[i] != len(
-                _WRITE_ORDER[name]
-            ):
-                continue
-            record_id += 1
-            record_of_elem[i] = record_id
-            is_face_elem[i] = face
+    # One walk over the mesh, sorting the elements that get a record into the
+    # two sections; the ids are then handed out zones-first, which is the
+    # order the emission loops below reach them in. The skip test is the one
+    # those loops apply, so a record is counted here exactly when it is
+    # written there.
+    zone_elems: list[int] = []
+    face_elems: list[int] = []
+    for i, name in enumerate(names):
+        is_face = name in _POLYXIOS_TO_FACE
+        if not is_face and name not in _POLYXIOS_TO_ZONE:
+            continue
+        if offsets[i + 1] - offsets[i] != len(_WRITE_ORDER[name]):
+            continue
+        if is_face:
+            is_face_elem[i] = True
+            face_elems.append(i)
+        else:
+            zone_elems.append(i)
+    for record_id, i in enumerate(chain(zone_elems, face_elems), start=1):
+        record_of_elem[i] = record_id
+    default_ids = np.array(record_of_elem, dtype=np.int64)
     kept = ids_for_write(
-        poly,
-        kind="element",
-        count=n_elems,
-        fmt=".f3grid",
-        default=np.array(record_of_elem, dtype=np.int64),
-    ).tolist()
-    # An element with no record never got an id, and a ZGROUP naming one
-    # FLAC3D cannot find is a file it refuses to load.
-    record_of_elem = [int(new) if old else 0 for old, new in zip(record_of_elem, kept)]
+        poly, kind="element", count=n_elems, fmt=".f3grid", default=default_ids
+    )
+    if not np.array_equal(kept, default_ids):
+        # An element with no record never got an id, and a ZGROUP naming one
+        # FLAC3D cannot find is a file it refuses to load. Only when the mesh
+        # brought its own numbering: the default already holds the zeroes,
+        # and the comparison that says so is one pass in C rather than a
+        # rebuild in Python.
+        record_of_elem = [
+            int(new) if old else 0 for old, new in zip(record_of_elem, kept.tolist())
+        ]
 
     zone_lines: list[str] = []
     for i, name in enumerate(names):

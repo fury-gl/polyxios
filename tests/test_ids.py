@@ -122,14 +122,58 @@ def test_ids_for_write_renumbers_rather_than_spell_a_file_no_solver_loads(
     np.testing.assert_array_equal(out, [1, 2, 3])
 
 
-def test_ids_for_write_renumbers_a_column_that_is_not_integers() -> None:
+def test_ids_for_write_reads_a_whole_float_column_as_the_numbering() -> None:
+    """A PLY vertex property and a legacy VTK data array have no integer
+    form, so polyxios's own carriers hand the ids back as whole float64s.
+    That is the dtype changing under them, not the numbering going wrong."""
     poly = _numbered()
-    poly.vertex_attrs[IDS_KEY] = np.array([1.5, 2.5, 3.5])
+    poly.vertex_attrs[IDS_KEY] = np.array([101.0, 205.0, 7000001.0])
+
+    out = ids_for_write(poly, kind="vertex", count=3, fmt=".bdf")
+
+    np.testing.assert_array_equal(out, [101, 205, 7000001])
+    assert out.dtype == np.int64
+
+
+@pytest.mark.parametrize(
+    "ids",
+    [
+        [1.5, 2.5, 3.5],  # fractions, and no numbering
+        [np.nan, 2.0, 3.0],  # a hole, which is not an id either
+        [np.inf, 2.0, 3.0],
+        [2.0**53, 2.0, 3.0],  # past where float64 spells every whole number
+    ],
+)
+def test_ids_for_write_renumbers_a_column_that_is_not_integers(ids) -> None:
+    poly = _numbered()
+    poly.vertex_attrs[IDS_KEY] = np.array(ids, dtype=np.float64)
 
     with pytest.warns(UserWarning, match="integers"):
         out = ids_for_write(poly, kind="vertex", count=3, fmt=".bdf")
 
     np.testing.assert_array_equal(out, [1, 2, 3])
+
+
+def test_ids_for_write_renumbers_an_id_wider_than_the_format_spells() -> None:
+    """A Gmsh node tag is a 64-bit integer by spec and a Nastran field holds
+    31 bits, so a mesh can arrive carrying an id its next format has no room
+    for. Writing it anyway would spell a file no reader gets back."""
+    poly = _numbered([1, 2, 2**40])
+
+    with pytest.warns(UserWarning, match="run past 2147483647"):
+        out = ids_for_write(poly, kind="vertex", count=3, fmt=".bdf", limit=2**31 - 1)
+
+    np.testing.assert_array_equal(out, [1, 2, 3])
+
+
+def test_ids_for_write_refuses_a_default_that_is_not_one_id_per_entity() -> None:
+    """A codec handing over the wrong column is a bug in the codec, not
+    anything about the mesh, so it is refused rather than quietly numbering
+    the file wrong."""
+    with pytest.raises(ValueError, match="one id per vertex"):
+        ids_for_write(
+            _numbered(), kind="vertex", count=3, fmt=".bdf", default=np.array([1, 2])
+        )
 
 
 def test_ids_for_write_holds_an_empty_mesh_without_a_warning() -> None:
@@ -470,3 +514,118 @@ def test_flac3d_numbering_from_one_is_not_recorded(tmp_path) -> None:
 
     assert IDS_KEY not in poly.vertex_attrs
     assert IDS_KEY not in poly.element_attrs
+
+
+# ---------------------------------------------------------------------------
+# The numbering travels, and gives way when a transform invalidates it
+# ---------------------------------------------------------------------------
+
+
+def test_the_numbering_is_the_meshs_not_the_files(tmp_path) -> None:
+    """The key is deliberately not format-prefixed: an id says something
+    about the entity, so a mesh read from a deck and written as a .msh keeps
+    the numbering its author gave it."""
+    src = tmp_path / "sparse.bdf"
+    src.write_text(_BDF_SPARSE)
+    out = tmp_path / "out.msh"
+
+    polyxios.write(polyxios.read(src), out)
+
+    back = polyxios.read(out)
+    np.testing.assert_array_equal(back.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(back.element_attrs[IDS_KEY], [4001, 4002])
+
+
+def test_a_format_that_numbers_densely_still_carries_the_ids(tmp_path) -> None:
+    """Medit has no id to spell, so it ignores the key on write - but the
+    mesh keeps carrying it, which is what lets a later .bdf get it back."""
+    src = tmp_path / "sparse.bdf"
+    src.write_text(_BDF_SPARSE)
+    poly = polyxios.read(src)
+
+    assert IDS_KEY in poly.vertex_attrs
+    out = tmp_path / "out.mesh"
+    polyxios.write(poly, out)
+
+    assert IDS_KEY not in polyxios.read(out).vertex_attrs
+
+
+@pytest.mark.parametrize("ext", [".vtu", ".ply", ".vtk"])
+def test_a_carrier_that_holds_the_ids_hands_them_back_to_a_deck(
+    tmp_path, ext: str
+) -> None:
+    """The VTK family and PLY have no id of their own but do carry the key,
+    which is what lets a later .bdf get the numbering back. A PLY vertex
+    property and a legacy VTK data array are float, so the column comes home
+    in another dtype - the numbering all the same, and no warning about it."""
+    # Surfaces only: PLY has no solid to spell, and a flattened tetra would
+    # cost the write a warning that says nothing about the numbering.
+    src = tmp_path / "sparse.bdf"
+    src.write_text(
+        _BDF_SPARSE.replace(
+            "CTETRA,4002,1,101,102,103,104", "CTRIA3,4002,1,102,103,104"
+        )
+    )
+
+    carried = tmp_path / f"carried{ext}"
+    polyxios.write(polyxios.read(src), carried)
+    out = tmp_path / "out.bdf"
+    polyxios.write(polyxios.read(carried), out)
+
+    back = polyxios.read(out)
+    np.testing.assert_array_equal(back.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(back.element_attrs[IDS_KEY], [4001, 4002])
+
+
+def test_nastran_refuses_an_id_its_own_reader_could_not_read_back(
+    tmp_path,
+) -> None:
+    """A Gmsh node tag is a 64-bit integer by spec; a Nastran field holds 31
+    bits, and this codec's reader refuses anything wider. Spelling the tag
+    anyway would land a deck polyxios itself cannot read, so the numbering
+    is what gives way."""
+    poly = make_polydata(
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={IDS_KEY: np.array([1, 2, 2**40], dtype=np.int64)},
+    )
+
+    out = tmp_path / "wide.bdf"
+    with pytest.warns(UserWarning, match="run past"):
+        polyxios.write(poly, out)
+
+    np.testing.assert_array_equal(polyxios.read(out).vertices.shape, (3, 3))
+
+
+def test_welding_keeps_the_ids_of_the_vertices_that_survive(tmp_path) -> None:
+    """A transform that drops entities slices the id column with everything
+    else, so what is left still numbers the mesh it describes."""
+    src = tmp_path / "sparse.bdf"
+    src.write_text(_BDF_SPARSE)
+    poly = polyxios.read(src)
+
+    kept = polyxios.transforms.remove_orphan_vertices(poly)
+
+    np.testing.assert_array_equal(kept.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+
+
+def test_triangulating_a_quad_gives_up_the_numbering_loudly(tmp_path) -> None:
+    """Both halves of a quad carry the quad's id, which is two elements
+    answering to one number - a file no solver loads. The numbering is what
+    gives way, and the write says so."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]]),
+        [("quad", np.array([[0, 1, 2, 3]]))],
+        element_attrs={IDS_KEY: np.array([4001])},
+    )
+    split = polyxios.transforms.triangulate(poly)
+
+    np.testing.assert_array_equal(split.element_attrs[IDS_KEY], [4001, 4001])
+
+    out = tmp_path / "out.msh"
+    with pytest.warns(UserWarning, match="unique"):
+        polyxios.write(split, out)
+
+    np.testing.assert_array_equal(
+        polyxios.read(out).element_attrs.get(IDS_KEY, np.empty(0)), []
+    )
