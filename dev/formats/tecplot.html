@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -596,6 +596,7 @@
 <ul class="px-quirks simple">
 <li><p>Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.</p></li>
 <li><p>Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.</p></li>
+<li><p>A zone declaring only <code class="docutils literal notranslate"><span class="pre">X</span></code> and <code class="docutils literal notranslate"><span class="pre">Y</span></code> is 2-D: the vertices are padded with a zero z and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact, which is what writes the zone back out with two coordinate variables rather than three. Tecplot names the coordinates by position, so a mesh carrying a variable of its own named <code class="docutils literal notranslate"><span class="pre">Z</span></code> keeps three: the zone would otherwise read back with that variable as its z. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of <code class="docutils literal notranslate"><span class="pre">TETRAHEDRON</span></code> or <code class="docutils literal notranslate"><span class="pre">BRICK</span></code> cells keeps three coordinate variables whatever the flag says - Tecplot takes the node count per element from <code class="docutils literal notranslate"><span class="pre">ET</span></code> and the coordinate count from <code class="docutils literal notranslate"><span class="pre">VARIABLES</span></code>, and the two have to agree.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
 inside the file: a <code class="docutils literal notranslate"><span class="pre">.dat</span></code> opening with <code class="docutils literal notranslate"><span class="pre">TITLE</span> <span class="pre">=</span> <span class="pre">&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">VARIABLES</span> <span class="pre">=</span></code>, <code class="docutils literal notranslate"><span class="pre">ZONE</span></code>, <code class="docutils literal notranslate"><span class="pre">FILETYPE</span> <span class="pre">=</span></code>
 or <code class="docutils literal notranslate"><span class="pre">DATASETAUXDATA</span></code> lands here. An unquoted <code class="docutils literal notranslate"><span class="pre">TITLE</span> <span class="pre">=</span></code> decides nothing - Nastran case
@@ -721,7 +722,7 @@ resolving at all; only the ASCII flavour is parsed.</p></li>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

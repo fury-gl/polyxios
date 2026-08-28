@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -600,6 +600,7 @@
 <ul class="px-quirks simple">
 <li><p>The trailing reference integer on each entity becomes <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;ref&quot;]</span></code> and one <code class="docutils literal notranslate"><span class="pre">element_tags[&quot;ref_&lt;n&gt;&quot;]</span></code> group per distinct value, which is how Medit files carry surface and region labels. On write, references come from that attribute, failing that from the <code class="docutils literal notranslate"><span class="pre">ref_&lt;n&gt;</span></code> groups; a group named anything else has nowhere to go in a record that carries a number, so it is reported rather than numbered on the caller’s behalf.</p></li>
 <li><p>A record spells its reference in one signed 32-bit field, so a label outside that range is reported rather than written narrowed - narrowing one wraps it onto another label. <code class="docutils literal notranslate"><span class="pre">vertex_attrs[&quot;ref&quot;]</span></code> is checked the same way, and a float or wrong-length column is refused rather than truncated or left to a broadcast error.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact so the writer restores it. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three whatever the flag says, a <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code> section under <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> being a file no reader loads.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Prisms</span></code> and <code class="docutils literal notranslate"><span class="pre">Pyramids</span></code> are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.</p></li>
 <li><p>The higher-order sections (<code class="docutils literal notranslate"><span class="pre">TrianglesP2</span></code>, <code class="docutils literal notranslate"><span class="pre">TetrahedraP2</span></code>, <code class="docutils literal notranslate"><span class="pre">HexahedraQ2</span></code>, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion <code class="docutils literal notranslate"><span class="pre">*Ordering</span></code> section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.</p></li>
 <li><p>Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.</p></li>
@@ -721,7 +722,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -595,7 +595,7 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>INLINE and NURBS meshes raise <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>; they store a recipe rather than an explicit mesh.</p></li>
-<li><p>The written <code class="docutils literal notranslate"><span class="pre">dimension</span></code> is inferred from the data: a mesh whose <code class="docutils literal notranslate"><span class="pre">z</span></code> column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.</p></li>
+<li><p>A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact. The written <code class="docutils literal notranslate"><span class="pre">dimension</span></code> follows it, and a mesh whose <code class="docutils literal notranslate"><span class="pre">z</span></code> column is entirely zero goes out as 2-D whether it was flagged or not. A flagged mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three columns whatever the flag says - MFEM reads exactly as many coordinates per vertex as the block declares, and a tetrahedron of two-coordinate vertices is not a cell.</p></li>
 <li><p>Coordinates are written with <code class="docutils literal notranslate"><span class="pre">.10g</span></code>, which does not name a float64 exactly - a round trip differs in the last few digits.</p></li>
 <li><p>MFEM names eight geometries and no higher-order one. An element it has no geometry for - a <code class="docutils literal notranslate"><span class="pre">quadratic_tetra</span></code>, a <code class="docutils literal notranslate"><span class="pre">polygon</span></code> - is skipped on write with a warning naming its type, and the declared element count drops with it. Writing one under another geometry’s code would leave its extra nodes to be read as the record that follows, which costs every element after it rather than the one that did not fit.</p></li>
 </ul>
@@ -715,7 +715,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

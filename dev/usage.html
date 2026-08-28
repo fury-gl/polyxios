@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=1991d723"></script>
+    <script src="_static/documentation_options.js?v=d973fb0d"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -649,6 +649,50 @@ anything to whatever reads next.</p>
 <p>Every codec’s own options are listed on its page under
 <a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a>.</p>
 </section>
+<section id="two-dimensional-meshes">
+<h2>Two-dimensional meshes<a class="headerlink" href="#two-dimensional-meshes" title="Link to this heading">#</a></h2>
+<p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code> holds three coordinate columns, always. A format
+that spells two - a bamg <code class="docutils literal notranslate"><span class="pre">.mesh</span></code>, an <code class="docutils literal notranslate"><span class="pre">NDIME=</span> <span class="pre">2</span></code> SU2 case, a 2-D MFEM mesh -
+is padded with <code class="docutils literal notranslate"><span class="pre">z=0</span></code> on the way in rather than kept narrow, so every consumer
+can index <code class="docutils literal notranslate"><span class="pre">vertices[:,</span> <span class="pre">2]</span></code> without first asking what the file said.</p>
+<p>Padding alone is lossy in one direction: nothing downstream could tell a plane
+written in two dimensions from one written in three that happens to sit at
+<code class="docutils literal notranslate"><span class="pre">z=0</span></code>, so a round trip would widen the file. The reader records the fact
+instead:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"plate.su2"</span><span class="p">)</span>          <span class="c1"># NDIME= 2</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">shape</span>                  <span class="c1"># (n, 3), the z column all zeros</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"was_2d"</span><span class="p">]</span>          <span class="c1"># True</span>
+
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"plate.mesh"</span><span class="p">)</span>         <span class="c1"># an MFEM mesh of two columns</span>
+</pre></div>
+</div>
+<p>Three rules, and every 2-D-capable codec follows them:</p>
+<ol class="arabic simple">
+<li><p><strong>Read pads.</strong> Vertices are <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> float64 whatever the file declared.</p></li>
+<li><p><strong>Read remembers.</strong> A file that declared two dimensions sets
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span> <span class="pre">=</span> <span class="pre">True</span></code>. A three-dimensional file sets nothing:
+the key’s absence means “not known to be two-dimensional”, not “3-D”.</p></li>
+<li><p><strong>Write asks.</strong> The flag decides how many columns go out - while the mesh
+is still flat. Coordinates outrank it: a third coordinate that reached the
+mesh after the read is data, so a mesh that has left the plane is written
+in three dimensions with a warning rather than flattened in silence.</p></li>
+</ol>
+<p>The key is deliberately not format-prefixed the way <code class="docutils literal notranslate"><span class="pre">tecplot_title</span></code> is: it
+says something about the mesh, not about the file it came from. A plane read
+from a 2-D Netgen <code class="docutils literal notranslate"><span class="pre">.vol</span></code> - which has no two-dimensional spelling of its own
+to write back - still lands as an <code class="docutils literal notranslate"><span class="pre">NDIME=</span> <span class="pre">2</span></code> SU2 case.</p>
+<p>Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
+WKT all record the flag on the way in; every one of those but Netgen restores
+it on the way out. A format with no two-dimensional spelling at all - OBJ, the
+VTK family - keeps writing three columns and ignores the flag.</p>
+<p>Two columns sometimes constrain the rest of the file, and the writer keeps it
+consistent rather than emitting one no reader loads: an Abaqus deck of
+two-column node cards is written under the planar element cards (<code class="docutils literal notranslate"><span class="pre">CPS3</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CPS4</span></code>, <code class="docutils literal notranslate"><span class="pre">T2D2</span></code>), since Abaqus takes a node’s dimensionality from the
+element referencing it, and a flat mesh of solid cells - a tetrahedron is one
+however flat it lies - keeps its third column in every format that reads the
+node count per element from a separate number.</p>
+</section>
 <section id="where-to-go-next">
 <h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -712,6 +756,7 @@ anything to whatever reads next.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#files-buffers-and-streams">Files, buffers and streams</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#compressed-files">Compressed files</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-dimensional-meshes">Two-dimensional meshes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-go-next">Where to go next</a></li>
 </ul>
   </nav></div>
@@ -770,7 +815,7 @@ anything to whatever reads next.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

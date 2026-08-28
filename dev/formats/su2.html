@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -592,7 +592,7 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>Boundary marker names become element tags, so named inlets, outlets and walls survive a round trip.</p></li>
-<li><p>2D meshes are padded to z = 0 so the vertex array is always (n, 3).</p></li>
+<li><p>A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact. <code class="docutils literal notranslate"><span class="pre">NDIME</span></code> follows it: a flagged flat mesh, or any mesh with no z extent, goes out as 2. A mesh whose vertices have since left it is written in three with a warning.</p></li>
 <li><p>The trailing per-element index is read but not trusted for ordering; elements keep file order.</p></li>
 </ul>
 <div class="admonition seealso">
@@ -711,7 +711,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

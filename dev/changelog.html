@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=1991d723"></script>
+    <script src="_static/documentation_options.js?v=d973fb0d"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -621,11 +621,49 @@ on which duplicate the file listed first and a tolerance never moves a
 point. Welding is not culling: a vertex no
 element references is kept - compose with <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> to
 drop those too.</p></li>
+<li><p>Two-dimensional files now follow one rule across every format that can
+spell one. A mesh always carries three coordinate columns, a file that
+declared two is padded with <code class="docutils literal notranslate"><span class="pre">z=0</span></code>, and the fact is recorded in
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> so a writer can drop the column again. It says
+something about the mesh rather than about the file it came from, so a
+plane read as a 2-D Netgen <code class="docutils literal notranslate"><span class="pre">.vol</span></code> - which has no two-dimensional
+spelling of its own to write back - still lands as an <code class="docutils literal notranslate"><span class="pre">NDIME=</span> <span class="pre">2</span></code> SU2
+case. Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot,
+Abaqus and WKT all record it on the way in, and every one of those but
+Netgen restores it on the way out. Coordinates outrank the flag: a mesh
+flagged two-dimensional whose vertices have since left the plane is
+written in three, with a warning, rather than being flattened in silence.</p></li>
 </ul>
 </section>
 <section id="behaviour-changes">
 <h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>Medit <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> records a two-dimensional file in
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> rather than keeping the file’s own number in
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;medit_dimension&quot;]</span></code>, which is now the shared spelling
+every format uses. A three-dimensional file sets nothing, where it used to
+set <code class="docutils literal notranslate"><span class="pre">medit_dimension:</span> <span class="pre">3</span></code>.</p></li>
+<li><p>Formats that had always written three coordinate columns now write two for
+a mesh that came from a two-dimensional file and has stayed flat: TetGen’s
+<code class="docutils literal notranslate"><span class="pre">.node</span></code> header declares 2, a Tecplot zone declares <code class="docutils literal notranslate"><span class="pre">X</span></code> and <code class="docutils literal notranslate"><span class="pre">Y</span></code>
+alone, an Abaqus node card carries two coordinates, and a <code class="docutils literal notranslate"><span class="pre">.meshb</span></code>
+header declares <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code>. Two of those constrain the rest of the
+file, and the writer keeps them consistent rather than emitting one no
+reader loads: an Abaqus deck of two-column node cards is written under the
+planar element cards - <code class="docutils literal notranslate"><span class="pre">CPS3</span></code>, <code class="docutils literal notranslate"><span class="pre">CPS4</span></code>, <code class="docutils literal notranslate"><span class="pre">T2D2</span></code> - since Abaqus takes a
+node’s dimensionality from the element referencing it, and a Tecplot zone
+keeps its third coordinate variable when the mesh carries a variable of its
+own named <code class="docutils literal notranslate"><span class="pre">Z</span></code>, which the positional naming would otherwise read back as
+the z column. A mesh holding an element type with no planar Abaqus card - a
+solid, a biquadratic quad - or an <code class="docutils literal notranslate"><span class="pre">element_type=</span></code> override naming a
+three-dimensional card stays three-dimensional too. A flat mesh of solid
+cells - a tetrahedron is one however flat it lies - keeps its third column
+everywhere the node count per element is declared separately from the
+coordinate count: an MFEM <code class="docutils literal notranslate"><span class="pre">vertices</span></code> block, a Tecplot <code class="docutils literal notranslate"><span class="pre">ET=TETRAHEDRON</span></code>
+zone, a TetGen <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file, a Medit <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code> section in either
+spelling and a DOLFIN <code class="docutils literal notranslate"><span class="pre">celltype=&quot;tetrahedron&quot;</span></code> each need three, whatever
+the flag says. A <code class="docutils literal notranslate"><span class="pre">dim=</span></code> given to the DOLFIN writer by name is the
+caller’s own word and is left alone.</p></li>
 <li><p>Text formats are written with <code class="docutils literal notranslate"><span class="pre">\n</span></code> line endings on every platform.
 Writing used to go through <code class="docutils literal notranslate"><span class="pre">Path.write_text</span></code>, which turned them into
 <code class="docutils literal notranslate"><span class="pre">\r\n</span></code> on Windows; every write now goes through the same binary path a
@@ -636,6 +674,12 @@ receives are the same ones. Every reader already accepted either ending.</p></li
 <section id="bug-fixes">
 <h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> hands back vertices with three columns. A file declaring
+<code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> was read into an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">2)</span></code> array, which is not what a
+<code class="docutils literal notranslate"><span class="pre">PolyData</span></code> holds: every consumer indexing <code class="docutils literal notranslate"><span class="pre">vertices[:,</span> <span class="pre">2]</span></code> - the
+transforms, the other writers, <code class="docutils literal notranslate"><span class="pre">faces</span></code> - raised on it. The coordinates
+are padded with <code class="docutils literal notranslate"><span class="pre">z=0</span></code> like every other codec’s, and the write side takes
+its <code class="docutils literal notranslate"><span class="pre">Dimension</span></code> from the mesh rather than from the width of the array.</p></li>
 <li><p>A tag group naming a vertex or an element that this mesh does not have no
 longer moves the label onto one that it does. <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code>,
 <code class="docutils literal notranslate"><span class="pre">merge_duplicate_vertices</span></code> and <code class="docutils literal notranslate"><span class="pre">filter_element_type</span></code> carried a group
@@ -1357,7 +1401,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -607,6 +607,7 @@ it, so a deck can ask for reduced integration where the mesh only says
 <li><p>A <code class="docutils literal notranslate"><span class="pre">*PART</span></code> sets the deck’s own numbering aside rather than replacing it, so a set out past <code class="docutils literal notranslate"><span class="pre">*End</span> <span class="pre">Part</span></code> still reaches the nodes the deck defined before it.</p></li>
 <li><p>On write, a tag member that indexes no node or element of the mesh is dropped and reported: a set naming an id no card defines is a deck Abaqus refuses to load. A float column is refused whole rather than rounded, since rounding an index moves a label onto another entity.</p></li>
 <li><p>Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.</p></li>
+<li><p>A node card spells the third coordinate only in a 3-D model, so a deck where none does is a plane: the vertices are padded with a zero z and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact, which is what writes the cards back out two columns wide. Abaqus takes a node’s dimensionality from the element referencing it, so a two-column deck is written under the planar cards - <code class="docutils literal notranslate"><span class="pre">CPS3</span></code>, <code class="docutils literal notranslate"><span class="pre">CPS4</span></code>, <code class="docutils literal notranslate"><span class="pre">T2D2</span></code> - rather than the <code class="docutils literal notranslate"><span class="pre">S3</span></code>/<code class="docutils literal notranslate"><span class="pre">S4</span></code> shells a 3-D deck gets. A mesh holding a type with no planar card, or an <code class="docutils literal notranslate"><span class="pre">element_type=</span></code> override naming a 3-D one, stays three-dimensional. A mesh whose vertices have since left the plane is written in three with a warning.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -724,7 +725,7 @@ it, so a deck can ask for reduced integration where the mesh only says
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

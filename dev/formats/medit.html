@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -608,7 +608,7 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">vertex_attrs[&quot;ref&quot;]</span></code> goes the same way onto the vertex records. A float column is refused rather than truncated, for the reason a label is a number the file names exactly: rounding one relabels the vertex it stands for.</p></li>
 <li><p>References are held at 64 bits. The ASCII format puts no ceiling on one, and narrowing a reference either wraps it onto another label or saturates it onto the largest.</p></li>
 <li><p>A section’s count may sit on the keyword’s own line or the line after it: bamg writes <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">3</span></code> where Medit writes the 3 on the next line, and both read. A file need not close with <code class="docutils literal notranslate"><span class="pre">End</span></code>.</p></li>
-<li><p>A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The file’s own <code class="docutils literal notranslate"><span class="pre">Dimension</span></code> is kept in <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;medit_dimension&quot;]</span></code> and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning.</p></li>
+<li><p>A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The fact is kept in <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three whatever the flag says, a <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code> section under <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> being a file no reader loads.</p></li>
 <li><p>The higher-order sections (<code class="docutils literal notranslate"><span class="pre">TrianglesP2</span></code>, <code class="docutils literal notranslate"><span class="pre">TetrahedraP2</span></code>, <code class="docutils literal notranslate"><span class="pre">HexahedraQ2</span></code>, …) are skipped with a warning naming them. The format fixes no node ordering for high-order elements - libMeshb’s own documentation says there are as many orderings as there are programmers, and defers to a companion <code class="docutils literal notranslate"><span class="pre">*Ordering</span></code> section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.</p></li>
 <li><p>Sections carrying no geometry (<code class="docutils literal notranslate"><span class="pre">Corners</span></code>, <code class="docutils literal notranslate"><span class="pre">Ridges</span></code>, <code class="docutils literal notranslate"><span class="pre">Required*</span></code>, <code class="docutils literal notranslate"><span class="pre">Normals</span></code>, …) are stepped over without a word; an unrecognised one is named in a warning.</p></li>
 <li><p>A file declares its vertices once. A second <code class="docutils literal notranslate"><span class="pre">Vertices</span></code> section is refused rather than allowed to replace the block the elements already read index into - which, when the two counts agree, would move every element onto other geometry without a single index going out of range.</p></li>
@@ -733,7 +733,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

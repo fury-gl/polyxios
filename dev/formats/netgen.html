@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -618,6 +618,7 @@
 <li><p>Sections polyxios carries no home for - <code class="docutils literal notranslate"><span class="pre">facedescriptors</span></code>, <code class="docutils literal notranslate"><span class="pre">identifications</span></code>, <code class="docutils literal notranslate"><span class="pre">face_colours</span></code>, the <code class="docutils literal notranslate"><span class="pre">singular_*</span></code> family - are stepped over by name, and a non-empty one says how many records it dropped rather than reading as a section nobody recognised.</p></li>
 <li><p>Index <code class="docutils literal notranslate"><span class="pre">0</span></code> means “unset” and is dropped rather than becoming a tag. A <code class="docutils literal notranslate"><span class="pre">bc_&lt;n&gt;</span></code>-style tag name keeps its number, unless that number is negative or past <code class="docutils literal notranslate"><span class="pre">int64</span></code>, which the format cannot spell.</p></li>
 <li><p>A tag holding elements of more than one dimension is written into each dimension’s section, and comes back split one tag per dimension, because the sections number their indices independently.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">dimension</span> <span class="pre">2</span></code> file’s points are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact. Netgen writes <code class="docutils literal notranslate"><span class="pre">mesh3d</span></code> whatever it is handed, so the flag does not come back through a <code class="docutils literal notranslate"><span class="pre">.vol</span></code> round trip - but it does carry the plane into a format that can spell one, so a 2-D <code class="docutils literal notranslate"><span class="pre">.vol</span></code> written as SU2 lands as <code class="docutils literal notranslate"><span class="pre">NDIME=</span> <span class="pre">2</span></code>.</p></li>
 <li><p>Sections polyxios has no home for - <code class="docutils literal notranslate"><span class="pre">identifications</span></code>, <code class="docutils literal notranslate"><span class="pre">face_colours</span></code>, the <code class="docutils literal notranslate"><span class="pre">singular_*</span></code> family - are stepped over, with a warning when one is not empty.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly; the format is ASCII.</p></li>
 </ul>
@@ -737,7 +738,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

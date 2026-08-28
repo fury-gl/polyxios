@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=1991d723"></script>
+    <script src="../_static/documentation_options.js?v=d973fb0d"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-08-24"/>
+    <meta name="docbuild:last-update" content="2026-08-28"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -597,6 +597,7 @@
 <li><p>Pass either path - <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.ele&quot;)</span></code> or <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.node&quot;)</span></code> - and the paired file is located by basename.</p></li>
 <li><p>Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.</p></li>
 <li><p>Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.node</span></code> file declaring 2 dimensions is padded with a zero z, so the vertex array is always <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code>, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning, and a mesh with tetrahedra to write keeps three whatever the flag says: the <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file declares four nodes per element, and TetGen’s own 2-D mode fills the plane with triangles instead.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -714,7 +715,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-08-24.
+  Last updated on 2026-08-28.
   <br/>
 </p></div>
       

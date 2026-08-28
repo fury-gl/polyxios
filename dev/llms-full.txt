@@ -372,6 +372,55 @@ px.write(mesh, "brain.ply", binary=True, endian="little")
 Every codec’s own options are listed on its page under
 formats/index.
 
+Two-dimensional meshes
+
+A PolyData holds three coordinate columns, always. A format
+that spells two - a bamg .mesh, an NDIME= 2 SU2 case, a 2-D MFEM mesh -
+is padded with z=0 on the way in rather than kept narrow, so every consumer
+can index vertices[:, 2] without first asking what the file said.
+
+Padding alone is lossy in one direction: nothing downstream could tell a plane
+written in two dimensions from one written in three that happens to sit at
+z=0, so a round trip would widen the file. The reader records the fact
+instead:
+
+mesh = px.read("plate.su2")          # NDIME= 2
+mesh.vertices.shape                  # (n, 3), the z column all zeros
+mesh.global_attrs["was_2d"]          # True
+
+px.write(mesh, "plate.mesh")         # an MFEM mesh of two columns
+
+Three rules, and every 2-D-capable codec follows them:
+
+Read pads. Vertices are (n, 3) float64 whatever the file declared.
+
+Read remembers. A file that declared two dimensions sets
+global_attrs["was_2d"] = True. A three-dimensional file sets nothing:
+the key’s absence means “not known to be two-dimensional”, not “3-D”.
+
+Write asks. The flag decides how many columns go out - while the mesh
+is still flat. Coordinates outrank it: a third coordinate that reached the
+mesh after the read is data, so a mesh that has left the plane is written
+in three dimensions with a warning rather than flattened in silence.
+
+The key is deliberately not format-prefixed the way tecplot_title is: it
+says something about the mesh, not about the file it came from. A plane read
+from a 2-D Netgen .vol - which has no two-dimensional spelling of its own
+to write back - still lands as an NDIME= 2 SU2 case.
+
+Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
+WKT all record the flag on the way in; every one of those but Netgen restores
+it on the way out. A format with no two-dimensional spelling at all - OBJ, the
+VTK family - keeps writing three columns and ignores the flag.
+
+Two columns sometimes constrain the rest of the file, and the writer keeps it
+consistent rather than emitting one no reader loads: an Abaqus deck of
+two-column node cards is written under the planar element cards (CPS3,
+CPS4, T2D2), since Abaqus takes a node’s dimensionality from the
+element referencing it, and a flat mesh of solid cells - a tetrahedron is one
+however flat it lies - keeps its third column in every format that reads the
+node count per element from a separate number.
+
 Where to go next
 
 formats/index - the twenty-five supported formats, one page each
@@ -1364,6 +1413,8 @@ On write, a tag member that indexes no node or element of the mesh is dropped an
 
 Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.
 
+A node card spells the third coordinate only in a 3-D model, so a deck where none does is a plane: the vertices are padded with a zero z and global_attrs["was_2d"] records the fact, which is what writes the cards back out two columns wide. Abaqus takes a node’s dimensionality from the element referencing it, so a two-column deck is written under the planar cards - CPS3, CPS4, T2D2 - rather than the S3/S4 shells a 3-D deck gets. A mesh holding a type with no planar card, or an element_type= override naming a 3-D one, stays three-dimensional. A mesh whose vertices have since left the plane is written in three with a warning.
+
 index - the full format table.
 
 ## AVS-UCD
@@ -1498,6 +1549,8 @@ The trailing reference integer on each entity becomes element_attrs["ref"] and o
 
 A record spells its reference in one signed 32-bit field, so a label outside that range is reported rather than written narrowed - narrowing one wraps it onto another label. vertex_attrs["ref"] is checked the same way, and a float or wrong-length column is refused rather than truncated or left to a broadcast error.
 
+A Dimension 2 file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact so the writer restores it. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three whatever the flag says, a Tetrahedra section under Dimension 2 being a file no reader loads.
+
 Edges, Prisms and Pyramids are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.
 
 The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion *Ordering section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
@@ -1585,7 +1638,7 @@ References are held at 64 bits. The ASCII format puts no ceiling on one, and nar
 
 A section’s count may sit on the keyword’s own line or the line after it: bamg writes Dimension 3 where Medit writes the 3 on the next line, and both read. A file need not close with End.
 
-A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The file’s own Dimension is kept in global_attrs["medit_dimension"] and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning.
+A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The fact is kept in global_attrs["was_2d"] and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three whatever the flag says, a Tetrahedra section under Dimension 2 being a file no reader loads.
 
 The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are skipped with a warning naming them. The format fixes no node ordering for high-order elements - libMeshb’s own documentation says there are as many orderings as there are programmers, and defers to a companion *Ordering section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
 
@@ -1663,7 +1716,7 @@ Quirks worth knowing
 
 The format holds a single cell type per file; writing a mixed mesh raises rather than dropping the elements that do not fit.
 
-2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The dim attribute follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning. An inferred dim is 3 for a mesh of solid cells however flat it lies, DOLFIN needing its geometric dimension to be at least its topological one; a dim= given by the caller is left alone.
 
 Mesh function and mesh value collection blocks are read as attributes where present.
 
@@ -1978,6 +2031,8 @@ Both POINT and BLOCK packing are read; finite-element zones are supported, order
 
 Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
 
+A zone declaring only X and Y is 2-D: the vertices are padded with a zero z and global_attrs["was_2d"] records the fact, which is what writes the zone back out with two coordinate variables rather than three. Tecplot names the coordinates by position, so a mesh carrying a variable of its own named Z keeps three: the zone would otherwise read back with that variable as its z. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of TETRAHEDRON or BRICK cells keeps three coordinate variables whatever the flag says - Tecplot takes the node count per element from ET and the coordinate count from VARIABLES, and the two have to agree.
+
 .dat is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
 inside the file: a .dat opening with TITLE = ", VARIABLES =, ZONE, FILETYPE =
 or DATASETAUXDATA lands here. An unquoted TITLE = decides nothing - Nastran case
@@ -2049,7 +2104,7 @@ Quirks worth knowing
 
 Boundary marker names become element tags, so named inlets, outlets and walls survive a round trip.
 
-2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. NDIME follows it: a flagged flat mesh, or any mesh with no z extent, goes out as 2. A mesh whose vertices have since left it is written in three with a warning.
 
 The trailing per-element index is read but not trusted for ordering; elements keep file order.
 
@@ -2121,6 +2176,8 @@ Boundary markers become vertex tags and region attributes become element attribu
 
 Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
 
+A .node file declaring 2 dimensions is padded with a zero z, so the vertex array is always (n, 3), and global_attrs["was_2d"] records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning, and a mesh with tetrahedra to write keeps three whatever the flag says: the .ele file declares four nodes per element, and TetGen’s own 2-D mode fills the plane with triangles instead.
+
 index - the full format table.
 
 ## Well-Known Text
@@ -2179,7 +2236,7 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
-2D geometry is padded to z = 0 so the vertex array is always (n, 3).
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The Z suffix follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning.
 
 Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
 
@@ -2253,7 +2310,7 @@ Quirks worth knowing
 
 INLINE and NURBS meshes raise UnsupportedFormatError; they store a recipe rather than an explicit mesh.
 
-The written dimension is inferred from the data: a mesh whose z column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The written dimension follows it, and a mesh whose z column is entirely zero goes out as 2-D whether it was flagged or not. A flagged mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three columns whatever the flag says - MFEM reads exactly as many coordinates per vertex as the block declares, and a tetrahedron of two-coordinate vertices is not a cell.
 
 Coordinates are written with .10g, which does not name a float64 exactly - a round trip differs in the last few digits.
 
@@ -2344,6 +2401,8 @@ Sections polyxios carries no home for - facedescriptors, identifications, face_c
 Index 0 means “unset” and is dropped rather than becoming a tag. A bc_<n>-style tag name keeps its number, unless that number is negative or past int64, which the format cannot spell.
 
 A tag holding elements of more than one dimension is written into each dimension’s section, and comes back split one tag per dimension, because the sections number their indices independently.
+
+A dimension 2 file’s points are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. Netgen writes mesh3d whatever it is handed, so the flag does not come back through a .vol round trip - but it does carry the plane into a format that can spell one, so a 2-D .vol written as SU2 lands as NDIME= 2.
 
 Sections polyxios has no home for - identifications, face_colours, the singular_* family - are stepped over, with a warning when one is not empty.
 
@@ -3721,7 +3780,48 @@ point. Welding is not culling: a vertex no
 element references is kept - compose with remove_orphan_vertices to
 drop those too.
 
+Two-dimensional files now follow one rule across every format that can
+spell one. A mesh always carries three coordinate columns, a file that
+declared two is padded with z=0, and the fact is recorded in
+global_attrs["was_2d"] so a writer can drop the column again. It says
+something about the mesh rather than about the file it came from, so a
+plane read as a 2-D Netgen .vol - which has no two-dimensional
+spelling of its own to write back - still lands as an NDIME= 2 SU2
+case. Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot,
+Abaqus and WKT all record it on the way in, and every one of those but
+Netgen restores it on the way out. Coordinates outrank the flag: a mesh
+flagged two-dimensional whose vertices have since left the plane is
+written in three, with a warning, rather than being flattened in silence.
+
 Behaviour changes
+
+Medit .mesh records a two-dimensional file in
+global_attrs["was_2d"] rather than keeping the file’s own number in
+global_attrs["medit_dimension"], which is now the shared spelling
+every format uses. A three-dimensional file sets nothing, where it used to
+set medit_dimension: 3.
+
+Formats that had always written three coordinate columns now write two for
+a mesh that came from a two-dimensional file and has stayed flat: TetGen’s
+.node header declares 2, a Tecplot zone declares X and Y
+alone, an Abaqus node card carries two coordinates, and a .meshb
+header declares Dimension 2. Two of those constrain the rest of the
+file, and the writer keeps them consistent rather than emitting one no
+reader loads: an Abaqus deck of two-column node cards is written under the
+planar element cards - CPS3, CPS4, T2D2 - since Abaqus takes a
+node’s dimensionality from the element referencing it, and a Tecplot zone
+keeps its third coordinate variable when the mesh carries a variable of its
+own named Z, which the positional naming would otherwise read back as
+the z column. A mesh holding an element type with no planar Abaqus card - a
+solid, a biquadratic quad - or an element_type= override naming a
+three-dimensional card stays three-dimensional too. A flat mesh of solid
+cells - a tetrahedron is one however flat it lies - keeps its third column
+everywhere the node count per element is declared separately from the
+coordinate count: an MFEM vertices block, a Tecplot ET=TETRAHEDRON
+zone, a TetGen .ele file, a Medit Tetrahedra section in either
+spelling and a DOLFIN celltype="tetrahedron" each need three, whatever
+the flag says. A dim= given to the DOLFIN writer by name is the
+caller’s own word and is left alone.
 
 Text formats are written with \n line endings on every platform.
 Writing used to go through Path.write_text, which turned them into
@@ -3730,6 +3830,13 @@ buffer does, so the bytes a path receives and the bytes a BytesIO
 receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
+
+.meshb hands back vertices with three columns. A file declaring
+Dimension 2 was read into an (n, 2) array, which is not what a
+PolyData holds: every consumer indexing vertices[:, 2] - the
+transforms, the other writers, faces - raised on it. The coordinates
+are padded with z=0 like every other codec’s, and the write side takes
+its Dimension from the mesh rather than from the width of the array.
 
 A tag group naming a vertex or an element that this mesh does not have no
 longer moves the label onto one that it does. remove_orphan_vertices,
@@ -4259,7 +4366,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:555: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:600: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -4307,7 +4414,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:586: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:631: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -4322,7 +4429,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:598: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:643: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -4428,7 +4535,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:671: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:716: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
