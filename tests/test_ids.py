@@ -329,3 +329,74 @@ def test_nastran_numbering_from_one_is_not_recorded(tmp_path) -> None:
 
     assert IDS_KEY not in poly.vertex_attrs
     assert IDS_KEY not in poly.element_attrs
+
+
+_INP_SPARSE = """*Heading
+** hand-numbered deck
+*Node
+101, 0.0, 0.0, 0.0
+102, 1.0, 0.0, 0.0
+103, 0.0, 1.0, 0.0
+104, 0.0, 0.0, 1.0
+*Element, type=C3D4
+4001, 101, 102, 103, 104
+*Nset, nset=fixed
+101, 104
+*Elset, elset=body
+4001
+"""
+
+
+def test_issue_1533_abaqus_keeps_the_node_and_element_ids(tmp_path) -> None:
+    """meshio #1533: a deck numbering nodes from 101 came back numbered 1..n,
+    so the *Nset the deck's own boundary condition names reached other
+    nodes after a round trip."""
+    src = tmp_path / "sparse.inp"
+    src.write_text(_INP_SPARSE)
+
+    poly = polyxios.read(src)
+
+    np.testing.assert_array_equal(poly.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(poly.element_attrs[IDS_KEY], [4001])
+
+    out = tmp_path / "out.inp"
+    polyxios.write(poly, out)
+
+    text = out.read_text()
+    assert "101, 0, 0, 0" in text
+    assert "4001, 101, 102, 103, 104" in text
+
+    back = polyxios.read(out)
+    np.testing.assert_array_equal(back.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(back.element_attrs[IDS_KEY], [4001])
+    np.testing.assert_array_equal(back.vertex_tags["fixed"], poly.vertex_tags["fixed"])
+
+
+def test_abaqus_sets_name_the_ids_the_cards_were_written_under(tmp_path) -> None:
+    """An *Nset lists ids, not indices. Writing node 101 and then a set that
+    says 1 would name a node the deck no longer defines."""
+    src = tmp_path / "sparse.inp"
+    src.write_text(_INP_SPARSE)
+
+    out = tmp_path / "out.inp"
+    polyxios.write(polyxios.read(src), out)
+
+    body = out.read_text()
+    assert "*Nset, nset=fixed\n101, 104" in body
+    assert "*Elset, elset=body\n4001" in body
+
+
+def test_abaqus_numbering_from_one_is_not_recorded(tmp_path) -> None:
+    src = tmp_path / "dense.inp"
+    src.write_text(
+        _INP_SPARSE.replace("101", "1")
+        .replace("102", "2")
+        .replace("103", "3")
+        .replace("104", "4")
+        .replace("4001", "1")
+    )
+
+    poly = polyxios.read(src)
+
+    assert IDS_KEY not in poly.vertex_attrs
+    assert IDS_KEY not in poly.element_attrs
