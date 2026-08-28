@@ -1733,10 +1733,10 @@ def write(
     deck the mesh was read from spelled, when it numbered otherwise than
     ``1..n`` and the mesh still carries that numbering one entity for one;
     a mesh built by hand, or one a transform has renumbered out from under,
-    is numbered from 1 in array order instead. Property ids come from ``element_attrs["pid"]``, or failing
-    that from ``element_tags`` entries named ``pid_<id>``, and default to
-    1; no property or material cards are emitted, so the ids stay
-    undefined in the deck.
+    is numbered from 1 in array order instead. Property ids come from
+    ``element_attrs["pid"]``, or failing that from ``element_tags`` entries
+    named ``pid_<id>``, and default to 1; no property or material cards are
+    emitted, so the ids stay undefined in the deck.
 
     Coordinates are written with the shortest text that round-trips the
     double exactly, which free field has the room for: a deck written that
@@ -1798,8 +1798,16 @@ def write(
 
     pids = _element_pids(poly)
     zoffs = _element_zoffs(poly, n_elems)
-    node_ids = ids_for_write(poly, kind="vertex", count=n_verts, fmt=".bdf")
-    elem_ids = ids_for_write(poly, kind="element", count=n_elems, fmt=".bdf")
+    # A Nastran field holds a 32-bit integer and this codec's own reader
+    # refuses anything wider, so an id past that is one no reader gets back -
+    # polyxios included. A mesh read from a .msh, whose node tags are 64-bit
+    # by spec, can carry one honestly, so it is the numbering that gives way.
+    node_ids = ids_for_write(
+        poly, kind="vertex", count=n_verts, fmt=".bdf", limit=_INT32_MAX
+    )
+    elem_ids = ids_for_write(
+        poly, kind="element", count=n_elems, fmt=".bdf", limit=_INT32_MAX
+    )
     _warn_wide_ids(node_ids, elem_ids, large=large)
     lines: list[str] = ["$ Nastran BDF exported by polyxios", "BEGIN BULK"]
 

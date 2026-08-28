@@ -1072,13 +1072,20 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # holds them - which is what this writer emitted before ids were kept. An
     # *Elset then names ids, not mesh indices, so it resolves against this
     # column rather than the mesh order. A column rather than a dictionary:
-    # a set resolves its whole membership in one gather.
-    in_write_order = np.zeros(n_elems, dtype=np.int64)
-    elem_id = 0
-    for indices in groups.values():
-        for ei in indices:
-            elem_id += 1
-            in_write_order[ei] = elem_id
+    # a set resolves its whole membership in one gather. Every element reaches
+    # a group - an unmapped type was refused above - so the groups laid end to
+    # end are a permutation of the mesh, and the column is one scatter rather
+    # than a Python loop counting its way through. ``count=`` says so: a
+    # permutation that is short of the mesh raises here rather than leaving a
+    # row of the empty array holding whatever was in memory.
+    in_write_order = np.empty(n_elems, dtype=np.int64)
+    in_write_order[
+        np.fromiter(
+            (ei for indices in groups.values() for ei in indices),
+            dtype=np.int64,
+            count=n_elems,
+        )
+    ] = np.arange(1, n_elems + 1, dtype=np.int64)
     elem_ids = ids_for_write(
         poly, kind="element", count=n_elems, fmt=".inp", default=in_write_order
     )

@@ -490,6 +490,11 @@ def _data_section_lines(
         if written is None
         else np.asarray(written, dtype=np.int64)
     )
+    # The tag each written row names, gathered once for the same reason: the
+    # ids and the rows that reached the file are both the same for every
+    # field, so a mesh with ten of them gathers them once rather than ten
+    # times.
+    picked_ids = np.asarray(ids, dtype=np.int64)[picked]
     for name, raw in (attrs or {}).items():
         array = np.asarray(raw)
         if (
@@ -519,10 +524,12 @@ def _data_section_lines(
         # renumber the rest, and a mesh that kept the ids of the deck it came
         # from has its data rows follow them.
         live = np.isfinite(rows).all(axis=1)
-        if not live.all():
+        if live.all():
+            tags = picked_ids
+        else:
             thinned[name] = int(np.count_nonzero(~live))
             rows = rows[live]
-        tags = np.asarray(ids, dtype=np.int64)[picked][live]
+            tags = picked_ids[live]
         if not tags.size:
             continue
         lines.extend(

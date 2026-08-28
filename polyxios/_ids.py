@@ -41,7 +41,12 @@ a warning rather than a broken file.
 A format that numbers densely by construction - Medit, OFF, STL, the VTK
 family - has no id to record and ignores the key on write. It travels all the
 same, so a mesh read from a ``.bdf`` and welded, then written back, keeps the
-ids of the vertices that survived.
+ids of the vertices that survived. Some of those carriers have no integer
+column to travel in: a PLY vertex property and a legacy VTK data array are
+float, so the ids come back whole float64s rather than int64s. That is
+polyxios's own doing rather than anything the mesh did, so a whole float
+column is read as the numbering it is - see :func:`_as_ids` for the bound
+that makes it safe.
 """
 
 from typing import TYPE_CHECKING, Final
@@ -68,17 +73,63 @@ IDS_KEY: Final[str] = "original_ids"
 # eight digits routinely.
 IDS_DTYPE: Final[np.dtype] = np.dtype(np.int64)
 
+# The magnitude past which float64 stops spelling every whole number, so the
+# bound under which a float column is an id column in another dtype. It is
+# polyxios that puts the ids there: a PLY vertex property and a legacy VTK
+# data array have no integer form, so a mesh carried through one of those
+# comes back holding whole float64s where it held int64s.
+_EXACT_IN_FLOAT: Final[int] = 2**53
+
+
+def _as_ids(ids: np.ndarray) -> np.ndarray | None:
+    """Return ``ids`` as int64 when every value is a whole number, else None.
+
+    Parameters
+    ----------
+    ids
+        The candidate column, of any dtype.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        An int64 view or copy holding the same numbers, or None when the
+        column is not integral - a fraction, a NaN, an infinity, a magnitude
+        float64 no longer spells exactly, or a dtype that is not a number.
+
+    Notes
+    -----
+    The float64 case costs one int64 array, which the caller needs anyway,
+    and one pass to check the cast lost nothing. ``min``/``max`` rather than
+    ``abs(...).max()``: no temporary the length of the mesh, and a NaN
+    poisons both comparisons the same way an out-of-range value does.
+    """
+    kind = ids.dtype.kind
+    if kind in "iu":
+        return ids.astype(IDS_DTYPE, copy=False)
+    if kind != "f":
+        return None
+    if ids.size and not (-_EXACT_IN_FLOAT < ids.min() and ids.max() < _EXACT_IN_FLOAT):
+        return None
+    whole = ids.astype(IDS_DTYPE)
+    # int64 -> float64 is exact inside the bound above, so an unequal element
+    # is one the cast truncated: a fraction, and no id.
+    return whole if np.array_equal(whole, ids) else None
+
 
 def _dense_from_one(ids: np.ndarray) -> bool:
     """Report whether ``ids`` is exactly ``1, 2, ... n`` in that order."""
     if ids.size == 0:
         return True
-    # Checked without building arange: the comparison below is one pass and no
-    # allocation the length of the mesh, which matters on a large grid.
+    # The two scalar comparisons stand in front of the ``diff`` rather than
+    # beside it: ``and`` short-circuits, so a numbering that is not dense at
+    # all - the case this asks about on every read - answers in constant time
+    # and allocates nothing the length of the mesh.
     return bool(ids[0] == 1 and ids[-1] == ids.size and np.all(np.diff(ids) == 1))
 
 
-def unwritable(ids: np.ndarray, count: int, what: str) -> str | None:
+def unwritable(
+    ids: np.ndarray, count: int, what: str, *, limit: int | None = None
+) -> str | None:
     """Say why ``ids`` cannot be written, or None when they can.
 
     Parameters
@@ -90,6 +141,9 @@ def unwritable(ids: np.ndarray, count: int, what: str) -> str | None:
     what
         ``"vertex"`` or ``"element"``, named in the reason so a warning
         reads as a sentence.
+    limit
+        The widest id the format can spell, for one whose own reader holds
+        ids narrower than int64. None for a format that spells any of them.
 
     Returns
     -------
@@ -103,19 +157,52 @@ def unwritable(ids: np.ndarray, count: int, what: str) -> str | None:
     than a hint; the writer asks again all the same, because a transform moves
     a mesh out from under its ids without either one being wrong.
     """
+    return _judge(np.asarray(ids), count, what, limit=limit)[0]
+
+
+def _judge(
+    ids: np.ndarray, count: int, what: str, *, limit: int | None = None
+) -> tuple[str | None, np.ndarray | None]:
+    """Say why ``ids`` cannot be written, and hand back the int64 column.
+
+    Parameters
+    ----------
+    ids
+        The candidate ids.
+    count
+        How many entities the mesh holds.
+    what
+        ``"vertex"`` or ``"element"``, named in the reason.
+    limit
+        The widest id the format can spell, or None when it spells any.
+
+    Returns
+    -------
+    tuple
+        ``(reason, None)`` when the ids cannot be written, ``(None, column)``
+        when they can. The column is what :func:`unwritable`'s callers would
+        otherwise cast for themselves, handed over so the walk over the ids
+        happens once however many of them there are.
+    """
     if ids.ndim != 1 or ids.size != count:
-        return f"are not one per {what}"
-    if ids.dtype.kind not in "iu":
-        return "are not integers"
-    if ids.size == 0:
-        return None
-    if ids.min() <= 0:
-        return "are not all positive"
+        return f"are not one per {what}", None
+    whole = _as_ids(ids)
+    if whole is None:
+        return "are not integers", None
+    if whole.size == 0:
+        return None, whole
+    if whole.min() <= 0:
+        return "are not all positive", None
+    # Ahead of the sort below, being the cheaper of the two passes: a Gmsh
+    # node tag is a 64-bit integer by spec and a Nastran field holds 31 bits,
+    # so a mesh can arrive carrying an id its next format has no room for.
+    if limit is not None and whole.max() > limit:
+        return f"run past {limit}, the widest id this format spells", None
     # ``unique`` rather than a set: one sort over int64 instead of a Python
     # object per entity, which is the difference on a grid of any size.
-    if np.unique(ids).size != ids.size:
-        return "are not unique"
-    return None
+    if np.unique(whole).size != whole.size:
+        return "are not unique", None
+    return None, whole
 
 
 def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
@@ -155,15 +242,10 @@ def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
     >>> sorted(record_ids([10, 20, 30], count=3))
     ['original_ids']
     """
-    arr = np.asarray(ids)
-    if arr.dtype.kind not in "iu":
+    why, whole = _judge(np.asarray(ids), count, "entity")
+    if why is not None or _dense_from_one(whole):
         return {}
-    arr = arr.astype(IDS_DTYPE, copy=False)
-    if unwritable(arr, count, "entity") is not None:
-        return {}
-    if _dense_from_one(arr):
-        return {}
-    return {IDS_KEY: arr}
+    return {IDS_KEY: whole}
 
 
 def original_ids(poly: "PolyData", *, kind: str) -> np.ndarray | None:
@@ -205,6 +287,7 @@ def ids_for_write(
     count: int,
     fmt: str,
     default: np.ndarray | None = None,
+    limit: int | None = None,
     stacklevel: int = 3,
 ) -> np.ndarray:
     """Return the id to write for each entity, one per entity, from one up.
@@ -222,10 +305,15 @@ def ids_for_write(
         The format's own name, ``".bdf"`` and the like, so the warning a mesh
         with unusable ids raises names the file it is about to land in.
     default
-        What to number with when the mesh remembers nothing usable. None
-        means ``1..count``. A codec that skips elements it has no spelling
-        for passes its own, so an unremembered mesh keeps landing numbered
-        the way it did before the policy existed.
+        What to number with when the mesh remembers nothing usable, one
+        entry per entity. None means ``1..count``. A codec that skips
+        elements it has no spelling for passes its own, so an unremembered
+        mesh keeps landing numbered the way it did before the policy existed.
+    limit
+        The widest id this format can spell, for one whose own reader holds
+        ids narrower than int64. None for a format that spells any of them.
+        A mesh carrying a wider id is numbered densely rather than written
+        into a file nothing can read back.
     stacklevel
         Passed to :func:`warnings.warn`. The default points at the caller of
         the codec's own ``write``, which is two frames above this helper.
@@ -234,15 +322,26 @@ def ids_for_write(
     -------
     numpy.ndarray
         int64, length ``count``. The ids the mesh remembers when they are
-        positive, unique and one per entity; ``1..count`` otherwise.
+        positive, unique, one per entity and inside ``limit``; ``1..count``
+        otherwise.
 
     Warns
     -----
     UserWarning
         When the mesh carries ids that cannot be written - duplicated by a
-        merge or a triangulation, non-positive, or no longer one per entity.
-        The file is written with dense numbering rather than refused, since a
-        mesh is still a mesh without the numbering its author gave it.
+        merge or a triangulation, non-positive, fractional, wider than this
+        format spells, or no longer one per entity. A mesh read from a Gmsh
+        file reaches the last of those honestly: a node tag is 64-bit by
+        spec, and a Nastran field holds 31 bits. The file is written with
+        dense numbering rather than refused, since a mesh is still a mesh
+        without the numbering its author gave it.
+
+    Raises
+    ------
+    ValueError
+        If ``default`` is given and is not one id per entity. That is a bug
+        in the calling codec rather than anything about the mesh, so it is
+        refused outright instead of quietly numbering the file wrong.
 
     Examples
     --------
@@ -256,22 +355,25 @@ def ids_for_write(
     >>> ids_for_write(poly, kind="vertex", count=3, fmt=".bdf")
     array([10, 20, 30])
     """
-    dense = (
-        np.arange(1, count + 1, dtype=IDS_DTYPE)
-        if default is None
-        else np.asarray(default, dtype=IDS_DTYPE)
-    )
     found = original_ids(poly, kind=kind)
-    if found is None:
-        return dense
-
-    why = unwritable(found, count, kind)
-    if why is not None:
+    if found is not None:
+        # Asked before the fallback is built: a mesh that remembers a usable
+        # numbering never pays for an arange the length of itself.
+        why, whole = _judge(found, count, kind, limit=limit)
+        if why is None:
+            return whole
         warnings.warn(
             f"{fmt}: the mesh carries {kind} ids from the file it was read"
             f" from, but they {why}; it was written numbered from one"
             " instead.",
             stacklevel=stacklevel,
         )
-        return dense
-    return found.astype(IDS_DTYPE, copy=False)
+    if default is None:
+        return np.arange(1, count + 1, dtype=IDS_DTYPE)
+    dense = np.asarray(default, dtype=IDS_DTYPE)
+    if dense.shape != (count,):
+        raise ValueError(
+            f"{fmt}: default numbering has shape {dense.shape},"
+            f" not one id per {kind} ({count})."
+        )
+    return dense
