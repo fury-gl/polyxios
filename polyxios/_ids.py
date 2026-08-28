@@ -57,6 +57,7 @@ __all__ = [
     "ids_for_write",
     "original_ids",
     "record_ids",
+    "unwritable",
 ]
 
 #: Where a reader records the numbers a file gave its nodes or elements.
@@ -77,6 +78,46 @@ def _dense_from_one(ids: np.ndarray) -> bool:
     return bool(ids[0] == 1 and ids[-1] == ids.size and np.all(np.diff(ids) == 1))
 
 
+def unwritable(ids: np.ndarray, count: int, what: str) -> str | None:
+    """Say why ``ids`` cannot be written, or None when they can.
+
+    Parameters
+    ----------
+    ids
+        The candidate ids.
+    count
+        How many entities the mesh holds.
+    what
+        ``"vertex"`` or ``"element"``, named in the reason so a warning
+        reads as a sentence.
+
+    Returns
+    -------
+    str or None
+        A phrase completing "the ids ...", or None when nothing is wrong.
+
+    Notes
+    -----
+    One test, used on the way in and again on the way out. A reader stores
+    only ids a writer would honour, so the key's presence is a promise rather
+    than a hint; the writer asks again all the same, because a transform moves
+    a mesh out from under its ids without either one being wrong.
+    """
+    if ids.ndim != 1 or ids.size != count:
+        return f"are not one per {what}"
+    if ids.dtype.kind not in "iu":
+        return "are not integers"
+    if ids.size == 0:
+        return None
+    if ids.min() <= 0:
+        return "are not all positive"
+    # ``unique`` rather than a set: one sort over int64 instead of a Python
+    # object per entity, which is the difference on a grid of any size.
+    if np.unique(ids).size != ids.size:
+        return "are not unique"
+    return None
+
+
 def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
     """Return the ``*_attrs`` entry a reader that saw file ids should carry.
 
@@ -94,15 +135,18 @@ def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
     -------
     dict
         ``{"original_ids": array}`` when the numbering says something the
-        index does not, an empty dict otherwise, so a reader can splat it into
-        the mapping it is building without a branch of its own.
+        index does not and a writer could spell it back, an empty dict
+        otherwise, so a reader can splat it into the mapping it is building
+        without a branch of its own.
 
     Notes
     -----
     A file numbering ``1..n`` in order records nothing: a writer renumbering
     from one reproduces it exactly, so the entry would be redundant on the
-    great majority of real files. The same is true of a mismatched count -
-    the ids no longer describe this mesh, and a wrong id is worse than none.
+    great majority of real files. Nor is a numbering recorded that no writer
+    could honour - a count that does not match the mesh, a duplicate, a
+    non-positive id - since the key's presence is meant to be a promise that
+    the numbering survives a round trip.
 
     Examples
     --------
@@ -112,13 +156,11 @@ def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
     ['original_ids']
     """
     arr = np.asarray(ids)
-    if arr.ndim != 1 or arr.size != count:
-        return {}
-    if arr.size == 0:
-        return {}
     if arr.dtype.kind not in "iu":
         return {}
     arr = arr.astype(IDS_DTYPE, copy=False)
+    if unwritable(arr, count, "entity") is not None:
+        return {}
     if _dense_from_one(arr):
         return {}
     return {IDS_KEY: arr}
@@ -213,31 +255,13 @@ def ids_for_write(
     if found is None:
         return dense
 
-    what = f"{kind} ids"
-    if found.ndim != 1 or found.size != count:
-        _warn_dropped(fmt, what, "are not one per " + kind, stacklevel)
+    why = unwritable(found, count, kind)
+    if why is not None:
+        warnings.warn(
+            f"{fmt}: the mesh carries {kind} ids from the file it was read"
+            f" from, but they {why}; it was written numbered from one"
+            " instead.",
+            stacklevel=stacklevel,
+        )
         return dense
-    if found.dtype.kind not in "iu":
-        _warn_dropped(fmt, what, "are not integers", stacklevel)
-        return dense
-    found = found.astype(IDS_DTYPE, copy=False)
-    if count == 0:
-        return dense
-    if found.min() <= 0:
-        _warn_dropped(fmt, what, "are not all positive", stacklevel)
-        return dense
-    # ``unique`` rather than a set: one sort over int64 instead of a Python
-    # object per entity, which is the difference on a grid of any size.
-    if np.unique(found).size != found.size:
-        _warn_dropped(fmt, what, "are not unique", stacklevel)
-        return dense
-    return found
-
-
-def _warn_dropped(fmt: str, what: str, why: str, stacklevel: int) -> None:
-    """Report that a mesh's stored ids gave way to dense numbering."""
-    warnings.warn(
-        f"{fmt}: the mesh carries {what} from the file it was read from, but"
-        f" they {why}; it was written numbered from one instead.",
-        stacklevel=stacklevel,
-    )
+    return found.astype(IDS_DTYPE, copy=False)
