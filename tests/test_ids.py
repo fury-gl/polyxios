@@ -246,3 +246,86 @@ def test_gmsh_data_rows_follow_the_ids_the_nodes_were_written_under(
     np.testing.assert_array_equal(
         polyxios.read(out).vertex_attrs["temperature"], [10.0, 20.0, 30.0, 40.0]
     )
+
+
+_BDF_SPARSE = """$ hand-numbered deck
+BEGIN BULK
+GRID,101,,0.0,0.0,0.0
+GRID,102,,1.0,0.0,0.0
+GRID,103,,0.0,1.0,0.0
+GRID,104,,0.0,0.0,1.0
+CTRIA3,4001,1,101,102,103
+CTETRA,4002,1,101,102,103,104
+ENDDATA
+"""
+
+
+def test_issue_1531_nastran_keeps_the_grid_and_element_ids(tmp_path) -> None:
+    """meshio #1531: a deck numbering GRID from 101 and elements from 4001
+    came back numbered 1..n, so every load case and property card in the
+    author's other files named the wrong entity."""
+    src = tmp_path / "sparse.bdf"
+    src.write_text(_BDF_SPARSE)
+
+    poly = polyxios.read(src)
+
+    np.testing.assert_array_equal(poly.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(poly.element_attrs[IDS_KEY], [4001, 4002])
+
+    out = tmp_path / "out.bdf"
+    polyxios.write(poly, out)
+
+    text = out.read_text()
+    assert "GRID,101" in text
+    assert "CTRIA3,4001,1,101,102,103" in text
+
+    back = polyxios.read(out)
+    np.testing.assert_array_equal(back.vertex_attrs[IDS_KEY], [101, 102, 103, 104])
+    np.testing.assert_array_equal(back.element_attrs[IDS_KEY], [4001, 4002])
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+
+
+def test_nastran_large_field_carries_the_kept_grid_ids(tmp_path) -> None:
+    src = tmp_path / "sparse.bdf"
+    src.write_text(_BDF_SPARSE)
+    poly = polyxios.read(src)
+
+    out = tmp_path / "out.bdf"
+    polyxios.write(poly, out, field_format="large")
+
+    assert "GRID*   101" in out.read_text()
+    np.testing.assert_array_equal(
+        polyxios.read(out).vertex_attrs[IDS_KEY], [101, 102, 103, 104]
+    )
+
+
+def test_nastran_says_so_when_an_id_outruns_the_field_a_solver_reads(
+    tmp_path,
+) -> None:
+    """Nastran keeps only the first eight characters of a free-field entry,
+    and a truncated id points a card at another entity rather than at a
+    rounded value. The id still goes out whole."""
+    poly = _numbered([1, 2, 1234567890])
+
+    out = tmp_path / "wide.bdf"
+    with pytest.warns(UserWarning, match="grid id"):
+        polyxios.write(poly, out)
+
+    assert "GRID,1234567890" in out.read_text()
+
+
+def test_nastran_numbering_from_one_is_not_recorded(tmp_path) -> None:
+    src = tmp_path / "dense.bdf"
+    src.write_text(
+        _BDF_SPARSE.replace("101", "1")
+        .replace("102", "2")
+        .replace("103", "3")
+        .replace("104", "4")
+        .replace("4001", "1")
+        .replace("4002", "2")
+    )
+
+    poly = polyxios.read(src)
+
+    assert IDS_KEY not in poly.vertex_attrs
+    assert IDS_KEY not in poly.element_attrs
