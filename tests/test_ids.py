@@ -15,7 +15,13 @@ import pytest
 
 import polyxios
 from polyxios import make_polydata
-from polyxios._ids import IDS_KEY, ids_for_write, original_ids, record_ids
+from polyxios._ids import (
+    IDS_KEY,
+    ids_for_write,
+    original_ids,
+    record_ids,
+    unwritable,
+)
 
 # ---------------------------------------------------------------------------
 # The helpers themselves
@@ -36,10 +42,9 @@ def test_record_ids_remembers_a_numbering_the_index_does_not_say() -> None:
     assert out[IDS_KEY].dtype == np.int64
 
 
-def test_record_ids_remembers_one_from_zero_and_one_out_of_order() -> None:
-    """Dense but zero-based, and 1..n permuted, both say something 1..n does
-    not, so neither is thrown away as redundant."""
-    assert IDS_KEY in record_ids([0, 1, 2], count=3)
+def test_record_ids_remembers_one_from_one_out_of_order() -> None:
+    """1..n permuted says something 1..n in order does not, so it is kept
+    rather than thrown away as redundant."""
     assert IDS_KEY in record_ids([2, 1, 3], count=3)
 
 
@@ -50,10 +55,13 @@ def test_record_ids_remembers_one_from_zero_and_one_out_of_order() -> None:
         ([], 0),  # nothing to number
         ([1.5, 2.5, 3.5], 3),  # not integers
         (np.zeros((3, 2), dtype=np.int64), 3),  # not one column
+        ([10, 10, 30], 3),  # two entities answering to one number
+        ([0, 10, 20], 3),  # a file numbers from one, so 0 is no id at all
     ],
 )
-def test_record_ids_refuses_what_does_not_describe_the_mesh(ids, count: int) -> None:
-    """A wrong id is worse than none: it points a load case at another node."""
+def test_record_ids_refuses_what_no_writer_could_spell_back(ids, count: int) -> None:
+    """The key's presence is a promise that the numbering survives a round
+    trip, so a numbering that could not is not recorded in the first place."""
     assert record_ids(ids, count=count) == {}
 
 
@@ -130,3 +138,27 @@ def test_ids_for_write_holds_an_empty_mesh_without_a_warning() -> None:
     out = ids_for_write(poly, kind="element", count=0, fmt=".bdf")
 
     assert out.size == 0
+
+
+@pytest.mark.parametrize(
+    ("ids", "count", "why"),
+    [
+        (np.array([10, 20]), 3, "one per vertex"),
+        (np.array([1.5]), 1, "integers"),
+        (np.array([0, 1]), 2, "positive"),
+        (np.array([5, 5]), 2, "unique"),
+        (np.array([], dtype=np.int64), 0, None),
+        (np.array([9, 4]), 2, None),
+    ],
+)
+def test_unwritable_is_the_one_test_both_ends_of_the_policy_ask(
+    ids, count: int, why
+) -> None:
+    """Read stores only what write would honour, so the two share a predicate
+    rather than drifting apart as codecs are added."""
+    got = unwritable(ids, count, "vertex")
+
+    if why is None:
+        assert got is None
+    else:
+        assert why in got
