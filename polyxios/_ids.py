@@ -204,6 +204,7 @@ def ids_for_write(
     kind: str,
     count: int,
     fmt: str,
+    default: np.ndarray | None = None,
     stacklevel: int = 3,
 ) -> np.ndarray:
     """Return the id to write for each entity, one per entity, from one up.
@@ -220,6 +221,11 @@ def ids_for_write(
     fmt
         The format's own name, ``".bdf"`` and the like, so the warning a mesh
         with unusable ids raises names the file it is about to land in.
+    default
+        What to number with when the mesh remembers nothing usable. None
+        means ``1..count``. A codec that skips elements it has no spelling
+        for passes its own, so an unremembered mesh keeps landing numbered
+        the way it did before the policy existed.
     stacklevel
         Passed to :func:`warnings.warn`. The default points at the caller of
         the codec's own ``write``, which is two frames above this helper.
@@ -250,7 +256,11 @@ def ids_for_write(
     >>> ids_for_write(poly, kind="vertex", count=3, fmt=".bdf")
     array([10, 20, 30])
     """
-    dense = np.arange(1, count + 1, dtype=IDS_DTYPE)
+    dense = (
+        np.arange(1, count + 1, dtype=IDS_DTYPE)
+        if default is None
+        else np.asarray(default, dtype=IDS_DTYPE)
+    )
     found = original_ids(poly, kind=kind)
     if found is None:
         return dense
