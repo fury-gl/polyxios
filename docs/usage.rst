@@ -136,6 +136,56 @@ Format-specific options
 Every codec's own options are listed on its page under
 :doc:`formats/index`.
 
+Two-dimensional meshes
+----------------------
+
+A :class:`~polyxios.PolyData` holds three coordinate columns, always. A format
+that spells two - a bamg ``.mesh``, an ``NDIME= 2`` SU2 case, a 2-D MFEM mesh -
+is padded with ``z=0`` on the way in rather than kept narrow, so every consumer
+can index ``vertices[:, 2]`` without first asking what the file said.
+
+Padding alone is lossy in one direction: nothing downstream could tell a plane
+written in two dimensions from one written in three that happens to sit at
+``z=0``, so a round trip would widen the file. The reader records the fact
+instead:
+
+.. code-block:: python
+
+    mesh = px.read("plate.su2")          # NDIME= 2
+    mesh.vertices.shape                  # (n, 3), the z column all zeros
+    mesh.global_attrs["was_2d"]          # True
+
+    px.write(mesh, "plate.mesh")         # an MFEM mesh of two columns
+
+Three rules, and every 2-D-capable codec follows them:
+
+1. **Read pads.** Vertices are ``(n, 3)`` float64 whatever the file declared.
+2. **Read remembers.** A file that declared two dimensions sets
+   ``global_attrs["was_2d"] = True``. A three-dimensional file sets nothing:
+   the key's absence means "not known to be two-dimensional", not "3-D".
+3. **Write asks.** The flag decides how many columns go out - while the mesh
+   is still flat. Coordinates outrank it: a third coordinate that reached the
+   mesh after the read is data, so a mesh that has left the plane is written
+   in three dimensions with a warning rather than flattened in silence.
+
+The key is deliberately not format-prefixed the way ``tecplot_title`` is: it
+says something about the mesh, not about the file it came from. A plane read
+from a 2-D Netgen ``.vol`` - which has no two-dimensional spelling of its own
+to write back - still lands as an ``NDIME= 2`` SU2 case.
+
+Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
+WKT all record the flag on the way in; every one of those but Netgen restores
+it on the way out. A format with no two-dimensional spelling at all - OBJ, the
+VTK family - keeps writing three columns and ignores the flag.
+
+Two columns sometimes constrain the rest of the file, and the writer keeps it
+consistent rather than emitting one no reader loads: an Abaqus deck of
+two-column node cards is written under the planar element cards (``CPS3``,
+``CPS4``, ``T2D2``), since Abaqus takes a node's dimensionality from the
+element referencing it, and a flat mesh of solid cells - a tetrahedron is one
+however flat it lies - keeps its third column in every format that reads the
+node count per element from a separate number.
+
 Where to go next
 ----------------
 

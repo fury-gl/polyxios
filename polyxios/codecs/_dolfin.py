@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 
+from polyxios._dimension import has_solid_cells, mark_2d, output_dimension
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
 from polyxios._io import Source, open_read, open_write
 from polyxios._types import PolyData
@@ -80,6 +81,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise CodecError(".xml: no <vertices> element.")
 
     coords: list[float] = []
+    # A DOLFIN vertex spells z only in a 3-D mesh, so its absence is what says
+    # the file is flat when <mesh> forgot to declare a dim.
+    saw_z = False
     for expected_idx, v in enumerate(verts_el):
         idx_attr = v.get("index")
         if idx_attr is not None and int(idx_attr) != expected_idx:
@@ -95,7 +99,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     f" '{attr}' attribute."
                 )
             coords.append(float(val))
-        coords.append(float(v.get("z", "0")))
+        z_attr = v.get("z")
+        saw_z = saw_z or z_attr is not None
+        coords.append(float(z_attr) if z_attr is not None else 0.0)
     n_verts = len(coords) // 3
     declared_verts = verts_el.get("size")
     if declared_verts is not None and int(declared_verts) != n_verts:
@@ -137,11 +143,22 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     if declared_cells is not None and int(declared_cells) != n_cells:
         raise CodecError(f".xml: <cells size={declared_cells!r}> but parsed {n_cells}.")
 
+    # <mesh dim=> is DOLFIN's own geometric dimension and outranks the guess;
+    # only a file that omitted it, or spelt it as something other than a whole
+    # number, is read off the vertices.
+    declared_dim = mesh_el.get("dim")
+    read_dim = (
+        int(declared_dim)
+        if declared_dim is not None and declared_dim.strip().isdigit()
+        else (2 if n_verts and not saw_z else 3)
+    )
+
     return PolyData(
         vertices=vertices,
         connectivity=np.array(conn_list, dtype=np.int32),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
+        global_attrs=mark_2d(read_dim),
     )
 
 
@@ -163,10 +180,13 @@ def write(
     path
         Output .xml path.
     dim
-        Geometric dimension to embed in the ``<mesh dim="...">`` attribute.
-        Inferred from vertex z-coordinates when None: 3 if any z != 0.0
-        (exact comparison), otherwise 2. ``write`` always emits z, so
-        round-tripped meshes preserve their original dim correctly.
+        Geometric dimension to embed in the ``<mesh dim="...">`` attribute,
+        and the caller's own word when given. Inferred when None: 2 for a mesh
+        whose z column is entirely zero, 3 for one that carries a z, for an
+        empty mesh - DOLFIN's own default - and for a mesh of solid cells
+        however flat it lies, DOLFIN needing its geometric dimension to be at
+        least its topological one. ``write`` always emits z, so a
+        round-tripped mesh keeps its coordinates whatever dim it declares.
 
     Raises
     ------
@@ -204,7 +224,15 @@ def write(
 
     _, node_attrs = _CELLTYPE_TO_POLYXIOS[celltype_name]
     if dim is None:
-        dim = 3 if n_verts == 0 or np.any(poly.vertices[:, 2] != 0) else 2
+        # An empty mesh has no extent to read a dimension off, and DOLFIN's own
+        # default is 3, so it keeps that rather than being called flat.
+        dim = 3 if n_verts == 0 else output_dimension(poly, fmt=".xml", flat_default=2)
+        if dim == 2 and has_solid_cells(poly):
+            # DOLFIN needs its geometric dimension to be at least the
+            # topological one, so a tetrahedron in a dim=2 mesh is one it
+            # refuses. An explicit ``dim=`` is the caller's own word and is
+            # left alone; this is only the inferred value.
+            dim = 3
 
     root = ET.Element("dolfin")
     mesh_el = ET.SubElement(root, "mesh", celltype=celltype_name, dim=str(dim))

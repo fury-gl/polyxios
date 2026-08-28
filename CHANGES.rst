@@ -93,9 +93,48 @@ New features
   point. Welding is not culling: a vertex no
   element references is kept - compose with ``remove_orphan_vertices`` to
   drop those too.
+- Two-dimensional files now follow one rule across every format that can
+  spell one. A mesh always carries three coordinate columns, a file that
+  declared two is padded with ``z=0``, and the fact is recorded in
+  ``global_attrs["was_2d"]`` so a writer can drop the column again. It says
+  something about the mesh rather than about the file it came from, so a
+  plane read as a 2-D Netgen ``.vol`` - which has no two-dimensional
+  spelling of its own to write back - still lands as an ``NDIME= 2`` SU2
+  case. Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot,
+  Abaqus and WKT all record it on the way in, and every one of those but
+  Netgen restores it on the way out. Coordinates outrank the flag: a mesh
+  flagged two-dimensional whose vertices have since left the plane is
+  written in three, with a warning, rather than being flattened in silence.
 
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
+
+- Medit ``.mesh`` records a two-dimensional file in
+  ``global_attrs["was_2d"]`` rather than keeping the file's own number in
+  ``global_attrs["medit_dimension"]``, which is now the shared spelling
+  every format uses. A three-dimensional file sets nothing, where it used to
+  set ``medit_dimension: 3``.
+- Formats that had always written three coordinate columns now write two for
+  a mesh that came from a two-dimensional file and has stayed flat: TetGen's
+  ``.node`` header declares 2, a Tecplot zone declares ``X`` and ``Y``
+  alone, an Abaqus node card carries two coordinates, and a ``.meshb``
+  header declares ``Dimension 2``. Two of those constrain the rest of the
+  file, and the writer keeps them consistent rather than emitting one no
+  reader loads: an Abaqus deck of two-column node cards is written under the
+  planar element cards - ``CPS3``, ``CPS4``, ``T2D2`` - since Abaqus takes a
+  node's dimensionality from the element referencing it, and a Tecplot zone
+  keeps its third coordinate variable when the mesh carries a variable of its
+  own named ``Z``, which the positional naming would otherwise read back as
+  the z column. A mesh holding an element type with no planar Abaqus card - a
+  solid, a biquadratic quad - or an ``element_type=`` override naming a
+  three-dimensional card stays three-dimensional too. A flat mesh of solid
+  cells - a tetrahedron is one however flat it lies - keeps its third column
+  everywhere the node count per element is declared separately from the
+  coordinate count: an MFEM ``vertices`` block, a Tecplot ``ET=TETRAHEDRON``
+  zone, a TetGen ``.ele`` file, a Medit ``Tetrahedra`` section in either
+  spelling and a DOLFIN ``celltype="tetrahedron"`` each need three, whatever
+  the flag says. A ``dim=`` given to the DOLFIN writer by name is the
+  caller's own word and is left alone.
 
 - Text formats are written with ``\n`` line endings on every platform.
   Writing used to go through ``Path.write_text``, which turned them into
@@ -106,6 +145,12 @@ Behaviour changes
 Bug fixes
 ~~~~~~~~~
 
+- ``.meshb`` hands back vertices with three columns. A file declaring
+  ``Dimension 2`` was read into an ``(n, 2)`` array, which is not what a
+  ``PolyData`` holds: every consumer indexing ``vertices[:, 2]`` - the
+  transforms, the other writers, ``faces`` - raised on it. The coordinates
+  are padded with ``z=0`` like every other codec's, and the write side takes
+  its ``Dimension`` from the mesh rather than from the width of the array.
 - A tag group naming a vertex or an element that this mesh does not have no
   longer moves the label onto one that it does. ``remove_orphan_vertices``,
   ``merge_duplicate_vertices`` and ``filter_element_type`` carried a group
