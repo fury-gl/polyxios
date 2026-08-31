@@ -24,6 +24,7 @@ from polyxios._element_types import (
     ELEMENT_TYPES_INV,
     NODES_PER_ELEMENT,
 )
+from polyxios._ids import ids_for_write, record_ids
 from polyxios._io import Source, read_text, write_text
 from polyxios._tags import group_by_value
 from polyxios._types import PolyData
@@ -828,6 +829,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # Card name and element id as the deck spells them, kept only so a
     # dangling grid reference can be pointed at the card that made it.
     elem_sources: list[tuple[str, str]] = []
+    # The same ids as numbers, for the numbering the deck's other files use.
+    eid_list: list[int] = []
     local_frames = 0
     duplicates = 0
     includes = 0
@@ -890,6 +893,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         offsets_list.append(offsets_list[-1] + len(slots))
         types_list.append(ELEMENT_TYPES[elem_name])
         elem_sources.append((card, eid))
+        eid_list.append(_element_id(eid))
         pid = _field(fields, 2) if card not in _NO_PID else ""
         pid_list.append(
             _to_int(pid, ctx=f"{card} {eid} property id") if pid else _DEFAULT_PID
@@ -956,7 +960,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     n_verts = len(coords) // 3
     vertices = np.array(coords, dtype=np.float64).reshape(n_verts, 3)
 
-    element_attrs: dict[str, np.ndarray] = {}
+    element_attrs: dict[str, np.ndarray] = dict(
+        record_ids(eid_list, count=len(types_list))
+    )
     element_tags: dict[str, np.ndarray] = {}
     if pid_list:
         pids = np.array(pid_list, dtype=np.int32)
@@ -974,9 +980,33 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         connectivity=connectivity,
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
+        vertex_attrs=dict(record_ids(list(node_map), count=n_verts)),
         element_attrs=element_attrs,
         element_tags=element_tags,
     )
+
+
+def _element_id(text: str) -> int:
+    """Read an element id, or 0 for one no number can be made of.
+
+    Parameters
+    ----------
+    text
+        The card's first field, as the deck spells it.
+
+    Returns
+    -------
+    int
+        The id, or 0. A deck numbers its elements from one, so 0 says "this
+        card answers to no id" - and a numbering with one of those in it is
+        not recorded at all, rather than half-kept. Nothing raises here: the
+        field is read for the numbering alone, and a deck whose element ids
+        polyxios could not parse read fine before they were kept.
+    """
+    try:
+        return int(text)
+    except ValueError:
+        return 0
 
 
 def _element_zoffs(poly: PolyData, n_elems: int) -> np.ndarray | None:
@@ -1482,14 +1512,15 @@ def _card_lines(fields: list[str]) -> list[str]:
 
 
 def _grid_lines(
-    index: int, xyz: np.ndarray, *, large: bool
+    grid_id: int, xyz: np.ndarray, *, large: bool
 ) -> tuple[list[str], int, int]:
     """Render one GRID card, free field or large field.
 
     Parameters
     ----------
-    index
-        Zero-based vertex index; the grid id is ``index + 1``.
+    grid_id
+        The id the card is written under, which is what the mesh remembers
+        of the deck it came from, or its place in the vertex array from one.
     xyz
         The three coordinates of the vertex.
     large
@@ -1513,16 +1544,58 @@ def _grid_lines(
         # when even the fixed-point spelling stays out of reach, wrong.
         lost = sum(len(text) > _FREE_SIGNIFICANT for text in texts)
         misread = sum(not _survives_truncation(text) for text in texts)
-        return _card_lines(["GRID", str(index + 1), "", *texts]), lost, misread
+        return _card_lines(["GRID", str(grid_id), "", *texts]), lost, misread
 
     texts = [_fmt_real(value, width=_LARGE_WIDTH) for value in xyz]
     # The text may be spelled in the implicit-exponent shorthand, which
     # float() does not read; ask the parser that wrote the rules instead.
     lost = sum(_parse_real(text) != float(value) for text, value in zip(texts, xyz))
 
-    ids = "".join(f"{text:<{_LARGE_WIDTH}}" for text in (str(index + 1), ""))
+    ids = "".join(f"{text:<{_LARGE_WIDTH}}" for text in (str(grid_id), ""))
     body = "".join(f"{text:<{_LARGE_WIDTH}}" for text in texts[:2])
     return [f"{'GRID*':<8}{ids}{body}".rstrip(), f"{'*':<8}{texts[2]}"], lost, 0
+
+
+def _warn_wide_ids(node_ids: np.ndarray, elem_ids: np.ndarray, *, large: bool) -> None:
+    """Report ids too wide for the field a solver reads them out of.
+
+    Parameters
+    ----------
+    node_ids
+        The grid ids about to be written.
+    elem_ids
+        The element ids about to be written.
+    large
+        Whether GRID cards go out in sixteen-column large field. Element
+        cards stay free field either way, so their ids get the narrow
+        budget regardless.
+
+    Notes
+    -----
+    Nastran keeps only the first eight characters of a free-field entry, so
+    a nine-digit id read back by a solver is a different id - and, unlike a
+    rounded coordinate, one that silently points a card at another entity or
+    at nothing. The ids are written whole all the same: polyxios reads them
+    back exactly, and truncating here would lose them for every reader.
+    """
+    grid_budget = _LARGE_WIDTH if large else _FREE_SIGNIFICANT
+    wide_grids = int(np.count_nonzero(node_ids >= 10**grid_budget))
+    wide_elems = int(np.count_nonzero(elem_ids >= 10**_FREE_SIGNIFICANT))
+    if wide_grids:
+        warnings.warn(
+            f".bdf: {wide_grids} grid id(s) need more than {grid_budget}"
+            " characters; Nastran keeps only that many, so a solver reads a"
+            " different id. They were written whole.",
+            stacklevel=3,
+        )
+    if wide_elems:
+        warnings.warn(
+            f".bdf: {wide_elems} element id(s) need more than"
+            f" {_FREE_SIGNIFICANT} characters; element cards are free field,"
+            " whose entries Nastran cuts to that, so a solver reads a"
+            " different id. They were written whole.",
+            stacklevel=3,
+        )
 
 
 def _stored_pids(poly: PolyData, n_elems: int) -> np.ndarray | None:
@@ -1656,13 +1729,14 @@ def write(
 
     Notes
     -----
-    Elements keep their input order, and grid and element ids are
-    renumbered from 1 in array order: the ids a deck carried before a read
-    are not kept, so a read/write cycle preserves the mesh but not its
-    numbering. Property ids come from ``element_attrs["pid"]``, or failing
-    that from ``element_tags`` entries named ``pid_<id>``, and default to
-    1; no property or material cards are emitted, so the ids stay
-    undefined in the deck.
+    Elements keep their input order. Grid and element ids are the ones the
+    deck the mesh was read from spelled, when it numbered otherwise than
+    ``1..n`` and the mesh still carries that numbering one entity for one;
+    a mesh built by hand, or one a transform has renumbered out from under,
+    is numbered from 1 in array order instead. Property ids come from
+    ``element_attrs["pid"]``, or failing that from ``element_tags`` entries
+    named ``pid_<id>``, and default to 1; no property or material cards are
+    emitted, so the ids stay undefined in the deck.
 
     Coordinates are written with the shortest text that round-trips the
     double exactly, which free field has the room for: a deck written that
@@ -1724,12 +1798,23 @@ def write(
 
     pids = _element_pids(poly)
     zoffs = _element_zoffs(poly, n_elems)
+    # A Nastran field holds a 32-bit integer and this codec's own reader
+    # refuses anything wider, so an id past that is one no reader gets back -
+    # polyxios included. A mesh read from a .msh, whose node tags are 64-bit
+    # by spec, can carry one honestly, so it is the numbering that gives way.
+    node_ids = ids_for_write(
+        poly, kind="vertex", count=n_verts, fmt=".bdf", limit=_INT32_MAX
+    )
+    elem_ids = ids_for_write(
+        poly, kind="element", count=n_elems, fmt=".bdf", limit=_INT32_MAX
+    )
+    _warn_wide_ids(node_ids, elem_ids, large=large)
     lines: list[str] = ["$ Nastran BDF exported by polyxios", "BEGIN BULK"]
 
     lost = 0
     misread = 0
-    for i, vertex in enumerate(vertices):
-        card_lines, lost_here, misread_here = _grid_lines(i, vertex, large=large)
+    for grid_id, vertex in zip(node_ids.tolist(), vertices):
+        card_lines, lost_here, misread_here = _grid_lines(grid_id, vertex, large=large)
         lines.extend(card_lines)
         lost += lost_here
         misread += misread_here
@@ -1777,8 +1862,8 @@ def write(
         order = _WRITE_ORDER.get((card, expected))
         if order is not None:
             indices = [indices[k] for k in order]
-        nodes = [str(node + 1) for node in indices]
-        card_fields = [card, str(ei + 1), str(int(pids[ei])), *nodes]
+        nodes = [str(int(node_ids[node])) for node in indices]
+        card_fields = [card, str(int(elem_ids[ei])), str(int(pids[ei])), *nodes]
         offset_at = _ZOFFS_FIELD.get(card)
         if offset_at is not None and zoffs is not None and zoffs[ei]:
             # ZOFFS sits past the material orientation angle, which stays

@@ -2,12 +2,14 @@
 
 from array import array
 import io
+from itertools import chain
 from typing import Any
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios._ids import ids_for_write, record_ids
 from polyxios._io import Source, read_text, write_text
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
@@ -416,6 +418,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # Zones and faces are numbered in separate id spaces in FLAC3D, so groups
     # of each kind resolve against their own index.
     record_index: dict[str, dict[int, int]] = {"ZONE": {}, "FACE": {}}
+    # The record ids in mesh index order, across both spaces. FLAC3D numbers
+    # zones and faces separately, so a grid holding both may spell one number
+    # twice; the polyxios writer gives the two one shared space, so a column
+    # that repeats simply says the numbering cannot be put back and is
+    # dropped rather than half-kept.
+    elem_id_list: list[int] = []
     block_groups: dict[str, dict[str, list[int]]] = {"ZONE": {}, "FACE": {}}
     n_dup: dict[str, int] = {"ZONE": 0, "FACE": 0}
     n_bad: dict[str, int] = {"ZONE": 0, "FACE": 0}
@@ -494,6 +502,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             if rec_id in record_index[kind]:
                 n_dup[kind] += 1
             record_index[kind][rec_id] = elem_idx
+            elem_id_list.append(rec_id)
             # FLAC3D 7 may append `GROUP "name"` to the record itself.
             tail = parts[3 + n_ids :]
             if tail and any(tok.upper() == "GROUP" for tok in tail):
@@ -609,6 +618,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         connectivity=_resolve_gridpoints(conn_raw, node_map),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
+        vertex_attrs=dict(record_ids(list(node_map), count=n_verts)),
+        element_attrs=dict(record_ids(elem_id_list, count=len(types_list))),
         element_tags=element_tags,
     )
 
@@ -681,9 +692,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines: list[str] = ["* FLAC3D grid exported by polyxios", "* GRIDPOINTS"]
     # repr() of a Python float is the shortest representation that round-trips
     # exactly; a fixed %g width would silently truncate float64 coordinates.
+    node_ids = ids_for_write(
+        poly, kind="vertex", count=verts.shape[0], fmt=".f3grid"
+    ).tolist()
     lines.extend(
-        f"G {i + 1}  {x!r}  {y!r}  {z!r}"
-        for i, (x, y, z) in enumerate(zip(px, py, pz, strict=True))
+        f"G {gp_id}  {x!r}  {y!r}  {z!r}"
+        for gp_id, (x, y, z) in zip(node_ids, zip(px, py, pz, strict=True))
     )
 
     conn = np.asarray(poly.connectivity, dtype=np.int64).tolist()
@@ -697,10 +711,44 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     )
 
     # Global record id shared by zones and faces, so a ZGROUP id can never
-    # collide with an FGROUP id.
+    # collide with an FGROUP id. Settled before any record is written: a mesh
+    # that remembers the ids its file gave needs them in hand while the
+    # records are formed, and a group names a record by id.
     record_of_elem: list[int] = [0] * n_elems
     is_face_elem: list[bool] = [False] * n_elems
-    record_id = 0
+    # One walk over the mesh, sorting the elements that get a record into the
+    # two sections; the ids are then handed out zones-first, which is the
+    # order the emission loops below reach them in. The skip test is the one
+    # those loops apply, so a record is counted here exactly when it is
+    # written there.
+    zone_elems: list[int] = []
+    face_elems: list[int] = []
+    for i, name in enumerate(names):
+        is_face = name in _POLYXIOS_TO_FACE
+        if not is_face and name not in _POLYXIOS_TO_ZONE:
+            continue
+        if offsets[i + 1] - offsets[i] != len(_WRITE_ORDER[name]):
+            continue
+        if is_face:
+            is_face_elem[i] = True
+            face_elems.append(i)
+        else:
+            zone_elems.append(i)
+    for record_id, i in enumerate(chain(zone_elems, face_elems), start=1):
+        record_of_elem[i] = record_id
+    default_ids = np.array(record_of_elem, dtype=np.int64)
+    kept = ids_for_write(
+        poly, kind="element", count=n_elems, fmt=".f3grid", default=default_ids
+    )
+    if not np.array_equal(kept, default_ids):
+        # An element with no record never got an id, and a ZGROUP naming one
+        # FLAC3D cannot find is a file it refuses to load. Only when the mesh
+        # brought its own numbering: the default already holds the zeroes,
+        # and the comparison that says so is one pass in C rather than a
+        # rebuild in Python.
+        record_of_elem = [
+            int(new) if old else 0 for old, new in zip(record_of_elem, kept.tolist())
+        ]
 
     zone_lines: list[str] = []
     for i, name in enumerate(names):
@@ -720,10 +768,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             order = _WRITE_ORDER_FLIPPED[name]
         elif vol <= tol:
             degenerate += 1
-        record_id += 1
-        record_of_elem[i] = record_id
-        node_str = "  ".join(str(nodes[k] + 1) for k in order)
-        zone_lines.append(f"Z  {_POLYXIOS_TO_ZONE[name]}  {record_id}  {node_str}")
+        node_str = "  ".join(str(node_ids[nodes[k]]) for k in order)
+        zone_lines.append(
+            f"Z  {_POLYXIOS_TO_ZONE[name]}  {record_of_elem[i]}  {node_str}"
+        )
 
     # Faces come after every zone: FLAC3D keeps them in a section of their own.
     face_lines: list[str] = []
@@ -736,11 +784,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
             malformed += 1
             first_malformed = first_malformed or f"{name} element {i}"
             continue
-        record_id += 1
-        record_of_elem[i] = record_id
-        is_face_elem[i] = True
-        node_str = "  ".join(str(nodes[k] + 1) for k in order)
-        face_lines.append(f"F  {_POLYXIOS_TO_FACE[name]}  {record_id}  {node_str}")
+        node_str = "  ".join(str(node_ids[nodes[k]]) for k in order)
+        face_lines.append(
+            f"F  {_POLYXIOS_TO_FACE[name]}  {record_of_elem[i]}  {node_str}"
+        )
 
     zone_group_lines: list[str] = []
     face_group_lines: list[str] = []

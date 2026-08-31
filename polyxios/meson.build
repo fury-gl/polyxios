@@ -27,6 +27,7 @@ py.install_sources(
     '_dimension.py',
     '_element_types.py',
     '_faces.py',
+    '_ids.py',
     '_io.py',
     '_registry.py',
     '_tags.py',
