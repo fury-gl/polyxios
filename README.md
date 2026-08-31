@@ -21,7 +21,7 @@ import polyxios as px
 mesh = px.read("brain.vtk")
 
 # Inspect
-print(mesh.vertices.shape)      # (n_verts, 3)
+print(mesh.vertices.shape)  # (n_verts, 3)
 print(len(mesh.element_types))  # number of elements
 
 # Write to a different format
@@ -136,7 +136,12 @@ candidates. Writing to `.dat` needs an explicit `fmt=`.
 ```python
 from functools import partial
 
-from polyxios.transforms import pipeline, merge, filter_element_type, remove_orphan_vertices
+from polyxios.transforms import (
+    pipeline,
+    merge,
+    filter_element_type,
+    remove_orphan_vertices,
+)
 
 # Compose transforms into a single function
 clean = pipeline(
@@ -163,11 +168,12 @@ no fork required, no pull request needed.
 from polyxios._registry import Codec
 from polyxios._types import PolyData
 
-def read(path, *, lazy=False) -> PolyData:
-    ...
 
-def write(poly: PolyData, path, **opts) -> None:
-    ...
+def read(path, *, lazy=False) -> PolyData: ...
+
+
+def write(poly: PolyData, path, **opts) -> None: ...
+
 
 def register():
     return ".abc", Codec(read, write)
@@ -184,7 +190,7 @@ After `pip install mypackage`, polyxios picks up `.abc` automatically -
 no configuration, no restart needed:
 
 ```python
-mesh = px.read("model.abc")   # works out of the box
+mesh = px.read("model.abc")  # works out of the box
 ```
 
 ---
