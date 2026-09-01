@@ -136,6 +136,62 @@ Format-specific options
 Every codec's own options are listed on its page under
 :doc:`formats/index`.
 
+Entity numbering
+----------------
+
+A :class:`~polyxios.PolyData` indexes its vertices and elements densely from
+zero, always. Most formats agree, but a hand-edited Abaqus deck, a Nastran bulk
+data file, a Gmsh ``.msh``, a FLAC3D grid and a Kratos ``.mdpa`` all let their
+author number entities freely - neither dense nor zero-based, and in any order.
+Reading such a file has to renumber, and renumbering on its own is lossy: the
+ids are how the author's other files talk about this mesh, a load case naming
+``GRID 7000001`` or a report keyed on element ``4001``.
+
+So the reader records what the file said and the writer puts it back:
+
+.. code-block:: python
+
+    mesh = px.read("model.bdf")
+    mesh.vertex_attrs["original_ids"]    # the GRID ids the deck spelled
+    mesh.element_attrs["original_ids"]   # the element ids
+
+    px.write(mesh, "model.msh")          # written back under those numbers
+
+The key is deliberately not format-prefixed: an id says something about the
+entity, not about the file it came from, so a mesh read from a ``.bdf`` and
+written as ``.msh`` keeps its numbering. Three rules hold across every codec
+that carries ids:
+
+* **Read renumbers.** Connectivity, tags and attributes all speak dense
+  zero-based indices whatever the file spelled.
+* **Read remembers only what the index does not already say.** A file
+  numbering ``1..n`` in order records nothing at all - the writer's own
+  renumbering reproduces it exactly. The key's absence means "no numbering
+  worth keeping", not "numbered from one".
+* **Write asks.** Stored ids win when they can still be written; otherwise the
+  writer renumbers from one, with a warning.
+
+"Can still be written" is checked at the point of writing rather than trusted,
+because a transform moves a mesh out from under its ids without either one
+being wrong: ``merge`` concatenates two meshes that each numbered from one, so
+the ids collide, and splitting a quad leaves two triangles carrying one id.
+Either would spell a file with two entities answering to one number, which no
+solver loads, so the ids have to be positive, unique and one per entity to
+survive.
+
+A format that numbers densely by construction - Medit, OFF, STL, the VTK
+family - has no id of its own to record, and ignores the key on write. Whether
+it *carries* one is a separate question, and comes down to whether it has a
+general attribute channel: PLY and the VTK family write ``original_ids`` back
+out as an ordinary data array, so a mesh read from a ``.bdf``, welded, and
+written as ``.vtu`` keeps the ids of the vertices that survived. Tecplot has
+the channel on one side only - its variables are per-vertex, so vertex ids
+travel and element ids are dropped with the rest of the element attributes.
+Medit, OFF, STL and OBJ have no such channel at all and drop the key with
+every other attribute, silently. Where the channel is float - a legacy VTK
+data array, a Tecplot variable, a PLY face property - the ids come back as
+whole float64 values rather than int64.
+
 Two-dimensional meshes
 ----------------------
 
@@ -189,7 +245,7 @@ node count per element from a separate number.
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the twenty-five supported formats, one page each
+* :doc:`formats/index` - the twenty-seven supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

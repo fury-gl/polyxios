@@ -5,7 +5,7 @@ Medit binary
 
 .. rst-class:: px-badges
 
-``.meshb`` ``read + write`` ``lazy: binary only``
+``.meshb`` ``read + write`` ``always mmapped``
 
 Summary of the specification
 ----------------------------
@@ -47,11 +47,12 @@ Reading
     mesh.vertices          # (n, 3)
     mesh.element_types     # element groups found in the file
 
-Binary bodies can be memory-mapped instead of loaded:
+A path is memory-mapped rather than loaded, always - there is no eager mode
+to ask for and no ``lazy=`` to pass:
 
 .. code-block:: python
 
-    mesh = px.read("big.meshb", lazy=True)
+    mesh = px.read("big.meshb")
 
 Writing
 -------
@@ -73,7 +74,7 @@ Quirks worth knowing
 - ``Edges``, ``Prisms`` and ``Pyramids`` are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.
 - The higher-order sections (``TrianglesP2``, ``TetrahedraP2``, ``HexahedraQ2``, ...) are stepped over. The format fixes no node ordering for high-order elements - libMeshb's own documentation defers it to a companion ``*Ordering`` section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
 - Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.
-- Binary bodies can be memory-mapped with ``lazy=True``.
+- A path is mapped and a file object read into memory, whichever ``lazy=`` says, so ``lazy=True`` warns and changes nothing while ``lazy=False`` is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.
 
 .. seealso::
 

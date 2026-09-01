@@ -92,6 +92,8 @@ def validate_header(
     file_size_bytes: int,
     *,
     compressed: bool = False,
+    spells_vertices: bool = True,
+    spells_connectivity: bool = True,
 ) -> None:
     """Validate header counts against file size before any array allocation.
 
@@ -108,11 +110,29 @@ def validate_header(
     compressed
         If True, skip file-size plausibility checks (compressed data is
         smaller than the raw vertex/connectivity byte estimates).
+    spells_vertices
+        Whether the file holds a coordinate for every vertex it declares.
+        False for a format that describes its points instead of writing
+        them - an ImageData spells an origin and a step, a RectilinearGrid
+        three axes - where the count comes from a header a few bytes long
+        and no amount of file is evidence for or against it.
+    spells_connectivity
+        Whether the file holds the indices it declares. False for the
+        structured formats, whose cells are implied by the extent and
+        written nowhere.
 
     Raises
     ------
     ValidationError
         If declared counts exceed hard caps or are implausible given file size.
+
+    Notes
+    -----
+    The caps apply whatever the file spells: they bound what is about to be
+    allocated, which is the expanded mesh either way. Only the two size
+    heuristics are gated, and they are heuristics about bytes on disk - a
+    ``4 x 4 x 4`` ImageData declares 64 points in a 231-byte file and is not
+    corrupt, it is the format working as intended.
     """
     if declared_n_verts > MAX_SAFE_VERTICES:
         raise ValidationError(
@@ -134,14 +154,14 @@ def validate_header(
         return
 
     # coords require 3 * 8 bytes per vertex; allow 4× slack for headers/ASCII overhead
-    if declared_n_verts * 3 * 8 > file_size_bytes * 4:
+    if spells_vertices and declared_n_verts * 3 * 8 > file_size_bytes * 4:
         raise ValidationError(
             f"declared_n_verts={declared_n_verts} implies "
             f"{declared_n_verts * 24} bytes of vertex data but "
             f"file_size_bytes={file_size_bytes}. Possible corrupt file."
         )
     # connectivity requires 4 bytes per index; allow 4× slack
-    if declared_conn_size * 4 > file_size_bytes * 4:
+    if spells_connectivity and declared_conn_size * 4 > file_size_bytes * 4:
         raise ValidationError(
             f"declared_conn_size={declared_conn_size} implies "
             f"{declared_conn_size * 4} bytes of index data but "

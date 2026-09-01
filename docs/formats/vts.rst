@@ -74,6 +74,12 @@ Quirks worth knowing
 - Header counts are validated against the file size before any array is allocated.
 - Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 - An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every ``CellData`` array belonging to nothing.
+- The points are written out in the mesh's own order, so they need not be a lattice: a warped block, a cylindrical shell and an aerofoil O-grid are all StructuredGrids, and holding those is what the format is for. The extent is read off the cells, which are a grid whatever the coordinates do.
+- The cells are the one thing the file does not carry. A mesh whose elements are not the ones the extent reads back - a mix of types, tetrahedra over grid points, or hexahedra in another order - raises :class:`~polyxios.exceptions.CodecError` at the point of writing rather than being silently swapped for the grid's own cells, taking its ``CellData`` with it. Write a :doc:`vtu`, which carries an arbitrary mesh and its own cells.
+- A mesh with no vertices writes the extent VTK spells an empty grid with, ``0 -1 0 -1 0 -1``, and reads back as a mesh with none.
+- An extent that ends before it starts on any axis holds no points, so it holds no cells either - ``0 -1 0 2 0 2`` reads as an empty mesh rather than as four quads whose corners name points the file never spelled.
+- A StructuredGrid carries its points, so the extent and the ``<Points>`` array have to agree on how many. The column count is read off the two, so a file that disagrees used to come back as a mesh of the wrong width - a point of no coordinates at all - and fail later on a shape nothing in the file explained; it now raises :class:`~polyxios.exceptions.CodecError` naming both counts. An array wider than three components keeps its first three, as before.
+- The extent of the file a mesh was read from travels with it, so a grid that did not begin at zero is written back where it stood - but only while it still describes the mesh. One a transform has moved the mesh out from under is re-derived from the cells rather than trusted.
 
 .. seealso::
 

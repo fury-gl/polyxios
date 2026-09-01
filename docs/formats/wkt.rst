@@ -64,6 +64,7 @@ Quirks worth knowing
 - An EWKT ``SRID=`` prefix is parsed and then dropped - polyxios carries no coordinate reference system.
 - The ISO/SQL-MM surface family reads too: ``TRIANGLE`` as one triangle, ``TIN`` as a set of them, ``POLYHEDRALSURFACE`` as a set of polygons. A ``TIN`` patch that is not a triangle, or a ``TRIANGLE`` carrying an interior ring, is refused rather than read as something else.
 - ``EMPTY`` is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.
+- ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`; the geometry is spelled as text and has to be parsed before it holds numbers.
 
 .. seealso::
 

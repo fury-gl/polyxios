@@ -247,3 +247,50 @@ def test_the_elements_that_do_fit_still_reach_the_file(tmp_path) -> None:
     back = read(path)
     assert len(back.element_types) == 1
     np.testing.assert_array_equal(back.connectivity, [0, 1, 2, 3])
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["MFEM NC mesh v1.0", "MFEM NC-Mesh v1.0", "MFEM NC MESH v1.0"],
+)
+def test_every_nc_header_spelling_reaches_the_nc_reader(tmp_path, header: str) -> None:
+    """The sniffer accepts five spellings, upper-cased; the reader has to agree.
+
+    ``MFEM NC-Mesh`` was falling through to the NURBS reader, which read a
+    refinement forest as control points and warned under the wrong variant's
+    name, and an upper-cased header matched no branch at all and was refused
+    for not starting with ``MFEM mesh``.
+    """
+    path = tmp_path / "nc.mesh"
+    path.write_text(f"{header}\n\ndimension\n3\n")
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        poly = read(path)
+
+    assert not any(issubclass(w.category, UserWarning) for w in caught)
+    assert "mfem_nc_n_leaf_elements" in poly.global_attrs
+    assert "mfem_nc_n_total_elements" in poly.global_attrs
+
+
+def test_a_header_in_another_case_reads_as_the_flavour_it_names(tmp_path) -> None:
+    """The registry claims a file by the upper-cased header, so the reader must."""
+    path = tmp_path / "shouty.mesh"
+    path.write_text("MFEM MESH v1.0\n\ndimension\n3\n")
+
+    poly = read(path)
+    assert len(poly.vertices) == 0
+
+
+def test_a_byte_order_mark_does_not_hide_the_header(tmp_path) -> None:
+    """The sniffer decodes the mark away and the reader has to as well."""
+    body = (
+        "MFEM mesh v1.0\n\ndimension\n2\n\nelements\n1\n1 2 0 1 2\n\n"
+        "boundary\n0\n\nvertices\n3\n2\n0 0\n1 0\n0 1\n"
+    )
+    path = tmp_path / "bom.mesh"
+    path.write_bytes(b"\xef\xbb\xbf" + body.encode())
+
+    # A file the registry had already claimed as MFEM: the mark is not
+    # whitespace, so strip left it in place and the header matched no branch.
+    assert len(read(path).vertices) == 3

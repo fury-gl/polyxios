@@ -4,10 +4,11 @@ Supported formats
 =================
 
 .. meta::
-   :description: The twenty-six 3D mesh and geometry formats polyxios reads and writes, across thirty-six extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, UGRID and more, one reference page each.
+   :description: The twenty-seven 3D mesh and geometry formats polyxios reads and writes, across thirty-two extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, Kratos MDPA and more, one reference page each.
 
 
-polyxios ships twenty-six codecs across thirty-six extensions. Each is registered by
+polyxios ships twenty-seven codecs across thirty-two extensions - the thirty-one
+below plus ``.plt``, which is recognised but not read. Each is registered by
 extension, so :func:`polyxios.read` picks the right reader from the filename - pass
 ``fmt=`` to override it.
 
@@ -49,10 +50,11 @@ Writing them is not supported.
    su2
    tetgen
    wkt
+   vtu
+   vts
+   vti
    mfem
    netgen
    ugrid
    splat
-   vtu
-   vts
-   vti
+   mdpa

@@ -9,13 +9,16 @@ For appended data:
 """
 
 import base64
+from collections.abc import Sequence
 import math
+from typing import Any
 import warnings
 import xml.etree.ElementTree as ET
 import zlib
 
 import numpy as np
 
+from polyxios._element_types import ELEMENT_TYPES
 from polyxios._io import Source, read_bytes
 from polyxios.exceptions import CodecError
 
@@ -48,6 +51,13 @@ _STRUCTURED_KINDS: dict[int, tuple[str, int]] = {
     1: ("line", 2),
     2: ("quad", 4),
     3: ("hexahedron", 8),
+}
+
+# The same table read the other way: a grid made of these cells extends
+# along this many axes, which is what a mesh's element type says about the
+# extent it came from.
+_GRID_AXES: dict[int, int] = {
+    ELEMENT_TYPES[kind]: axes for axes, (kind, _) in _STRUCTURED_KINDS.items()
 }
 
 # The widest point index an int32 connectivity array can name.
@@ -277,7 +287,8 @@ def structured_cell_shape(nx: int, ny: int, nz: int) -> tuple[int, int, str]:
     tuple[int, int, str]
         Cells the grid holds, points per cell, and the element type name. A
         grid that extends along no axis is a single point and has no cells,
-        which is ``(0, 0, 'vertex')``.
+        which is ``(0, 0, 'vertex')``. So is one whose extent ends before it
+        starts on any axis.
 
     Examples
     --------
@@ -287,7 +298,18 @@ def structured_cell_shape(nx: int, ny: int, nz: int) -> tuple[int, int, str]:
     (6, 4, 'quad')
     >>> structured_cell_shape(0, 0, 0)
     (0, 0, 'vertex')
+    >>> structured_cell_shape(-1, 2, 2)
+    (0, 0, 'vertex')
     """
+    if min(nx, ny, nz) < 0:
+        # An end before its start is how VTK spells an axis with no plane on
+        # it, and one such axis empties the whole grid: the point count is a
+        # product, so it goes to zero whatever the others say. Counting the
+        # other two axes' cells here would hand back quads whose corners name
+        # points the grid does not hold, and an ``0 -1 0 2 0 2`` file read as
+        # four cells over no vertices at all.
+        return 0, 0, "vertex"
+
     spans = [span for span in (nx, ny, nz) if span > 0]
     if not spans:
         return 0, 0, "vertex"
@@ -297,6 +319,433 @@ def structured_cell_shape(nx: int, ny: int, nz: int) -> tuple[int, int, str]:
         n_cells *= span
     kind, per_cell = _STRUCTURED_KINDS[len(spans)]
     return n_cells, per_cell, kind
+
+
+def grid_axes(vertices: np.ndarray, spans: Sequence[int]) -> list[np.ndarray]:
+    """Slice the per-axis coordinates of a grid out of its vertices.
+
+    A grid numbers its points with x fastest and z slowest, so the first row
+    of vertices is the x axis, every ``nx``-th vertex of the first plane is
+    the y axis, and every plane's first vertex is the z axis. Reading them off
+    as strides is three slices and no sort - taking the distinct value on each
+    column instead costs a sort of the whole mesh, and quietly reorders an
+    axis that runs downwards.
+
+    Parameters
+    ----------
+    vertices
+        The mesh's ``(n, 3)`` vertex array.
+    spans
+        Cells along each axis, as :func:`extent_spans` gives them.
+
+    Returns
+    -------
+    list of numpy.ndarray
+        Views of the x, y and z coordinates. An extent with no points at all
+        gives three empty arrays.
+
+    Examples
+    --------
+    >>> verts = np.array([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [0.0, 7.0, 0.0],
+    ...                   [3.0, 7.0, 0.0]])
+    >>> [u.tolist() for u in grid_axes(verts, [1, 1, 0])]
+    [[0.0, 3.0], [0.0, 7.0], [0.0]]
+    """
+    nx, ny, nz = (span + 1 for span in spans)
+    if min(nx, ny, nz) <= 0:
+        empty = np.empty(0, dtype=vertices.dtype)
+        return [empty, empty, empty]
+    return [
+        vertices[:nx, 0],
+        vertices[: nx * ny : nx, 1],
+        vertices[:: nx * ny, 2],
+    ]
+
+
+def vertices_match_axes(vertices: np.ndarray, axes: Sequence[np.ndarray]) -> bool:
+    """Say whether these vertices are the product of these three axes.
+
+    ``.vti`` and ``.vtr`` do not write their points: an ImageData spells an
+    origin and a step, a RectilinearGrid spells three coordinate arrays, and
+    both leave the reader to expand the product. A mesh either can hold is
+    therefore a Cartesian lattice, and its vertices have to run in the order
+    that expansion produces - x fastest, z slowest - or every point attribute
+    comes back on a different point than it went out on. ``.vts`` writes its
+    points, so it is under no such rule.
+
+    Parameters
+    ----------
+    vertices
+        The mesh's ``(n, 3)`` vertex array.
+    axes
+        The x, y and z coordinates the file would spell.
+
+    Returns
+    -------
+    bool
+        True when expanding the axes reproduces the vertices exactly.
+
+    Examples
+    --------
+    >>> verts = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0],
+    ...                   [1.0, 2.0, 0.0]])
+    >>> vertices_match_axes(verts, grid_axes(verts, [1, 1, 0]))
+    True
+    >>> vertices_match_axes(verts[::-1], grid_axes(verts, [1, 1, 0]))
+    False
+    """
+    nx, ny, nz = (len(u) for u in axes)
+    if nx * ny * nz != len(vertices):
+        return False
+    if not len(vertices):
+        return True
+    # Each column is compared against a broadcast view of the axis it repeats
+    # rather than against a tiled copy of it: the same equality, and nothing
+    # the size of the mesh is allocated to reach it.
+    return bool(
+        np.array_equal(
+            vertices[:, 0].reshape(ny * nz, nx), np.broadcast_to(axes[0], (ny * nz, nx))
+        )
+        and np.array_equal(
+            vertices[:, 1].reshape(nz, ny, nx),
+            np.broadcast_to(np.asarray(axes[1])[:, None], (nz, ny, nx)),
+        )
+        and np.array_equal(
+            vertices[:, 2].reshape(nz, ny * nx),
+            np.broadcast_to(np.asarray(axes[2])[:, None], (nz, ny * nx)),
+        )
+    )
+
+
+def require_grid_order(
+    vertices: np.ndarray, axes: Sequence[np.ndarray], *, fmt: str
+) -> None:
+    """Refuse a mesh whose points a lattice format would not write back.
+
+    Parameters
+    ----------
+    vertices
+        The mesh's ``(n, 3)`` vertex array.
+    axes
+        The x, y and z coordinates the file would spell.
+    fmt
+        Extension the message names, such as ``'.vti'``.
+
+    Raises
+    ------
+    CodecError
+        When :func:`vertices_match_axes` says they are not that lattice.
+    """
+    if vertices_match_axes(vertices, axes):
+        return
+    nx, ny, nz = (len(u) for u in axes)
+    raise CodecError(
+        f"{fmt}: the mesh's cells are a {nx} x {ny} x {nz} grid, but its "
+        "vertices are not that grid expanded - this format writes no points "
+        "of its own, so it can only hold a mesh whose vertices are the "
+        "product of three axes, with x varying fastest and z slowest. Every "
+        "point attribute would sit against the wrong point; write a .vts "
+        "instead, which writes its points in the mesh's own order, or a "
+        ".vtu, which carries its cells as well."
+    )
+
+
+def extent_spans(extent: Sequence[int]) -> list[int] | None:
+    """Reduce an extent to the cells it spans along each axis, or None.
+
+    Parameters
+    ----------
+    extent
+        The ``[i0, i1, j0, j1, k0, k1]`` a file declared or a mesh carries.
+
+    Returns
+    -------
+    list of int or None
+        The three spans, or None when the extent is not one: the wrong
+        length, or an end before its start by more than the ``-1`` that
+        spells an axis with no plane on it.
+
+    Examples
+    --------
+    >>> extent_spans([0, 2, 0, 2, 0, 2])
+    [2, 2, 2]
+    >>> extent_spans([0, 2, 0, 2]) is None
+    True
+    >>> extent_spans("0 2 0 2 0 2") is None
+    True
+    """
+    try:
+        if isinstance(extent, str | bytes) or len(extent) != 6:
+            return None
+        spans = [
+            int(extent[1]) - int(extent[0]),
+            int(extent[3]) - int(extent[2]),
+            int(extent[5]) - int(extent[4]),
+        ]
+    except (TypeError, ValueError):
+        # Whatever ``global_attrs`` held is not an extent: a bare number with
+        # no length at all, or six of something that are not whole numbers.
+        # Asked in a try rather than in an isinstance ladder because the happy
+        # path pays nothing for it, and because the answer is the same for
+        # every shape it could be wrong in - there is no extent here to keep,
+        # and the caller reads the mesh's own off its cells instead. A string
+        # is caught by name rather than by failing: six characters have a
+        # length and ``'0 2 0 2 0 2'`` has eleven, so one of the right length
+        # would be indexed a character at a time into an extent of nonsense.
+        return None
+    if any(span < -1 for span in spans):
+        return None
+    return spans
+
+
+def extent_points(spans: Sequence[int]) -> int:
+    """Count the points a grid spanning this many cells holds.
+
+    Parameters
+    ----------
+    spans
+        Cells along each axis, as :func:`extent_spans` gives them.
+
+    Returns
+    -------
+    int
+        The point count. An axis whose extent ends before it starts carries
+        no plane, so the grid carries no points at all - however many the
+        other two axes hold, and however far back the end runs. Multiplied
+        out unguarded, an end two or more before its start turns the product
+        negative, which is not a count of anything.
+
+    Examples
+    --------
+    >>> extent_points([2, 2, 2])
+    27
+    >>> extent_points([-1, -1, -1])
+    0
+    >>> extent_points([-5, 2, 2])
+    0
+    """
+    if any(span < 0 for span in spans):
+        return 0
+    points = 1
+    for span in spans:
+        points *= span + 1
+    return points
+
+
+def structured_cells_fit(
+    connectivity: np.ndarray, element_types: np.ndarray, spans: Sequence[int]
+) -> bool:
+    """Say whether a mesh's cells are the ones this grid reads back.
+
+    None of the three structured formats writes its connectivity: the reader
+    rebuilds it from the extent, so whatever cells the mesh held are replaced
+    by :func:`structured_cells` on the way back in. A mesh whose cells are not
+    already those - tetrahedra over grid points, or the same hexahedra in
+    another order - is not written but silently swapped for a different mesh,
+    taking its ``CellData`` with it, so the writers ask this first.
+
+    Parameters
+    ----------
+    connectivity
+        The mesh's flat connectivity.
+    element_types
+        One type code per element.
+    spans
+        Cells along each axis, as :func:`extent_spans` gives them.
+
+    Returns
+    -------
+    bool
+        True when the cell count, the element type and the connectivity are
+        all the ones the grid expands to.
+
+    Examples
+    --------
+    >>> conn, _, _ = structured_cells(1, 1, 1)
+    >>> kinds = np.full(1, ELEMENT_TYPES["hexahedron"], dtype=np.uint8)
+    >>> structured_cells_fit(conn, kinds, [1, 1, 1])
+    True
+    >>> structured_cells_fit(conn, kinds, [1, 1, 0])
+    False
+    """
+    n_cells, per_cell, kind = structured_cell_shape(*spans)
+    if len(element_types) != n_cells:
+        return False
+    if not n_cells:
+        return len(connectivity) == 0
+    if len(connectivity) != n_cells * per_cell:
+        return False
+    if not bool(np.all(element_types == ELEMENT_TYPES[kind])):
+        return False
+    # Corner by corner against the cells the grid expands to, rather than
+    # against the whole connectivity built out to compare with: a mesh that is
+    # not this grid almost always parts from it on the first corner, and
+    # nothing wider than one column of it is ever held.
+    origins, steps = _grid_origins(*spans)
+    cells = np.reshape(connectivity, (n_cells, per_cell))
+    return all(
+        bool(np.array_equal(cells[:, corner], origins + step))
+        for corner, step in enumerate(steps)
+    )
+
+
+def require_structured_cells(
+    connectivity: np.ndarray,
+    element_types: np.ndarray,
+    spans: Sequence[int],
+    *,
+    fmt: str,
+) -> None:
+    """Refuse a mesh whose cells the grid would not read back.
+
+    Parameters
+    ----------
+    connectivity
+        The mesh's flat connectivity.
+    element_types
+        One type code per element.
+    spans
+        Cells along each axis, as :func:`extent_spans` gives them.
+    fmt
+        Extension the message names, such as ``'.vti'``.
+
+    Raises
+    ------
+    CodecError
+        When :func:`structured_cells_fit` says they are not.
+    """
+    if structured_cells_fit(connectivity, element_types, spans):
+        return
+    n_cells, _, kind = structured_cell_shape(*spans)
+    nx, ny, nz = (span + 1 for span in spans)
+    raise CodecError(
+        f"{fmt}: the mesh's points are a {nx} x {ny} x {nz} grid, which this "
+        f"format reads back as {n_cells} {kind} cells, and the mesh holds "
+        f"{len(element_types)} elements that are not those. The file carries "
+        "no connectivity of its own, so the cells it was handed would be "
+        "dropped and their data with them - write a .vtu instead, which "
+        "carries its own cells."
+    )
+
+
+def structured_spans_from_cells(
+    vertices: np.ndarray,
+    connectivity: np.ndarray,
+    element_types: np.ndarray,
+    *,
+    fmt: str,
+) -> list[int]:
+    """Read a structured grid's extent off its cells rather than its points.
+
+    ``.vts`` is the one structured format that writes its points, so they
+    need not be a lattice at all - a warped block, a cylindrical shell and an
+    aerofoil O-grid are all StructuredGrids, and holding those is the reason
+    the format exists next to ``.vti``. Their distinct coordinates say nothing
+    about the extent, so it is read off the cells, which are a grid whatever
+    the points do: the first cell's corners are strides in the point
+    numbering, and those strides are the grid's own dimensions.
+
+    Parameters
+    ----------
+    vertices
+        The mesh's ``(n, 3)`` vertex array. Read only to decide which axes a
+        flat grid lies in, which the cells cannot say.
+    connectivity
+        The mesh's flat connectivity.
+    element_types
+        One type code per element.
+    fmt
+        Extension the message names, such as ``'.vts'``.
+
+    Returns
+    -------
+    list of int
+        Cells along each axis, as :func:`extent_spans` gives them.
+
+    Raises
+    ------
+    CodecError
+        If the cells are not a grid's: mixed types, a type no grid is made
+        of, or strides that do not multiply out to the vertices.
+    """
+    n_verts = len(vertices)
+    n_cells = len(element_types)
+    if not n_cells:
+        # A grid spanning nothing at all is a single point, and one spanning
+        # -1 holds none; any other pointcloud has no extent that describes it.
+        if n_verts <= 1:
+            return [n_verts - 1] * 3
+        raise CodecError(
+            f"{fmt}: the mesh holds {n_verts} vertices and no cells, so there "
+            "is no grid to read an extent off. Write a .vtu instead, which "
+            "holds a bare point cloud."
+        )
+    if not bool(np.all(element_types == element_types[0])):
+        raise CodecError(
+            f"{fmt}: the mesh mixes element types, and a structured grid is "
+            "one kind throughout. Write a .vtu instead, which holds an "
+            "arbitrary mix."
+        )
+    n_axes = _GRID_AXES.get(int(element_types[0]))
+    if n_axes is None:
+        raise CodecError(
+            f"{fmt}: a structured grid is made of hexahedra, quadrilaterals or "
+            "lines, and this mesh is made of none of those. Write a .vtu "
+            "instead, which holds an arbitrary mesh."
+        )
+    per_cell = 1 << n_axes
+    if len(connectivity) != n_cells * per_cell:
+        raise CodecError(
+            f"{fmt}: the mesh declares {n_cells} cells of {per_cell} points "
+            f"and holds {len(connectivity)} connectivity entries."
+        )
+
+    # The first cell sits on point 0 and its corners are one step along each
+    # extending axis, so corner 3 counts the points on the fastest axis and
+    # corner 4 a whole plane of them. That is the grid's shape in two
+    # subtractions, whatever the coordinates look like. A cell elsewhere, or
+    # corners in another order, gives a shape that does not multiply out -
+    # and require_structured_cells has the last word either way.
+    first = connectivity[:per_cell]
+    if n_axes == 1:
+        dims = [n_verts]
+    elif n_axes == 2:
+        row = int(first[3]) - int(first[0])
+        dims = [row, n_verts // row if row > 0 else 0]
+    else:
+        row = int(first[3]) - int(first[0])
+        plane = int(first[4]) - int(first[0])
+        dims = [
+            row,
+            plane // row if row > 0 else 0,
+            n_verts // plane if plane > 0 else 0,
+        ]
+    if any(dim < 2 for dim in dims) or math.prod(dims) != n_verts:
+        raise CodecError(
+            f"{fmt}: the mesh's {n_cells} cells are not a structured grid over "
+            f"its {n_verts} vertices - their corners step by "
+            f"{' x '.join(str(dim) for dim in dims)}, which is not the mesh. "
+            "Write a .vtu instead, which carries its own cells."
+        )
+
+    # Which axes those dimensions belong to is the one thing the cells cannot
+    # say: a sheet of quads flat in y is numbered exactly as one flat in z.
+    # An axis holding a single coordinate is the flat one; where the points
+    # do not answer either - a curved sheet is flat in no axis - the extent
+    # goes on the leading axes, which reads back as the same mesh.
+    spans = [0, 0, 0]
+    extending = list(range(n_axes))
+    if n_axes < 3:
+        flat = [
+            axis
+            for axis in range(3)
+            if vertices[:, axis].min() == vertices[:, axis].max()
+        ]
+        if len(flat) == 3 - n_axes:
+            extending = [axis for axis in range(3) if axis not in flat]
+    for dim, axis in zip(dims, extending, strict=True):
+        spans[axis] = dim - 1
+    return spans
 
 
 def structured_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, int, str]:
@@ -334,6 +783,43 @@ def structured_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, int, str]:
     if not n_cells:
         return np.zeros(0, dtype=np.int32), per_cell, kind
 
+    origins, steps = _grid_origins(nx, ny, nz)
+    # An index only fits an int32 while the grid does; a bigger one is kept
+    # at the width that holds it rather than wrapped into a negative point.
+    n_points = (nx + 1) * (ny + 1) * (nz + 1)
+    dtype = np.int32 if n_points <= _INT32_MAX else np.int64
+
+    cells = np.empty((n_cells, per_cell), dtype=dtype)
+    for corner, step in enumerate(steps):
+        cells[:, corner] = origins + step
+    return cells.ravel(), per_cell, kind
+
+
+def _grid_origins(nx: int, ny: int, nz: int) -> tuple[np.ndarray, tuple[int, ...]]:
+    """Say where each cell of a structured grid hangs, and where its corners sit.
+
+    Split out of :func:`structured_cells` so that checking a mesh against a
+    grid can walk the cells a corner at a time rather than build the whole
+    connectivity to compare against it.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Cells along each axis; at least one of them positive.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, tuple[int, ...]]
+        The point index each cell's first corner sits on, with the cells
+        running ``x`` fastest, and the offset of every corner from it in the
+        order VTK numbers them.
+
+    Examples
+    --------
+    >>> origins, steps = _grid_origins(1, 1, 0)
+    >>> origins.tolist(), steps
+    ([0], (0, 1, 3, 2))
+    """
     dims = (nx, ny, nz)
     # A point's index is x + y * (nx + 1) + z * (nx + 1) * (ny + 1), so this
     # is the step from one point to the next along each axis.
@@ -351,18 +837,7 @@ def structured_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, int, str]:
             origins
             + np.arange(dims[axis], dtype=np.int64).reshape(shape) * strides[axis]
         )
-    origins = origins.ravel()
-
-    steps = _corner_steps([strides[axis] for axis in axes])
-    # An index only fits an int32 while the grid does; a bigger one is kept
-    # at the width that holds it rather than wrapped into a negative point.
-    n_points = (nx + 1) * (ny + 1) * (nz + 1)
-    dtype = np.int32 if n_points <= _INT32_MAX else np.int64
-
-    cells = np.empty((n_cells, per_cell), dtype=dtype)
-    for corner, step in enumerate(steps):
-        cells[:, corner] = origins + step
-    return cells.ravel(), per_cell, kind
+    return origins.ravel(), _corner_steps([strides[axis] for axis in axes])
 
 
 def _corner_steps(strides: list[int]) -> tuple[int, ...]:
@@ -923,6 +1398,55 @@ def xml_extent(text: str, *, fmt: str, where: str) -> list[int]:
             f"{fmt}: {where}='{text}' holds {len(extent)} indices; an extent holds six."
         )
     return extent
+
+
+def whole_extent(stored: Any, extent: Sequence[int]) -> list[int]:
+    """The ``WholeExtent`` a piece goes back out under.
+
+    ``WholeExtent`` names the grid the piece belongs to and ``Extent`` names
+    the piece's own share of it; the two differ exactly when the file is one
+    piece of a parallel set, which is the case the piece indices are kept for.
+    Writing the piece extent into both narrows the grid to the piece, so a
+    ``.pvtr`` or ``.pvts`` assembling it beside its neighbours reads a block
+    that claims to be the whole domain - the one thing keeping the piece
+    indices was meant to prevent.
+
+    Kept only while it still holds the piece, the way the extent itself is
+    kept only while it still describes the mesh: an extent re-derived from the
+    cells is zero-based and says nothing about where the old grid stood, and a
+    stored grid that no longer contains the piece describes neither.
+
+    Parameters
+    ----------
+    stored
+        What ``global_attrs`` held under the codec's whole-extent key, or None
+        when it held nothing.
+    extent
+        The ``[i0, i1, j0, j1, k0, k1]`` being written for this piece.
+
+    Returns
+    -------
+    list of int
+        The stored grid when it contains the piece, and the piece otherwise.
+
+    Examples
+    --------
+    >>> whole_extent([0, 5, 0, 2, 0, 0], [3, 5, 0, 2, 0, 0])
+    [0, 5, 0, 2, 0, 0]
+    >>> whole_extent([0, 1, 0, 1, 0, 0], [3, 5, 0, 2, 0, 0])
+    [3, 5, 0, 2, 0, 0]
+    >>> whole_extent(None, [0, 2, 0, 2, 0, 2])
+    [0, 2, 0, 2, 0, 2]
+    """
+    if stored is None or extent_spans(stored) is None:
+        return list(extent)
+    grid = [int(bound) for bound in stored]
+    contains = all(
+        grid[2 * axis] <= extent[2 * axis]
+        and grid[2 * axis + 1] >= extent[2 * axis + 1]
+        for axis in range(3)
+    )
+    return grid if contains else list(extent)
 
 
 def join_piece_attrs(

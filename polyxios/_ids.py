@@ -2,7 +2,8 @@
 
 A ``PolyData`` indexes its vertices and elements densely from zero, always.
 Most formats agree, but a hand-edited Abaqus deck, a Nastran bulk data file,
-a Gmsh ``.msh`` and a FLAC3D grid all let their author number entities freely:
+a Gmsh ``.msh``, a FLAC3D grid and a Kratos ``.mdpa`` all let their author
+number entities freely:
 the ids are neither dense nor zero-based, and they may run to any 64-bit value
 in any order. Reading such a file has to renumber - nothing downstream can
 index ``vertices[7000001]`` - and renumbering on its own is lossy in one
@@ -39,12 +40,18 @@ one per entity to survive, and a mesh that lost that gets dense numbering and
 a warning rather than a broken file.
 
 A format that numbers densely by construction - Medit, OFF, STL, the VTK
-family - has no id to record and ignores the key on write. It travels all the
-same, so a mesh read from a ``.bdf`` and welded, then written back, keeps the
-ids of the vertices that survived. Some of those carriers have no integer
-column to travel in: a PLY vertex property and a legacy VTK data array are
-float, so the ids come back whole float64s rather than int64s. That is
-polyxios's own doing rather than anything the mesh did, so a whole float
+family - has no id to record and ignores the key on write. Whether it carries
+one is a separate question, and comes down to whether it has a general
+attribute channel: PLY and the VTK family write the key back out as an
+ordinary data array, so a mesh read from a ``.bdf`` and welded, then written
+as ``.vtu``, keeps the ids of the vertices that survived. Tecplot has the
+channel on one side only - its variables are per-vertex, so vertex ids travel
+and element ids are dropped with the rest of the element attributes. Medit,
+OFF, STL and OBJ have no such channel at all and drop the key with every
+other attribute.
+Where the channel is float - a legacy VTK data array, a Tecplot variable, a
+PLY face property - the ids come back whole float64s rather than int64s. That
+is polyxios's own doing rather than anything the mesh did, so a whole float
 column is read as the numbering it is - see :func:`_as_ids` for the bound
 that makes it safe.
 """

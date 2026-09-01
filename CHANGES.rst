@@ -93,6 +93,40 @@ New features
   point. Welding is not culling: a vertex no
   element references is kept - compose with ``remove_orphan_vertices`` to
   drop those too.
+- Kratos MDPA ``.mdpa`` is read and written: nodes, elements named by Kratos
+  element class, conditions, ``Properties`` ids, ``NodalData`` and
+  ``ElementalData`` variables, ``ModelPartData`` and nested ``SubModelPart``
+  groups. The class name and the geometry do not identify each other -
+  ``Element3D4N`` is a tetrahedron, and a quadrilateral in space would want
+  the same name - so the writer spells the class with the element's
+  topological dimension, which makes the pair unique and keeps a round trip
+  exact. Reading is wider: the ``<n>D<m>N`` suffix is read off whatever
+  application element carries it (``SmallDisplacementElement3D4N``,
+  ``VMS3D4N``), and the explicit geometry names (``Tetrahedra3D4``,
+  ``Prism3D6``) are recognised too. ``Conditions`` are read as elements,
+  since they are cells of the same mesh; they are written back under
+  ``Elements``: which cells a solver should treat as boundary is a modelling
+  choice the mesh does not carry.
+- The numbers a file gave its nodes and elements now survive a round trip.
+  An Abaqus deck, a Nastran bulk data file, a Gmsh ``.msh``, a FLAC3D grid
+  and an MDPA file all number entities freely, and renumbering them 1..n
+  leaves the author's other files - a load case naming ``GRID 7000001``, a
+  report keyed on element ``4001`` - pointing at the wrong thing. The reader
+  records what the file said in ``vertex_attrs["original_ids"]`` /
+  ``element_attrs["original_ids"]`` and the writer puts it back. The key is
+  not format-prefixed, so a mesh read from a ``.bdf`` and written as ``.msh``
+  keeps its numbering. Only a numbering the index does not already say is
+  stored: a file numbering ``1..n`` in order records nothing, since the
+  writer's own renumbering reproduces it. Ids that a transform has since
+  invalidated - ``merge`` collides two meshes that each numbered from one,
+  splitting a cell leaves two entities carrying one id - are checked at the
+  point of writing rather than trusted, and a mesh that lost its numbering
+  gets dense ids and a warning rather than a file no solver loads. A format
+  that numbers densely by construction has no id of its own to record and
+  ignores the key on write; whether it carries one comes down to whether it
+  has a general attribute channel, so a mesh read from a ``.bdf``, welded and
+  written as ``.vtu`` keeps the ids of the vertices that survived, while OFF
+  or STL drop the key with every other attribute.
 - Two-dimensional files now follow one rule across every format that can
   spell one. A mesh always carries three coordinate columns, a file that
   declared two is padded with ``z=0``, and the fact is recorded in
@@ -145,6 +179,164 @@ Behaviour changes
 Bug fixes
 ~~~~~~~~~
 
+- ``.vti``, ``.vts`` and ``.vtr`` hold a grid, and each now says so when
+  handed something else. All three inferred their extent from the distinct
+  coordinate on each axis, and none of them checked that those multiply back
+  out to the mesh: a scattered mesh of seven vertices was written as a seven by
+  seven by seven grid of 343 points, with seven rows of point data under a
+  header claiming 343. The file was unreadable - its own reader refused it -
+  but nothing said so at the point of writing. A mesh whose vertices are a
+  grid in some other order was worse, since the count agreed: the file was
+  read back happily with every point attribute sitting on the point mirrored
+  through the diagonal. The extent is now read off the cells instead, which
+  are a grid whatever the coordinates do, and a mesh whose cells are not one
+  raises ``CodecError`` naming the shape that was found and pointing at
+  ``.vtu``, which holds an arbitrary mesh.
+- None of the three writes its connectivity - the reader rebuilds it from the
+  extent - and none of them checked that the cells it was handed were the ones
+  it would rebuild. Two tetrahedra over the points of a grid were written as
+  the grid's eight hexahedra, their ``CellData`` dropped on the way out for
+  covering the wrong number of cells, and the mesh that came back was not the
+  one that went in. Cells the extent does not read back now raise
+  ``CodecError`` at the point of writing.
+- ``.vts`` holds a curvilinear grid: it writes its points, so they need not
+  lie on a lattice at all, and a warped block, a cylindrical shell and an
+  aerofoil O-grid are all StructuredGrids. Taking the extent from the distinct
+  coordinate on each axis meant none of them could be written - a warped 3x3x3
+  grid counted 27 distinct values on every axis and went out declaring a
+  27x27x27 one - and reading the extent off the cells is what lets the format
+  hold what it is for.
+- ``.vtr`` writes its three coordinate arrays out in full, so nothing says an
+  axis has to ascend. They were taken as the sorted distinct value on each
+  column, which turned a descending axis round underneath its own point data;
+  they are read off the vertices a stride at a time now, and an axis keeps the
+  direction it was given.
+- ``.vti`` and ``.vts`` keep the extent of the file they were read from, and
+  ``.vti`` the origin and step as well, so a grid that did not begin at zero -
+  or that steps down an axis - goes back exactly where it stood. All three
+  were trusted after a transform had moved the mesh out from under them, and
+  each fails differently: a grid pruned to one of its cells was written under
+  the extent of the grid it used to be and read back as twenty-seven vertices
+  and eight cells it no longer held, a mesh moved five units went out under
+  the origin it had left, and one scaled by ten went out under the step. What
+  no longer describes the mesh is re-derived from it, the way the entity ids
+  are re-checked at the point of writing rather than trusted.
+- Writing ``.vti`` took the step on the x axis for the step on all three. A
+  lattice whose planes are unevenly spaced is a RectilinearGrid, not an
+  ImageData, and one written as the latter came back with every plane past the
+  second moved - x coordinates of 0, 1 and 5 read back as 0, 1 and 2, in a
+  well-formed file of the right size. An axis that is not evenly spaced now
+  raises ``CodecError`` pointing at ``.vtr``, which spells its coordinates
+  out.
+- Reading back the empty ``.vts`` this codec writes raised ``ValueError:
+  cannot reshape array of size 0 into shape (0,newaxis)``. An empty extent
+  gives no column count to infer one from; a file with no points now reads
+  as a mesh with none.
+- Writing ``.vti`` measures the grid step on each axis separately. Only the
+  x axis was asked whether it had a second plane to measure against, and y
+  and z were then indexed regardless, so any mesh flat in one of them - a
+  sheet of quads, an image one voxel deep - raised ``IndexError`` from inside
+  the writer instead of being written, and a mesh flat in x quietly took the
+  default spacing on all three axes rather than the steps it did have. A
+  degenerate axis now keeps the default spacing, which is what VTK reads back
+  for an extent of zero anyway, and a mesh with no vertices at all writes the
+  ``0 -1`` extent VTK spells an empty image with - the one the ``.vts`` and
+  ``.vtr`` writers here already spell - rather than the ``0 0`` that reads
+  back as a point the mesh never held.
+- Reading a ``.vti`` whose ``Origin`` or ``Spacing`` spells two numbers where
+  three belong raised ``IndexError`` from inside the parse. The axes it does
+  give are taken and the rest defaulted, and a bare number given as
+  ``vti_spacing`` is taken for every axis rather than subscripted. More than
+  three warns rather than dropping the extras in silence - a mesh has three
+  axes, and a fourth number describes nothing any of these codecs can write.
+- ``.vtr`` keeps the extent of the file it was read from, the way ``.vti`` and
+  ``.vts`` do. A block that did not begin at zero was slid to the origin on the
+  way out, which is the one thing a ``.pvtr`` assembling it next to its
+  neighbours reads. It is checked against the mesh rather than trusted: one a
+  transform has moved the mesh out from under is re-derived from the cells.
+- All three keep the ``WholeExtent`` of the file they were read from as well
+  as their own ``Extent``. The two differ exactly when the file is one piece
+  of a parallel set, which is the case the piece indices are kept for, and
+  writing the piece extent into both narrowed the grid to the piece: a block
+  that went back out at the indices it stood on still claimed to be the whole
+  domain, so the ``.pvti``, ``.pvts`` or ``.pvtr`` assembling it read one
+  neighbour where it should have read several. Kept only while the piece
+  extent is, since an extent re-derived from the cells is zero-based and says
+  nothing about the grid the mesh used to stand in.
+- A ``WholeExtent`` that is not six whole numbers now raises ``CodecError``
+  naming the file and the attribute. Unpacked straight into ints, it failed
+  with a bare ``ValueError`` about a literal instead.
+- A ``.vti`` or ``.vtr`` holding a bare grid is readable by the codec that
+  wrote it. Neither format spells a coordinate per vertex - an ImageData
+  writes an origin and a step, a RectilinearGrid three axes - but the header
+  check weighed the declared point count against the bytes on disk as though
+  they did, so a plain 4x4x4 grid went out as a valid 231-byte file and came
+  back as ``ValidationError: declared_n_verts=64 implies 1536 bytes of vertex
+  data``. The heuristic is asked only of a format that spells what it
+  declares; the hard caps that bound the allocation still apply to all of
+  them.
+- Writing ``.vti`` spells its ``Origin`` and ``Spacing`` at the width a double
+  reads back at. These six numbers are the whole geometry of an ImageData, and
+  a ``.10g`` field kept ten of the seventeen a double carries: an origin of
+  0.12345678901234 came back 2.6e-10 away and a step of 1.0000000001234 came
+  back as a flat 1, moving every plane by one step more than the last. The
+  writer had just checked the vertices against that origin and step to prove
+  the file describes this mesh, and then wrote one that did not.
+- The evenness an ``ImageData`` demands of an axis is measured against the
+  step, not against the coordinate. A relative tolerance is a fraction of
+  where the axis sits rather than of how far apart its planes are, so an axis
+  at x = 1e6 was allowed half a millimetre of drift per plane: a visibly
+  uneven lattice passed the check and came back regularised, with every plane
+  past the second moved. A drift below what a double holds at that magnitude
+  is still allowed, since no file could record it either way.
+- An extent that ends before it starts on an axis holds no points, so it holds
+  no cells either. All three readers counted the other two axes' cells anyway,
+  so ``0 -1 0 2 0 2`` came back as four quadrilaterals over no vertices at all,
+  every corner naming point zero of an empty array. An end two or more before
+  its start turned the point count negative on top of that, which ``.vts`` then
+  handed to ``reshape`` as a second unknown dimension. Such an extent now reads
+  as the empty mesh it describes. Legacy ``.vtk`` says the same thing with
+  ``DIMENSIONS`` and had the same hole: a ``STRUCTURED_POINTS`` or
+  ``RECTILINEAR_GRID`` of ``0 3 3`` came back as four quadrilaterals over no
+  vertices, built from strides that were themselves zero, and a negative
+  ``DIMENSIONS`` was reported to the caller as a negative count of points.
+- The extent a mesh carries in ``global_attrs`` may be no extent at all. A
+  bare number has no length and a string that looks like one has characters
+  rather than numbers, and either reached ``len`` and failed with a
+  ``TypeError`` from inside the ``.vti``, ``.vts`` or ``.vtr`` writer. So could
+  a ``vti_origin`` or ``vti_spacing`` holding something no float reads. None
+  of them is trusted now: what cannot be read is named in a warning and the
+  writer reads the mesh's own extent, origin and step off it instead.
+- ``.vtr`` builds its vertices from the coordinate arrays and everything else
+  from the extent, and nothing in the file made the two agree. An array longer
+  than its axis expanded into more vertices than the extent declared, while the
+  cells, the offsets and every ``PointData`` array stayed sized to the extent -
+  a mesh whose connectivity covered part of itself and whose attributes covered
+  none of it, past every check the reader made. The lengths are compared now,
+  and a mismatch raises ``CodecError`` naming the axis. Every axis is asked,
+  including one the extent gives no plane at all: the point count is a product
+  and goes to zero there, but the vertices are the coordinate arrays' own outer
+  product, so an axis left unchecked expanded ``0 -1 0 2 0 2`` into nine
+  vertices under an extent declaring none. An axis the file leaves no array for
+  takes the one plane at zero the extent gives it, which is how a
+  two-dimensional grid writes its third.
+- ``.vts`` reads the width of its points from the extent and the ``<Points>``
+  array together, so a file whose two disagreed came back as a mesh of the
+  wrong width - one point of no coordinates at all, where the extent declared a
+  point the array did not carry - and only failed later, on a shape nothing in
+  the file explained. Both counts are named in a ``CodecError`` now. An array
+  wider than three components still keeps its first three.
+- An MFEM file that opens with a byte order mark is read rather than refused.
+  The sniffer decodes the mark away and the reader did not, and the mark is
+  not whitespace for ``strip`` to take off, so a ``.mesh`` the registry had
+  already claimed as MFEM failed for not starting with ``MFEM mesh``.
+- Every spelling of an MFEM header the sniffer accepts is one the reader
+  dispatches on. The registry claims a ``.mesh`` file by its upper-cased
+  header and the reader matched case-sensitively, so ``MFEM NC MESH v1.0`` was
+  claimed as MFEM and then refused for not starting with ``MFEM mesh``. The two
+  NC spellings both reach the non-conforming reader as well: ``MFEM NC-Mesh``
+  was falling through to the NURBS one, which read a refinement forest as
+  B-spline control points and warned under the wrong variant's name.
 - ``.meshb`` hands back vertices with three columns. A file declaring
   ``Dimension 2`` was read into an ``(n, 2)`` array, which is not what a
   ``PolyData`` holds: every consumer indexing ``vertices[:, 2]`` - the

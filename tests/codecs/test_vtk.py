@@ -1511,3 +1511,54 @@ def test_metadata_inside_a_binary_v51_cells_section_is_stepped_over() -> None:
     np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
     np.testing.assert_array_equal(poly.offsets, [0, 3])
     validate(poly)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        ("DATASET STRUCTURED_POINTS\nDIMENSIONS 0 3 3\nORIGIN 0 0 0\nSPACING 1 1 1\n"),
+        (
+            "DATASET RECTILINEAR_GRID\n"
+            "DIMENSIONS 0 3 3\n"
+            "X_COORDINATES 0 float\n"
+            "Y_COORDINATES 3 float\n"
+            "0 1 2\n"
+            "Z_COORDINATES 3 float\n"
+            "0 1 2\n"
+        ),
+    ],
+    ids=["structured_points", "rectilinear_grid"],
+)
+def test_an_axis_of_no_points_holds_no_cells(dataset: str, tmp_path) -> None:
+    """One empty axis empties the grid - the point count is a product.
+
+    The other two axes' cells were counted anyway, so a grid of no vertices
+    came back holding four quads whose corners named points the file never
+    laid out. The strides those corners were built from are zero as well.
+    """
+    path = tmp_path / "empty_axis.vtk"
+    path.write_text(f"# vtk DataFile Version 3.0\ntitle\nASCII\n{dataset}")
+
+    poly = read(path)
+    assert len(poly.vertices) == 0
+    assert len(poly.element_types) == 0
+    assert len(poly.connectivity) == 0
+    validate(poly)
+
+
+def test_dimensions_the_points_do_not_cover_are_counted_from_zero(tmp_path) -> None:
+    """A negative DIMENSIONS is no count of points, and is not reported as one."""
+    path = tmp_path / "negative.vtk"
+    path.write_text(
+        "# vtk DataFile Version 3.0\ntitle\nASCII\n"
+        "DATASET STRUCTURED_GRID\n"
+        "DIMENSIONS -1 3 3\n"
+        "POINTS 9 float\n"
+        "0 0 0 1 0 0 2 0 0 0 1 0 1 1 0 2 1 0 0 2 0 1 2 0 2 2 0\n"
+    )
+
+    with pytest.warns(UserWarning, match="which is 0 point"):
+        poly = read(path)
+    assert len(poly.vertices) == 9
+    assert len(poly.element_types) == 0
+    validate(poly)
