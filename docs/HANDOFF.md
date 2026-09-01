@@ -332,6 +332,7 @@ the quirks come from your README's format table. Two things to check:
 | DOLFIN | people.sc.fsu.edu dolfin_xml |
 | FLAC3D | docs.itascacg.com Itasca Grid Format |
 | Gmsh | gmsh.info MSH file format |
+| Kratos MDPA | github.com/KratosMultiphysics/Kratos wiki Input-Data |
 | Nastran | pynastran-git.readthedocs.io BDF overview |
 | Tecplot | tecplot.azureedge.net 360-data-format (PDF) |
 | SU2 | su2code.github.io Mesh-File |

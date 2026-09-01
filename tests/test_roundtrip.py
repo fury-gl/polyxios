@@ -291,6 +291,14 @@ CAPABILITIES: dict[str, Cap] = {
         note="Abaqus node and element sets carry the tags; attributes have no"
         " card in a mesh deck.",
     ),
+    ".mdpa": Cap(
+        "mixed",
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum",),
+    ),
     ".medit": Cap(
         "mixed",
         warns=(r"element tag group\(s\) \['a', 'b'\] are not named 'ref_<n>'",),
