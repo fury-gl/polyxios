@@ -76,6 +76,7 @@ from polyxios._element_types import (
     NODES_PER_ELEMENT,
 )
 from polyxios._io import Source, read_bytes, source_name, write_text
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -900,7 +901,7 @@ def _indices_for(
         # name goes into the names section, so only the number changes.
         if not 0 < value <= _MAX_INDEX:
             value = 0
-        idx = np.unique(np.asarray(poly.element_tags[name]).ravel().astype(np.int64))
+        idx = np.unique(member_values(poly.element_tags[name]))
         # Indices outside the mesh are dropped here and counted once for the
         # whole write by _out_of_range: this runs per dimension, so warning from
         # inside would say the same thing up to four times over.
@@ -983,7 +984,7 @@ def _warn_out_of_range(poly: PolyData, n_elems: int) -> None:
     """
     astray: set[int] = set()
     for members in (poly.element_tags or {}).values():
-        idx = np.unique(np.asarray(members).ravel().astype(np.int64))
+        idx = np.unique(member_values(members))
         astray.update(idx[(idx < 0) | (idx >= n_elems)].tolist())
     if astray:
         warnings.warn(

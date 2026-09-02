@@ -754,3 +754,95 @@ def test_a_surface_writer_does_not_turn_a_tetrahedron_into_a_quad(
         polyxios.write(poly, path)
         back = polyxios.read(path)
     assert ELEMENT_TYPES["quad"] not in set(back.element_types.tolist())
+
+
+_FIELD_DATASET: dict[str, tuple[str, str, str]] = {
+    ".vtu": ("UnstructuredGrid", "UnstructuredGrid", ""),
+    ".vtp": ("PolyData", "PolyData", ""),
+    ".vti": (
+        "ImageData",
+        "ImageData",
+        ' WholeExtent="0 1 0 0 0 0" Origin="0 0 0" Spacing="1 1 1"',
+    ),
+    ".vtr": ("RectilinearGrid", "RectilinearGrid", ' WholeExtent="0 1 0 0 0 0"'),
+    ".vts": ("StructuredGrid", "StructuredGrid", ' WholeExtent="0 1 0 0 0 0"'),
+}
+
+
+def _field_block(value: int, indent: int) -> str:
+    pad = " " * indent
+    return (
+        f"{pad}<FieldData>\n"
+        f'{pad} <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        f' format="ascii">{value}</DataArray>\n'
+        f"{pad}</FieldData>\n"
+    )
+
+
+@pytest.mark.parametrize("ext", sorted(_FIELD_DATASET))
+def test_the_dataset_field_block_wins_over_a_piece_in_every_format(
+    tmp_path, ext: str
+) -> None:
+    """The same file read two ways is the bug: .vtu and .vtp took the
+    dataset's block and .vti, .vtr and .vts took the piece's."""
+    kind, element, attrs = _FIELD_DATASET[ext]
+    if ext == ".vtu":
+        piece = (
+            '   <Piece NumberOfPoints="2" NumberOfCells="1">\n'
+            + _field_block(1, 4)
+            + '    <Points><DataArray type="Float64" NumberOfComponents="3"'
+            ' format="ascii">0 0 0 1 0 0</DataArray></Points>\n'
+            "    <Cells>\n"
+            '     <DataArray type="Int32" Name="connectivity" format="ascii">0 1'
+            "</DataArray>\n"
+            '     <DataArray type="Int32" Name="offsets" format="ascii">2</DataArray>\n'
+            '     <DataArray type="UInt8" Name="types" format="ascii">3</DataArray>\n'
+            "    </Cells>\n"
+            "   </Piece>\n"
+        )
+    elif ext == ".vtp":
+        piece = (
+            '   <Piece NumberOfPoints="2" NumberOfLines="1">\n'
+            + _field_block(1, 4)
+            + '    <Points><DataArray type="Float64" NumberOfComponents="3"'
+            ' format="ascii">0 0 0 1 0 0</DataArray></Points>\n'
+            "    <Lines>\n"
+            '     <DataArray type="Int32" Name="connectivity" format="ascii">0 1'
+            "</DataArray>\n"
+            '     <DataArray type="Int32" Name="offsets" format="ascii">2</DataArray>\n'
+            "    </Lines>\n"
+            "   </Piece>\n"
+        )
+    elif ext == ".vts":
+        piece = (
+            '   <Piece Extent="0 1 0 0 0 0">\n'
+            + _field_block(1, 4)
+            + '    <Points><DataArray type="Float64" NumberOfComponents="3"'
+            ' format="ascii">0 0 0 1 0 0</DataArray></Points>\n'
+            "   </Piece>\n"
+        )
+    elif ext == ".vtr":
+        piece = (
+            '   <Piece Extent="0 1 0 0 0 0">\n'
+            + _field_block(1, 4)
+            + "    <Coordinates>\n"
+            '     <DataArray type="Float64" Name="x" format="ascii">0 1</DataArray>\n'
+            '     <DataArray type="Float64" Name="y" format="ascii">0</DataArray>\n'
+            '     <DataArray type="Float64" Name="z" format="ascii">0</DataArray>\n'
+            "    </Coordinates>\n"
+            "   </Piece>\n"
+        )
+    else:
+        piece = (
+            '   <Piece Extent="0 1 0 0 0 0">\n' + _field_block(1, 4) + "   </Piece>\n"
+        )
+
+    path = tmp_path / f"both{ext}"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        f'<VTKFile type="{kind}" version="1.0" byte_order="LittleEndian">\n'
+        f"  <{element}{attrs}>\n" + _field_block(2, 3) + piece + f"  </{element}>\n"
+        "</VTKFile>\n"
+    )
+
+    np.testing.assert_allclose(polyxios.read(path).global_attrs["TimeValue"], [2])

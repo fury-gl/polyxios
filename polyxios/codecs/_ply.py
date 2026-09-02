@@ -1270,8 +1270,15 @@ def _fixed_face_records(
     # numpy answers with a ValueError about a tuple shape, naming neither
     # the file nor the face it came out of. Falling back sends the block to
     # the record-by-record walk, which reports the truncation it is.
+    tail = sum(
+        np.dtype(_scalar_code(ptype, "face")).itemsize
+        for _, ptype in props[list_at + 1 :]
+    )
     record_size = (
-        head + np.dtype(count_code).itemsize + n_nodes * np.dtype(index_code).itemsize
+        head
+        + np.dtype(count_code).itemsize
+        + n_nodes * np.dtype(index_code).itemsize
+        + tail
     )
     if pos + record_size > len(mv):
         return None

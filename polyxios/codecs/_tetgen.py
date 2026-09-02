@@ -37,6 +37,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, is_gzip, require_path
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -632,7 +633,7 @@ def _boundary_markers(poly: PolyData) -> np.ndarray:
                 nxt += 1
             value = nxt
             used.add(value)
-        idx = np.unique(np.asarray(poly.vertex_tags[name]).ravel().astype(np.int64))
+        idx = np.unique(member_values(poly.vertex_tags[name]))
         inside = idx[(idx >= 0) & (idx < n_verts)]
         out_of_range += idx.size - inside.size
         fresh = inside[~claimed[inside]]

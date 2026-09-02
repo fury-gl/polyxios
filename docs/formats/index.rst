@@ -35,9 +35,10 @@ parse error further in. The several live in the helper instead:
     blocks = helper.read_blocks("case.vtm")       # one PolyData per sub-file
 
 Both follow an index that names another index, skip a sub-file that is missing
-or unreadable with a warning, and refuse a reference resolving outside the
-index file's own directory. ``examples/read_parallel_vtk.py`` walks through
-what they do. Writing an index file is not supported.
+or unreadable with a line on the ``polyxios`` logger, and refuse a reference
+resolving outside the index file's own directory.
+``examples/read_parallel_vtk.py`` walks through what they do. Writing an index
+file is not supported.
 
 .. toctree::
    :hidden:

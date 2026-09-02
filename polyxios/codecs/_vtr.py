@@ -3,9 +3,9 @@ from typing import Any
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
-from polyxios._globals import globals_for_write
+from polyxios._globals import globals_for_write, text_for_write
 from polyxios._io import Source, write_text
-from polyxios._tags import mask_arrays, tags_from_masks
+from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
@@ -20,6 +20,7 @@ from polyxios.codecs._vtk_xml import (
     require_structured_cells,
     shaped_da,
     sized_attrs,
+    spellable_arrays,
     structured_cell_shape,
     structured_cells,
     structured_cells_fit,
@@ -203,9 +204,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     # Whole-mesh metadata, under the grid the reader rebuilt: a file naming
     # one of the reader's own keys in its field data is describing the same
-    # grid twice, and the grid is what the points were laid out on.
-    global_attrs: dict[str, Any] = read_field_data(rg, _decode)
-    global_attrs |= read_field_data(piece, _decode)
+    # grid twice, and the grid is what the points were laid out on. The
+    # dataset's own block is read last, as in every other codec here: a key
+    # spelled on both levels means what the dataset says it means.
+    global_attrs: dict[str, Any] = read_field_data(piece, _decode)
+    global_attrs |= read_field_data(rg, _decode)
     global_attrs |= {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
     if whole:
@@ -317,9 +320,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(f'  <RectilinearGrid WholeExtent="{whole_str}">')
     lines.extend(
         format_field_data(
-            globals_for_write(poly, reserved=RESERVED_GLOBALS, fmt=EXTENSION),
+            globals_for_write(
+                poly, reserved=RESERVED_GLOBALS, fmt=EXTENSION, text=True
+            ),
+            text=text_for_write(poly, reserved=RESERVED_GLOBALS),
             binary=binary,
             indent=4,
+            fmt=EXTENSION,
         )
     )
     lines.append(f'    <Piece Extent="{extent_str}">')
@@ -332,11 +339,27 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     # A tag group travels as one column of ones and zeros named for it: the
     # channel holds one value per entity, and an element in two groups is
     # named by both columns, which one label per element cannot say.
-    point_arrays = poly.vertex_attrs | mask_arrays(
-        poly.vertex_tags, poly.vertices.shape[0], fmt=EXTENSION, kind="point"
+    point_arrays = spellable_arrays(
+        with_tag_masks(
+            poly.vertex_attrs,
+            poly.vertex_tags,
+            poly.vertices.shape[0],
+            fmt=EXTENSION,
+            kind="point",
+        ),
+        fmt=EXTENSION,
+        kind="point",
     )
-    cell_arrays = poly.element_attrs | mask_arrays(
-        poly.element_tags, len(poly.element_types), fmt=EXTENSION, kind="cell"
+    cell_arrays = spellable_arrays(
+        with_tag_masks(
+            poly.element_attrs,
+            poly.element_tags,
+            len(poly.element_types),
+            fmt=EXTENSION,
+            kind="cell",
+        ),
+        fmt=EXTENSION,
+        kind="cell",
     )
 
     if point_arrays:

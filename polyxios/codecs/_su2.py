@@ -30,6 +30,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, read_text, write_text
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -704,7 +705,7 @@ def _marker_groups(poly: PolyData, boundary: list[int]) -> dict[str, list[int]]:
     for name, members in (poly.element_tags or {}).items():
         # dict.fromkeys, not set(), so a tag that names an element twice is
         # written once without its members losing their order.
-        idx = list(dict.fromkeys(int(v) for v in np.asarray(members).ravel()))
+        idx = list(dict.fromkeys(member_values(members).tolist()))
         if not idx:
             # A tag that names nothing is what reading MARKER_ELEMS= 0 leaves
             # behind, and is a different fault from one whose members SU2

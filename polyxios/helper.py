@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 import polyxios
+from polyxios.exceptions import UnsupportedFormatError
 from polyxios.fetcher import fetch
 import polyxios.transforms as transforms
 
@@ -31,6 +32,24 @@ _VOLUME_ELEMENT_TYPES = frozenset(transforms._VOL_ELEMENT_FACES)
 META_SUFFIXES: frozenset[str] = frozenset(
     {".vtm", ".pvtu", ".pvtp", ".pvtr", ".pvts", ".pvti"}
 )
+
+# How deep a chain of indexes naming indexes is followed. The walk already
+# refuses one that names a parent of its own, but a chain of files each
+# naming the next is not a cycle and would recurse as far as it is long -
+# past the interpreter's own limit, which arrives as a RecursionError out of
+# whatever frame happened to be deepest. A real case is a handful deep.
+_MAX_INDEX_DEPTH: int = 32
+
+
+class Traversal(PermissionError):
+    """A sub-file reference that points outside its own index's directory.
+
+    A :class:`PermissionError` by inheritance, which is what the readers here
+    have always raised for this and what their callers catch. Its own class is
+    what separates it from the one the operating system raises over a sub-file
+    the caller may not open: the walk skips that block and carries on, the way
+    it does for one that is missing, and refuses the whole file for this.
+    """
 
 
 def _index_root(path: Path) -> ET.Element:
@@ -69,9 +88,12 @@ def _referenced_paths(root: ET.Element, parent: Path) -> list[Path]:
 
     Raises
     ------
-    PermissionError
+    Traversal
         If a reference resolves outside ``parent``. An index is data, and one
         naming ``../../etc/passwd`` is asking for a file the caller did not.
+        A :class:`PermissionError`, so a caller catching that still catches
+        this; its own class is what tells it apart from the one the operating
+        system raises over a sub-file nobody may read.
 
     Notes
     -----
@@ -89,9 +111,7 @@ def _referenced_paths(root: ET.Element, parent: Path) -> list[Path]:
             continue
         sub = (parent / name).resolve()
         if not sub.is_relative_to(resolved_parent):
-            raise PermissionError(
-                f"Path traversal detected: '{name}' is outside '{parent}'"
-            )
+            raise Traversal(f"Path traversal detected: '{name}' is outside '{parent}'")
         found.append(sub)
     return found
 
@@ -115,15 +135,20 @@ def read_blocks(path: str | Path) -> list[polyxios.PolyData]:
     -------
     list of polyxios.PolyData
         One mesh per sub-file that was found and read, in the order the index
-        names them. An index nested inside another contributes its own blocks
-        in place, so a tree of them reads as one flat list.
+        names them. A nested ``.vtm`` or ``.pvt*`` contributes its own blocks
+        in place, so a tree of them reads as one flat list; a nested ``.vtp``
+        index contributes one, its own blocks merged, since at that depth
+        there is nothing to tell a block of a mesh from a mesh.
 
     Raises
     ------
     ValueError
         If the file names no sub-files at all.
-    PermissionError
-        If a reference resolves outside the index file's directory.
+    Traversal
+        If a reference resolves outside the index file's directory. A
+        :class:`PermissionError`, and the only one this raises: the operating
+        system's own, over a sub-file nobody may open, names a block that
+        cannot be read like any other and is skipped with a warning.
     FileNotFoundError
         If none of the referenced sub-files could be read.
 
@@ -139,10 +164,45 @@ def read_blocks(path: str | Path) -> list[polyxios.PolyData]:
     >>> blocks = helper.read_blocks("case.vtm")       # doctest: +SKIP
     >>> whole = transforms.merge(*blocks)             # doctest: +SKIP
     """
-    return _read_blocks(Path(path), seen=set())
+    return _read_blocks(Path(path), seen=frozenset())
 
 
-def _read_blocks(path: Path, *, seen: set[Path]) -> list[polyxios.PolyData]:
+def _read_one(sub: Path, *, seen: frozenset[Path]) -> polyxios.PolyData:
+    """Read one sub-file a block index named, whichever kind it turns out to be.
+
+    Parameters
+    ----------
+    sub
+        The sub-file, already resolved inside the index's own directory.
+    seen
+        The index files this sub-file hangs under, passed on so a nested index
+        cannot walk back into one of its own parents.
+
+    Returns
+    -------
+    polyxios.PolyData
+        The mesh, or the blocks of a nested index merged into one.
+
+    Notes
+    -----
+    Only the six meta extensions name an index by their spelling. A ``.vtp``
+    is the exception: the same extension holds a mesh and a
+    ``vtkMultiBlockDataSet`` index, and only the document says which. Rather
+    than parse every one twice to find out, the reader is asked first and its
+    refusal - the one it raises for a ``.vtp`` that is not ``PolyData`` - is
+    what sends the file back here as the index it is.
+    """
+    try:
+        return polyxios.read(str(sub))
+    except UnsupportedFormatError:
+        if sub.suffix.lower() != ".vtp":
+            raise
+        return transforms.merge(*_read_blocks(sub, seen=seen))
+
+
+def _read_blocks(
+    path: Path, *, seen: frozenset[Path], root: ET.Element | None = None
+) -> list[polyxios.PolyData]:
     """Read one index file's blocks, following the indexes it names.
 
     Parameters
@@ -150,17 +210,45 @@ def _read_blocks(path: Path, *, seen: set[Path]) -> list[polyxios.PolyData]:
     path
         The index file.
     seen
-        Index files already opened on this walk, so a pair of them naming each
-        other is read once rather than for ever.
+        The index files this one hangs under, so a pair of them naming each
+        other is read once rather than for ever. The chain of parents rather
+        than every index the walk has opened: two indexes that both name a
+        third are naming two blocks, and a set of everything seen would hand
+        back one of them and drop the other without the caller asking.
+    root
+        The document root, when the caller has already parsed it. Parsed here
+        otherwise.
 
     Returns
     -------
     list of polyxios.PolyData
         The meshes, in the order the index names them.
+
+    Raises
+    ------
+    Traversal
+        If a reference resolves outside its own index's directory, at any
+        depth. It is the one failure a sub-file is not skipped over: the
+        others say a block is missing, this one says the file is asking for
+        something it was not given, and a walk that swallowed it would answer
+        a traversal with a warning in a log. Caught by its own class rather
+        than as the :class:`PermissionError` it is, so that the one the
+        operating system raises over a sub-file the caller may not open is
+        skipped the way every other unreadable block is.
+    RecursionError
+        If the chain of indexes above this one is longer than
+        :data:`_MAX_INDEX_DEPTH`. Raised rather than followed, and caught by
+        the walk one level up, so the block is skipped with a warning naming
+        it the way an unreadable one is.
     """
-    resolved = path.resolve()
-    seen.add(resolved)
-    sub_paths = _referenced_paths(_index_root(path), path.parent)
+    if len(seen) >= _MAX_INDEX_DEPTH:
+        raise RecursionError(
+            f"index files are nested more than {_MAX_INDEX_DEPTH} deep"
+        )
+    seen = seen | {path.resolve()}
+    sub_paths = _referenced_paths(
+        _index_root(path) if root is None else root, path.parent
+    )
     if not sub_paths:
         raise ValueError(f"No sub-files found in index file '{path}'.")
 
@@ -169,14 +257,16 @@ def _read_blocks(path: Path, *, seen: set[Path]) -> list[polyxios.PolyData]:
         if not sub.exists():
             logger.warning(f"  Sub-file not found, skipping: {sub}")
             continue
+        if sub in seen:
+            logger.warning(f"  Index names one of its own parents, skipping: {sub}")
+            continue
         try:
             if sub.suffix.lower() in META_SUFFIXES:
-                if sub in seen:
-                    logger.warning(f"  Index names itself, skipping: {sub}")
-                    continue
                 blocks.extend(_read_blocks(sub, seen=seen))
             else:
-                blocks.append(polyxios.read(str(sub)))
+                blocks.append(_read_one(sub, seen=seen))
+        except Traversal:
+            raise
         except Exception as e:
             logger.warning(f"  Sub-file could not be read, skipping: {sub} ({e})")
 
@@ -212,8 +302,11 @@ def read_multiblock(path: str | Path) -> polyxios.PolyData:
     ------
     ValueError
         If the file names no sub-files at all.
-    PermissionError
-        If a reference resolves outside the index file's directory.
+    Traversal
+        If a reference resolves outside the index file's directory. A
+        :class:`PermissionError`, and the only one this raises: the operating
+        system's own, over a sub-file nobody may open, names a block that
+        cannot be read like any other and is skipped with a warning.
     FileNotFoundError
         If none of the referenced sub-files could be read.
 
@@ -247,8 +340,11 @@ def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
     ------
     ValueError
         If the index file does not contain a <vtkMultiBlockDataSet> element.
-    PermissionError
-        If a referenced sub-file resolves outside the index file's directory.
+    Traversal
+        If a reference resolves outside the index file's directory. A
+        :class:`PermissionError`, and the only one this raises: the operating
+        system's own, over a sub-file nobody may open, names a block that
+        cannot be read like any other and is skipped with a warning.
     FileNotFoundError
         If no referenced sub-files could be successfully found/read.
 
@@ -265,9 +361,13 @@ def read_multiblock_vtp(path: str | Path) -> polyxios.PolyData:
     extension and needs no such check, so it goes to :func:`read_multiblock`.
     """
     path = Path(path)
-    if _index_root(path).find("vtkMultiBlockDataSet") is None:
+    # Parsed once and handed on: the index is read whole to find the element,
+    # and reading it a second time to find the same references is a file the
+    # size of the whole document for nothing.
+    root = _index_root(path)
+    if root.find("vtkMultiBlockDataSet") is None:
         raise ValueError(f"No <vtkMultiBlockDataSet> element found in '{path}'.")
-    return read_multiblock(path)
+    return transforms.merge(*_read_blocks(path, seen=frozenset(), root=root))
 
 
 def _uniform_colors(color: tuple[float, float, float], n_verts: int) -> np.ndarray:

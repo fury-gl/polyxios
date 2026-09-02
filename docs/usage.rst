@@ -263,9 +263,10 @@ The several live in :mod:`polyxios.helper`:
 Both read ``.vtm``, ``.pvtu``, ``.pvtp``, ``.pvtr``, ``.pvts`` and ``.pvti``,
 as well as a ``.vtp`` holding a ``<vtkMultiBlockDataSet>``. An index naming
 another index is followed and read flat; a sub-file that is missing or
-unreadable is skipped with a warning, so a partially downloaded companion
-directory still loads; and a reference resolving outside the index file's own
-directory raises ``PermissionError`` rather than reading it.
+unreadable is skipped with a line on the ``polyxios`` logger, so a partially
+downloaded companion directory still loads; and a reference resolving outside
+the index file's own directory raises ``PermissionError`` rather than reading
+it.
 
 ``helper.read_blocks`` is the one to reach for when the blocks mean different
 things - a fluid domain and a solid one, one part per block - since

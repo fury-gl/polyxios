@@ -1,4 +1,5 @@
 from bisect import bisect_left
+from collections.abc import Sequence
 from itertools import accumulate
 import mmap
 import re
@@ -24,7 +25,7 @@ from polyxios._io import (
     read_bytes,
     source_name,
 )
-from polyxios._tags import mask_arrays, tags_from_masks
+from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.exceptions import (
     CodecError,
@@ -70,10 +71,12 @@ _VTK_DTYPE_MAP: dict[str, str] = {
 
 # What a FIELD header calls the dtype an array is held in. The map above reads
 # every spelling a file may use; this one writes, so it names one apiece - and
-# only the types a legacy reader is sure to know, which is why a bool goes out
-# as the unsigned char it is stored as and a float16 as the float it widens to.
+# only the types a legacy reader is sure to know. A dtype outside it falls to
+# the double below, which is the answer the XML family's own writer gives the
+# same array: a bool and a float16 have no VTK type of their own, and the two
+# writers naming one file's metadata two different types is worth more than
+# the byte a narrower spelling saves.
 _NP_TO_VTK_DTYPE: dict[str, str] = {
-    "b1": "unsigned_char",
     "i1": "char",
     "i2": "short",
     "i4": "int",
@@ -90,12 +93,6 @@ _NP_TO_VTK_DTYPE: dict[str, str] = {
 # double it converts to, the way an attribute array already is.
 _FIELD_FALLBACK: str = "double"
 
-# Keys a reader of a structured dataset records to say what grid it expanded.
-# The writer spells an UNSTRUCTURED_GRID and has no use for them, and writing
-# them as field data would hand the next reader a second copy of a grid it
-# already rebuilt.
-_GRID_KEYS: frozenset[str] = frozenset({"vtk_dimensions", "vtk_origin", "vtk_spacing"})
-
 # What a binary header is read as when it leaves its type field out. The
 # format makes the field mandatory, so this only ever answers a malformed
 # one - but every reader here has to answer it the same way, or the same
@@ -105,6 +102,12 @@ _DEFAULT_VTK_DTYPE: str = "float"
 # What a legacy header field cannot hold: it names an array in a
 # whitespace-separated field, and nothing in the format escapes one.
 _WHITESPACE: re.Pattern[str] = re.compile(r"\s")
+
+# How far down a file the DATASET line is looked for. The four header lines
+# may carry blank lines between them, and the sniff that picks a reader
+# allows eight apiece before each of the two it reads; past that a file has
+# no header this codec can find.
+_HEADER_SPAN: int = 20
 
 # A binary COLOR_SCALARS component is an unsigned char standing for the 0..1
 # float an ASCII file writes; dividing puts both flavours on one scale.
@@ -369,11 +372,25 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         # which the single reference a Medit or Netgen record carries cannot
         # say. The column is a double like every other array here, and reads
         # back as the group it spells.
-        point_arrays = poly.vertex_attrs | mask_arrays(
-            poly.vertex_tags, n_verts, fmt=EXTENSION, kind="point"
+        point_arrays = _spellable_arrays(
+            with_tag_masks(
+                poly.vertex_attrs,
+                poly.vertex_tags,
+                n_verts,
+                fmt=EXTENSION,
+                kind="point",
+            ),
+            kind="point",
         )
-        cell_arrays = poly.element_attrs | mask_arrays(
-            poly.element_tags, n_elems, fmt=EXTENSION, kind="cell"
+        cell_arrays = _spellable_arrays(
+            with_tag_masks(
+                poly.element_attrs,
+                poly.element_tags,
+                n_elems,
+                fmt=EXTENSION,
+                kind="cell",
+            ),
+            kind="cell",
         )
 
         if point_arrays:
@@ -452,37 +469,59 @@ def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
         fh.write((" ".join(str(x) for x in conn64) + "\n").encode())  # type: ignore[union-attr]
 
 
-def _spellable_name(name: str) -> bool:
-    """Say whether a legacy header can name an array this, warning when not.
+def _spellable_arrays(
+    arrays: dict[str, np.ndarray], *, kind: str, stacklevel: int = 3
+) -> dict[str, np.ndarray]:
+    """Drop the arrays a legacy header cannot name, naming them once.
 
     Parameters
     ----------
-    name
-        The array's name.
+    arrays
+        The arrays a section is about to write.
+    kind
+        ``point``, ``cell`` or ``metadata``, named in the warning.
+    stacklevel
+        How far above this frame the warning should point. The default
+        answers a codec's ``write``, which is where this is called from; a
+        writer that reaches it through a helper of its own adds a frame.
 
     Returns
     -------
-    bool
-        True when the name is one whitespace-separated token.
+    dict of str to numpy.ndarray
+        The arrays whose names survive, in the order they were held. The same
+        mapping when every name does, so the common case allocates nothing.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming every array dropped. A legacy header names its array in
+        a whitespace-separated field, so a name that holds whitespace is read
+        back as a name and a stray token - and the array after it as that
+        token's values. There is no escaping in the format to fall back on,
+        and a name that is blank leaves the array with no handle at all.
 
     Notes
     -----
-    A legacy header names its array in a whitespace-separated field, so a name
-    holding a space is read back as a name and a stray token - and the array
-    after it as that token's values. There is no escaping in the format to
-    fall back on, so the array is dropped and said so. Every section spells
-    its names the same way, which is why the attribute writer and the field
-    block ask here rather than each carrying the rule.
+    Asked before the section header is written, not while its arrays are:
+    every section here declares itself ahead of its contents, and a
+    ``POINT_DATA`` promising arrays that all turn out to be unnameable is a
+    header over nothing. Every section spells its names the same way, which
+    is why the attribute writer and the field block both ask here.
     """
-    if name and not _WHITESPACE.search(name):
-        return True
+    # ``str`` rather than the name itself: nothing stops a caller keying an
+    # attribute by something that is not text, and it goes into the header as
+    # whatever it prints as, the way it did before there was a rule here.
+    dropped = {name for name in arrays if not name or _WHITESPACE.search(str(name))}
+    if not dropped:
+        return arrays
     warnings.warn(
-        f".vtk: array name {name!r} holds whitespace, which a legacy"
-        " header field cannot spell; the array is not written.",
+        f".vtk: {kind} array name(s) {sorted(dropped, key=repr)} are not"
+        " written: a name that is blank, or that holds whitespace, is one no"
+        " legacy header field can spell.",
         UserWarning,
-        stacklevel=4,
+        stacklevel=stacklevel,
     )
-    return False
+    return {name: arr for name, arr in arrays.items() if name not in dropped}
 
 
 def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
@@ -505,16 +544,20 @@ def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
     or cell array, which every branch of this writer spells as a double, a
     field array keeps the type it is held in: it is metadata, and an integer
     that comes home a float is a different value to whatever reads it next.
+
+    Nothing is reserved here. The grid a structured reader recorded -
+    ``vtk_dimensions`` and its neighbours - is reserved by the codecs that
+    spell it again from the mesh on the way out; this writer spells an
+    ``UNSTRUCTURED_GRID`` and never rebuilds a grid, so skipping those keys
+    would drop them without a word where every other format in the family
+    carries them. A structured reader takes its own grid over anything the
+    field block names, so carrying them costs the next read nothing.
     """
-    spelled: dict[str, np.ndarray] = {}
-    for name, arr in globals_for_write(
-        poly, reserved=_GRID_KEYS, fmt=EXTENSION
-    ).items():
-        # A plain loop rather than a comprehension: the warning below counts
-        # the frames between itself and the caller, and a comprehension is
-        # one more of them on the Python versions that give it its own.
-        if _spellable_name(name):
-            spelled[name] = arr  # noqa: PERF403 - see the comment above
+    spelled = _spellable_arrays(
+        globals_for_write(poly, fmt=EXTENSION, stacklevel=4),
+        kind="metadata",
+        stacklevel=4,
+    )
     if not spelled:
         return
     # The count is written from what survived the name check, not from what
@@ -535,8 +578,101 @@ def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
         elif np_str[0] == "f":
             _write_ascii_f64(values.ravel().astype(np.float64), fh, per_line=n_comp)
         else:
-            spelled_row = " ".join(map(str, values.ravel().tolist()))
-            fh.write((spelled_row + "\n").encode())  # type: ignore[union-attr]
+            _write_ascii_ints(values.ravel(), fh, per_line=n_comp)
+
+
+def _keep_first_field(
+    found: dict[str, np.ndarray],
+    name: str,
+    arr: np.ndarray,
+    repeated: list[str],
+) -> None:
+    """File one field array under its name, keeping the first of a repeat.
+
+    Parameters
+    ----------
+    found
+        The block's arrays so far, added to in place.
+    name
+        The name its header spelled.
+    arr
+        The values it decoded to.
+    repeated
+        The names already spelled once, added to in place so the caller can
+        report them together.
+
+    Notes
+    -----
+    A mesh's metadata holds one value per name, and the XML family's
+    ``<FieldData>`` answers a name spelled twice with the first of them. The
+    same here, so one file does not read back two ways depending on which
+    spelling of the format it was written in.
+    """
+    if name in found:
+        repeated.append(name)
+        return
+    found[name] = arr
+
+
+def _warn_repeated_fields(repeated: list[str], *, stacklevel: int = 4) -> None:
+    """Name the field arrays a block spelled more than once.
+
+    Parameters
+    ----------
+    repeated
+        The names, as :func:`_keep_first_field` collected them.
+    stacklevel
+        How far above this frame the warning should point.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming every array the block spells twice.
+    """
+    if not repeated:
+        return
+    warnings.warn(
+        f".vtk: FIELD names array(s) {sorted(set(repeated))} more than once,"
+        " and a mesh's metadata holds one value per name; the first is kept.",
+        UserWarning,
+        stacklevel=stacklevel,
+    )
+
+
+def _field_shape(parts: list[str], where: str) -> tuple[int, int]:
+    """Read a field array's component and tuple counts off its header.
+
+    Parameters
+    ----------
+    parts
+        The header line's whitespace-separated tokens, name included.
+    where
+        Where the header sits, for the error message.
+
+    Returns
+    -------
+    tuple[int, int]
+        Components per tuple, and tuples.
+
+    Raises
+    ------
+    CodecError
+        If either count is missing, names no integer, or is negative. The two
+        numbers are the only thing that says where a field array's payload
+        ends, and they are multiplied into a length: a negative one is a
+        length that walks the reader *backwards* through the file, off the
+        front of it in the binary spelling, and reshapes to a dimension numpy
+        infers rather than the one the header claimed. Neither is a shape a
+        file describes, so both are refused where a bad count already is.
+    """
+    n_comp = _attr_count(parts, 1, where)
+    n_tuples = _attr_count(parts, 2, where)
+    if n_comp < 0 or n_tuples < 0:
+        raise CodecError(
+            f".vtk: {where} holds {' '.join(parts)!r}, whose field array is"
+            f" {n_tuples} tuple(s) of {n_comp} - a count no array has."
+        )
+    return n_comp, n_tuples
 
 
 def _parse_field_block_ascii(
@@ -564,6 +700,7 @@ def _parse_field_block_ascii(
         If the file ends before the block's headers do.
     """
     found: dict[str, np.ndarray] = {}
+    repeated: list[str] = []
     n_lines = len(lines)
     for _ in range(n_arrays):
         i = _next_header(lines, i)
@@ -575,15 +712,20 @@ def _parse_field_block_ascii(
         parts = lines[i].strip().split()
         where = f"line {i + 1}"
         name = parts[0]
-        n_comp = _attr_count(parts, 1, where)
-        n_tuples = _attr_count(parts, 2, where)
+        n_comp, n_tuples = _field_shape(parts, where)
         np_str = _VTK_DTYPE_MAP.get(
             parts[3].lower() if len(parts) > 3 else _DEFAULT_VTK_DTYPE, "f8"
         )
         i += 1
         i, tokens = _read_ascii_tokens(lines, i, n_tuples * n_comp, name=name)
         arr = _field_values(tokens, np_str, name)
-        found[name] = arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr
+        _keep_first_field(
+            found,
+            name,
+            arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr,
+            repeated,
+        )
+    _warn_repeated_fields(repeated)
     return i, found
 
 
@@ -613,23 +755,37 @@ def _parse_field_block_binary(
     -------
     tuple[int, dict of str to numpy.ndarray]
         The byte offset just past the block, and its arrays keyed by name.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before the block's headers do, or a header is short
+        of the name, component count and tuple count that say where its
+        payload ends. Both are what the ASCII twin already refuses: there is
+        no framing to carry on from, and reading past one would hand back a
+        header line decoded out of the next array's payload. A missing fourth
+        field is not that - :func:`_binary_dtype` answers it with the same
+        default the ASCII twin takes, which is what keeps one file from
+        reading back as two different arrays depending on the encoding it was
+        written in.
     """
     found: dict[str, np.ndarray] = {}
+    repeated: list[str] = []
     for _ in range(n_arrays):
         pos = _next_binary_header(mm, mv, pos, file_size)
         hdr_start = pos
         hdr_end = mm.find(b"\n", pos)
         if hdr_end == -1:
-            break
+            raise CodecError(
+                f".vtk: FIELD declares {n_arrays} arrays but the file ends"
+                " before their headers."
+            )
         hdr = bytes(mv[pos:hdr_end]).decode("ascii", errors="replace").strip()
         pos = hdr_end + 1
         parts = hdr.split()
-        if len(parts) < 4:
-            continue
         where = f"byte {hdr_start}"
+        n_comp, n_tuples = _field_shape(parts, where)
         name = parts[0]
-        n_comp = _attr_count(parts, 1, where)
-        n_tuples = _attr_count(parts, 2, where)
         np_str = _binary_dtype(parts, 3, where)
         n_bytes = n_tuples * n_comp * np.dtype(np_str).itemsize
         _check_block(pos, n_bytes, file_size, name=name)
@@ -638,8 +794,103 @@ def _parse_field_block_binary(
         )
         pos += n_bytes
         pos = _skip_newline(mv, pos, file_size)
-        found[name] = arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr
+        _keep_first_field(
+            found,
+            name,
+            arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr,
+            repeated,
+        )
+    _warn_repeated_fields(repeated)
     return pos, found
+
+
+def _read_structured_field_block(
+    texts: list[str],
+    offsets: list[int],
+    raw: bytes,
+    i: int,
+    n_arrays: int,
+    *,
+    is_binary: bool,
+) -> tuple[int, dict[str, np.ndarray]]:
+    """Read a dataset-level ``FIELD`` block out of a structured file.
+
+    Parameters
+    ----------
+    texts
+        The file's lines, decoded.
+    offsets
+        Byte offset of each line, for finding a binary payload.
+    raw
+        The whole file.
+    i
+        Index of the ``FIELD`` header line.
+    n_arrays
+        Arrays the header says the block holds.
+    is_binary
+        Whether the payloads are binary rather than ASCII.
+
+    Returns
+    -------
+    tuple[int, dict of str to numpy.ndarray]
+        The line just past the block, and its arrays keyed by name.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before the block's headers do, the way both twins
+        refuse it: the count is the only thing that says where the block
+        ends, and a file short of it is malformed however it is walked.
+
+    Notes
+    -----
+    The twin of :func:`_parse_field_block_ascii` and
+    :func:`_parse_field_block_binary` for the readers that walk a file as
+    lines and byte offsets rather than as a mapping. It keeps the type each
+    header declares, which the point and cell parsers do not: those spell
+    every array as a double because that is what an attribute is here, and
+    an integer that comes home a float is a different value to whatever
+    reads a mesh's metadata next.
+    """
+    found: dict[str, np.ndarray] = {}
+    repeated: list[str] = []
+    n_lines = len(texts)
+    i += 1
+    for _ in range(n_arrays):
+        i = _next_header(texts, i)
+        if i >= n_lines:
+            raise CodecError(
+                f".vtk: FIELD declares {n_arrays} arrays but the file ends"
+                " before their headers."
+            )
+        parts = texts[i].split()
+        where = f"line {i + 1}"
+        name = parts[0]
+        n_comp, n_tuples = _field_shape(parts, where)
+        i += 1
+        if is_binary:
+            np_str = _binary_dtype(parts, 3, where)
+            data_pos = offsets[i] if i < len(offsets) else len(raw)
+            n_bytes = n_tuples * n_comp * np.dtype(np_str).itemsize
+            _check_block(data_pos, n_bytes, len(raw), name=name)
+            arr = np.frombuffer(
+                raw[data_pos : data_pos + n_bytes], dtype=np_str
+            ).astype(np_str.lstrip(">"))
+            i = _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
+        else:
+            np_str = _VTK_DTYPE_MAP.get(
+                parts[3].lower() if len(parts) > 3 else _DEFAULT_VTK_DTYPE, "f8"
+            )
+            i, tokens = _read_ascii_tokens(texts, i, n_tuples * n_comp, name=name)
+            arr = _field_values(tokens, np_str, name)
+        _keep_first_field(
+            found,
+            name,
+            arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr,
+            repeated,
+        )
+    _warn_repeated_fields(repeated)
+    return i, found
 
 
 def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) -> None:
@@ -660,10 +911,13 @@ def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) ->
         Open binary file object.
     binary
         Write the payload as big-endian doubles rather than spelling it.
-    """
-    if not _spellable_name(name):
-        return
 
+    Notes
+    -----
+    The name is taken as spellable. :func:`_spellable_arrays` is what says so,
+    and the caller asks it before writing the section header rather than here,
+    so a section whose arrays are all dropped is not declared at all.
+    """
     values = np.ascontiguousarray(arr, dtype=np.float64)
 
     if values.ndim == 1:
@@ -748,6 +1002,32 @@ def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
     fh.write((body + "\n").encode() if body else b"\n")  # type: ignore[union-attr]
 
 
+def _write_ascii_ints(flat: np.ndarray, fh: object, *, per_line: int) -> None:
+    """Spell a run of whole numbers into a legacy VTK file.
+
+    The twin of :func:`_write_ascii_f64` for an array that keeps the integer
+    type its header declared: ``str`` of a Python int is exact at any width,
+    where routing it through a double would round anything past 2**53.
+
+    Parameters
+    ----------
+    flat
+        The values, already flat.
+    fh
+        Open binary file object.
+    per_line
+        Values per line, one tuple to a row. A run it does not divide goes on
+        one line rather than losing its last few values.
+    """
+    values = flat.tolist()
+    if per_line >= len(values) or len(values) % per_line:
+        body = " ".join(map(str, values))
+    else:
+        spelled = map(str, values)
+        body = "\n".join(map(" ".join, zip(*[spelled] * per_line)))
+    fh.write((body + "\n").encode() if body else b"\n")  # type: ignore[union-attr]
+
+
 def _write_bin_f64(arr: np.ndarray, fh: object) -> None:
     fh.write(arr.astype(np.dtype(">f8")).tobytes())  # type: ignore[union-attr]
 
@@ -781,8 +1061,10 @@ def _read_polydata_ascii(path: Source) -> PolyData:
     content = raw.decode("ascii", errors="replace")
 
     lines = content.splitlines()
-    # Skip lines until we find POINTS (header may have blank lines / extra lines)
-    i = 0
+    # Below the header, whose last line is the DATASET keyword. The title
+    # above it is free text, so a mesh called 'Field data from run 3' or
+    # 'Vertices of a cow' is read as the section its first word names.
+    i = _body_start(lines)
     n_lines = len(lines)
 
     vertices = np.zeros((0, 3), dtype=np.float64)
@@ -802,31 +1084,28 @@ def _read_polydata_ascii(path: Source) -> PolyData:
             continue
 
         upper = line.upper()
+        # Split once for the whole chain rather than again in each branch
+        # that wants a field off the header: every line reaching here is a
+        # keyword line, and each of them was splitting it a second time.
+        parts = line.split()
 
-        if upper.startswith("FIELD"):
+        if parts[0].upper() == "FIELD":
             # A FIELD block out here belongs to the dataset rather than to
             # its points or cells - the one inside a POINT_DATA section is
             # read by that section's own parser, which never returns here.
-            n_arrays = _attr_count(line.split(), 2, f"line {i + 1}")
-            i, global_attrs = _parse_field_block_ascii(lines, i + 1, n_arrays)
+            # The whole keyword rather than what the line starts with, so a
+            # section some other writer named FIELDS is not read as one.
+            n_arrays = _attr_count(parts, 2, f"line {i + 1}")
+            i, block = _parse_field_block_ascii(lines, i + 1, n_arrays)
+            global_attrs |= block
 
         elif upper.startswith("POINTS"):
-            parts = line.split()
             n_verts = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             validate_header(n_verts, 0, 0, file_size)
-            if _HAS_CYTHON:
-                vertices = parse_ascii_coords(lines, i, n_verts)
-                i += n_verts
-            else:
-                verts_raw: list[float] = []
-                while len(verts_raw) < n_verts * 3:
-                    verts_raw.extend(float(x) for x in lines[i].split())
-                    i += 1
-                vertices = np.array(verts_raw, dtype=np.float64).reshape(n_verts, 3)
+            i, vertices = _points_ascii(lines, i, n_verts)
 
         elif (kind := _polydata_section(upper)) is not None:
-            parts = line.split()
             where = f"line {i + 1}"
             n_cells = _attr_count(parts, 1, where)
             total_vals = _attr_count(parts, 2, where)
@@ -852,29 +1131,32 @@ def _read_polydata_ascii(path: Source) -> PolyData:
                     break
                 i += 1
 
-            idx = 0
-            for _ in range(n_cells):
-                cnt = int(tokens[idx])
-                idx += 1
-
-                conn_list.extend(int(t) for t in tokens[idx : idx + cnt])
-
-                idx += cnt
-                off_list.append(off_list[-1] + cnt)
-                type_list.append(_polydata_cell_type(kind, cnt))
+            # Bounded by what the header declared, and by what the block
+            # actually holds. A count out of the file used to be trusted
+            # twice over: reading past the tokens raised a bare IndexError,
+            # and a cell short of the width it claimed took the indices it
+            # had while the offsets advanced by the claim - which cuts every
+            # cell after it out of the wrong place.
+            cells, widths = _walk_cell_stream(
+                _whole_numbers(tokens[:total_vals], kind), n_cells, kind
+            )
+            conn_list.extend(cells)
+            base = off_list[-1]
+            off_list.extend(base + run for run in accumulate(widths))
+            type_list.extend(_polydata_cell_type(kind, cnt) for cnt in widths)
             n_elems += n_cells
             if len(tokens) >= total_vals:
                 i += 1
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = _attr_count(line.split(), 1, f"line {i + 1}")
+            n_pd = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             i, vertex_attrs = _parse_vtk_data_attrs(
                 lines, i, n_pd, n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = _attr_count(line.split(), 1, f"line {i + 1}")
+            n_cd = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             i, element_attrs = _parse_vtk_data_attrs(
                 lines, i, n_cd, n_elems, kind="cell"
@@ -993,13 +1275,16 @@ def _parse_binary_polydata_body(
         upper = line.upper()
         parts = line.split()
 
-        if upper.startswith("FIELD"):
+        if parts[0].upper() == "FIELD":
             # A FIELD block out here belongs to the dataset rather than to
             # its points or cells - the one inside a POINT_DATA section is
             # read by that section's own parser, which never returns here.
-            pos, global_attrs = _parse_field_block_binary(
+            # The whole keyword rather than what the line starts with, so a
+            # section some other writer named FIELDS is not read as one.
+            pos, block = _parse_field_block_binary(
                 mm, mv, pos, file_size, _attr_count(parts, 2, f"byte {line_start}")
             )
+            global_attrs |= block
 
         elif upper.startswith("POINTS"):
             n_verts = _attr_count(parts, 1, f"byte {line_start}")
@@ -1103,8 +1388,10 @@ def _read_ascii(path: Source) -> PolyData:
     content = raw.decode("ascii", errors="replace")
 
     lines = content.splitlines()
-    # Skip the 4-line header
-    i = 4
+    # Below the header, found rather than counted: a blank line among its
+    # four leaves the DATASET keyword past index 3, and a scan starting
+    # there reads the free-text title as whatever keyword it begins with.
+    i = _body_start(lines)
     n_lines = len(lines)
 
     vertices = np.zeros((0, 3), dtype=np.float64)
@@ -1124,31 +1411,28 @@ def _read_ascii(path: Source) -> PolyData:
             continue
 
         upper = line.upper()
+        # Split once for the whole chain rather than again in each branch
+        # that wants a field off the header: every line reaching here is a
+        # keyword line, and each of them was splitting it a second time.
+        parts = line.split()
 
-        if upper.startswith("FIELD"):
+        if parts[0].upper() == "FIELD":
             # A FIELD block out here belongs to the dataset rather than to
             # its points or cells - the one inside a POINT_DATA section is
             # read by that section's own parser, which never returns here.
-            n_arrays = _attr_count(line.split(), 2, f"line {i + 1}")
-            i, global_attrs = _parse_field_block_ascii(lines, i + 1, n_arrays)
+            # The whole keyword rather than what the line starts with, so a
+            # section some other writer named FIELDS is not read as one.
+            n_arrays = _attr_count(parts, 2, f"line {i + 1}")
+            i, block = _parse_field_block_ascii(lines, i + 1, n_arrays)
+            global_attrs |= block
 
         elif upper.startswith("POINTS"):
-            parts = line.split()
             n_verts = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             validate_header(n_verts, 0, 0, file_size)
-            if _HAS_CYTHON:
-                vertices = parse_ascii_coords(lines, i, n_verts)
-                i += n_verts
-            else:
-                verts_raw: list[float] = []
-                while len(verts_raw) < n_verts * 3:
-                    verts_raw.extend(float(x) for x in lines[i].split())
-                    i += 1
-                vertices = np.array(verts_raw, dtype=np.float64).reshape(n_verts, 3)
+            i, vertices = _points_ascii(lines, i, n_verts)
 
         elif upper.startswith("CELLS") and not upper.startswith("CELL_TYPES"):
-            parts = line.split()
             where = f"line {i + 1}"
             n_elems = _attr_count(parts, 1, where)
             total_size = _attr_count(parts, 2, where)
@@ -1166,28 +1450,16 @@ def _read_ascii(path: Source) -> PolyData:
                 # polyxios files, which put the cell count there, are read
                 # by the same count of what OFFSETS actually held.
                 n_elems = len(offsets) - 1
-            elif _HAS_CYTHON:
-                connectivity, offsets = parse_ascii_cells_v42(lines, i, n_elems)
-                i += n_elems
             else:
-                conn_list: list[int] = []
-                off_list: list[int] = [0]
-                for _ in range(n_elems):
-                    parts2 = lines[i].split()
-                    cnt = int(parts2[0])
-                    conn_list.extend(int(x) for x in parts2[1 : cnt + 1])
-                    off_list.append(off_list[-1] + cnt)
-                    i += 1
-                connectivity = np.array(conn_list, dtype=np.int32)
-                offsets = np.array(off_list, dtype=np.int32)
+                connectivity, offsets, i = _cells_v42_ascii(
+                    lines, i, n_elems, total_size
+                )
 
         elif upper.startswith("CELL_TYPES"):
-            n_ct = _attr_count(line.split(), 1, f"line {i + 1}")
+            n_ct = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
-            ct_raw: list[int] = []
-            while len(ct_raw) < n_ct:
-                ct_raw.extend(int(x) for x in lines[i].split())
-                i += 1
+            i, ct_tokens = _read_ascii_tokens(lines, i, n_ct, name="CELL_TYPES")
+            ct_raw = _whole_numbers(ct_tokens, "CELL_TYPES")
             type_codes: list[int] = []
             for vtk_code in ct_raw:
                 if vtk_code not in VTK_TO_POLYXIOS:
@@ -1196,14 +1468,14 @@ def _read_ascii(path: Source) -> PolyData:
             element_types_arr = np.array(type_codes, dtype=np.uint8)
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = _attr_count(line.split(), 1, f"line {i + 1}")
+            n_pd = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             i, vertex_attrs = _parse_vtk_data_attrs(
                 lines, i, n_pd, n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = _attr_count(line.split(), 1, f"line {i + 1}")
+            n_cd = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
             i, element_attrs = _parse_vtk_data_attrs(
                 lines, i, n_cd, n_elems, kind="cell"
@@ -1416,6 +1688,101 @@ def _read_ascii_tokens(
     return i, tokens[:count]
 
 
+def _read_ascii_floats(
+    texts: list[str], i: int, count: int, *, name: str
+) -> tuple[int, list[float]]:
+    """Read up to ``count`` numbers off a structured file's ASCII lines.
+
+    Parameters
+    ----------
+    texts
+        The file's lines, already stripped.
+    i
+        Index of the first line of values.
+    count
+        How many values the header declares.
+    name
+        The section's keyword, for the error message.
+
+    Returns
+    -------
+    tuple[int, list of float]
+        The line index just past the values, and what was read - short of
+        ``count`` when the file ends first, which these sections answer by
+        checking what they read against the grid they rebuild rather than by
+        refusing the file here.
+
+    Raises
+    ------
+    CodecError
+        If a line holds something that is not a row of numbers. A section
+        declaring more values than it lists runs into the keyword after it,
+        and ``float()`` answering that with a bare ``ValueError`` names
+        neither the section nor the file it came out of.
+    """
+    n_lines = len(texts)
+    vals: list[float] = []
+    while len(vals) < count and i < n_lines:
+        try:
+            # Parsed whole before it is kept, so the count in the message
+            # below is the values read and not half of a bad line too.
+            row = list(map(float, texts[i].split()))
+        except ValueError as exc:
+            raise CodecError(
+                f".vtk: {name} declares {count} values but line {i + 1} holds"
+                f" {texts[i].strip()!r}, which is not a row of numbers;"
+                f" {len(vals)} were read before it."
+            ) from exc
+        vals.extend(row)
+        i += 1
+    return i, vals
+
+
+def _whole_numbers(tokens: list[str], where: str) -> list[int]:
+    """Read a run of tokens as whole numbers, naming the one that is not.
+
+    Parameters
+    ----------
+    tokens
+        The section's whitespace-separated values.
+    where
+        What is being read, for the error message.
+
+    Returns
+    -------
+    list of int
+        The values.
+
+    Raises
+    ------
+    CodecError
+        If a token names no whole number. A section that declares more
+        values than it lists runs into the header of the next one, and
+        ``int()`` answering that with a bare ``ValueError`` names neither the
+        section nor the file it came out of.
+
+    Notes
+    -----
+    Converted in one ``map`` and only walked token by token once that has
+    failed: the fast path is every well-formed file, and a cell type array
+    runs to millions of values.
+    """
+    try:
+        return list(map(int, tokens))
+    except ValueError:
+        pass
+    read: list[int] = []
+    for token in tokens:
+        try:
+            read.append(int(token))
+        except ValueError as exc:
+            raise CodecError(
+                f".vtk: {where} holds {token!r} where a whole number belongs;"
+                f" {len(read)} were read before it."
+            ) from exc
+    return read
+
+
 def _field_values(tokens: list[str], np_str: str, name: str) -> np.ndarray:
     """Read a field array's tokens as the type its header declared.
 
@@ -1454,6 +1821,310 @@ def _field_values(tokens: list[str], np_str: str, name: str) -> np.ndarray:
                 f".vtk: field array {name!r} holds a value that is not a"
                 f" number ({exc})."
             ) from exc
+
+
+def _points_ascii(lines: list[str], i: int, n_verts: int) -> tuple[int, np.ndarray]:
+    """Read a ``POINTS`` block, whichever way its writer laid it out.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first coordinate line.
+    n_verts
+        Vertices the header says the block holds.
+
+    Returns
+    -------
+    tuple[int, numpy.ndarray]
+        The line just past the block, and the coordinates.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before the block does, or a line holds something
+        that is not a row of numbers.
+
+    Notes
+    -----
+    One vertex to a line is what VTK's own writer emits and what the Cython
+    walk reads, at no cost to a well-formed file. The format declares a
+    vertex count rather than a line count, though, so a block wrapped some
+    other way is read again as the run of numbers it is - three of its
+    numbers taken and the rest dropped would be a mesh, and the wrong one.
+    """
+    if _HAS_CYTHON:
+        try:
+            return i + n_verts, parse_ascii_coords(lines, i, n_verts)
+        except (IndexError, ValueError):
+            pass
+    # Through the shared reader rather than a float() per token: a POINTS
+    # block that runs into the next keyword, or that the file ends inside, is
+    # a sentence about the file either way, where a bare ValueError names
+    # neither.
+    i, verts_raw = _read_ascii_values(lines, i, n_verts * 3, name="POINTS")
+    return i, np.array(verts_raw[: n_verts * 3], dtype=np.float64).reshape(n_verts, 3)
+
+
+def _cells_v42_ascii(
+    lines: list[str], i: int, n_cells: int, total_size: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Read a v4.2 ``CELLS`` block, whichever way its writer laid it out.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first cell line.
+    n_cells
+        Cells the header says the block holds.
+    total_size
+        Values the header says the block holds, counts and indices together.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, int]
+        The connectivity, the offsets that cut it into cells, and the line
+        just past the block.
+
+    Raises
+    ------
+    CodecError
+        If the block is neither one cell to a line nor a run of numbers the
+        header's own count bounds. The row's complaint is the one raised: it
+        names the cell, where the stream can only say the block ran out.
+
+    Notes
+    -----
+    One cell to a line is what VTK's own writer emits and what this reads
+    first, at no cost to a well-formed file. The format itself declares a
+    value count rather than a line count, though, and a writer is free to
+    wrap a cell over several lines - so a row that is not a whole cell sends
+    the same block back through :func:`_cells_by_stream` before the file is
+    called malformed.
+    """
+    try:
+        return _cells_by_row(lines, i, n_cells)
+    except CodecError as by_row:
+        try:
+            return _cells_by_stream(lines, i, n_cells, total_size)
+        except CodecError:
+            raise by_row from None
+
+
+def _walk_cell_rows(
+    lines: list[str], i: int, n_cells: int
+) -> tuple[list[int], list[int], int]:
+    """Walk a ``CELLS`` block one cell to a line, naming the row that is not.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first cell line.
+    n_cells
+        Cells the header says the block holds.
+
+    Returns
+    -------
+    tuple[list of int, list of int, int]
+        The connectivity, how many vertices each cell holds, and the line
+        just past the block.
+
+    Raises
+    ------
+    CodecError
+        If the file ends inside the block, or a row does not list the
+        vertices it declares - a width that is a number out of the file, and
+        trusted twice over used to advance the offsets past what the row
+        actually held.
+    """
+    n_lines = len(lines)
+    conn_list: list[int] = []
+    widths: list[int] = []
+    for cell in range(n_cells):
+        if i >= n_lines:
+            raise CodecError(
+                f".vtk: a CELLS section declares {n_cells} cells but the file"
+                f" ends after {cell}."
+            )
+        row = _whole_numbers(lines[i].split(), f"CELLS cell {cell}")
+        if not row or row[0] < 0 or row[0] + 1 > len(row):
+            raise CodecError(
+                f".vtk: CELLS cell {cell} declares {row[0] if row else 0}"
+                " vertices, which its row does not list."
+            )
+        conn_list.extend(row[1 : row[0] + 1])
+        widths.append(row[0])
+        i += 1
+    return conn_list, widths, i
+
+
+def _cells_by_row(
+    lines: list[str], i: int, n_cells: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Read a v4.2 ``CELLS`` block written one cell to a line.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first cell line.
+    n_cells
+        Cells the header says the block holds.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, int]
+        The connectivity, the offsets that cut it into cells, and the line
+        just past the block.
+
+    Raises
+    ------
+    CodecError
+        If the file ends inside the block, or a row does not list the
+        vertices it declares.
+
+    Notes
+    -----
+    The Cython walk is the same walk and refuses the same rows, with its own
+    ``IndexError`` where the Python one raises deliberately. Which row is at
+    fault is then found by walking again in Python: that costs nothing on a
+    well-formed file, and it is what keeps one message for a bad block
+    however the extension was built. ``OverflowError`` among the three it
+    answers: a width, or a cell count, past what a machine word holds is a
+    number out of the file like any other, and the walk below says so where
+    the conversion itself raises before the extension can.
+    """
+    if _HAS_CYTHON:
+        try:
+            connectivity, offsets = parse_ascii_cells_v42(lines, i, n_cells)
+        except (IndexError, OverflowError, ValueError):
+            _walk_cell_rows(lines, i, n_cells)
+            raise  # pragma: no cover - the walk above names the row first
+        return connectivity, offsets, i + n_cells
+    conn_list, widths, end = _walk_cell_rows(lines, i, n_cells)
+    return (
+        np.array(conn_list, dtype=np.int32),
+        np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
+        end,
+    )
+
+
+def _cells_by_stream(
+    lines: list[str], i: int, n_cells: int, total_size: int
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Read a v4.2 ``CELLS`` block as the run of numbers the header counts.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first cell line.
+    n_cells
+        Cells the header says the block holds.
+    total_size
+        Values the header says the block holds, counts and indices together.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, int]
+        The connectivity, the offsets that cut it into cells, and the line
+        just past the block.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before the block does, a value is not a whole
+        number, or a cell declares more vertices than the block holds.
+
+    Notes
+    -----
+    Reached only when the rows are not whole cells, so the gathering it does
+    costs a well-formed file nothing. A cell may then be wrapped over as many
+    lines as its writer liked, which is what VTK's own reader allows and what
+    the second number on the ``CELLS`` line is there to bound.
+    """
+    end, tokens = _read_ascii_tokens(lines, i, total_size, name="CELLS")
+    conn_list, widths = _walk_cell_stream(
+        _whole_numbers(tokens, "CELLS"), n_cells, "CELLS"
+    )
+    return (
+        np.array(conn_list, dtype=np.int32),
+        np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
+        end,
+    )
+
+
+def _walk_cell_stream(
+    values: Sequence[int],
+    n_cells: int,
+    where: str,
+    *,
+    short: str = "does not list",
+) -> tuple[list[int], list[int]]:
+    """Cut a run of ``count i0 i1 ...`` records into cells.
+
+    Parameters
+    ----------
+    values
+        The block's whole numbers, in file order.
+    n_cells
+        Cells the header says the block holds.
+    where
+        The section's keyword, for the error messages.
+    short
+        How the message says a cell runs off the end of the block, in the
+        voice of the spelling being read: a section lists its values, and a
+        binary block holds them.
+
+    Returns
+    -------
+    tuple[list of int, list of int]
+        The connectivity the cells lay end to end, and how many vertices each
+        of them holds.
+
+    Raises
+    ------
+    CodecError
+        If the block ends before the cells the header counts, or a cell
+        declares more vertices than the block still holds. Both are numbers
+        out of the file: reading past either takes the indices that are there
+        while the offsets advance by the claim, which cuts every cell after
+        it out of the wrong place.
+
+    Notes
+    -----
+    One walk for every spelling of a v4.2 cell block - the ASCII sections,
+    the POLYDATA ones and the binary array - so a count out of a file is
+    refused the same way whichever reader opened it.
+    """
+    conn_list: list[int] = []
+    widths: list[int] = []
+    held = len(values)
+    idx = 0
+    for cell in range(n_cells):
+        if idx >= held:
+            raise CodecError(
+                f".vtk: {where} declares {n_cells} cells but its block ends"
+                f" after {cell}."
+            )
+        cnt = values[idx]
+        idx += 1
+        if cnt < 0 or idx + cnt > held:
+            raise CodecError(
+                f".vtk: {where} cell {cell} declares {cnt} vertices, which its"
+                f" block {short}."
+            )
+        conn_list.extend(values[idx : idx + cnt])
+        idx += cnt
+        widths.append(cnt)
+    return conn_list, widths
 
 
 def _attr_name(parts: list[str], where: str) -> str:
@@ -1794,6 +2465,40 @@ def _warn_unhandled_attr(line: str, seen: set[str], *, stacklevel: int = 6) -> N
     )
 
 
+def _body_start(lines: list[str]) -> int:
+    """Find the first line below the ``DATASET`` one, where the mesh begins.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+
+    Returns
+    -------
+    int
+        The index just past the ``DATASET`` line, or 0 when the file spells
+        none - the scan then starts from the top, which is what it did before
+        there was a header to skip.
+
+    Notes
+    -----
+    The four header lines are a version, a free-text title, ``ASCII`` or
+    ``BINARY``, and the ``DATASET`` keyword, and only the last of them is
+    spelled the same way in every file: the title is whatever its author
+    wrote, and a reader that scans from the top reads it as a keyword the
+    moment one begins with a word like ``Field``, ``Points`` or ``Vertices``.
+    Found rather than counted, because the header may carry blank lines and
+    the ``DATASET`` line is at no fixed index. Looked for over the first few
+    lines only: the sniff that chose this reader gave up after the same span,
+    so a file whose keyword is below it reached here without one being read,
+    and walking a million-line mesh to fail to find it costs the whole file.
+    """
+    for index in range(min(_HEADER_SPAN, len(lines))):
+        if lines[index].strip().upper().startswith("DATASET"):
+            return index + 1
+    return 0
+
+
 def _next_header(lines: list[str], i: int) -> int:
     """Find the next header, stepping past blank lines and METADATA blocks.
 
@@ -1950,18 +2655,22 @@ def _parse_binary_body(
             continue
 
         upper = line.upper()
+        # Split once for the whole chain rather than again in each branch
+        # that wants a field off the header: every line reaching here is a
+        # keyword line, and each of them was splitting it a second time.
+        parts = line.split()
 
-        if upper.startswith("FIELD"):
+        if parts[0].upper() == "FIELD":
             # A FIELD block out here belongs to the dataset rather than to
             # its points or cells - the one inside a POINT_DATA section is
             # read by that section's own parser, which never returns here.
-            n_arrays = _attr_count(line.split(), 2, f"byte {line_start}")
-            pos, global_attrs = _parse_field_block_binary(
-                mm, mv, pos, file_size, n_arrays
-            )
+            # The whole keyword rather than what the line starts with, so a
+            # section some other writer named FIELDS is not read as one.
+            n_arrays = _attr_count(parts, 2, f"byte {line_start}")
+            pos, block = _parse_field_block_binary(mm, mv, pos, file_size, n_arrays)
+            global_attrs |= block
 
         elif upper.startswith("POINTS"):
-            parts = line.split()
             n_verts = _attr_count(parts, 1, f"byte {line_start}")
             # The header names the type the block holds, and it is not always
             # a float: reading a POINTS written as 'int' or 'short' at four
@@ -1980,7 +2689,6 @@ def _parse_binary_body(
             pos = _skip_newline(mv, pos, file_size)
 
         elif upper.startswith("CELLS") and not upper.startswith("CELL_TYPES"):
-            parts = line.split()
             where = f"byte {line_start}"
             n_elems = _attr_count(parts, 1, where)
             total_size = _attr_count(parts, 2, where)
@@ -2011,7 +2719,7 @@ def _parse_binary_body(
                 connectivity, offsets_arr = _unpack_v42_cells(raw, n_elems)
 
         elif upper.startswith("CELL_TYPES"):
-            n_ct = _attr_count(line.split(), 1, f"byte {line_start}")
+            n_ct = _attr_count(parts, 1, f"byte {line_start}")
             n_bytes_ct = n_ct * 4
             _check_block(pos, n_bytes_ct, file_size, name="CELL_TYPES")
             raw_ct = np.frombuffer(
@@ -2028,13 +2736,13 @@ def _parse_binary_body(
             element_types_arr = np.array(type_codes, dtype=np.uint8)
 
         elif upper.startswith("POINT_DATA"):
-            n_pd = _attr_count(line.split(), 1, f"byte {line_start}")
+            n_pd = _attr_count(parts, 1, f"byte {line_start}")
             pos, vertex_attrs = _parse_binary_attrs(
                 mm, mv, pos, n_pd, file_size, expected=n_verts, kind="point"
             )
 
         elif upper.startswith("CELL_DATA"):
-            n_cd = _attr_count(line.split(), 1, f"byte {line_start}")
+            n_cd = _attr_count(parts, 1, f"byte {line_start}")
             pos, element_attrs = _parse_binary_attrs(
                 mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell"
             )
@@ -2173,16 +2881,40 @@ def _v51_offset_count(
 
 
 def _unpack_v42_cells(raw: np.ndarray, n_elems: int) -> tuple[np.ndarray, np.ndarray]:
-    """Convert v4.2 interleaved cell array to CSR connectivity + offsets."""
-    conn_list: list[int] = []
-    off_list: list[int] = [0]
-    idx = 0
-    for _ in range(n_elems):
-        cnt = int(raw[idx])
-        idx += 1
-        conn_list.extend(int(raw[idx + j]) for j in range(cnt))
-        idx += cnt
-        off_list.append(off_list[-1] + cnt)
+    """Convert v4.2 interleaved cell array to CSR connectivity + offsets.
+
+    Parameters
+    ----------
+    raw
+        The CELLS block: each cell a vertex count followed by that many
+        indices.
+    n_elems
+        Cells the header says the block holds.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray]
+        The connectivity, and the offsets that cut it into cells.
+
+    Raises
+    ------
+    CodecError
+        If the block ends before the cells the header counts, or a cell
+        declares more vertices than the block still holds. Both are numbers
+        out of the file, and reading past either hands numpy an index it
+        answers with a bare ``IndexError`` naming neither the file nor the
+        cell it came out of.
+
+    Notes
+    -----
+    Walked as a list rather than by indexing the array. Every value is read
+    once either way, and a numpy scalar lookup per index costs several times
+    what a list slice does over a mesh of any size.
+    """
+    conn_list, widths = _walk_cell_stream(
+        raw.tolist(), n_elems, "CELLS", short="is too short to hold"
+    )
+    off_list = list(accumulate(widths, initial=0))
     return np.array(conn_list, dtype=np.int32), np.array(off_list, dtype=np.int32)
 
 
@@ -2596,9 +3328,16 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     # flag is what tells an unhandled keyword inside one from the
     # header lines above, which are skipped on purpose.
     in_data_section = False
+    # Whether the scan has passed the DATASET line. The title above it is free
+    # text and reaches every branch below, so a mesh titled 'Field data from
+    # run 3' would be read as a field block header and refuse the file.
+    saw_dataset = False
     unhandled: set[str] = set()
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    # The dataset's own FIELD block, if it carries one: metadata belonging to
+    # the mesh rather than to its points or cells.
+    field_meta: dict[str, np.ndarray] = {}
     # What a CELL_DATA section says it holds, against what the grid the
     # header describes actually has; a section is read with the first and
     # kept only when it matches the second.
@@ -2615,7 +3354,9 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         upper = line.upper()
         parts = line.split()
 
-        if upper.startswith("DIMENSIONS"):
+        if upper.startswith("DATASET"):
+            saw_dataset = True
+        elif upper.startswith("DIMENSIONS"):
             where = f"line {i + 1}"
             nx = _attr_count(parts, 1, where)
             ny = _attr_count(parts, 2, where)
@@ -2635,10 +3376,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 i = _skip_payload(line_offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
-                vals: list[float] = []
-                while len(vals) < n_coord and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
+                i, vals = _read_ascii_floats(texts, i, n_coord, name=parts[0].upper())
                 xs = np.array(vals, dtype=np.float64)
                 continue
         elif upper.startswith("Y_COORDINATES"):
@@ -2656,10 +3394,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 i = _skip_payload(line_offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
-                vals = []
-                while len(vals) < n_coord and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
+                i, vals = _read_ascii_floats(texts, i, n_coord, name=parts[0].upper())
                 ys = np.array(vals, dtype=np.float64)
                 continue
         elif upper.startswith("Z_COORDINATES"):
@@ -2677,10 +3412,7 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
                 i = _skip_payload(line_offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
-                vals = []
-                while len(vals) < n_coord and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
+                i, vals = _read_ascii_floats(texts, i, n_coord, name=parts[0].upper())
                 zs = np.array(vals, dtype=np.float64)
                 continue
         elif upper.startswith("POINT_DATA"):
@@ -2691,6 +3423,27 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             n_cells_declared = _attr_count(parts, 1, f"line {i + 1}", default=0)
             in_point_data = False
             in_data_section = True
+        elif saw_dataset and not in_data_section and parts[0].upper() == "FIELD":
+            # A FIELD block ahead of any data section belongs to the dataset
+            # rather than to its points or cells - VTK's own writer puts a
+            # mesh's metadata here, right after the header lines. One inside
+            # a section is that section's, and _read_structured_attr has it.
+            #
+            # Below the DATASET line, and the whole keyword rather than what
+            # the line starts with: these readers scan from the top of the
+            # file, because the header may carry blank lines and the DATASET
+            # line is at no fixed index, so the free-text title reaches here
+            # too - and a mesh titled 'Field data from run 3' is not a block.
+            i, block = _read_structured_field_block(
+                texts,
+                line_offsets,
+                raw,
+                i,
+                _attr_count(parts, 2, f"line {i + 1}"),
+                is_binary=is_binary,
+            )
+            field_meta |= block
+            continue
         elif in_data_section:
             # The coordinate arrays are the grid, not what DIMENSIONS said
             # about it: the points are their outer product, so a header that
@@ -2742,7 +3495,10 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
     element_attrs, element_tags = tags_from_masks(element_attrs)
 
-    grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
+    # The dataset's metadata under the grid the reader rebuilt: a file
+    # naming one of the reader's own keys in its field data is describing
+    # the same grid twice, and the grid is what the points were laid out on.
+    grid_meta: dict[str, object] = field_meta | {"vtk_dimensions": [nx, ny, nz]}
 
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
     if len(cells) == 0:
@@ -2805,9 +3561,16 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
     # flag is what tells an unhandled keyword inside one from the
     # header lines above, which are skipped on purpose.
     in_data_section = False
+    # Whether the scan has passed the DATASET line. The title above it is free
+    # text and reaches every branch below, so a mesh titled 'Field data from
+    # run 3' would be read as a field block header and refuse the file.
+    saw_dataset = False
     unhandled: set[str] = set()
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    # The dataset's own FIELD block, if it carries one: metadata belonging to
+    # the mesh rather than to its points or cells.
+    field_meta: dict[str, np.ndarray] = {}
     # What a data section says it holds, against what the grid the header
     # describes actually has; a section is read with the first and kept only
     # when it matches the second.
@@ -2825,7 +3588,9 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
         upper = line.upper()
         parts = line.split()
 
-        if upper.startswith("DIMENSIONS"):
+        if upper.startswith("DATASET"):
+            saw_dataset = True
+        elif upper.startswith("DIMENSIONS"):
             where = f"line {i + 1}"
             nx = _attr_count(parts, 1, where)
             ny = _attr_count(parts, 2, where)
@@ -2849,11 +3614,15 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
                 i = _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
                 continue
             else:
-                vals: list[float] = []
-                while len(vals) < n_points * 3 and i < n_lines:
-                    vals.extend(float(x) for x in texts[i].split())
-                    i += 1
-                vertices = np.array(vals, dtype=np.float64).reshape(n_points, 3)
+                i, vals = _read_ascii_floats(texts, i, n_points * 3, name="POINTS")
+                if len(vals) < n_points * 3:
+                    raise CodecError(
+                        f".vtk: POINTS declares {n_points} points but the file"
+                        f" holds {len(vals) // 3}."
+                    )
+                vertices = np.array(vals[: n_points * 3], dtype=np.float64).reshape(
+                    n_points, 3
+                )
                 continue
         elif upper.startswith("POINT_DATA"):
             # The section's own count is what its arrays are as long as; the
@@ -2869,6 +3638,27 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             n_cells_declared = _attr_count(parts, 1, f"line {i + 1}", default=0)
             in_point_data = False
             in_data_section = True
+        elif saw_dataset and not in_data_section and parts[0].upper() == "FIELD":
+            # A FIELD block ahead of any data section belongs to the dataset
+            # rather than to its points or cells - VTK's own writer puts a
+            # mesh's metadata here, right after the header lines. One inside
+            # a section is that section's, and _read_structured_attr has it.
+            #
+            # Below the DATASET line, and the whole keyword rather than what
+            # the line starts with: these readers scan from the top of the
+            # file, because the header may carry blank lines and the DATASET
+            # line is at no fixed index, so the free-text title reaches here
+            # too - and a mesh titled 'Field data from run 3' is not a block.
+            i, block = _read_structured_field_block(
+                texts,
+                offsets,
+                raw,
+                i,
+                _attr_count(parts, 2, f"line {i + 1}"),
+                is_binary=is_binary,
+            )
+            field_meta |= block
+            continue
         elif in_data_section:
             # The cells are the ones _structured_cells_over will build, not
             # the ones DIMENSIONS describes: a header the POINTS array does
@@ -2904,7 +3694,10 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
     vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
     element_attrs, element_tags = tags_from_masks(element_attrs)
 
-    grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
+    # The dataset's metadata under the grid the reader rebuilt: a file
+    # naming one of the reader's own keys in its field data is describing
+    # the same grid twice, and the grid is what the points were laid out on.
+    grid_meta: dict[str, object] = field_meta | {"vtk_dimensions": [nx, ny, nz]}
 
     cells, etype_name = _structured_cells_over(nx, ny, nz, len(vertices))
     if len(cells) == 0:
@@ -2989,15 +3782,30 @@ def _read_field_data(path: Source) -> PolyData:
             except ValueError:
                 i += 1
                 continue
-            # skip string arrays - skip exactly n_tuples data lines
+            if n_comp < 0 or n_tuples < 0:
+                # The two counts are the only thing that says where this
+                # array ends, and a negative one is no length: it slices the
+                # values it read from the wrong end and reshapes to a
+                # dimension numpy infers rather than the one the header
+                # claimed. Skipped, the way every other line this reader
+                # makes no sense of is.
+                i += 1
+                continue
+            # The header line first, then the n_tuples data lines after it.
+            # Stepping past the header is what ends this: counted from the
+            # header, an array declaring no strings never reaches a line to
+            # step over and reads the same one for ever.
+            i += 1
             if vtk_dt.lower() == "string":
+                # A string array's values are text, which has no place in a
+                # mesh's metadata beside the numbers; its lines are stepped
+                # over rather than read.
                 skipped = 0
                 while skipped < n_tuples and i < n_lines:
                     if lines[i]:
                         skipped += 1
                     i += 1
                 continue
-            i += 1
             vals: list[float] = []
             while len(vals) < n_tuples * n_comp and i < n_lines:
                 for token in lines[i].split():
@@ -3006,7 +3814,22 @@ def _read_field_data(path: Source) -> PolyData:
                     except ValueError:
                         pass
                 i += 1
-            arr = np.array(vals[: n_tuples * n_comp], dtype=np.float64)
+            wanted = n_tuples * n_comp
+            arr = np.array(vals[:wanted], dtype=np.float64)
+            if arr.size < wanted:
+                # The header is the only thing that says where this array
+                # ends, so one the file runs out inside has no shape the file
+                # spells. Kept flat it would be a different array under the
+                # same name, and reshaped it is a bare ValueError naming
+                # neither; it is dropped and said so.
+                warnings.warn(
+                    f".vtk: FIELD array {name!r} declares {n_tuples} tuple(s)"
+                    f" of {n_comp} but the file holds {arr.size} value(s);"
+                    " dropped.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+                continue
             global_attrs[name] = arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr
             continue
 
@@ -3629,9 +4452,16 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
     # flag is what tells an unhandled keyword inside one from the
     # header lines above, which are skipped on purpose.
     in_data_section = False
+    # Whether the scan has passed the DATASET line. The title above it is free
+    # text and reaches every branch below, so a mesh titled 'Field data from
+    # run 3' would be read as a field block header and refuse the file.
+    saw_dataset = False
     unhandled: set[str] = set()
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    # The dataset's own FIELD block, if it carries one: metadata belonging to
+    # the mesh rather than to its points or cells.
+    field_meta: dict[str, np.ndarray] = {}
     # What a CELL_DATA section says it holds, against what the grid the
     # header describes actually has; a section is read with the first and
     # kept only when it matches the second.
@@ -3648,7 +4478,9 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
         upper = line.upper()
         parts = line.split()
 
-        if upper.startswith("DIMENSIONS"):
+        if upper.startswith("DATASET"):
+            saw_dataset = True
+        elif upper.startswith("DIMENSIONS"):
             where = f"line {i + 1}"
             nx = _attr_count(parts, 1, where)
             ny = _attr_count(parts, 2, where)
@@ -3665,6 +4497,27 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             n_cells_declared = _attr_count(parts, 1, f"line {i + 1}", default=0)
             in_point_data = False
             in_data_section = True
+        elif saw_dataset and not in_data_section and parts[0].upper() == "FIELD":
+            # A FIELD block ahead of any data section belongs to the dataset
+            # rather than to its points or cells - VTK's own writer puts a
+            # mesh's metadata here, right after the header lines. One inside
+            # a section is that section's, and _read_structured_attr has it.
+            #
+            # Below the DATASET line, and the whole keyword rather than what
+            # the line starts with: these readers scan from the top of the
+            # file, because the header may carry blank lines and the DATASET
+            # line is at no fixed index, so the free-text title reaches here
+            # too - and a mesh titled 'Field data from run 3' is not a block.
+            i, block = _read_structured_field_block(
+                texts,
+                offsets,
+                raw,
+                i,
+                _attr_count(parts, 2, f"line {i + 1}"),
+                is_binary=is_binary,
+            )
+            field_meta |= block
+            continue
         elif in_data_section:
             i = _read_structured_attr(
                 texts,
@@ -3698,7 +4551,10 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
     vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
     element_attrs, element_tags = tags_from_masks(element_attrs)
 
-    grid_meta: dict[str, object] = {
+    # The dataset's metadata under the grid the reader rebuilt: a file naming
+    # one of the reader's own keys in its field data is describing the same
+    # grid twice, and the grid is what the points were laid out on.
+    grid_meta: dict[str, object] = field_meta | {
         "vtk_dimensions": [nx, ny, nz],
         "vtk_origin": [ox, oy, oz],
         "vtk_spacing": [sx, sy, sz],
