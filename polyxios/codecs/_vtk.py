@@ -1,6 +1,7 @@
 from bisect import bisect_left
 from itertools import accumulate
 import mmap
+import re
 from typing import Any
 import warnings
 
@@ -23,6 +24,7 @@ from polyxios._io import (
     read_bytes,
     source_name,
 )
+from polyxios._tags import mask_arrays, tags_from_masks
 from polyxios._types import PolyData
 from polyxios.exceptions import (
     CodecError,
@@ -99,6 +101,10 @@ _GRID_KEYS: frozenset[str] = frozenset({"vtk_dimensions", "vtk_origin", "vtk_spa
 # one - but every reader here has to answer it the same way, or the same
 # file reads back as two different arrays depending on which one opened it.
 _DEFAULT_VTK_DTYPE: str = "float"
+
+# What a legacy header field cannot hold: it names an array in a
+# whitespace-separated field, and nothing in the format escapes one.
+_WHITESPACE: re.Pattern[str] = re.compile(r"\s")
 
 # A binary COLOR_SCALARS component is an unsigned char standing for the 0..1
 # float an ASCII file writes; dividing puts both flavours on one scale.
@@ -357,16 +363,27 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         else:
             fh.write((" ".join(str(t) for t in vtk_types) + "\n").encode())
 
-        # POINT_DATA
-        if poly.vertex_attrs:
+        # POINT_DATA and CELL_DATA. A tag group travels among them as one
+        # column of ones and zeros named for it: the section holds one value
+        # per entity, and an element in two groups is named by both columns,
+        # which the single reference a Medit or Netgen record carries cannot
+        # say. The column is a double like every other array here, and reads
+        # back as the group it spells.
+        point_arrays = poly.vertex_attrs | mask_arrays(
+            poly.vertex_tags, n_verts, fmt=EXTENSION, kind="point"
+        )
+        cell_arrays = poly.element_attrs | mask_arrays(
+            poly.element_tags, n_elems, fmt=EXTENSION, kind="cell"
+        )
+
+        if point_arrays:
             fh.write(f"POINT_DATA {n_verts}\n".encode())
-            for name, arr in poly.vertex_attrs.items():
+            for name, arr in point_arrays.items():
                 _write_vtk_array(name, arr, fh, binary=binary)
 
-        # CELL_DATA
-        if poly.element_attrs:
+        if cell_arrays:
             fh.write(f"CELL_DATA {n_elems}\n".encode())
-            for name, arr in poly.element_attrs.items():
+            for name, arr in cell_arrays.items():
                 _write_vtk_array(name, arr, fh, binary=binary)
 
 
@@ -435,6 +452,39 @@ def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
         fh.write((" ".join(str(x) for x in conn64) + "\n").encode())  # type: ignore[union-attr]
 
 
+def _spellable_name(name: str) -> bool:
+    """Say whether a legacy header can name an array this, warning when not.
+
+    Parameters
+    ----------
+    name
+        The array's name.
+
+    Returns
+    -------
+    bool
+        True when the name is one whitespace-separated token.
+
+    Notes
+    -----
+    A legacy header names its array in a whitespace-separated field, so a name
+    holding a space is read back as a name and a stray token - and the array
+    after it as that token's values. There is no escaping in the format to
+    fall back on, so the array is dropped and said so. Every section spells
+    its names the same way, which is why the attribute writer and the field
+    block ask here rather than each carrying the rule.
+    """
+    if name and not _WHITESPACE.search(name):
+        return True
+    warnings.warn(
+        f".vtk: array name {name!r} holds whitespace, which a legacy"
+        " header field cannot spell; the array is not written.",
+        UserWarning,
+        stacklevel=4,
+    )
+    return False
+
+
 def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
     """Write the mesh's metadata as a ``FIELD FieldData`` block.
 
@@ -456,9 +506,20 @@ def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
     field array keeps the type it is held in: it is metadata, and an integer
     that comes home a float is a different value to whatever reads it next.
     """
-    spelled = globals_for_write(poly, reserved=_GRID_KEYS, fmt=EXTENSION)
+    spelled: dict[str, np.ndarray] = {}
+    for name, arr in globals_for_write(
+        poly, reserved=_GRID_KEYS, fmt=EXTENSION
+    ).items():
+        # A plain loop rather than a comprehension: the warning below counts
+        # the frames between itself and the caller, and a comprehension is
+        # one more of them on the Python versions that give it its own.
+        if _spellable_name(name):
+            spelled[name] = arr  # noqa: PERF403 - see the comment above
     if not spelled:
         return
+    # The count is written from what survived the name check, not from what
+    # the mesh held: a header promising an array the block does not carry
+    # sends the next reader into the geometry looking for it.
     fh.write(f"FIELD FieldData {len(spelled)}\n".encode())  # type: ignore[union-attr]
     for name, arr in spelled.items():
         vtk_name = _NP_TO_VTK_DTYPE.get(arr.dtype.str.lstrip("<>|="), _FIELD_FALLBACK)
@@ -600,6 +661,9 @@ def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) ->
     binary
         Write the payload as big-endian doubles rather than spelling it.
     """
+    if not _spellable_name(name):
+        return
+
     values = np.ascontiguousarray(arr, dtype=np.float64)
 
     if values.ndim == 1:
@@ -819,6 +883,11 @@ def _read_polydata_ascii(path: Source) -> PolyData:
         else:
             i += 1
 
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     return PolyData(
         vertices=vertices,
         connectivity=np.array(conn_list, dtype=np.int32),
@@ -826,6 +895,8 @@ def _read_polydata_ascii(path: Source) -> PolyData:
         element_types=np.array(type_list, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=global_attrs,
     )
 
@@ -1003,6 +1074,11 @@ def _parse_binary_polydata_body(
                 mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell"
             )
 
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     connectivity = (
         np.concatenate(all_conn).astype(np.int32)
         if all_conn
@@ -1015,6 +1091,8 @@ def _parse_binary_polydata_body(
         element_types=np.array(all_types, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=global_attrs,
     )
 
@@ -1134,6 +1212,11 @@ def _read_ascii(path: Source) -> PolyData:
         else:
             i += 1
 
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     return PolyData(
         vertices=vertices,
         connectivity=connectivity,
@@ -1141,6 +1224,8 @@ def _read_ascii(path: Source) -> PolyData:
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=global_attrs,
     )
 
@@ -1954,6 +2039,11 @@ def _parse_binary_body(
                 mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell"
             )
 
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     return PolyData(
         vertices=vertices,
         connectivity=connectivity,
@@ -1961,6 +2051,8 @@ def _parse_binary_body(
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=global_attrs,
     )
 
@@ -2645,6 +2737,11 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
     # on, which above is the coordinate arrays rather than the header they
     # may disagree with. A consumer rebuilding the image from a number the
     # points do not honour rebuilds a different mesh.
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
 
     cells, etype_name = _structured_grid_cells(nx, ny, nz)
@@ -2656,6 +2753,8 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
             element_attrs=element_attrs,
+            vertex_tags=vertex_tags,
+            element_tags=element_tags,
             global_attrs=grid_meta,
         )
 
@@ -2672,6 +2771,8 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=grid_meta,
     )
 
@@ -2798,6 +2899,11 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
     # DIMENSIONS and nothing else, so the header is the only description
     # there is: it is handed back even when the POINTS array does not cover
     # it, which the cells above have already been dropped over.
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     grid_meta: dict[str, object] = {"vtk_dimensions": [nx, ny, nz]}
 
     cells, etype_name = _structured_cells_over(nx, ny, nz, len(vertices))
@@ -2809,6 +2915,8 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
             element_attrs=element_attrs,
+            vertex_tags=vertex_tags,
+            element_tags=element_tags,
             global_attrs=grid_meta,
         )
 
@@ -2825,6 +2933,8 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=grid_meta,
     )
 
@@ -3583,6 +3693,11 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
 
     # A STRUCTURED_POINTS file is its header: without origin and spacing the
     # expanded points cannot be written back as the image they came from.
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     grid_meta: dict[str, object] = {
         "vtk_dimensions": [nx, ny, nz],
         "vtk_origin": [ox, oy, oz],
@@ -3598,6 +3713,8 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             element_types=np.array([], dtype=np.uint8),
             vertex_attrs=vertex_attrs,
             element_attrs=element_attrs,
+            vertex_tags=vertex_tags,
+            element_tags=element_tags,
             global_attrs=grid_meta,
         )
 
@@ -3614,5 +3731,7 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=grid_meta,
     )

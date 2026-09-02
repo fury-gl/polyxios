@@ -8,16 +8,28 @@ so the codecs that share the convention cannot drift apart on it.
 
 import re
 from typing import NamedTuple
+import warnings
 
 import numpy as np
 
 __all__ = [
+    "MASK_PREFIX",
     "TagValues",
     "group_by_value",
     "integer_column",
+    "mask_arrays",
     "member_indices",
+    "tags_from_masks",
     "values_from_tags",
 ]
+
+# What a tag group is called when it travels as an ordinary data array. A
+# format with a general attribute channel and no set of its own - the VTK
+# family - can carry a group as one column of ones and zeros, and the only
+# thing that tells such a column from an attribute is its name. The prefix is
+# spelled out rather than short, because an attribute genuinely called this is
+# read back as the group it claims to be.
+MASK_PREFIX: str = "polyxios_tag_"
 
 
 class TagValues(NamedTuple):
@@ -223,3 +235,141 @@ def values_from_tags(
         values[picked] = label
         named = True
     return TagValues(values, unnamed, named, unusable, oversized, contested)
+
+
+def mask_arrays(
+    tags: dict[str, np.ndarray] | None,
+    n_items: int,
+    *,
+    fmt: str,
+    kind: str,
+) -> dict[str, np.ndarray]:
+    """Return one membership column per tag group, named for it.
+
+    Parameters
+    ----------
+    tags
+        The mesh's tag groups.
+    n_items
+        How many vertices or elements the mesh holds.
+    fmt
+        The format's extension, for the warning naming what was dropped.
+    kind
+        ``point`` or ``cell``, named in the same warning.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        One ``uint8`` column of ones and zeros per group, keyed by the group's
+        name behind :data:`MASK_PREFIX`. Empty when there are no groups.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming every group with a member this mesh has no entity for.
+
+    Notes
+    -----
+    A column rather than a list of indices, because the channel it travels in
+    holds one value per entity and nothing else. An element in two groups is
+    named by both columns, which is what a single label per element - the way
+    Medit, Gmsh and Netgen have to spell it - cannot say.
+
+    Nothing checks a tag group on the way in, so a group may hold floats -
+    refused whole rather than rounded, since rounding an index moves a label
+    onto another entity - or an index past the end of a mesh it was not built
+    for. Either leaves the column short of the members the group named, which
+    is a loss the ``*Elset`` writers already report and this one reports the
+    same way.
+
+    Examples
+    --------
+    >>> mask_arrays({"a": np.array([0, 2])}, 3, fmt=".vtu", kind="cell")
+    {'polyxios_tag_a': array([1, 0, 1], dtype=uint8)}
+    """
+    columns: dict[str, np.ndarray] = {}
+    unreachable: list[str] = []
+    for name, members in (tags or {}).items():
+        column = np.zeros(n_items, dtype=np.uint8)
+        picked = member_indices(members, n_items)
+        column[picked] = 1
+        if picked.size != np.asarray(members).size:
+            unreachable.append(name)
+        columns[f"{MASK_PREFIX}{name}"] = column
+    if unreachable:
+        warnings.warn(
+            f"{fmt} write: {kind} tag group(s) {sorted(unreachable)} name"
+            f" members that index no {kind} of this mesh; those members were"
+            " dropped.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return columns
+
+
+def tags_from_masks(
+    attrs: dict[str, np.ndarray],
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """Split the membership columns out of a block of attributes.
+
+    Parameters
+    ----------
+    attrs
+        The arrays a reader took off one data section.
+
+    Returns
+    -------
+    tuple[dict of str to numpy.ndarray, dict of str to numpy.ndarray]
+        The attributes that are attributes, and the tag groups the rest spell.
+
+    Notes
+    -----
+    A column that carries whole numbers reads as membership wherever it is not
+    zero; one that carries anything else - a float attribute a writer happened
+    to name this way, a vector - is left an attribute, since a group whose
+    members were rounded into place names the wrong entities.
+
+    Examples
+    --------
+    >>> attrs = {"polyxios_tag_a": np.array([1, 0, 1]), "s": np.arange(3.0)}
+    >>> kept, tags = tags_from_masks(attrs)
+    >>> sorted(kept), tags["a"].tolist()
+    (['s'], [0, 2])
+    """
+    kept: dict[str, np.ndarray] = {}
+    tags: dict[str, np.ndarray] = {}
+    for name, values in attrs.items():
+        if not name.startswith(MASK_PREFIX) or not _is_membership(values):
+            kept[name] = values
+            continue
+        tags[name[len(MASK_PREFIX) :]] = np.flatnonzero(values).astype(np.int32)
+    return kept, tags
+
+
+def _is_membership(values: object) -> bool:
+    """Say whether a column can be read as one entity's membership per row.
+
+    Parameters
+    ----------
+    values
+        The array a reader took off a data section.
+
+    Returns
+    -------
+    bool
+        True for one whole number per entity. A legacy VTK data array is a
+        double whatever it holds, so a column of ones and zeros written as
+        one still reads as membership; a column carrying anything else does
+        not, since a group whose members were rounded into place names the
+        wrong entities.
+    """
+    column = np.asarray(values)
+    if column.ndim != 1:
+        return False
+    if column.dtype.kind in "iub":
+        return True
+    return bool(
+        column.dtype.kind == "f"
+        and np.isfinite(column).all()
+        and np.array_equal(column, np.trunc(column))
+    )

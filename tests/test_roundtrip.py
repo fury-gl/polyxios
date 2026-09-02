@@ -413,6 +413,8 @@ CAPABILITIES: dict[str, Cap] = {
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=(
             "gnum",
             "vti_extent",
@@ -421,29 +423,31 @@ CAPABILITIES: dict[str, Cap] = {
             "vti_whole_extent",
         ),
         attr_values=False,
-        note="Grid metadata joins the caller's global_attrs, tags are lost"
-        " (see test_the_vtk_family_keeps_tags_it_has_room_for), and a vector"
+        note="Grid metadata joins the caller's global_attrs, and a vector"
         " attribute comes back flattened (see the xfail below).",
     ),
     ".vtk": Cap(
         "mixed",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=("gnum",),
-        note="Legacy VTK keeps point data, cell data and a FIELD block of"
-        " mesh metadata; tags do not survive (see the xfail below).",
     ),
     ".vtp": Cap(
         "surface",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=("gnum",),
-        note="As .vtk, restricted to surface cells.",
     ),
     ".vtr": Cap(
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=("gnum", "vtr_extents", "vtr_whole_extent"),
         attr_values=False,
         note="As .vti, with rectilinear axis metadata.",
@@ -452,6 +456,8 @@ CAPABILITIES: dict[str, Cap] = {
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=("gnum", "vts_extent", "vts_whole_extent"),
         attr_values=False,
         note="As .vti, with curvilinear extent metadata.",
@@ -460,8 +466,9 @@ CAPABILITIES: dict[str, Cap] = {
         "mixed",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=("gnum",),
-        note="As .vtk, with the metadata in a <FieldData> block.",
     ),
     ".wkt": Cap(
         "surface",
@@ -631,16 +638,19 @@ def test_the_vtk_family_keeps_global_attrs(tmp_path, ext: str) -> None:
     np.testing.assert_array_equal(back, [42])
 
 
-@pytest.mark.xfail(strict=True, reason="P2.6: tags have no VTK array yet")
-@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp"])
+@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp", ".vti", ".vtr", ".vts"])
 def test_the_vtk_family_keeps_tags_it_has_room_for(tmp_path, ext: str) -> None:
-    """PointData and CellData can hold one int array per tag group."""
-    poly = _surface()
+    """PointData and CellData hold one membership column per tag group, so an
+    element in two groups is named by both - which a format spelling one
+    reference per element cannot say."""
+    poly = _structured() if ext in (".vti", ".vtr", ".vts") else _surface()
     path = tmp_path / f"mesh{ext}"
     polyxios.write(poly, path)
     back = polyxios.read(path)
     assert set(back.element_tags) == {"a", "b"}
     assert set(back.vertex_tags) == {"vgroup"}
+    for name, members in poly.element_tags.items():
+        np.testing.assert_array_equal(back.element_tags[name], members)
 
 
 @pytest.mark.parametrize("ext", [".vti", ".vts", ".vtr"])

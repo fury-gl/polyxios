@@ -77,6 +77,7 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- A tag group travels as one ``POINT_DATA`` or ``CELL_DATA`` column of ones and zeros named ``polyxios_tag_<group>``, so an element in two groups is named by both columns. A legacy header names its array in a whitespace-separated field and nothing in the format escapes one, so a group whose name holds whitespace is dropped with a warning rather than written as a name and a stray token.
 - A ``FIELD FieldData`` block between the ``DATASET`` line and the geometry belongs to the mesh rather than to its points or cells, and is read into ``global_attrs``; ``write`` puts one back there. Unlike a point or cell array, which is written as a double, a field array keeps the type it is held in, so an integer comes home an integer. A ``FIELD`` inside a ``POINT_DATA`` or ``CELL_DATA`` section still names arrays over the points or the cells, and is read as attributes.
 - A value no numeric array holds - a string, a mapping - is dropped with a warning naming the key, and the ``vtk_*`` grid entries a structured read recorded are never written as field data.
 - Binary files can be memory-mapped with ``lazy=True``; ASCII files must be parsed end to end before any value is available.

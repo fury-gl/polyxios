@@ -630,3 +630,79 @@ def test_metadata_with_no_name_to_file_it_under_is_dropped(tmp_path) -> None:
 
     back = read(path)
     assert tuple(back.global_attrs) == ("kept",)
+
+
+# ---------------------------------------------------------------------------
+# Tag groups: one membership column apiece
+# ---------------------------------------------------------------------------
+
+
+def test_a_tag_group_travels_as_its_own_column(tmp_path) -> None:
+    """A VTU has no set of its own, but PointData and CellData hold one column
+    per group - and an element in two groups is named by both, which a format
+    spelling one reference per element cannot say."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2], [1, 3, 2]]))],
+        vertex_tags={"corner": np.array([0, 3], dtype=np.int32)},
+        element_tags={
+            "a": np.array([0], dtype=np.int32),
+            "b": np.array([0, 1], dtype=np.int32),
+        },
+    )
+    path = tmp_path / "tagged.vtu"
+
+    write(poly, path)
+    back = read(path)
+
+    np.testing.assert_array_equal(back.element_tags["a"], [0])
+    np.testing.assert_array_equal(back.element_tags["b"], [0, 1])
+    np.testing.assert_array_equal(back.vertex_tags["corner"], [0, 3])
+    # The columns are tags, not attributes.
+    assert back.element_attrs == {}
+    assert back.vertex_attrs == {}
+
+
+def test_a_tag_column_is_named_so_a_reader_can_tell(tmp_path) -> None:
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_tags={"wall": np.array([0], dtype=np.int32)},
+    )
+    path = tmp_path / "named.vtu"
+
+    write(poly, path, binary=False)
+
+    assert 'Name="polyxios_tag_wall"' in path.read_text()
+
+
+def test_a_tag_name_holding_xml_markup_survives(tmp_path) -> None:
+    """A name is whatever another format called it. Written as it stands it
+    closed the attribute early and left a file no reader could parse."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_tags={'steel & "iron" <2>': np.array([0], dtype=np.int32)},
+    )
+    path = tmp_path / "markup.vtu"
+
+    write(poly, path)
+
+    assert list(read(path).element_tags) == ['steel & "iron" <2>']
+
+
+def test_a_float_column_named_like_a_tag_stays_an_attribute(tmp_path) -> None:
+    """Rounding a member into place would name the wrong element."""
+    path = tmp_path / "halves.vtu"
+    extra = (
+        "   <CellData>\n"
+        '    <DataArray type="Float64" Name="polyxios_tag_odd" format="ascii">'
+        "0.5</DataArray>\n"
+        "   </CellData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    poly = read(path)
+
+    assert poly.element_tags == {}
+    np.testing.assert_allclose(poly.element_attrs["polyxios_tag_odd"], [0.5])

@@ -168,6 +168,15 @@ New features
   ``read()`` itself keeps handing back exactly one mesh, and the meta-file
   refusals now name these two functions.
 
+- Tag groups travel through the VTK family. ``.vtk``, ``.vtu``, ``.vtp``,
+  ``.vti``, ``.vtr`` and ``.vts`` write one point or cell column of ones and
+  zeros per group, named ``polyxios_tag_<group>``, and read it back as the
+  group. None of those formats has a set of its own, and one column per group
+  is what keeps an element in two groups in both - which the single reference
+  a Medit or Netgen record carries cannot say. A column of that name holding
+  anything but whole numbers stays an attribute, since a member rounded into
+  place names the wrong element.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 
@@ -206,6 +215,13 @@ Behaviour changes
 
 Bug fixes
 ~~~~~~~~~
+
+- An array whose name holds XML markup - an ampersand, a quote, an angle
+  bracket, as a group named in another format may - is written escaped by the
+  VTK XML formats. It used to close the ``Name`` attribute early and leave a
+  file no reader could parse, polyxios's own included. Legacy ``.vtk`` has no
+  escaping to fall back on, so an array whose name holds whitespace is dropped
+  with a warning there rather than written as a name and a stray token.
 
 - A binary PLY face declaring more vertices than the file holds - 2**31-1 of
   them - is refused with a ``CodecError`` naming the truncation, where the

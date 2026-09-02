@@ -1688,3 +1688,105 @@ def test_the_grid_a_structured_read_recorded_is_not_written_back(tmp_path) -> No
 
     assert b"vtk_dimensions" not in path.read_bytes()
     assert tuple(read(path).global_attrs) == ("steps",)
+
+
+def test_a_tag_group_travels_as_its_own_column(tmp_path) -> None:
+    """Legacy VTK has no set of its own; a POINT_DATA or CELL_DATA column
+    named for a group carries it, and an element in two groups is named by
+    both columns."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2], [1, 3, 2]]))],
+        vertex_tags={"corner": np.array([0, 3], dtype=np.int32)},
+        element_tags={
+            "a": np.array([0], dtype=np.int32),
+            "b": np.array([0, 1], dtype=np.int32),
+        },
+    )
+    path = tmp_path / "tagged.vtk"
+
+    write(poly, path)
+    back = read(path)
+
+    np.testing.assert_array_equal(back.element_tags["a"], [0])
+    np.testing.assert_array_equal(back.element_tags["b"], [0, 1])
+    np.testing.assert_array_equal(back.vertex_tags["corner"], [0, 3])
+    assert back.element_attrs == {}
+
+
+def test_a_tag_name_a_legacy_header_cannot_spell_is_reported(tmp_path) -> None:
+    """A legacy header names its array in a whitespace-separated field, and
+    nothing in the format escapes one: written anyway, the name would be read
+    back as a name and a stray token, and the array after it as its values."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_tags={"outer wall": np.array([0], dtype=np.int32)},
+    )
+    path = tmp_path / "spaced.vtk"
+
+    with pytest.warns(UserWarning, match="holds whitespace"):
+        write(poly, path)
+
+    assert read(path).element_tags == {}
+
+
+def test_a_metadata_name_a_legacy_header_cannot_spell_is_reported(
+    tmp_path,
+) -> None:
+    """A FIELD header names its array in the same whitespace-separated field
+    an attribute header does; written anyway, the file reads back as neither
+    the array nor the geometry after it."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.global_attrs["time step"] = 1.5
+    poly.global_attrs["kept"] = 2.5
+    path = tmp_path / "spaced.vtk"
+
+    with pytest.warns(UserWarning, match="holds whitespace"):
+        write(poly, path)
+
+    # The header counts what survived, so the reader finds the geometry where
+    # the block ends rather than one array further on.
+    back = read(path)
+    assert "time step" not in back.global_attrs
+    np.testing.assert_allclose(back.global_attrs["kept"], [2.5])
+    np.testing.assert_allclose(back.vertices, poly.vertices)
+
+
+def test_metadata_of_no_components_is_dropped_rather_than_written(
+    tmp_path,
+) -> None:
+    """A field header carries a component count and a tuple count, and an
+    array of no components has neither; it used to divide by zero."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    poly.global_attrs["hollow"] = np.zeros((2, 0))
+    path = tmp_path / "hollow.vtk"
+
+    with pytest.warns(UserWarning, match="no"):
+        write(poly, path)
+
+    assert read(path).global_attrs == {}
+
+
+def test_a_tag_group_naming_no_element_of_this_mesh_is_reported(
+    tmp_path,
+) -> None:
+    """A column of ones and zeros cannot say a member was dropped, so the
+    writer says it, the way the *Elset writers already do."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_tags={"stale": np.array([0, 99], dtype=np.int32)},
+    )
+    path = tmp_path / "stale.vtk"
+
+    with pytest.warns(UserWarning, match="index no cell"):
+        write(poly, path)
+
+    np.testing.assert_array_equal(read(path).element_tags["stale"], [0])

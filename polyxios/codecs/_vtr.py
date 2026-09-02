@@ -5,6 +5,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._globals import globals_for_write
 from polyxios._io import Source, write_text
+from polyxios._tags import mask_arrays, tags_from_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
@@ -215,6 +216,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             whole, fmt=EXTENSION, where="WholeExtent"
         )
 
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     return PolyData(
         vertices=vertices,
         connectivity=connectivity,
@@ -222,6 +228,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=element_types,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=global_attrs,
     )
 
@@ -321,15 +329,25 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(_format_data_array("z_coordinates", z_coords, binary, 8))
     lines.append("      </Coordinates>")
 
-    if poly.vertex_attrs:
+    # A tag group travels as one column of ones and zeros named for it: the
+    # channel holds one value per entity, and an element in two groups is
+    # named by both columns, which one label per element cannot say.
+    point_arrays = poly.vertex_attrs | mask_arrays(
+        poly.vertex_tags, poly.vertices.shape[0], fmt=EXTENSION, kind="point"
+    )
+    cell_arrays = poly.element_attrs | mask_arrays(
+        poly.element_tags, len(poly.element_types), fmt=EXTENSION, kind="cell"
+    )
+
+    if point_arrays:
         lines.append("      <PointData>")
-        for name, arr in poly.vertex_attrs.items():
+        for name, arr in point_arrays.items():
             lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </PointData>")
 
-    if poly.element_attrs:
+    if cell_arrays:
         lines.append("      <CellData>")
-        for name, arr in poly.element_attrs.items():
+        for name, arr in cell_arrays.items():
             lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </CellData>")
 

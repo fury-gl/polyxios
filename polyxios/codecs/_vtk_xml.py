@@ -14,6 +14,7 @@ import math
 from typing import Any
 import warnings
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 import zlib
 
 import numpy as np
@@ -140,7 +141,11 @@ def format_da(
         The ``<DataArray>`` line.
     """
     pad = " " * indent
-    name_attr = f' Name="{name}"' if name else ""
+    # An array name is whatever a file or a caller called it, and a tag group
+    # brought in from another format may hold an ampersand or a quote. Written
+    # into the attribute as they stand, they close it early and the file no
+    # reader can parse - polyxios's own included.
+    name_attr = f' Name="{escape(name, {chr(34): "&quot;"})}"' if name else ""
     comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
     tuple_attr = "" if n_tuples is None else f' NumberOfTuples="{n_tuples}"'
     values = np.ascontiguousarray(arr, dtype=dtype)
