@@ -17,7 +17,7 @@ warning fails.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 import warnings
 
@@ -26,6 +26,7 @@ import pytest
 
 import polyxios
 from polyxios import make_polydata
+from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, UnsupportedFormatError
 
@@ -412,7 +413,12 @@ CAPABILITIES: dict[str, Cap] = {
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        global_attrs=("vti_extent", "vti_origin", "vti_spacing"),
+        global_attrs=(
+            "vti_extent",
+            "vti_origin",
+            "vti_spacing",
+            "vti_whole_extent",
+        ),
         attr_values=False,
         note="Grid metadata replaces the caller's global_attrs, tags are lost"
         " (see test_the_vtk_family_keeps_tags_it_has_room_for), and a vector"
@@ -641,13 +647,76 @@ def test_a_structured_reader_keeps_a_vector_attribute_2d(tmp_path, ext: str) -> 
     assert polyxios.read(path).vertex_attrs["vector"].shape == (27, 3)
 
 
-@pytest.mark.xfail(strict=True, reason="structured writers accept any mesh")
 @pytest.mark.parametrize("ext", [".vti", ".vts", ".vtr"])
 def test_a_structured_writer_rejects_an_unstructured_mesh(tmp_path, ext: str) -> None:
-    """Today .vts writes a file its own reader cannot parse; .vti and .vtr
-    invent a grid. Either way the caller learns nothing at write time."""
+    """.vts wrote a file its own reader could not parse; .vti and .vtr invented
+    a grid. Either way the caller learned nothing at write time."""
     with pytest.raises(CodecError):
         polyxios.write(_mixed(), tmp_path / f"mesh{ext}")
+
+
+@pytest.mark.parametrize("ext", [".vti", ".vtr"])
+def test_a_lattice_writer_rejects_a_grid_in_the_wrong_order(tmp_path, ext: str) -> None:
+    """The same points, z varying fastest: neither format writes its points,
+    so every attribute would move to the point mirrored through the diagonal,
+    and the file would not say so."""
+    poly = _structured()
+    mirrored = replace(poly, vertices=np.ascontiguousarray(poly.vertices[:, ::-1]))
+    with pytest.raises(CodecError):
+        polyxios.write(mirrored, tmp_path / f"mesh{ext}")
+
+
+def test_a_structured_grid_holds_points_no_lattice_could(tmp_path) -> None:
+    """A StructuredGrid writes its points, and holding the ones a lattice
+    cannot - a warped block, a cylindrical shell, an aerofoil O-grid - is why
+    the format exists next to .vti. Its extent is the cells' shape, not the
+    coordinates', so a warp does not put the mesh out of its reach."""
+    poly = _structured()
+    warped = replace(
+        poly,
+        vertices=poly.vertices
+        + np.column_stack(
+            [
+                0.3 * np.sin(poly.vertices[:, 2]),
+                0.2 * poly.vertices[:, 0] ** 2,
+                np.zeros(len(poly.vertices)),
+            ]
+        ),
+    )
+    path = tmp_path / "warped.vts"
+    polyxios.write(warped, path)
+    back = polyxios.read(path)
+    np.testing.assert_allclose(back.vertices, warped.vertices)
+    np.testing.assert_array_equal(back.connectivity, warped.connectivity)
+    np.testing.assert_array_equal(back.element_types, warped.element_types)
+    np.testing.assert_allclose(
+        back.vertex_attrs["scalar"], warped.vertex_attrs["scalar"]
+    )
+
+    # The same mesh is out of .vti's and .vtr's reach, and they say so.
+    for ext in (".vti", ".vtr"):
+        with pytest.raises(CodecError):
+            polyxios.write(warped, tmp_path / f"warped{ext}")
+
+
+@pytest.mark.parametrize("ext", [".vti", ".vts", ".vtr"])
+def test_a_structured_writer_rejects_cells_the_grid_would_not_read_back(
+    tmp_path, ext: str
+) -> None:
+    """None of the three writes its connectivity, so cells that are not the
+    grid's own are dropped on the way back in and their data with them. The
+    points here are a grid; the two tetrahedra over them are not its cells."""
+    poly = _structured()
+    tets = replace(
+        poly,
+        connectivity=np.array([0, 1, 3, 9, 1, 2, 4, 10]),
+        offsets=np.array([0, 4, 8]),
+        element_types=np.full(2, ELEMENT_TYPES["tetra"], dtype=np.uint8),
+        element_attrs={"c": np.array([1.0, 2.0])},
+        element_tags={},
+    )
+    with pytest.raises(CodecError):
+        polyxios.write(tets, tmp_path / f"mesh{ext}")
 
 
 @pytest.mark.xfail(strict=True, reason="a tetrahedron is written as a quad")

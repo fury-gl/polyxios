@@ -5,6 +5,21 @@ MAX_SAFE_VERTICES: Final[int] = 500_000_000
 MAX_SAFE_ELEMENTS: Final[int] = 2_000_000_000
 MAX_SAFE_CONN: Final[int] = 8_000_000_000
 
+# The cap above is the only one a format that describes its points rather than
+# writing them can be held to, and on its own it is far too loose for one: an
+# ImageData spells its whole geometry in an origin, a step and six indices, so
+# a 250-byte file can declare half a billion points and be expanded into the
+# twelve gigabytes of vertices they come to. Every other format has to spend
+# bytes on a point before the reader allocates one, which is what the file-size
+# heuristic in ``validate_header`` weighs; there is no such evidence here, and
+# nothing between the header and the allocation but a number.
+#
+# A hundred million points is past any grid that expands into a mesh a machine
+# can work with - the vertices alone are 2.4 GB, and the connectivity of the
+# hexahedra over them another 3.2 GB - and far below the point where a header
+# a few bytes long can ask for the whole of memory.
+MAX_IMPLIED_VERTICES: Final[int] = 100_000_000
+
 # Canonical polyxios element type codes: str name - uint8 code.
 # These are polyxios's own codes - do NOT use VTK integers directly.
 ELEMENT_TYPES: Final[dict[str, int]] = {

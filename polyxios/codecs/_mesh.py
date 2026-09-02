@@ -95,10 +95,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     Raises
     ------
-    UnsupportedFormatError
-        For MFEM INLINE and NURBS mesh variants.
     CodecError
         On malformed or unrecognised mesh data.
+
+    Warns
+    -----
+    UserWarning
+        For an ``MFEM NURBS`` file, whose vertices come back as B-spline
+        control points rather than mesh nodes.
     """
     # Measured rather than taken from a later read: the tokens are walked as
     # a stream, so no step below ever holds the whole file to take a length
@@ -111,13 +115,22 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     if not header:
         raise CodecError(f"'{source_name(path)}' is empty.")
 
-    if header.startswith("MFEM INLINE"):
+    # Matched against the same upper-cased spellings the sniffer accepts, and
+    # in the same five shapes. Case-sensitively, a file the registry had
+    # already claimed as MFEM could reach here and match no branch at all -
+    # ``MFEM NC MESH v1.0`` sniffed as MFEM and then failed for not starting
+    # with ``MFEM mesh``. The NC variants both belong to the NC reader:
+    # ``MFEM NC-Mesh`` was falling through to the NURBS one, which read a
+    # refinement forest as control points and said so in a warning naming the
+    # wrong variant.
+    flavour = header.upper()
+    if flavour.startswith("MFEM INLINE"):
         return _read_inline(path, header, all_tokens)
-    if header.startswith("MFEM NURBS") or header.startswith("MFEM NC-Mesh"):
+    if flavour.startswith("MFEM NURBS"):
         return _read_nurbs(path, header, all_tokens, file_size)
-    if header.startswith("MFEM NC mesh"):
+    if flavour.startswith(("MFEM NC-MESH", "MFEM NC MESH")):
         return _read_nc(path, header, all_tokens, file_size)
-    if not header.startswith("MFEM mesh"):
+    if not flavour.startswith("MFEM MESH"):
         raise CodecError(
             f"'{source_name(path)}' does not start with 'MFEM mesh'. "
             f"Got: '{header[:40]}'"
@@ -765,16 +778,24 @@ def _read_header_and_tokens(path: Source) -> tuple[str, list[str]]:
     Comments (``#``-prefixed) are stripped.  The header is the complete first
     non-comment, non-empty line; everything after is split into individual
     tokens for section-based parsing.
+
+    Decoded the way :func:`sniff` decodes, byte-order mark and all, so that
+    every file the registry hands here is one the dispatch below can read a
+    flavour off. A BOM is not whitespace and ``strip`` leaves it in place, so
+    a ``MFEM mesh v1.0`` written by an editor that stamps one sniffed as MFEM
+    and then failed for not starting with ``MFEM mesh``. The mark is taken off
+    the header as well as by the decoder, since a caller may hand in a text
+    handle whose own decoding wins over the one asked for here.
     """
     header = ""
     tokens: list[str] = []
-    with open_text(path, encoding="utf-8", errors="replace") as fh:
+    with open_text(path, encoding="utf-8-sig", errors="replace") as fh:
         for line in fh:
             stripped = line.split("#")[0].strip()
             if not stripped:
                 continue
             if not header:
-                header = stripped
+                header = stripped.lstrip("\ufeff")
             else:
                 tokens.extend(stripped.split())
     return header, tokens

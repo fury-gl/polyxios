@@ -7,18 +7,55 @@ from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
+    extent_points,
+    extent_spans,
     format_attr_da,
+    grid_axes,
     parse_xml,
+    require_grid_order,
+    require_structured_cells,
     shaped_da,
     sized_attrs,
     structured_cell_shape,
     structured_cells,
+    structured_cells_fit,
+    structured_spans_from_cells,
+    whole_extent,
     xml_extent,
 )
-from polyxios.exceptions import LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtr"
+
+
+def _implied(span: int) -> np.ndarray:
+    """The coordinates an axis the file left no array for is read with.
+
+    A 2-D RectilinearGrid writes two arrays and leaves the third to the
+    extent, which gives that axis its one plane at zero. An axis the extent
+    gives no plane at all - an end before its start - gets no coordinate
+    rather than one, so it reads as the empty axis it is rather than as an
+    array disagreeing with the extent.
+
+    Parameters
+    ----------
+    span
+        Cells the extent runs along the axis.
+
+    Returns
+    -------
+    numpy.ndarray
+        One zero, or none.
+
+    Examples
+    --------
+    >>> _implied(0).tolist()
+    [0.0]
+    >>> _implied(-1).tolist()
+    []
+    """
+    return np.zeros(1 if span >= 0 else 0, dtype=np.float64)
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
@@ -84,14 +121,23 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     extent = xml_extent(extent_str, fmt=".vtr", where="Extent")
     i0, i1, j0, j1, k0, k1 = extent
     nx, ny, nz = i1 - i0, j1 - j0, k1 - k0
-    n_verts = (nx + 1) * (ny + 1) * (nz + 1)
+    n_verts = extent_points((nx, ny, nz))
     # An extent flat along an axis is a sheet of quads or a run of lines, not
     # a grid of no cells: the cells the grid holds decide the shape of a
     # CellData array, so they are counted before the header is validated.
     n_cells, n_per_cell, cell_kind = structured_cell_shape(nx, ny, nz)
 
+    # The file spells neither the points nor the cells: they are the extent
+    # expanded, so the byte-size heuristic has nothing to weigh the counts
+    # against and refused a bare 4 x 4 x 4 grid this codec had just written.
     validate_header(
-        n_verts, n_cells, n_cells * n_per_cell, file_size, compressed=compressed
+        n_verts,
+        n_cells,
+        n_cells * n_per_cell,
+        file_size,
+        compressed=compressed,
+        spells_vertices=False,
+        spells_connectivity=False,
     )
 
     coords_elem = piece.find("Coordinates")
@@ -99,9 +145,30 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise ValueError("No <Coordinates> element found.")
 
     coord_arrays = list(coords_elem)
-    x_arr = _decode(coord_arrays[0]) if len(coord_arrays) > 0 else np.array([0.0])
-    y_arr = _decode(coord_arrays[1]) if len(coord_arrays) > 1 else np.array([0.0])
-    z_arr = _decode(coord_arrays[2]) if len(coord_arrays) > 2 else np.array([0.0])
+    x_arr, y_arr, z_arr = (
+        _decode(coord_arrays[axis]) if axis < len(coord_arrays) else _implied(span)
+        for axis, span in enumerate((nx, ny, nz))
+    )
+
+    # The extent counts the planes and the arrays spell them, and nothing in
+    # the file makes the two agree. A longer array expands to more vertices
+    # than the extent declared, and the cells, the offsets and every
+    # PointData array are all sized off the extent - so the mesh came back
+    # with connectivity over part of itself and attributes covering none of
+    # it, past every check the reader makes.
+    # Asked of every axis, including those of an extent that ends before it
+    # starts: the point count is a product and goes to zero on one such axis,
+    # but the coordinates are the file's own and the mesh is built from them,
+    # so an axis left unchecked expanded to a mesh the extent said was empty.
+    for axis, (coords, span) in enumerate(
+        zip((x_arr, y_arr, z_arr), (nx, ny, nz), strict=True)
+    ):
+        if len(coords) != span + 1:
+            raise CodecError(
+                f"{EXTENSION}: Extent='{extent_str}' puts {max(span + 1, 0)} "
+                f"planes on the {'xyz'[axis]} axis and its coordinate array "
+                f"holds {len(coords)} values."
+            )
 
     zz, yy, xx = np.meshgrid(z_arr, y_arr, x_arr, indexing="ij")
     vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
@@ -129,7 +196,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     global_attrs: dict[str, Any] = {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
     if whole:
-        global_attrs["vtr_whole_extent"] = [int(x) for x in whole.split()]
+        # Read through the same guard the piece extent is: unpacked straight
+        # into ints, a malformed one raised a bare ValueError about a literal,
+        # naming neither the file nor the attribute it came out of.
+        global_attrs["vtr_whole_extent"] = xml_extent(
+            whole, fmt=EXTENSION, where="WholeExtent"
+        )
 
     return PolyData(
         vertices=vertices,
@@ -148,8 +220,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     Parameters
     ----------
     poly
-        PolyData to write. Must consist of hexahedral elements on a structured grid.
-        The vertices are written as coordinate arrays.
+        PolyData to write. Its cells must be a structured grid - hexahedra,
+        or the quadrilaterals or lines a grid flat along one or two axes is
+        made of - and its vertices must be that grid expanded, with x varying
+        fastest and z slowest. The file holds three coordinate arrays and no
+        points of its own, so a mesh that is not that lattice cannot be
+        spelled in it.
     path
         Output file path.
     binary
@@ -157,21 +233,68 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     """
     binary: bool = bool(opts.get("binary", False))
 
-    x_coords = np.unique(poly.vertices[:, 0])
-    y_coords = np.unique(poly.vertices[:, 1])
-    z_coords = np.unique(poly.vertices[:, 2])
+    # The file holds three coordinate arrays and no points, so the mesh has to
+    # be the grid they expand to: its cells give the shape, the coordinates
+    # are read off it a stride at a time, and the vertices are checked against
+    # the product before any of it is written. A scattered mesh has no three
+    # axes that describe it, and a grid in another order would come back with
+    # every point attribute on a different point.
+    #
+    # The extent the mesh was read with is kept while it still describes the
+    # mesh, the way ``.vti`` and ``.vts`` keep theirs, so a block that did not
+    # begin at zero goes back at the indices it stood on rather than being
+    # slid to the origin - which is the one thing a ``.pvtr`` assembling it
+    # next to its neighbours reads. A transform since the read leaves it
+    # describing the grid the mesh used to be, and what the mesh is now is
+    # read off its cells instead.
+    ga = poly.global_attrs or {}
+    stored = ga.get("vtr_extents")
+    spans = extent_spans(stored) if stored is not None else None
+    if (
+        spans is not None
+        and extent_points(spans) == len(poly.vertices)
+        and structured_cells_fit(poly.connectivity, poly.element_types, spans)
+    ):
+        extent = [int(v) for v in stored]
+        # The grid this piece belongs to means something only while the piece
+        # is still standing where it stood. An extent re-derived below is
+        # zero-based and says nothing about the old grid, so the stored one
+        # goes with the extent it was read beside.
+        whole = ga.get("vtr_whole_extent")
+    else:
+        whole = None
+        spans = structured_spans_from_cells(
+            poly.vertices, poly.connectivity, poly.element_types, fmt=EXTENSION
+        )
+        require_structured_cells(
+            poly.connectivity, poly.element_types, spans, fmt=EXTENSION
+        )
+        extent = [bound for span in spans for bound in (0, span)]
 
-    nx = len(x_coords) - 1
-    ny = len(y_coords) - 1
-    nz = len(z_coords) - 1
+    # An extent that gives one axis no plane at all empties the whole piece,
+    # and the coordinates are read off the vertices a stride at a time - so
+    # there is no vertex to stride through and the other two axes come back
+    # empty as well. Written under an extent that still counts their planes,
+    # the file went out with coordinate arrays disagreeing with their own
+    # extent, and this reader refused it. A piece holding no points is spelled
+    # the way an empty mesh is spelled, on every axis; the grid it belonged to
+    # goes with the indices it stood on, the way a re-derived extent's does.
+    if extent_points(spans) == 0:
+        spans = [-1, -1, -1]
+        extent = [bound for span in spans for bound in (0, span)]
+        whole = None
 
-    extent_str = f"0 {nx} 0 {ny} 0 {nz}"
+    x_coords, y_coords, z_coords = grid_axes(poly.vertices, spans)
+    require_grid_order(poly.vertices, (x_coords, y_coords, z_coords), fmt=EXTENSION)
+
+    extent_str = " ".join(str(v) for v in extent)
+    whole_str = " ".join(str(v) for v in whole_extent(whole, extent))
 
     lines: list[str] = []
     lines.append('<?xml version="1.0"?>')
     bo = "LittleEndian"
     lines.append(f'<VTKFile type="RectilinearGrid" version="1.0" byte_order="{bo}">')
-    lines.append(f'  <RectilinearGrid WholeExtent="{extent_str}">')
+    lines.append(f'  <RectilinearGrid WholeExtent="{whole_str}">')
     lines.append(f'    <Piece Extent="{extent_str}">')
     lines.append("      <Coordinates>")
     lines.append(_format_data_array("x_coordinates", x_coords, binary, 8))

@@ -236,3 +236,6 @@ tmp/
 generated/
 .vscode/
 AGENTS.md
+
+# macOS
+.DS_Store

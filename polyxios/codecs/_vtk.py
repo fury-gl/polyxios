@@ -2755,6 +2755,38 @@ def _keep_sized_attrs(
     return kept
 
 
+def _grid_point_count(nx: int, ny: int, nz: int) -> int:
+    """Count the points a grid of these ``DIMENSIONS`` lays out.
+
+    An axis declaring no point at all - a zero, or the negative a malformed
+    header spells - carries no plane, so the grid carries no points however
+    many the other two declare. Multiplied out unguarded, an odd number of
+    negative axes turns the product negative, which is not a count of
+    anything: it was compared against a real array length that could never
+    match it, and named in the warning that followed.
+
+    Parameters
+    ----------
+    nx, ny, nz
+        Points along each axis, as ``DIMENSIONS`` declares them.
+
+    Returns
+    -------
+    int
+        The point count, never below zero.
+
+    Examples
+    --------
+    >>> _grid_point_count(3, 3, 3)
+    27
+    >>> _grid_point_count(-1, 3, 3)
+    0
+    """
+    if min(nx, ny, nz) < 1:
+        return 0
+    return nx * ny * nz
+
+
 def _structured_cells_over(
     nx: int, ny: int, nz: int, n_verts: int
 ) -> tuple[np.ndarray, str]:
@@ -2785,7 +2817,7 @@ def _structured_cells_over(
         One row of point indices per cell and the element type name, or no
         cells at all when the grid is not covered.
     """
-    n_grid = nx * ny * nz
+    n_grid = _grid_point_count(nx, ny, nz)
     if n_grid == n_verts:
         return _structured_grid_cells(nx, ny, nz)
 
@@ -2818,8 +2850,11 @@ def _structured_cell_count(nx: int, ny: int, nz: int) -> int:
     Returns
     -------
     int
-        Cells the grid holds; zero when it extends along no axis.
+        Cells the grid holds; zero when it extends along no axis, and zero
+        when an axis holds no point for it to extend over.
     """
+    if min(nx, ny, nz) < 1:
+        return 0
     spans = [dim - 1 for dim in (nx, ny, nz) if dim > 1]
     count = 1
     for span in spans:
@@ -2848,7 +2883,7 @@ def _structured_cell_count_over(nx: int, ny: int, nz: int, n_verts: int) -> int:
     int
         Cells the mesh will hold; zero when the grid is not covered.
     """
-    if nx * ny * nz != n_verts:
+    if _grid_point_count(nx, ny, nz) != n_verts:
         return 0
     return _structured_cell_count(nx, ny, nz)
 
@@ -3106,6 +3141,14 @@ def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:
         One row of point indices per cell, and the element type name. A grid
         that extends along no axis is a single point and has no cells.
     """
+    if min(nx, ny, nz) < 1:
+        # An axis of no points at all empties the whole grid: the point count
+        # is a product, so it goes to zero whatever the others say. Counting
+        # the other two axes' cells here handed back quads whose corners named
+        # points the file never held - ``DIMENSIONS 0 3 3`` read as four cells
+        # over no vertices - and the strides they were built from are zero.
+        return np.zeros((0, 1), dtype=np.int32), "vertex"
+
     dims = (nx, ny, nz)
     # A point's index is x + y * nx + z * nx * ny, so this is the step along
     # each axis.
@@ -3218,7 +3261,7 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
                 is_binary=is_binary,
                 attrs=vertex_attrs if in_point_data else element_attrs,
                 expected=(
-                    nx * ny * nz
+                    _grid_point_count(nx, ny, nz)
                     if in_point_data
                     else _structured_cell_count(nx, ny, nz)
                 ),

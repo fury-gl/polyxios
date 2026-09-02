@@ -260,7 +260,7 @@ def _write_llms_txt(app: Sphinx, exception: Exception | None) -> None:
     # Index: one line per page, so a model can pick what to fetch.
     index = [f"# {project}", "", f"> {tagline}", ""]
     index += [
-        "polyxios reads and writes 25 3D mesh and geometry file formats through one "
+        "polyxios reads and writes 27 3D mesh and geometry file formats through one "
         "API, with a single runtime dependency (NumPy). It raises on malformed input "
         "rather than silently truncating, and can memory-map large binary files.",
         "",

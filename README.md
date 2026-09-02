@@ -91,44 +91,59 @@ first_vertex = mesh.vertices[0]
 # Element connectivity is still on disk until you access it
 ```
 
-Lazy loading is supported for binary `.vtk`, `.ply`, and `.stl` files. ASCII
+`lazy=True` is honoured for binary `.vtk`, `.ply` and `.stl` files. ASCII
 formats load eagerly (the whole file must be parsed to extract values). Binary
 STL lazy mode skips vertex deduplication - vertices are returned as-is (3 per
-triangle), avoiding the extra pass over the data.
+triangle), avoiding the extra pass over the data. `.meshb` needs no flag: a
+path is always memory-mapped, so `lazy=True` there warns and changes nothing.
 
 ---
 
 ## Supported formats
 
-| Format | Extension | Read | Write | Lazy load |
-|--------|-----------|------|-------|-----------|
-| VTK Legacy | `.vtk` | ✓ | ✓ | binary only |
-| VTK RectilinearGrid | `.vtr` | ✓ | ✓ | - |
-| VTK PolyData | `.vtp` | ✓ | ✓ | - |
-| Wavefront OBJ | `.obj` | ✓ | ✓ | - |
-| Stanford PLY | `.ply` | ✓ | ✓ | binary only |
-| STL | `.stl` | ✓ | ✓ | binary only |
+| Format | Extension | Read | Write | Notes |
+|--------|-----------|------|-------|-------|
+| VTK Legacy | `.vtk` | ✓ | ✓ | lazy: binary |
+| VTK RectilinearGrid | `.vtr` | ✓ | ✓ | per-axis coordinate arrays, appended or inline base64 |
+| VTK PolyData | `.vtp` | ✓ | ✓ | points, lines, polygons, strips |
+| Wavefront OBJ | `.obj` | ✓ | ✓ | `vt`/`vn` round trip, groups → element tags |
+| Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary |
+| STL | `.stl` | ✓ | ✓ | lazy: binary, which skips vertex deduplication |
 | OFF | `.off` | ✓ | ✓ | ASCII + big-endian binary, `ST`/`C`/`N` variants → vertex/face attrs |
-| Abaqus | `.inp` | ✓ | ✓ | - |
-| AVS-UCD | `.avs` | ✓ | ✓ | - |
-| Medit binary | `.meshb` | ✓ | ✓ | binary only |
-| DOLFIN/FEniCS XML | `.xml` | ✓ | ✓ | - |
+| Abaqus | `.inp` | ✓ | ✓ | `*NSET`/`*ELSET` → tags, planar cards for a 2-D deck |
+| AVS-UCD | `.avs` | ✓ | ✓ | node/cell/model data → attrs |
+| Medit binary | `.meshb` | ✓ | ✓ | a path is always mmapped; no `lazy=` needed |
+| Medit ASCII | `.mesh`* `.medit` | ✓ | ✓ | reference integers → tags; write with `fmt=".medit"` |
+| DOLFIN / FEniCS XML | `.xml` | ✓ | ✓ | interval/triangle/tetrahedron meshes |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
 | Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
-| Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
 | Nastran | `.bdf` `.nas` `.fem` `.dat`* | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request |
 | Tecplot ASCII | `.tec` `.dat`* | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; binary `.plt` is recognised but not read |
 | SU2 | `.su2` | ✓ | ✓ | ASCII, VTK element codes, boundary markers → element tags |
 | TetGen | `.ele`+`.node` | ✓ | ✓ | paired files, 1-/0-based indices, boundary markers → vertex tags, region attrs |
-| UGRID (AFLR) | `.ugrid` | ✓ | ✓ | ASCII, tri/quad surface + tet/pyramid/prism/hex volume, boundary tags → element tags |
-| Netgen | `.vol` | ✓ | ✓ | ASCII, points/edges/faces/cells incl. quadratic, `bcnr`/`matnr` + names → element tags |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
+| VTK UnstructuredGrid | `.vtu` | ✓ | ✓ | arbitrary cell-type mix |
+| VTK StructuredGrid | `.vts` | ✓ | ✓ | curvilinear grid, cells implied by the extent (hexahedra, or quads when flat) |
+| VTK ImageData | `.vti` | ✓ | ✓ | origin/spacing/extent only, no coordinate array |
+| MFEM mesh | `.mesh`* | ✓ | ✓ | geometry type codes; INLINE is materialised, NURBS reads back control points |
+| Netgen | `.vol` | ✓ | ✓ | ASCII, points/edges/faces/cells incl. quadratic, `bcnr`/`matnr` + names → element tags |
+| UGRID (AFLR) | `.ugrid` | ✓ | ✓ | ASCII, tri/quad surface + tet/pyramid/prism/hex volume, boundary tags → element tags |
+| Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only |
+| Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, and anything else reports both
-candidates. Writing to `.dat` needs an explicit `fmt=`.
+candidates. Writing to `.dat` needs an explicit `fmt=`. `.mesh` is MFEM's own extension and
+Medit ASCII shares it: a file opening with `MeshVersionFormatted` reads as Medit, one opening
+with `MFEM mesh` reads as MFEM, and a bare write goes to MFEM.
 
-**21 formats supported** - more coming via the plugin system.
+`.vtm`, `.pvtu`, `.pvts`, `.pvti`, `.pvtp` and `.pvtr` are registered too, but they hold no
+geometry - only references to sub-files. Reading one raises `UnsupportedFormatError` pointing
+at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
+them is not supported.
+
+**27 formats supported** across the 31 extensions in the table, plus `.plt`, which
+is recognised but not read - more coming via the plugin system.
 
 ---
 

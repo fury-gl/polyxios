@@ -12,7 +12,7 @@ sphinx-docs/
   requirements.txt            doc build deps
   index.rst                   landing page (raw HTML include + hidden toctree)
   _includes/homepage.html     the landing page markup - edit copy here
-  _includes/formats_grid.html the twenty-five format cards on formats/index
+  _includes/formats_grid.html the twenty-seven format cards on formats/index
   _static/css/retro.css       the whole theme: palettes, chrome, landing page
   _static/js/homepage.js      copy button for the hero install command
   _ext/contributors.py        credits page contributor list, from git
@@ -107,7 +107,7 @@ heading, so only the sidebar changes.
 `show_nav_level: 1` keeps sections with children (formats, api) collapsible -
 `retro.css` swaps pydata's chevron for a terminal-style `[+]` / `[-]`. Raising
 it to `2` expands everything but removes the toggles, which is a poor trade with
-twenty-five format pages. `collapse_navigation: False` puts every section's children
+twenty-seven format pages. `collapse_navigation: False` puts every section's children
 in the DOM so the toggles work without a page load.
 
 ## Theme version
@@ -262,7 +262,7 @@ hand-written one:
    :description: One or two sentences, roughly 150-160 characters.
 ```
 
-The twenty-five format pages deliberately have none - `sphinxext-opengraph`
+The twenty-seven format pages deliberately have none - `sphinxext-opengraph`
 derives theirs from the "Summary of the specification" paragraph, which is
 already the right text. Write one by hand only when the derived text is poor.
 
@@ -303,7 +303,7 @@ would write an `llms.txt` containing only those pages.
 
 ## Format pages - please review
 
-Each of the twenty-five pages follows one shape:
+Each of the twenty-seven pages follows one shape:
 
 1. badges - extension, read/write, lazy support
 2. **Summary of the specification** - prose, 4-6 sentences

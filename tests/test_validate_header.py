@@ -153,3 +153,26 @@ def test_multi_group_element_tags() -> None:
     assert "wall" in poly2.element_tags
     assert 0 in poly2.element_tags["inlet"]
     assert 0 in poly2.element_tags["wall"]
+
+
+def test_a_format_that_spells_no_points_is_capped_below_the_loose_one() -> None:
+    """The byte heuristic is what made ``MAX_SAFE_VERTICES`` safe to leave loose.
+
+    A file that describes its points rather than writing them is excused that
+    heuristic - a 4x4x4 ImageData really does declare 64 points in 231 bytes -
+    and on its own the loose cap let a header a few bytes long ask for twelve
+    gigabytes of vertices.
+    """
+    with pytest.raises(ValidationError, match="MAX_IMPLIED_VERTICES"):
+        validate_header(10**8 + 1, 0, 0, 250, spells_vertices=False)
+
+
+def test_a_grid_a_machine_can_hold_still_passes_uncounted() -> None:
+    """The cap has to clear the largest image anyone would actually expand."""
+    validate_header(10**8, 0, 0, 250, spells_vertices=False)
+
+
+def test_the_implied_cap_leaves_a_format_that_writes_its_points_alone() -> None:
+    """A count that big is caught by the byte heuristic there, not by the cap."""
+    with pytest.raises(ValidationError, match="file_size"):
+        validate_header(10**8 + 1, 0, 0, 250)

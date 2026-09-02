@@ -151,7 +151,7 @@ html_theme_options = {
     # "<polyxios />" is parsed as an unknown HTML element and renders nothing.
     "logo": {"text": "&lt;polyxios /&gt;"},
     "announcement": (
-        "// fast, clean mesh I/O for Python - one dependency instead of twenty-five"
+        "// fast, clean mesh I/O for Python - one dependency instead of twenty-seven"
     ),
     "github_url": "https://github.com/fury-gl/polyxios",
     "icon_links": [
@@ -187,7 +187,7 @@ html_theme_options = {
     # visible; sections with children (formats, api) expand on click, and the
     # section containing the current page is expanded on load. Raising this to 2
     # expands everything but drops the toggles entirely, which loses the
-    # collapse affordance on the twenty-five format pages.
+    # collapse affordance on the twenty-seven format pages.
     "show_nav_level": 1,
     "navigation_depth": 3,
     "collapse_navigation": False,

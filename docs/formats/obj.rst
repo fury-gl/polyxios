@@ -70,6 +70,7 @@ Quirks worth knowing
 - An ``f`` record is a flat ring of vertices and OBJ spells no other shape, so an element that is not one - a ``tetra``, a ``line`` - keeps its vertices and loses the type it was: it comes back a triangle at three vertices, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning.
 - ``l`` and ``p`` records name geometry this codec has no element for. They are dropped, and the read says how many of each the file held rather than leaving the loss to be found later.
 - ``element_attrs['material']`` is written as ``usemtl`` only when it holds one value per face; a shorter attribute is warned about and left out, the way an ill-fitting vertex attribute is.
+- ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`; the records are text and a face may name a vertex by a relative index, so nothing can be located without a parse.
 
 .. seealso::
 
