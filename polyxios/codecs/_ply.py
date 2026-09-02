@@ -1264,6 +1264,17 @@ def _fixed_face_records(
     )
     if n_nodes <= 0:
         return None
+    # One record of that width has to fit in what is left of the file before
+    # a dtype is built for it. A corrupt count - a face declaring 2**31-1
+    # vertices - describes a record wider than a C int can measure, which
+    # numpy answers with a ValueError about a tuple shape, naming neither
+    # the file nor the face it came out of. Falling back sends the block to
+    # the record-by-record walk, which reports the truncation it is.
+    record_size = (
+        head + np.dtype(count_code).itemsize + n_nodes * np.dtype(index_code).itemsize
+    )
+    if pos + record_size > len(mv):
+        return None
 
     fields: list[tuple] = []
     for i, (_, ptype) in enumerate(props):

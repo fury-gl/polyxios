@@ -156,6 +156,17 @@ New features
   title survives a round trip. polyxios's own banner stays a comment, so a
   deck that never had a heading does not gain one.
 
+Bug fixes
+~~~~~~~~~
+
+- A binary PLY face declaring more vertices than the file holds - 2**31-1 of
+  them - is refused with a ``CodecError`` naming the truncation, where the
+  whole-block read used to build a record dtype for it first and hand back
+  numpy's ``ValueError`` about a tuple shape, which named neither the file
+  nor the face. Every other format's declared counts were swept for the same
+  fault and are guarded; ``tests/test_declared_counts.py`` now holds one
+  corrupt header per format as a matrix.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 
