@@ -669,6 +669,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     set_generate = False
     system: tuple[np.ndarray, np.ndarray] | None = None
     system_rows: list[list[str]] = []
+    heading_rows: list[str] = []
     instance: str | None = None
     instance_part: str | None = None
     instance_nodes: list[int] = []
@@ -777,6 +778,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 set_name = params.get("ELSET") or None
                 set_instance = params.get("INSTANCE") or None
                 set_generate = "GENERATE" in params
+            elif keyword == "HEADING":
+                mode = "heading"
             elif keyword == "SYSTEM":
                 mode = "system"
             elif keyword in ("INSTANCE", "PART"):
@@ -896,6 +899,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             if instance is not None:
                 instance_elems.append(index)
 
+        elif mode == "heading":
+            # The deck's own title, the one thing in an .inp that describes
+            # the model rather than a node, an element or a set. Comment
+            # lines are already gone, so what is left is what its author
+            # wrote - the banner polyxios writes is a comment and reads back
+            # as nothing, which is what keeps a round trip from growing one.
+            heading_rows.append(stripped)
+
         elif mode in ("nset", "elset"):
             set_rows.append([p.strip() for p in stripped.split(",")])
         elif mode == "system":
@@ -941,7 +952,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         # A deck with no node card at all was refused above, so reaching
         # here means coordinates were read and a deck that never spelled a
         # third one is a plane.
-        global_attrs=mark_2d(3 if saw_z else 2),
+        global_attrs=mark_2d(3 if saw_z else 2)
+        | ({"abaqus_heading": "\n".join(heading_rows)} if heading_rows else {}),
     )
 
 
@@ -1057,11 +1069,15 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     n_verts = poly.vertices.shape[0]
     node_ids = ids_for_write(poly, kind="vertex", count=n_verts, fmt=".inp")
-    lines: list[str] = [
-        "*Heading",
-        "** exported by polyxios",
-        "*Node",
-    ]
+    heading = poly.global_attrs.get("abaqus_heading")
+    lines: list[str] = ["*Heading"]
+    # The deck's title, if the mesh came in carrying one. A value that is not
+    # text has no heading line to be written on, and the banner stands in.
+    if isinstance(heading, str) and heading.strip():
+        lines.extend(heading.splitlines())
+    else:
+        lines.append("** exported by polyxios")
+    lines.append("*Node")
     lines.extend(
         f"{node_id}, " + ", ".join(f"{c:.10g}" for c in v[:n_spatial])
         for node_id, v in zip(node_ids.tolist(), poly.vertices)

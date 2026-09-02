@@ -151,6 +151,11 @@ New features
   ``vtr_*`` and ``vts_*`` grid entries a structured read records are spelled
   from the grid itself and never travel as field data.
 
+- Abaqus ``.inp`` reads a ``*HEADING`` card into
+  ``global_attrs["abaqus_heading"]`` and writes it back, so the deck's own
+  title survives a round trip. polyxios's own banner stays a comment, so a
+  deck that never had a heading does not gain one.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 

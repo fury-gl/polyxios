@@ -65,6 +65,7 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- A ``*HEADING`` card is the deck's own title, and it is read into ``global_attrs["abaqus_heading"]`` and written back from there. polyxios writes its own banner as a comment, so a deck with no heading of its own does not grow one over a round trip.
 - Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index. Several ``*NODE`` blocks accumulate, and a repeated id restates that node rather than adding another.
 - ``*NSET`` and ``*ELSET`` names become vertex and element tags, whether declared on the block itself or as a standalone card, with or without ``GENERATE``; an entity in several sets stays in all of them. Abaqus matches a set name without regard to case, so a body naming ``TOP`` reaches the set declared as ``Top``, and the same name in two cases is one set.
 - Element cards are matched on their base name, so the modifier suffixes - ``R`` reduced integration, ``H`` hybrid, ``I``, ``M``, ``T``, ``P``, and the shell degree-of-freedom numbers - resolve to the same element: ``CPS8R`` reads as ``CPS8``.

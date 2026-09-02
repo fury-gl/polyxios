@@ -809,3 +809,69 @@ def test_distinct_set_names_are_not_reported_as_merged(tmp_path) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         write(poly, tmp_path / "apart.inp")
+
+
+# ---------------------------------------------------------------------------
+# *HEADING: the deck's own title
+# ---------------------------------------------------------------------------
+
+
+def _deck(heading: str) -> str:
+    return (
+        f"{heading}"
+        "*Node\n"
+        "1, 0., 0., 0.\n"
+        "2, 1., 0., 0.\n"
+        "3, 0., 1., 0.\n"
+        "*Element, type=S3\n"
+        "1, 1, 2, 3\n"
+    )
+
+
+def test_a_heading_is_read_and_written_back(tmp_path) -> None:
+    """The one card in a mesh deck that describes the model rather than a
+    node, an element or a set."""
+    path = tmp_path / "titled.inp"
+    path.write_text(_deck("*Heading\nturbine blade, rev 3\n"))
+
+    poly = read(path)
+    assert poly.global_attrs["abaqus_heading"] == "turbine blade, rev 3"
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    assert read(out).global_attrs["abaqus_heading"] == "turbine blade, rev 3"
+
+
+def test_a_heading_of_several_lines_keeps_them_all(tmp_path) -> None:
+    path = tmp_path / "long.inp"
+    path.write_text(_deck("*Heading\nturbine blade\nrev 3, cold run\n"))
+
+    assert read(path).global_attrs["abaqus_heading"] == (
+        "turbine blade\nrev 3, cold run"
+    )
+
+
+def test_a_deck_with_no_heading_of_its_own_records_none(tmp_path) -> None:
+    """polyxios writes its banner as a comment, so a round trip does not grow
+    a heading the caller never asked for."""
+    path = tmp_path / "plain.inp"
+    path.write_text(_deck(""))
+
+    poly = read(path)
+    assert "abaqus_heading" not in poly.global_attrs
+
+    out = tmp_path / "written.inp"
+    write(poly, out)
+    assert "abaqus_heading" not in read(out).global_attrs
+
+
+def test_a_heading_that_is_not_text_falls_back_to_the_banner(tmp_path) -> None:
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.global_attrs["abaqus_heading"] = 7
+    path = tmp_path / "odd.inp"
+
+    write(poly, path)
+
+    assert "** exported by polyxios" in path.read_text()
+    assert "abaqus_heading" not in read(path).global_attrs
