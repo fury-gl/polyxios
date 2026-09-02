@@ -97,3 +97,7 @@ def test_error_message_mentions_tutorial(ext: str) -> None:
     msg = str(exc_info.value)
     assert "read_parallel_vtk.py" in msg
     assert "sub-file" in msg.lower() or "meta" in msg.lower()
+    # The route out of the refusal is a function, not only a tutorial: read()
+    # hands back one mesh, and the several live in the helper.
+    assert "read_multiblock" in msg
+    assert "read_blocks" in msg

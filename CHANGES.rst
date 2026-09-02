@@ -156,6 +156,18 @@ New features
   title survives a round trip. polyxios's own banner stays a comment, so a
   deck that never had a heading does not gain one.
 
+- ``helper.read_blocks`` and ``helper.read_multiblock`` read every VTK index
+  file - ``.vtm``, ``.pvtu``, ``.pvtp``, ``.pvtr``, ``.pvts``, ``.pvti``, and
+  a ``.vtp`` holding a ``<vtkMultiBlockDataSet>`` - where
+  ``read_multiblock_vtp`` read only the last of those. The first hands back
+  one ``PolyData`` per sub-file and the second merges them, so blocks that
+  mean different things can stay apart. An index naming another index is
+  followed and read flat, a pair naming each other is read once, a missing or
+  unreadable sub-file is skipped with a warning, and a reference resolving
+  outside the index file's directory still raises ``PermissionError``.
+  ``read()`` itself keeps handing back exactly one mesh, and the meta-file
+  refusals now name these two functions.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 

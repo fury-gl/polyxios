@@ -79,8 +79,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     if vtk_type != "PolyData":
         raise UnsupportedFormatError(
             f"VTP file declares type='{vtk_type}'; only 'PolyData' is supported "
-            "by the built-in VTP reader. For multi-block datasets see "
-            "examples/read_multiblock_vtp.py for a step-by-step loading tutorial."
+            "by the built-in VTP reader. A multi-block dataset is read by "
+            "polyxios.helper.read_multiblock(), or kept in pieces by "
+            "helper.read_blocks(); see examples/read_multiblock_vtp.py."
         )
 
     pd_elem = root.find("PolyData")

@@ -20,12 +20,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     UnsupportedFormatError
-        Always. See examples/read_parallel_vtk.py for a loading tutorial.
+        Always. ``polyxios.helper.read_multiblock`` reads one of these.
     """
     raise UnsupportedFormatError(
         f"'{source_name(path)}' is a parallel/multi-block meta-file (.vtm): it "
         "contains no geometry, only references to sub-files. "
-        "See examples/read_parallel_vtk.py for a step-by-step loading tutorial."
+        "polyxios.helper.read_multiblock() reads it and merges the pieces, "
+        "and helper.read_blocks() hands them back one mesh per sub-file. "
+        "See examples/read_parallel_vtk.py for a step-by-step tutorial."
     )
 
 

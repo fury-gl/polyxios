@@ -22,10 +22,22 @@ Parallel and multi-block meta-files
 -----------------------------------
 
 ``.vtm``, ``.pvtu``, ``.pvts``, ``.pvti``, ``.pvtp`` and ``.pvtr`` are registered too,
-but they hold no geometry - only references to sub-files. Reading one raises
-:class:`~polyxios.exceptions.UnsupportedFormatError` with a pointer to
-``examples/read_parallel_vtk.py``, rather than failing with a parse error further in.
-Writing them is not supported.
+but they hold no geometry - only references to sub-files. :func:`polyxios.read`
+hands back one mesh, always, so reading an index raises
+:class:`~polyxios.exceptions.UnsupportedFormatError` rather than failing with a
+parse error further in. The several live in the helper instead:
+
+.. code-block:: python
+
+    from polyxios import helper, transforms
+
+    whole = helper.read_multiblock("case.pvtu")   # every piece, merged
+    blocks = helper.read_blocks("case.vtm")       # one PolyData per sub-file
+
+Both follow an index that names another index, skip a sub-file that is missing
+or unreadable with a warning, and refuse a reference resolving outside the
+index file's own directory. ``examples/read_parallel_vtk.py`` walks through
+what they do. Writing an index file is not supported.
 
 .. toctree::
    :hidden:

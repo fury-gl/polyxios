@@ -242,6 +242,36 @@ element referencing it, and a flat mesh of solid cells - a tetrahedron is one
 however flat it lies - keeps its third column in every format that reads the
 node count per element from a separate number.
 
+Several meshes in one file
+--------------------------
+
+:func:`polyxios.read` hands back one :class:`~polyxios.PolyData`, always. A
+function that sometimes returns a sequence puts the branch in every caller, so
+a file that holds several meshes is treated as what it is - an index of
+sub-files, holding no geometry of its own - and reading one raises
+:class:`~polyxios.exceptions.UnsupportedFormatError` naming the format.
+
+The several live in :mod:`polyxios.helper`:
+
+.. code-block:: python
+
+    from polyxios import helper
+
+    whole = helper.read_multiblock("case.pvtu")   # every piece, merged
+    blocks = helper.read_blocks("case.vtm")       # one PolyData per sub-file
+
+Both read ``.vtm``, ``.pvtu``, ``.pvtp``, ``.pvtr``, ``.pvts`` and ``.pvti``,
+as well as a ``.vtp`` holding a ``<vtkMultiBlockDataSet>``. An index naming
+another index is followed and read flat; a sub-file that is missing or
+unreadable is skipped with a warning, so a partially downloaded companion
+directory still loads; and a reference resolving outside the index file's own
+directory raises ``PermissionError`` rather than reading it.
+
+``helper.read_blocks`` is the one to reach for when the blocks mean different
+things - a fluid domain and a solid one, one part per block - since
+:func:`~polyxios.transforms.merge` joins them into a mesh that no longer says
+which was which.
+
 Where to go next
 ----------------
 
