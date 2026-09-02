@@ -11,7 +11,7 @@ from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.codecs._vti import read, write
 from polyxios.codecs._vtk_xml import structured_cells
-from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError, ValidationError
 from polyxios.transforms import remove_orphan_vertices
 from polyxios.validate import validate
 
@@ -187,7 +187,12 @@ def test_an_empty_mesh_writes_an_empty_image(tmp_path) -> None:
 
 
 def test_a_short_stored_spacing_still_writes_three_axes(tmp_path) -> None:
-    """Zipping against a two-value spacing dropped the z axis silently."""
+    """Zipping against a two-value spacing dropped the z axis silently.
+
+    The axis it leaves out is given a step the mesh never carried, which is
+    worth a word: this codec writes no coordinates, so the step is the
+    geometry.
+    """
     path = tmp_path / "short.vti"
     verts = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
     poly = PolyData(
@@ -198,7 +203,8 @@ def test_a_short_stored_spacing_still_writes_three_axes(tmp_path) -> None:
         global_attrs={"vti_spacing": [5.0, 6.0]},
     )
 
-    write(poly, path, binary=False)
+    with pytest.warns(UserWarning, match="vti_spacing spells 2 numbers"):
+        write(poly, path, binary=False)
 
     body = path.read_text()
     # x measures its own step of 1; y keeps the 6 it was given; z was never
@@ -372,7 +378,12 @@ def test_a_scalar_spacing_is_taken_for_every_axis(tmp_path) -> None:
 def test_a_short_origin_in_the_file_is_read_rather_than_indexed_past(
     tmp_path,
 ) -> None:
-    """Two numbers where three belong raised IndexError from inside the parse."""
+    """Two numbers where three belong raised IndexError from inside the parse.
+
+    The third axis is given a value the file never spelled, so the read says
+    so rather than handing back a grid standing somewhere the file did not
+    put it.
+    """
     path = tmp_path / "short.vti"
     path.write_text(
         '<?xml version="1.0"?>\n'
@@ -384,7 +395,12 @@ def test_a_short_origin_in_the_file_is_read_rather_than_indexed_past(
         "</VTKFile>"
     )
 
-    poly = read(path)
+    # The file is short in both, and each names itself rather than the other.
+    with pytest.warns(UserWarning, match="spells 2 numbers") as caught:
+        poly = read(path)
+
+    said = sorted(str(w.message).split(": ")[1].split()[0] for w in caught)
+    assert said == ["Origin", "Spacing"]
 
     assert poly.vertices.shape == (8, 3)
     np.testing.assert_allclose(poly.vertices[:, 2], [0, 0, 0, 0, 1, 1, 1, 1])
@@ -422,8 +438,8 @@ def test_an_origin_of_more_than_three_numbers_names_the_axes_it_drops(
 ) -> None:
     """A mesh has three axes; a fourth number describes nothing to write.
 
-    The extras were taken off silently, which is the opposite of what a file
-    spelling too few gets.
+    Both wrong lengths warn; a dropped fourth number names no axis, where a
+    missing third is an axis given a value the file never spelled.
     """
     body = (
         '<?xml version="1.0"?>\n'
@@ -605,3 +621,46 @@ def test_a_malformed_whole_extent_names_itself(tmp_path) -> None:
     path.write_text(xml)
     with pytest.raises(CodecError, match="WholeExtent"):
         read(path)
+
+
+def test_a_tiny_file_cannot_ask_for_a_grid_too_big_to_hold(tmp_path) -> None:
+    """An ImageData spells its whole geometry in six indices and no points.
+
+    Every other format has to spend bytes on a point before the reader
+    allocates one, which is what the file-size heuristic weighs. This one
+    spends none, so a 250-byte file declared a hundred million planes on the
+    x axis and was expanded into the 2.4 GB of vertices they come to.
+    """
+    path = tmp_path / "bomb.vti"
+    extent = "0 100000000 0 0 0 0"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData WholeExtent="{extent}" Origin="0 0 0" Spacing="1 1 1">\n'
+        f'    <Piece Extent="{extent}"/>\n'
+        "  </ImageData>\n"
+        "</VTKFile>\n"
+    )
+    assert path.stat().st_size < 1000
+
+    with pytest.raises(ValidationError, match="MAX_IMPLIED_VERTICES"):
+        read(path)
+
+
+def test_an_image_of_a_size_worth_reading_is_still_read(tmp_path) -> None:
+    """The cap is a bound on the absurd, not on the format working normally."""
+    path = tmp_path / "big.vti"
+    extent = "0 63 0 63 0 63"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData WholeExtent="{extent}" Origin="0 0 0" Spacing="1 1 1">\n'
+        f'    <Piece Extent="{extent}"/>\n'
+        "  </ImageData>\n"
+        "</VTKFile>\n"
+    )
+
+    poly = read(path)
+
+    assert len(poly.vertices) == 64**3
+    validate(poly)

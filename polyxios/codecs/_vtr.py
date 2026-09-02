@@ -220,8 +220,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     Parameters
     ----------
     poly
-        PolyData to write. Must consist of hexahedral elements on a structured grid.
-        The vertices are written as coordinate arrays.
+        PolyData to write. Its cells must be a structured grid - hexahedra,
+        or the quadrilaterals or lines a grid flat along one or two axes is
+        made of - and its vertices must be that grid expanded, with x varying
+        fastest and z slowest. The file holds three coordinate arrays and no
+        points of its own, so a mesh that is not that lattice cannot be
+        spelled in it.
     path
         Output file path.
     binary

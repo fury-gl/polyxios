@@ -1,6 +1,11 @@
 import numpy as np
 
-from polyxios._element_types import MAX_SAFE_CONN, MAX_SAFE_ELEMENTS, MAX_SAFE_VERTICES
+from polyxios._element_types import (
+    MAX_IMPLIED_VERTICES,
+    MAX_SAFE_CONN,
+    MAX_SAFE_ELEMENTS,
+    MAX_SAFE_VERTICES,
+)
 from polyxios._types import PolyData
 from polyxios.exceptions import ValidationError
 
@@ -133,11 +138,27 @@ def validate_header(
     heuristics are gated, and they are heuristics about bytes on disk - a
     ``4 x 4 x 4`` ImageData declares 64 points in a 231-byte file and is not
     corrupt, it is the format working as intended.
+
+    A file that spells no points is held to the tighter
+    :data:`MAX_IMPLIED_VERTICES` in place of the heuristic it is excused from.
+    The heuristic is what makes the loose cap safe elsewhere: a format that
+    writes its points has to spend bytes on each one, so a header can only ask
+    for as much memory as the file it sits in is long. A header that describes
+    its points instead spends six indices on any number of them, and nothing
+    stands between that number and the allocation.
     """
     if declared_n_verts > MAX_SAFE_VERTICES:
         raise ValidationError(
             f"declared_n_verts={declared_n_verts} exceeds MAX_SAFE_VERTICES="
             f"{MAX_SAFE_VERTICES}. Possible corrupt or malicious file."
+        )
+    if not spells_vertices and declared_n_verts > MAX_IMPLIED_VERTICES:
+        raise ValidationError(
+            f"declared_n_verts={declared_n_verts} exceeds "
+            f"MAX_IMPLIED_VERTICES={MAX_IMPLIED_VERTICES}, the cap on a "
+            "format that describes its points rather than writing them. "
+            f"file_size_bytes={file_size_bytes} is no evidence either way, so "
+            "the count is taken on its own. Possible corrupt or malicious file."
         )
     if declared_n_elems > MAX_SAFE_ELEMENTS:
         raise ValidationError(

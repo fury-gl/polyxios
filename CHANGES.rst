@@ -246,9 +246,12 @@ Bug fixes
 - Reading a ``.vti`` whose ``Origin`` or ``Spacing`` spells two numbers where
   three belong raised ``IndexError`` from inside the parse. The axes it does
   give are taken and the rest defaulted, and a bare number given as
-  ``vti_spacing`` is taken for every axis rather than subscripted. More than
-  three warns rather than dropping the extras in silence - a mesh has three
-  axes, and a fourth number describes nothing any of these codecs can write.
+  ``vti_spacing`` is taken for every axis rather than subscripted. Any number
+  of them but three warns rather than passing in silence, and a short one is
+  the worse of the two: a dropped fourth number describes no axis, where a
+  missing third is an axis of the mesh given a value the file never spelled.
+  This codec writes no coordinates, so those six numbers are the whole
+  geometry.
 - ``.vtr`` keeps the extent of the file it was read from, the way ``.vti`` and
   ``.vts`` do. A block that did not begin at zero was slid to the origin on the
   way out, which is the one thing a ``.pvtr`` assembling it next to its
@@ -273,8 +276,15 @@ Bug fixes
   they did, so a plain 4x4x4 grid went out as a valid 231-byte file and came
   back as ``ValidationError: declared_n_verts=64 implies 1536 bytes of vertex
   data``. The heuristic is asked only of a format that spells what it
-  declares; the hard caps that bound the allocation still apply to all of
-  them.
+  declares.
+- A format excused that heuristic is held to a tighter cap in its place. The
+  heuristic is what made the loose one safe to leave loose: a format that
+  writes its points has to spend bytes on each, so a header can only ask for
+  as much memory as the file it sits in is long. An ImageData spends six
+  indices on any number of points, so a 250-byte file could declare a hundred
+  million planes on one axis and be expanded into the 2.4 GB of vertices they
+  come to. The cap clears any grid that expands into a mesh a machine can
+  work with and refuses the rest by name.
 - Writing ``.vti`` spells its ``Origin`` and ``Spacing`` at the width a double
   reads back at. These six numbers are the whole geometry of an ImageData, and
   a ``.10g`` field kept ten of the seventeen a double carries: an origin of

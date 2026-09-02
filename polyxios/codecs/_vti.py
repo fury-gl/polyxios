@@ -52,22 +52,29 @@ def _triple(values: Any, *, default: float, what: str) -> list[float]:
         Three floats. A shorter sequence is filled out with ``default``
         rather than left short: an ``Origin`` of two numbers is not an
         origin, and zipping against it drops the third axis silently. A
-        longer one keeps its first three and warns - a mesh has three axes,
-        and a fourth number describes nothing this codec can write.
+        longer one keeps its first three - a mesh has three axes, and a
+        fourth number describes nothing this codec can write.
 
     Warns
     -----
     UserWarning
-        If more than three values are given, or if they are not numbers at
-        all. The default is taken in the second case, which leaves the
-        writer's own check against the vertices to fail and the origin and
-        step re-derived from the mesh - rather than a well-formed file built
-        on a stored value nothing could read.
+        If the values are not numbers at all, or if there are any number of
+        them but three. The default is taken in the first case, which leaves
+        the writer's own check against the vertices to fail and the origin
+        and step re-derived from the mesh - rather than a well-formed file
+        built on a stored value nothing could read.
+
+        Both wrong lengths warn, and a short one is the worse of the two: a
+        dropped fourth number describes no axis, while a missing third is an
+        axis of the mesh silently given a value the file never spelled, which
+        moves every point off it. This codec writes no coordinates, so these
+        six numbers are the whole geometry - guessing one quietly is the
+        thing the rest of the format's checks exist to prevent.
 
     Examples
     --------
-    >>> _triple([1.0, 2.0], default=0.0, what="Origin")
-    [1.0, 2.0, 0.0]
+    >>> _triple(["1", "2", "3"], default=0.0, what="Origin")
+    [1.0, 2.0, 3.0]
     >>> _triple(0.5, default=1.0, what="Spacing")
     [0.5, 0.5, 0.5]
     """
@@ -96,6 +103,14 @@ def _triple(values: Any, *, default: float, what: str) -> list[float]:
         warnings.warn(
             f"{EXTENSION}: {what} spells {n_values} numbers where three "
             "belong; the rest name no axis and are dropped.",
+            UserWarning,
+            stacklevel=3,
+        )
+    elif n_values < 3:
+        warnings.warn(
+            f"{EXTENSION}: {what} spells {n_values} numbers where three "
+            f"belong; the axes it leaves out are given {default}, which the "
+            "file never said.",
             UserWarning,
             stacklevel=3,
         )

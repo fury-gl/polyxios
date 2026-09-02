@@ -184,12 +184,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
 
 def write(poly: PolyData, path: Source, **opts: Any) -> None:
-    """Serialise a hex PolyData to a VTK StructuredGrid XML file (.vts).
+    """Serialise a structured PolyData to a VTK StructuredGrid XML file (.vts).
 
     Parameters
     ----------
     poly
-        PolyData to write. Must be a structured hex grid.
+        PolyData to write. Its cells must be a structured grid - hexahedra,
+        or the quadrilaterals or lines a grid flat along one or two axes is
+        made of - since the file carries no connectivity and the reader
+        rebuilds it from the extent. Its points need not be a lattice: they
+        are written in the mesh's own order, so a warped block, a cylindrical
+        shell and an aerofoil O-grid all hold.
     path
         Output file path.
     binary
