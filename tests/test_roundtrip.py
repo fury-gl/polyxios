@@ -414,13 +414,14 @@ CAPABILITIES: dict[str, Cap] = {
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
         global_attrs=(
+            "gnum",
             "vti_extent",
             "vti_origin",
             "vti_spacing",
             "vti_whole_extent",
         ),
         attr_values=False,
-        note="Grid metadata replaces the caller's global_attrs, tags are lost"
+        note="Grid metadata joins the caller's global_attrs, tags are lost"
         " (see test_the_vtk_family_keeps_tags_it_has_room_for), and a vector"
         " attribute comes back flattened (see the xfail below).",
     ),
@@ -428,20 +429,22 @@ CAPABILITIES: dict[str, Cap] = {
         "mixed",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        note="Legacy VTK keeps point and cell data; tags and field data do not"
-        " survive (see the xfails below).",
+        global_attrs=("gnum",),
+        note="Legacy VTK keeps point data, cell data and a FIELD block of"
+        " mesh metadata; tags do not survive (see the xfail below).",
     ),
     ".vtp": Cap(
         "surface",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        global_attrs=("gnum",),
         note="As .vtk, restricted to surface cells.",
     ),
     ".vtr": Cap(
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        global_attrs=("vtr_extents", "vtr_whole_extent"),
+        global_attrs=("gnum", "vtr_extents", "vtr_whole_extent"),
         attr_values=False,
         note="As .vti, with rectilinear axis metadata.",
     ),
@@ -449,7 +452,7 @@ CAPABILITIES: dict[str, Cap] = {
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        global_attrs=("vts_extent", "vts_whole_extent"),
+        global_attrs=("gnum", "vts_extent", "vts_whole_extent"),
         attr_values=False,
         note="As .vti, with curvilinear extent metadata.",
     ),
@@ -457,7 +460,8 @@ CAPABILITIES: dict[str, Cap] = {
         "mixed",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        note="As .vtk; the missing <FieldData> is meshio #1546.",
+        global_attrs=("gnum",),
+        note="As .vtk, with the metadata in a <FieldData> block.",
     ),
     ".wkt": Cap(
         "surface",
@@ -616,13 +620,15 @@ def test_an_unwritable_extension_refuses_to_be_written(tmp_path, ext: str) -> No
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="P2.5 / meshio #1546: no <FieldData>")
-@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp"])
+@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp", ".vti", ".vtr", ".vts"])
 def test_the_vtk_family_keeps_global_attrs(tmp_path, ext: str) -> None:
-    poly = _surface()
+    """Mesh metadata travels as field data, which holds arrays and not much
+    else: a scalar written from one comes back as a one-element array."""
+    poly = _structured() if ext in (".vti", ".vtr", ".vts") else _surface()
     path = tmp_path / f"mesh{ext}"
     polyxios.write(poly, path)
-    assert polyxios.read(path).global_attrs["gnum"] == 42
+    back = polyxios.read(path).global_attrs["gnum"]
+    np.testing.assert_array_equal(back, [42])
 
 
 @pytest.mark.xfail(strict=True, reason="P2.6: tags have no VTK array yet")

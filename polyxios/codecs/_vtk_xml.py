@@ -9,7 +9,7 @@ For appended data:
 """
 
 import base64
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import math
 from typing import Any
 import warnings
@@ -105,6 +105,7 @@ def format_da(
     binary: bool,
     n_comp: int,
     indent: int,
+    n_tuples: int | None = None,
 ) -> str:
     """Render one ``<DataArray>`` element.
 
@@ -127,6 +128,11 @@ def format_da(
         Components per tuple.
     indent
         Spaces to prefix the line with.
+    n_tuples
+        Tuples the array holds, declared on the element. A point or cell
+        array needs no such declaration - the Piece header already said how
+        many there are - but a field array is bound to nothing that counts
+        it, so it has to carry its own count.
 
     Returns
     -------
@@ -136,6 +142,7 @@ def format_da(
     pad = " " * indent
     name_attr = f' Name="{name}"' if name else ""
     comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
+    tuple_attr = "" if n_tuples is None else f' NumberOfTuples="{n_tuples}"'
     values = np.ascontiguousarray(arr, dtype=dtype)
 
     if binary:
@@ -147,8 +154,8 @@ def format_da(
         body = spell_values(values)
         fmt = "ascii"
     return (
-        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-        f'format="{fmt}">{body}</DataArray>'
+        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr}'
+        f'{tuple_attr} format="{fmt}">{body}</DataArray>'
     )
 
 
@@ -203,6 +210,111 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
             f"VTK XML: attribute '{name}' holds {arr.dtype!s} values, which"
             " a DataArray has no numeric type for."
         ) from exc
+
+
+def format_field_data(
+    spelled: dict[str, np.ndarray], *, binary: bool, indent: int
+) -> list[str]:
+    """Render a ``<FieldData>`` block, or nothing when there is none.
+
+    Parameters
+    ----------
+    spelled
+        The mesh metadata to write, already reduced to numeric arrays by
+        :func:`polyxios._globals.globals_for_write`.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    indent
+        Spaces to prefix the block's own lines with; its arrays sit two
+        further in.
+
+    Returns
+    -------
+    list of str
+        The lines of the block, empty when the mesh carries no metadata.
+
+    Notes
+    -----
+    A field array belongs to the dataset rather than to its points or cells,
+    so nothing in the file counts it and it declares ``NumberOfTuples``
+    itself. Everything past the first dimension is a component, the same way
+    a point attribute is read, so an ``(n, 3)`` array comes back the shape it
+    went out as.
+    """
+    if not spelled:
+        return []
+    pad = " " * indent
+    lines = [f"{pad}<FieldData>"]
+    for name, arr in spelled.items():
+        vtk_type, dtype = np_to_vtk_type(arr.dtype)
+        n_comp = components(arr)
+        lines.append(
+            format_da(
+                name,
+                arr,
+                vtk_type=vtk_type,
+                dtype=dtype,
+                binary=binary,
+                n_comp=n_comp,
+                indent=indent + 2,
+                n_tuples=arr.size // n_comp,
+            )
+        )
+    lines.append(f"{pad}</FieldData>")
+    return lines
+
+
+def read_field_data(
+    parent: ET.Element, decode: Callable[[ET.Element], np.ndarray]
+) -> dict[str, np.ndarray]:
+    """Read every ``<FieldData>`` array under an element.
+
+    Parameters
+    ----------
+    parent
+        The dataset element, or one of its ``Piece`` children. Both are
+        places a writer may put the block, and VTK reads it from either.
+    decode
+        Turns one ``DataArray`` element into its values.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        One entry per named array, shaped by its component count. Empty when
+        the element carries no field data.
+
+    Warns
+    -----
+    UserWarning
+        Once, counting the arrays the block leaves unnamed.
+
+    Notes
+    -----
+    An unnamed array is skipped: ``global_attrs`` is keyed by name, and the
+    file gives no other handle to put it under. It is counted and reported
+    all the same, the way a ``<Array>`` of strings is - VTK writes one for a
+    label and no numeric array holds it - so neither loss is silent.
+    """
+    found: dict[str, np.ndarray] = {}
+    nameless = 0
+    for block in parent.findall("FieldData"):
+        for da in block:
+            name = da.get("Name")
+            if name is None:
+                nameless += 1
+                continue
+            arr = decode(da)
+            if arr.size == 0 and undecodable_type(da) is not None:
+                continue
+            found[name] = shaped_da(da, arr)
+    if nameless:
+        warnings.warn(
+            f"FieldData holds {nameless} array(s) with no Name=, which the"
+            " mesh's metadata has no key to file them under; dropped.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return found
 
 
 def spell_values(arr: np.ndarray) -> str:

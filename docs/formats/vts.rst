@@ -67,6 +67,8 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and a value no numeric array holds - a string, a mapping - is dropped with a warning naming the key.
+- The ``vts_*`` grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other ``global_attrs`` entry does.
 - Multi-component attributes are cut into tuples with ``NumberOfComponents``, so an ``(n, 3)`` vector reads back with its shape rather than as ``3n`` rows.
 - The implicit grid is expanded to explicit connectivity on read, so the resulting :class:`~polyxios.PolyData` carries real elements rather than an extent.
 - That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.

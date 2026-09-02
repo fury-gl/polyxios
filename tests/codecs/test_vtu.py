@@ -499,3 +499,134 @@ def test_an_attribute_no_data_array_can_hold_names_itself(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="attribute 'label'"):
         write(poly, path)
+
+
+# ---------------------------------------------------------------------------
+# <FieldData>: the mesh's own metadata
+# ---------------------------------------------------------------------------
+
+
+def test_issue_1546_a_vtu_write_holds_the_field_data(tmp_path) -> None:
+    """The writer dropped global_attrs, so a time value, a material constant
+    or a solver tolerance did not survive being written."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"TimeValue": 0.25, "gravity": np.array([0.0, 0.0, -9.81])},
+    )
+    path = tmp_path / "field.vtu"
+
+    write(poly, path)
+    back = read(path)
+
+    np.testing.assert_allclose(back.global_attrs["TimeValue"], [0.25])
+    np.testing.assert_allclose(back.global_attrs["gravity"], [0.0, 0.0, -9.81])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_field_array_keeps_the_type_it_was_held_in(tmp_path, binary: bool) -> None:
+    """An identifier past 2**53 comes home a different number as a double."""
+    wide = np.array([9007199254740993], dtype=np.int64)
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"case_id": wide},
+    )
+    path = tmp_path / "wide.vtu"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.global_attrs["case_id"].dtype == np.int64
+    np.testing.assert_array_equal(back.global_attrs["case_id"], wide)
+
+
+def test_a_global_no_data_array_can_hold_is_named_and_dropped(tmp_path) -> None:
+    """A <FieldData> array holds numbers; a string has no numeric form. The
+    mesh is still written - the loss is one key, not the file."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"solver": "polyxios", "steps": 12},
+    )
+    path = tmp_path / "mixed.vtu"
+
+    with pytest.warns(UserWarning, match=r"global_attrs \['solver'\]"):
+        write(poly, path)
+    back = read(path)
+
+    assert "solver" not in back.global_attrs
+    np.testing.assert_array_equal(back.global_attrs["steps"], [12])
+
+
+def test_field_data_on_a_piece_is_read(tmp_path) -> None:
+    """VTK puts the block on the dataset and other writers put it on a Piece;
+    a mesh whose metadata is only read from one place loses the other."""
+    path = tmp_path / "piece_field.vtu"
+    extra = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">3.5</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [3.5])
+
+
+def test_field_data_on_the_dataset_wins_over_a_piece(tmp_path) -> None:
+    """Both places hold a key of the same name: the dataset's is the file's
+    own answer for the mesh, and a piece's is one piece's."""
+    path = tmp_path / "both.vtu"
+    piece_field = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">1</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    dataset_field = (
+        "  <FieldData>\n"
+        '   <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">2</DataArray>\n'
+        "  </FieldData>\n"
+    )
+    path.write_text(
+        _vtu(dataset_field + _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, piece_field))
+    )
+
+    np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [2])
+
+
+def test_an_unnamed_field_array_is_skipped(tmp_path) -> None:
+    """global_attrs is keyed by name, and the file gives no other handle - so
+    the array is dropped, and counted rather than lost in silence."""
+    path = tmp_path / "unnamed.vtu"
+    extra = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" NumberOfTuples="1" format="ascii">1</DataArray>\n'
+        '    <DataArray type="Float64" Name="kept" NumberOfTuples="1"'
+        ' format="ascii">2</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    with pytest.warns(UserWarning, match="no Name="):
+        poly = read(path)
+
+    assert tuple(poly.global_attrs) == ("kept",)
+
+
+def test_metadata_with_no_name_to_file_it_under_is_dropped(tmp_path) -> None:
+    """Every format here writes the key as the array's own handle, and a key
+    that is not one leaves the array unfindable where it does not make the
+    file unreadable outright."""
+    poly = _tet_mesh()
+    poly.global_attrs[""] = 1
+    poly.global_attrs["kept"] = 2
+    path = tmp_path / "nameless.vtu"
+
+    with pytest.warns(UserWarning, match="global_attrs"):
+        write(poly, path)
+
+    back = read(path)
+    assert tuple(back.global_attrs) == ("kept",)

@@ -12,6 +12,7 @@ from polyxios._element_types import (
     POLYXIOS_TO_VTK,
     VTK_TO_POLYXIOS,
 )
+from polyxios._globals import globals_for_write
 from polyxios._io import (
     Source,
     can_seek,
@@ -64,6 +65,34 @@ _VTK_DTYPE_MAP: dict[str, str] = {
     "vtkidtype": "i8",
     "idtype": "i8",
 }
+
+# What a FIELD header calls the dtype an array is held in. The map above reads
+# every spelling a file may use; this one writes, so it names one apiece - and
+# only the types a legacy reader is sure to know, which is why a bool goes out
+# as the unsigned char it is stored as and a float16 as the float it widens to.
+_NP_TO_VTK_DTYPE: dict[str, str] = {
+    "b1": "unsigned_char",
+    "i1": "char",
+    "i2": "short",
+    "i4": "int",
+    "i8": "long",
+    "u1": "unsigned_char",
+    "u2": "unsigned_short",
+    "u4": "unsigned_int",
+    "u8": "unsigned_long",
+    "f4": "float",
+    "f8": "double",
+}
+
+# A dtype no FIELD header names - float16, a datetime - is written as the
+# double it converts to, the way an attribute array already is.
+_FIELD_FALLBACK: str = "double"
+
+# Keys a reader of a structured dataset records to say what grid it expanded.
+# The writer spells an UNSTRUCTURED_GRID and has no use for them, and writing
+# them as field data would hand the next reader a second copy of a grid it
+# already rebuilt.
+_GRID_KEYS: frozenset[str] = frozenset({"vtk_dimensions", "vtk_origin", "vtk_spacing"})
 
 # What a binary header is read as when it leaves its type field out. The
 # format makes the field mandatory, so this only ever answers a malformed
@@ -295,6 +324,12 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         fh.write(b"BINARY\n" if binary else b"ASCII\n")
         fh.write(b"DATASET UNSTRUCTURED_GRID\n")
 
+        # FIELD FieldData, the mesh's own metadata. It sits between the
+        # dataset keyword and the geometry, which is where VTK's own writer
+        # puts it and the only place a reader looks for a block belonging to
+        # the dataset rather than to its points or cells.
+        _write_field_block(poly, fh, binary=binary)
+
         # POINTS
         fh.write(f"POINTS {n_verts} double\n".encode())
         if binary:
@@ -398,6 +433,152 @@ def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
         fh.write(conn64.astype(np.dtype(">i8")).tobytes())  # type: ignore[union-attr]
     else:
         fh.write((" ".join(str(x) for x in conn64) + "\n").encode())  # type: ignore[union-attr]
+
+
+def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
+    """Write the mesh's metadata as a ``FIELD FieldData`` block.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    fh
+        Open binary file object.
+    binary
+        Write each payload as big-endian raw bytes rather than spelling it.
+
+    Notes
+    -----
+    A field array is bound to neither the points nor the cells, so its header
+    carries both its component count and its tuple count - the only two
+    numbers that say where it ends and the next array begins. Unlike a point
+    or cell array, which every branch of this writer spells as a double, a
+    field array keeps the type it is held in: it is metadata, and an integer
+    that comes home a float is a different value to whatever reads it next.
+    """
+    spelled = globals_for_write(poly, reserved=_GRID_KEYS, fmt=EXTENSION)
+    if not spelled:
+        return
+    fh.write(f"FIELD FieldData {len(spelled)}\n".encode())  # type: ignore[union-attr]
+    for name, arr in spelled.items():
+        vtk_name = _NP_TO_VTK_DTYPE.get(arr.dtype.str.lstrip("<>|="), _FIELD_FALLBACK)
+        np_str = _VTK_DTYPE_MAP[vtk_name]
+        n_comp = _components(arr)
+        values = np.ascontiguousarray(arr, dtype=np_str)
+        fh.write(  # type: ignore[union-attr]
+            f"{name} {n_comp} {values.size // n_comp} {vtk_name}\n".encode()
+        )
+        if binary:
+            fh.write(values.astype(">" + np_str).tobytes())  # type: ignore[union-attr]
+            fh.write(b"\n")  # type: ignore[union-attr]
+        elif np_str[0] == "f":
+            _write_ascii_f64(values.ravel().astype(np.float64), fh, per_line=n_comp)
+        else:
+            spelled_row = " ".join(map(str, values.ravel().tolist()))
+            fh.write((spelled_row + "\n").encode())  # type: ignore[union-attr]
+
+
+def _parse_field_block_ascii(
+    lines: list[str], i: int, n_arrays: int
+) -> tuple[int, dict[str, np.ndarray]]:
+    """Read a top-level ASCII ``FIELD`` block into mesh metadata.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first line after the ``FIELD`` header.
+    n_arrays
+        Arrays the header says the block holds.
+
+    Returns
+    -------
+    tuple[int, dict of str to numpy.ndarray]
+        The line just past the block, and its arrays keyed by name.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before the block's headers do.
+    """
+    found: dict[str, np.ndarray] = {}
+    n_lines = len(lines)
+    for _ in range(n_arrays):
+        i = _next_header(lines, i)
+        if i >= n_lines:
+            raise CodecError(
+                f".vtk: FIELD declares {n_arrays} arrays but the file ends"
+                " before their headers."
+            )
+        parts = lines[i].strip().split()
+        where = f"line {i + 1}"
+        name = parts[0]
+        n_comp = _attr_count(parts, 1, where)
+        n_tuples = _attr_count(parts, 2, where)
+        np_str = _VTK_DTYPE_MAP.get(
+            parts[3].lower() if len(parts) > 3 else _DEFAULT_VTK_DTYPE, "f8"
+        )
+        i += 1
+        i, tokens = _read_ascii_tokens(lines, i, n_tuples * n_comp, name=name)
+        arr = _field_values(tokens, np_str, name)
+        found[name] = arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr
+    return i, found
+
+
+def _parse_field_block_binary(
+    mm: "mmap.mmap | bytes",
+    mv: memoryview,
+    pos: int,
+    file_size: int,
+    n_arrays: int,
+) -> tuple[int, dict[str, np.ndarray]]:
+    """Read a top-level binary ``FIELD`` block into mesh metadata.
+
+    Parameters
+    ----------
+    mm
+        The mapping or buffer, for finding line ends.
+    mv
+        A memoryview of the same bytes, for slicing.
+    pos
+        Byte offset of the first line after the ``FIELD`` header.
+    file_size
+        Size of the file.
+    n_arrays
+        Arrays the header says the block holds.
+
+    Returns
+    -------
+    tuple[int, dict of str to numpy.ndarray]
+        The byte offset just past the block, and its arrays keyed by name.
+    """
+    found: dict[str, np.ndarray] = {}
+    for _ in range(n_arrays):
+        pos = _next_binary_header(mm, mv, pos, file_size)
+        hdr_start = pos
+        hdr_end = mm.find(b"\n", pos)
+        if hdr_end == -1:
+            break
+        hdr = bytes(mv[pos:hdr_end]).decode("ascii", errors="replace").strip()
+        pos = hdr_end + 1
+        parts = hdr.split()
+        if len(parts) < 4:
+            continue
+        where = f"byte {hdr_start}"
+        name = parts[0]
+        n_comp = _attr_count(parts, 1, where)
+        n_tuples = _attr_count(parts, 2, where)
+        np_str = _binary_dtype(parts, 3, where)
+        n_bytes = n_tuples * n_comp * np.dtype(np_str).itemsize
+        _check_block(pos, n_bytes, file_size, name=name)
+        arr = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_str).astype(
+            np_str.lstrip(">")
+        )
+        pos += n_bytes
+        pos = _skip_newline(mv, pos, file_size)
+        found[name] = arr.reshape(n_tuples, n_comp) if n_comp > 1 else arr
+    return pos, found
 
 
 def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) -> None:
@@ -546,6 +727,7 @@ def _read_polydata_ascii(path: Source) -> PolyData:
     type_list: list[int] = []
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    global_attrs: dict[str, np.ndarray] = {}
     n_verts = 0
     n_elems = 0
 
@@ -557,7 +739,14 @@ def _read_polydata_ascii(path: Source) -> PolyData:
 
         upper = line.upper()
 
-        if upper.startswith("POINTS"):
+        if upper.startswith("FIELD"):
+            # A FIELD block out here belongs to the dataset rather than to
+            # its points or cells - the one inside a POINT_DATA section is
+            # read by that section's own parser, which never returns here.
+            n_arrays = _attr_count(line.split(), 2, f"line {i + 1}")
+            i, global_attrs = _parse_field_block_ascii(lines, i + 1, n_arrays)
+
+        elif upper.startswith("POINTS"):
             parts = line.split()
             n_verts = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
@@ -637,6 +826,7 @@ def _read_polydata_ascii(path: Source) -> PolyData:
         element_types=np.array(type_list, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        global_attrs=global_attrs,
     )
 
 
@@ -714,6 +904,7 @@ def _parse_binary_polydata_body(
     all_types: list[int] = []
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    global_attrs: dict[str, np.ndarray] = {}
     n_verts = 0
     n_elems = 0
 
@@ -731,7 +922,15 @@ def _parse_binary_polydata_body(
         upper = line.upper()
         parts = line.split()
 
-        if upper.startswith("POINTS"):
+        if upper.startswith("FIELD"):
+            # A FIELD block out here belongs to the dataset rather than to
+            # its points or cells - the one inside a POINT_DATA section is
+            # read by that section's own parser, which never returns here.
+            pos, global_attrs = _parse_field_block_binary(
+                mm, mv, pos, file_size, _attr_count(parts, 2, f"byte {line_start}")
+            )
+
+        elif upper.startswith("POINTS"):
             n_verts = _attr_count(parts, 1, f"byte {line_start}")
             # The header names the type the block holds, and it is not always
             # a float: reading a POINTS written as 'int' or 'short' at four
@@ -816,6 +1015,7 @@ def _parse_binary_polydata_body(
         element_types=np.array(all_types, dtype=np.uint8),
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        global_attrs=global_attrs,
     )
 
 
@@ -835,6 +1035,7 @@ def _read_ascii(path: Source) -> PolyData:
     element_types_arr = np.array([], dtype=np.uint8)
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    global_attrs: dict[str, np.ndarray] = {}
     n_verts = 0
     n_elems = 0
 
@@ -846,7 +1047,14 @@ def _read_ascii(path: Source) -> PolyData:
 
         upper = line.upper()
 
-        if upper.startswith("POINTS"):
+        if upper.startswith("FIELD"):
+            # A FIELD block out here belongs to the dataset rather than to
+            # its points or cells - the one inside a POINT_DATA section is
+            # read by that section's own parser, which never returns here.
+            n_arrays = _attr_count(line.split(), 2, f"line {i + 1}")
+            i, global_attrs = _parse_field_block_ascii(lines, i + 1, n_arrays)
+
+        elif upper.startswith("POINTS"):
             parts = line.split()
             n_verts = _attr_count(parts, 1, f"line {i + 1}")
             i += 1
@@ -933,6 +1141,7 @@ def _read_ascii(path: Source) -> PolyData:
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        global_attrs=global_attrs,
     )
 
 
@@ -1076,6 +1285,90 @@ def _read_ascii_values(
         vals.extend(row)
         i += 1
     return i, vals
+
+
+def _read_ascii_tokens(
+    lines: list[str], i: int, count: int, *, name: str
+) -> tuple[int, list[str]]:
+    """Read ``count`` unparsed tokens from an ASCII section.
+
+    The twin of :func:`_read_ascii_values` for an array that keeps the type
+    its header declared. Handing every token to ``float`` first rounds it to
+    a double before the declared type ever sees it, which a ``long`` past
+    2**53 does not survive.
+
+    Parameters
+    ----------
+    lines
+        The file's lines.
+    i
+        Index of the first line of values.
+    count
+        How many values the section declares.
+    name
+        Array name, for the error message.
+
+    Returns
+    -------
+    tuple[int, list of str]
+        The line index just past the values, and the tokens.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before ``count`` tokens have been read.
+    """
+    n_lines = len(lines)
+    tokens: list[str] = []
+    while len(tokens) < count:
+        if i >= n_lines:
+            raise CodecError(
+                f".vtk: array {name!r} declares {count} values but the file ends"
+                f" after {len(tokens)}."
+            )
+        tokens.extend(lines[i].split())
+        i += 1
+    return i, tokens[:count]
+
+
+def _field_values(tokens: list[str], np_str: str, name: str) -> np.ndarray:
+    """Read a field array's tokens as the type its header declared.
+
+    Parameters
+    ----------
+    tokens
+        The array's whitespace-separated values.
+    np_str
+        The numpy dtype the declared type maps to.
+    name
+        Array name, for the error message.
+
+    Returns
+    -------
+    numpy.ndarray
+        The values, in ``np_str``.
+
+    Raises
+    ------
+    CodecError
+        If a token names no number at all. numpy answers that with a bare
+        ``ValueError`` about one token, which names neither the array nor
+        the file it came out of.
+    """
+    try:
+        return np.array(tokens, dtype=np_str)
+    except (ValueError, OverflowError):
+        # An integer array spelled with a decimal point, or a value the
+        # declared type is too narrow to hold. Neither is worth refusing a
+        # whole file over: the tokens are read as doubles and narrowed the
+        # way the C reader this file was written for would narrow them.
+        try:
+            return np.array(tokens, dtype=np.float64).astype(np_str)
+        except ValueError as exc:
+            raise CodecError(
+                f".vtk: field array {name!r} holds a value that is not a"
+                f" number ({exc})."
+            ) from exc
 
 
 def _attr_name(parts: list[str], where: str) -> str:
@@ -1556,6 +1849,7 @@ def _parse_binary_body(
     element_types_arr = np.array([], dtype=np.uint8)
     vertex_attrs: dict[str, np.ndarray] = {}
     element_attrs: dict[str, np.ndarray] = {}
+    global_attrs: dict[str, np.ndarray] = {}
     n_verts = 0
     n_elems = 0
 
@@ -1572,7 +1866,16 @@ def _parse_binary_body(
 
         upper = line.upper()
 
-        if upper.startswith("POINTS"):
+        if upper.startswith("FIELD"):
+            # A FIELD block out here belongs to the dataset rather than to
+            # its points or cells - the one inside a POINT_DATA section is
+            # read by that section's own parser, which never returns here.
+            n_arrays = _attr_count(line.split(), 2, f"byte {line_start}")
+            pos, global_attrs = _parse_field_block_binary(
+                mm, mv, pos, file_size, n_arrays
+            )
+
+        elif upper.startswith("POINTS"):
             parts = line.split()
             n_verts = _attr_count(parts, 1, f"byte {line_start}")
             # The header names the type the block holds, and it is not always
@@ -1658,6 +1961,7 @@ def _parse_binary_body(
         element_types=element_types_arr,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        global_attrs=global_attrs,
     )
 
 

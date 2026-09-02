@@ -59,6 +59,7 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and a value no numeric array holds - a string, a mapping - is dropped with a warning naming the key.
 - Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
 - Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
 - A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.

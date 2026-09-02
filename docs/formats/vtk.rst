@@ -77,6 +77,8 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- A ``FIELD FieldData`` block between the ``DATASET`` line and the geometry belongs to the mesh rather than to its points or cells, and is read into ``global_attrs``; ``write`` puts one back there. Unlike a point or cell array, which is written as a double, a field array keeps the type it is held in, so an integer comes home an integer. A ``FIELD`` inside a ``POINT_DATA`` or ``CELL_DATA`` section still names arrays over the points or the cells, and is read as attributes.
+- A value no numeric array holds - a string, a mapping - is dropped with a warning naming the key, and the ``vtk_*`` grid entries a structured read recorded are never written as field data.
 - Binary files can be memory-mapped with ``lazy=True``; ASCII files must be parsed end to end before any value is available.
 - Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
 - Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.

@@ -69,6 +69,7 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and a value no numeric array holds - a string, a mapping - is dropped with a warning naming the key.
 - Multiple ``<Piece>`` elements are concatenated into one :class:`~polyxios.PolyData`, with each piece's connectivity shifted by the running vertex count.
 - A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
 - A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.

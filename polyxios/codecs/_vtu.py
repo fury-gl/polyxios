@@ -8,15 +8,18 @@ from polyxios._element_types import (
     POLYXIOS_TO_VTK,
     VTK_TO_POLYXIOS,
 )
+from polyxios._globals import globals_for_write
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
     format_attr_da,
     format_da,
+    format_field_data,
     join_piece_attrs,
     parse_xml,
     piece_count,
+    read_field_data,
     shaped_da,
     undecodable_type,
     vtk_type_to_np,
@@ -84,8 +87,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     all_types: list[int] = []
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
+    # Whole-mesh metadata. VTK puts the block on the dataset and some
+    # writers put it on a Piece, so both are read; the dataset's own is
+    # taken last, because that is the one the file means when it holds both.
+    global_attrs: dict[str, Any] = {}
 
     for index, piece in enumerate(ug.findall("Piece")):
+        global_attrs |= read_field_data(piece, _decode)
         n_points = piece_count(piece, "NumberOfPoints", fmt=".vtu")
 
         # Where this piece's points land in the joined array: its cells
@@ -167,6 +175,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 arr = shaped_da(da, arr)
                 all_element_attrs.setdefault(name, []).append(arr)
 
+    global_attrs |= read_field_data(ug, _decode)
+
     vertices = (
         np.concatenate(all_vertices)
         if all_vertices
@@ -202,6 +212,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=element_types,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        global_attrs=global_attrs,
     )
 
 
@@ -237,6 +248,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">'
     )
     lines.append("  <UnstructuredGrid>")
+    lines.extend(
+        format_field_data(
+            globals_for_write(poly, fmt=EXTENSION), binary=binary, indent=4
+        )
+    )
     lines.append(f'    <Piece NumberOfPoints="{n_verts}" NumberOfCells="{n_elems}">')
 
     lines.append("      <Points>")

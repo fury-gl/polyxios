@@ -1562,3 +1562,129 @@ def test_dimensions_the_points_do_not_cover_are_counted_from_zero(tmp_path) -> N
     assert len(poly.vertices) == 9
     assert len(poly.element_types) == 0
     validate(poly)
+
+
+# ---------------------------------------------------------------------------
+# FIELD FieldData: the mesh's own metadata
+# ---------------------------------------------------------------------------
+
+
+def _field_grid(field: bytes) -> bytes:
+    """A one-triangle ASCII grid carrying the given dataset FIELD block."""
+    return (
+        b"# vtk DataFile Version 4.2\n"
+        b"field data\n"
+        b"ASCII\n"
+        b"DATASET UNSTRUCTURED_GRID\n" + field + b"POINTS 3 float\n"
+        b"0 0 0\n1 0 0\n0 1 0\n"
+        b"CELLS 1 4\n"
+        b"3 0 1 2\n"
+        b"CELL_TYPES 1\n"
+        b"5\n"
+    )
+
+
+@pytest.mark.parametrize("binary", [False, True])
+@pytest.mark.parametrize("vtk_version", ["4.2", "5.1"])
+def test_issue_1546_a_vtk_write_holds_the_field_data(
+    tmp_path, binary: bool, vtk_version: str
+) -> None:
+    """The writer dropped global_attrs, so a time value, a material constant
+    or a solver tolerance did not survive being written."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"TimeValue": 0.25, "steps": 12},
+    )
+    path = tmp_path / "field.vtk"
+
+    write(poly, path, binary=binary, vtk_version=vtk_version)
+    back = read(path)
+
+    np.testing.assert_allclose(back.global_attrs["TimeValue"], [0.25])
+    np.testing.assert_array_equal(back.global_attrs["steps"], [12])
+    # An integer that came home a double is a different value to whatever
+    # reads the file next.
+    assert back.global_attrs["steps"].dtype.kind == "i"
+
+
+def test_a_dataset_field_block_is_read() -> None:
+    """A block between the DATASET keyword and the geometry belongs to the
+    mesh; read as an attribute section it would have been dropped for
+    covering neither the points nor the cells."""
+    path = _write_tmp(
+        _field_grid(b"FIELD FieldData 2\nTimeValue 1 1 double\n0.5\nid 1 1 int\n7\n")
+    )
+
+    poly = read(path)
+
+    np.testing.assert_allclose(poly.global_attrs["TimeValue"], [0.5])
+    np.testing.assert_array_equal(poly.global_attrs["id"], [7])
+    assert poly.vertices.shape == (3, 3)
+    assert len(poly.element_types) == 1
+
+
+def test_a_multi_component_field_array_comes_back_in_rows() -> None:
+    path = _write_tmp(
+        _field_grid(b"FIELD FieldData 1\nbounds 3 2 double\n0 0 0\n1 1 1\n")
+    )
+
+    np.testing.assert_allclose(
+        read(path).global_attrs["bounds"], [[0, 0, 0], [1, 1, 1]]
+    )
+
+
+def test_a_point_data_field_block_stays_an_attribute() -> None:
+    """FIELD inside POINT_DATA names arrays over the points, not the mesh."""
+    path = _write_tmp(
+        _field_grid(b"") + b"POINT_DATA 3\nFIELD FieldData 1\nf 1 3 double\n1 2 3\n"
+    )
+
+    poly = read(path)
+
+    np.testing.assert_allclose(poly.vertex_attrs["f"], [1, 2, 3])
+    assert poly.global_attrs == {}
+
+
+def test_a_field_value_wider_than_a_double_survives(tmp_path) -> None:
+    """Read through float() an id past 2**53 comes back a different number."""
+    wide = np.array([9007199254740993], dtype=np.int64)
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"case_id": wide},
+    )
+    path = tmp_path / "wide.vtk"
+
+    write(poly, path)
+    np.testing.assert_array_equal(read(path).global_attrs["case_id"], wide)
+
+
+def test_a_global_no_field_array_can_hold_is_named_and_dropped(tmp_path) -> None:
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"solver": "polyxios", "steps": 12},
+    )
+    path = tmp_path / "mixed.vtk"
+
+    with pytest.warns(UserWarning, match=r"global_attrs \['solver'\]"):
+        write(poly, path)
+
+    assert "solver" not in read(path).global_attrs
+
+
+def test_the_grid_a_structured_read_recorded_is_not_written_back(tmp_path) -> None:
+    """vtk_dimensions describes a grid the writer does not spell: written as
+    field data it would hand the next reader a second copy of it."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"vtk_dimensions": [2, 2, 1], "steps": 3},
+    )
+    path = tmp_path / "grid.vtk"
+
+    write(poly, path)
+
+    assert b"vtk_dimensions" not in path.read_bytes()
+    assert tuple(read(path).global_attrs) == ("steps",)

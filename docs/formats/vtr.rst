@@ -59,6 +59,8 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and a value no numeric array holds - a string, a mapping - is dropped with a warning naming the key.
+- The ``vtr_*`` grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other ``global_attrs`` entry does.
 - The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
 - Appended and base64 payloads are decoded eagerly, and ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError` rather than pretending otherwise - the XML container has no seekable layout for mmap.
 - Multi-component attributes declare and honour ``NumberOfComponents``, so an ``(n, 3)`` vector survives a round trip rather than coming back as ``3n`` rows.

@@ -5,6 +5,7 @@ import warnings
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._globals import globals_for_write
 from polyxios._io import Source, write_text
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
@@ -12,8 +13,10 @@ from polyxios.codecs._vtk_xml import (
     extent_points,
     extent_spans,
     format_attr_da,
+    format_field_data,
     grid_axes,
     parse_xml,
+    read_field_data,
     require_grid_order,
     require_structured_cells,
     shaped_da,
@@ -30,6 +33,12 @@ from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vti"
+
+# The keys this codec spells from the grid itself on the way out, so they
+# never travel as field data - a second copy of the grid, in the wrong shape.
+RESERVED_GLOBALS: frozenset[str] = frozenset(
+    {"vti_origin", "vti_spacing", "vti_extent", "vti_whole_extent"}
+)
 
 
 def _triple(values: Any, *, default: float, what: str) -> list[float]:
@@ -388,7 +397,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point")
     element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell")
 
-    global_attrs: dict[str, Any] = {
+    # Whole-mesh metadata, under the grid the reader rebuilt: a file naming
+    # one of the reader's own keys in its field data is describing the same
+    # grid twice, and the grid is what the points were laid out on.
+    global_attrs: dict[str, Any] = read_field_data(img, _decode)
+    global_attrs |= read_field_data(piece, _decode)
+    global_attrs |= {
         "vti_origin": origin,
         "vti_spacing": spacing,
         "vti_extent": pe,
@@ -496,6 +510,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(
         f'  <ImageData WholeExtent="{whole_str}" Origin="{orig_str}" '
         f'Spacing="{spac_str}">'
+    )
+    lines.extend(
+        format_field_data(
+            globals_for_write(poly, reserved=RESERVED_GLOBALS, fmt=EXTENSION),
+            binary=binary,
+            indent=4,
+        )
     )
     lines.append(f'    <Piece Extent="{ext_str}">')
 

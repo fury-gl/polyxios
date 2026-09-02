@@ -140,6 +140,17 @@ New features
   flagged two-dimensional whose vertices have since left the plane is
   written in three, with a warning, rather than being flattened in silence.
 
+- Whole-mesh metadata now travels through the VTK family. ``.vtu``, ``.vtp``,
+  ``.vti``, ``.vtr`` and ``.vts`` read and write a ``<FieldData>`` block, and
+  legacy ``.vtk`` reads and writes a ``FIELD FieldData`` block between the
+  ``DATASET`` line and the geometry - so a time value, a material constant or
+  a solver tolerance in ``global_attrs`` survives a write instead of being
+  dropped. The block holds arrays: a scalar comes back as a one-element array,
+  a field array keeps the type it was held in, and a value no numeric array
+  holds is dropped with a warning naming the key. The ``vtk_*``, ``vti_*``,
+  ``vtr_*`` and ``vts_*`` grid entries a structured read records are spelled
+  from the grid itself and never travel as field data.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 
