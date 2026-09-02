@@ -19,10 +19,12 @@ stays on disk until needed.
 
     # Element connectivity is still on disk until you access it
 
-Lazy loading is supported for binary ``.vtk``, ``.ply``, ``.stl`` and
-``.meshb`` files. ASCII formats load eagerly (the whole file must be parsed to
-extract values). Binary STL lazy mode skips vertex deduplication - vertices are
-returned as-is (3 per triangle), avoiding the extra pass over the data.
+``lazy=True`` is honoured for binary ``.vtk``, ``.ply`` and ``.stl`` files.
+ASCII formats load eagerly (the whole file must be parsed to extract values).
+Binary STL lazy mode skips vertex deduplication - vertices are returned as-is
+(3 per triangle), avoiding the extra pass over the data. ``.meshb`` needs no
+flag: a path is always memory-mapped and a file object always read into
+memory, so ``lazy=True`` there warns and changes nothing.
 
 .. seealso::
 

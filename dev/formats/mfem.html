@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=f83114f9"></script>
+    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -71,11 +71,11 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Netgen" href="netgen.html" />
-    <link rel="prev" title="Well-Known Text" href="wkt.html" />
+    <link rel="prev" title="VTK ImageData" href="vti.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -567,7 +568,7 @@
 <td><p>0-based</p></td>
 </tr>
 <tr class="row-even"><td><p>variants</p></td>
-<td><p>INLINE (parametric recipe), NURBS (spline patches)</p></td>
+<td><p>INLINE (parametric recipe), NURBS (spline patches), NC-Mesh</p></td>
 </tr>
 </tbody>
 </table>
@@ -594,7 +595,10 @@
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>INLINE and NURBS meshes raise <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>; they store a recipe rather than an explicit mesh.</p></li>
+<li><p>The INLINE, NURBS and NC-Mesh variants store a recipe rather than an explicit mesh, and each is still read - what comes back differs by variant.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">INLINE</span></code> file is materialised into the uniform grid its <code class="docutils literal notranslate"><span class="pre">type</span></code>/<code class="docutils literal notranslate"><span class="pre">nx</span></code>/<code class="docutils literal notranslate"><span class="pre">ny</span></code>/<code class="docutils literal notranslate"><span class="pre">nz</span></code> and domain extents describe, matching MFEM’s own <code class="docutils literal notranslate"><span class="pre">MakeCartesian</span></code>, so it reads as an ordinary mesh.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NURBS</span></code> file gives back its <em>control points</em>, not surface samples: the vertices are the B-spline coefficients, the connectivity is the patch topology, and the knot vectors and weights travel in <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;mfem_nurbs_knotvectors&quot;]</span></code> and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;mfem_nurbs_weights&quot;]</span></code>. Evaluating the basis to get real nodes is MFEM’s job - <code class="docutils literal notranslate"><span class="pre">SetCurvature(1)</span></code> and re-save, then read the result here.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NC</span> <span class="pre">mesh</span></code> file - or <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NC-Mesh</span></code>, the other spelling of the same header, matched whatever its case - is a forest of refinement trees, and its <em>leaves</em> are the mesh: the refined parents are stepped over, and the vertices the leaves reference are reconstructed from the <code class="docutils literal notranslate"><span class="pre">coordinates</span></code> section and the midpoint rules in <code class="docutils literal notranslate"><span class="pre">vertex_parents</span></code>. <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;mfem_nc_n_total_elements&quot;]</span></code> and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;mfem_nc_n_leaf_elements&quot;]</span></code> record both counts. The geometry is right, but hanging-node constraints are not applied, so the mesh is not FEM-conforming at a refinement boundary - re-save through PyMFEM for that.</p></li>
 <li><p>A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact. The written <code class="docutils literal notranslate"><span class="pre">dimension</span></code> follows it, and a mesh whose <code class="docutils literal notranslate"><span class="pre">z</span></code> column is entirely zero goes out as 2-D whether it was flagged or not. A flagged mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three columns whatever the flag says - MFEM reads exactly as many coordinates per vertex as the block declares, and a tetrahedron of two-coordinate vertices is not a cell.</p></li>
 <li><p>Coordinates are written with <code class="docutils literal notranslate"><span class="pre">.10g</span></code>, which does not name a float64 exactly - a round trip differs in the last few digits.</p></li>
 <li><p>MFEM names eight geometries and no higher-order one. An element it has no geometry for - a <code class="docutils literal notranslate"><span class="pre">quadratic_tetra</span></code>, a <code class="docutils literal notranslate"><span class="pre">polygon</span></code> - is skipped on write with a warning naming its type, and the declared element count drops with it. Writing one under another geometry’s code would leave its extra nodes to be read as the record that follows, which costs every element after it rather than the one that did not fit.</p></li>
@@ -617,12 +621,12 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="wkt.html"
+       href="vti.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Well-Known Text</p>
+        <p class="prev-next-title">VTK ImageData</p>
       </div>
     </a>
     <a class="right-next"
@@ -715,7 +719,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

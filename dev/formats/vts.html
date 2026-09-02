@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=f83114f9"></script>
+    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -614,6 +615,12 @@
 <li><p>Header counts are validated against the file size before any array is allocated.</p></li>
 <li><p>Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.</p></li>
 <li><p>An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every <code class="docutils literal notranslate"><span class="pre">CellData</span></code> array belonging to nothing.</p></li>
+<li><p>The points are written out in the mesh’s own order, so they need not be a lattice: a warped block, a cylindrical shell and an aerofoil O-grid are all StructuredGrids, and holding those is what the format is for. The extent is read off the cells, which are a grid whatever the coordinates do.</p></li>
+<li><p>The cells are the one thing the file does not carry. A mesh whose elements are not the ones the extent reads back - a mix of types, tetrahedra over grid points, or hexahedra in another order - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> at the point of writing rather than being silently swapped for the grid’s own cells, taking its <code class="docutils literal notranslate"><span class="pre">CellData</span></code> with it. Write a <a class="reference internal" href="vtu.html"><span class="doc">VTK UnstructuredGrid</span></a>, which carries an arbitrary mesh and its own cells.</p></li>
+<li><p>A mesh with no vertices writes the extent VTK spells an empty grid with, <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">-1</span></code>, and reads back as a mesh with none.</p></li>
+<li><p>An extent that ends before it starts on any axis holds no points, so it holds no cells either - <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> reads as an empty mesh rather than as four quads whose corners name points the file never spelled.</p></li>
+<li><p>A StructuredGrid carries its points, so the extent and the <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code> array have to agree on how many. The column count is read off the two, so a file that disagrees used to come back as a mesh of the wrong width - a point of no coordinates at all - and fail later on a shape nothing in the file explained; it now raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming both counts. An array wider than three components keeps its first three, as before.</p></li>
+<li><p>The extent of the file a mesh was read from travels with it, so a grid that did not begin at zero is written back where it stood - but only while it still describes the mesh. One a transform has moved the mesh out from under is re-derived from the cells rather than trusted.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -732,7 +739,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

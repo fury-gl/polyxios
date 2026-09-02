@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/meshb.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".meshb read + write lazy: binary only Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code,..." />
+<meta property="og:description" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_meshb_6e60fb9e.png" />
-<meta property="og:image:alt" content=".meshb read + write lazy: binary only Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code,..." />
-<meta name="description" content=".meshb read + write lazy: binary only Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code,..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_meshb_189e41c0.png" />
+<meta property="og:image:alt" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta name="description" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=f83114f9"></script>
+    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -538,7 +539,7 @@
                   
   <section id="medit-binary">
 <span id="format-meshb"></span><h1>Medit binary<a class="headerlink" href="#medit-binary" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">only</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">always</span> <span class="pre">mmapped</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, the byte position of the next field, then that field’s data. Codes identify the version and dimension first, then typed entity blocks - <code class="docutils literal notranslate"><span class="pre">Vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Triangles</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilaterals</span></code>, <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Hexahedra</span></code> - each a count followed by fixed-width records of node indices plus a trailing reference (tag) integer. The version code fixes whether floats are 32- or 64-bit.</p>
@@ -583,8 +584,9 @@
 <span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
 </pre></div>
 </div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.meshb"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<p>A path is memory-mapped rather than loaded, always - there is no eager mode
+to ask for and no <code class="docutils literal notranslate"><span class="pre">lazy=</span></code> to pass:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.meshb"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -604,7 +606,7 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Prisms</span></code> and <code class="docutils literal notranslate"><span class="pre">Pyramids</span></code> are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.</p></li>
 <li><p>The higher-order sections (<code class="docutils literal notranslate"><span class="pre">TrianglesP2</span></code>, <code class="docutils literal notranslate"><span class="pre">TetrahedraP2</span></code>, <code class="docutils literal notranslate"><span class="pre">HexahedraQ2</span></code>, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion <code class="docutils literal notranslate"><span class="pre">*Ordering</span></code> section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.</p></li>
 <li><p>Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.</p></li>
-<li><p>Binary bodies can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>.</p></li>
+<li><p>A path is mapped and a file object read into memory, whichever <code class="docutils literal notranslate"><span class="pre">lazy=</span></code> says, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and changes nothing while <code class="docutils literal notranslate"><span class="pre">lazy=False</span></code> is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -722,7 +724,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

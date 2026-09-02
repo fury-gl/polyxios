@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=f83114f9"></script>
+    <script src="../../_static/documentation_options.js?v=c5537eb6"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -106,7 +106,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -449,7 +449,12 @@
   <h1>Source code for polyxios.validate</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._element_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">MAX_SAFE_CONN</span><span class="p">,</span> <span class="n">MAX_SAFE_ELEMENTS</span><span class="p">,</span> <span class="n">MAX_SAFE_VERTICES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._element_types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MAX_IMPLIED_VERTICES</span><span class="p">,</span>
+    <span class="n">MAX_SAFE_CONN</span><span class="p">,</span>
+    <span class="n">MAX_SAFE_ELEMENTS</span><span class="p">,</span>
+    <span class="n">MAX_SAFE_VERTICES</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._types</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolyData</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span>
 
@@ -544,6 +549,8 @@
     <span class="n">file_size_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">compressed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">spells_vertices</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">spells_connectivity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Validate header counts against file size before any array allocation.</span>
 
@@ -560,16 +567,50 @@
 <span class="sd">    compressed</span>
 <span class="sd">        If True, skip file-size plausibility checks (compressed data is</span>
 <span class="sd">        smaller than the raw vertex/connectivity byte estimates).</span>
+<span class="sd">    spells_vertices</span>
+<span class="sd">        Whether the file holds a coordinate for every vertex it declares.</span>
+<span class="sd">        False for a format that describes its points instead of writing</span>
+<span class="sd">        them - an ImageData spells an origin and a step, a RectilinearGrid</span>
+<span class="sd">        three axes - where the count comes from a header a few bytes long</span>
+<span class="sd">        and no amount of file is evidence for or against it.</span>
+<span class="sd">    spells_connectivity</span>
+<span class="sd">        Whether the file holds the indices it declares. False for the</span>
+<span class="sd">        structured formats, whose cells are implied by the extent and</span>
+<span class="sd">        written nowhere.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
 <span class="sd">    ValidationError</span>
 <span class="sd">        If declared counts exceed hard caps or are implausible given file size.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The caps apply whatever the file spells: they bound what is about to be</span>
+<span class="sd">    allocated, which is the expanded mesh either way. Only the two size</span>
+<span class="sd">    heuristics are gated, and they are heuristics about bytes on disk - a</span>
+<span class="sd">    ``4 x 4 x 4`` ImageData declares 64 points in a 231-byte file and is not</span>
+<span class="sd">    corrupt, it is the format working as intended.</span>
+
+<span class="sd">    A file that spells no points is held to the tighter</span>
+<span class="sd">    :data:`MAX_IMPLIED_VERTICES` in place of the heuristic it is excused from.</span>
+<span class="sd">    The heuristic is what makes the loose cap safe elsewhere: a format that</span>
+<span class="sd">    writes its points has to spend bytes on each one, so a header can only ask</span>
+<span class="sd">    for as much memory as the file it sits in is long. A header that describes</span>
+<span class="sd">    its points instead spends six indices on any number of them, and nothing</span>
+<span class="sd">    stands between that number and the allocation.</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="n">declared_n_verts</span> <span class="o">&gt;</span> <span class="n">MAX_SAFE_VERTICES</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_VERTICES="</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_SAFE_VERTICES</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">spells_vertices</span> <span class="ow">and</span> <span class="n">declared_n_verts</span> <span class="o">&gt;</span> <span class="n">MAX_IMPLIED_VERTICES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> exceeds "</span>
+            <span class="sa">f</span><span class="s2">"MAX_IMPLIED_VERTICES=</span><span class="si">{</span><span class="n">MAX_IMPLIED_VERTICES</span><span class="si">}</span><span class="s2">, the cap on a "</span>
+            <span class="s2">"format that describes its points rather than writing them. "</span>
+            <span class="sa">f</span><span class="s2">"file_size_bytes=</span><span class="si">{</span><span class="n">file_size_bytes</span><span class="si">}</span><span class="s2"> is no evidence either way, so "</span>
+            <span class="s2">"the count is taken on its own. Possible corrupt or malicious file."</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">declared_n_elems</span> <span class="o">&gt;</span> <span class="n">MAX_SAFE_ELEMENTS</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
@@ -586,14 +627,14 @@
         <span class="k">return</span>
 
     <span class="c1"># coords require 3 * 8 bytes per vertex; allow 4× slack for headers/ASCII overhead</span>
-    <span class="k">if</span> <span class="n">declared_n_verts</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">&gt;</span> <span class="n">file_size_bytes</span> <span class="o">*</span> <span class="mi">4</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">spells_vertices</span> <span class="ow">and</span> <span class="n">declared_n_verts</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">&gt;</span> <span class="n">file_size_bytes</span> <span class="o">*</span> <span class="mi">4</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> implies "</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">24</span><span class="si">}</span><span class="s2"> bytes of vertex data but "</span>
             <span class="sa">f</span><span class="s2">"file_size_bytes=</span><span class="si">{</span><span class="n">file_size_bytes</span><span class="si">}</span><span class="s2">. Possible corrupt file."</span>
         <span class="p">)</span>
     <span class="c1"># connectivity requires 4 bytes per index; allow 4× slack</span>
-    <span class="k">if</span> <span class="n">declared_conn_size</span> <span class="o">*</span> <span class="mi">4</span> <span class="o">&gt;</span> <span class="n">file_size_bytes</span> <span class="o">*</span> <span class="mi">4</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">spells_connectivity</span> <span class="ow">and</span> <span class="n">declared_conn_size</span> <span class="o">*</span> <span class="mi">4</span> <span class="o">&gt;</span> <span class="n">file_size_bytes</span> <span class="o">*</span> <span class="mi">4</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"declared_conn_size=</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="si">}</span><span class="s2"> implies "</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">declared_conn_size</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">4</span><span class="si">}</span><span class="s2"> bytes of index data but "</span>
@@ -653,7 +694,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

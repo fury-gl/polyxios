@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=f83114f9"></script>
+    <script src="_static/documentation_options.js?v=c5537eb6"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -621,6 +622,40 @@ on which duplicate the file listed first and a tolerance never moves a
 point. Welding is not culling: a vertex no
 element references is kept - compose with <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> to
 drop those too.</p></li>
+<li><p>Kratos MDPA <code class="docutils literal notranslate"><span class="pre">.mdpa</span></code> is read and written: nodes, elements named by Kratos
+element class, conditions, <code class="docutils literal notranslate"><span class="pre">Properties</span></code> ids, <code class="docutils literal notranslate"><span class="pre">NodalData</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ElementalData</span></code> variables, <code class="docutils literal notranslate"><span class="pre">ModelPartData</span></code> and nested <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code>
+groups. The class name and the geometry do not identify each other -
+<code class="docutils literal notranslate"><span class="pre">Element3D4N</span></code> is a tetrahedron, and a quadrilateral in space would want
+the same name - so the writer spells the class with the element’s
+topological dimension, which makes the pair unique and keeps a round trip
+exact. Reading is wider: the <code class="docutils literal notranslate"><span class="pre">&lt;n&gt;D&lt;m&gt;N</span></code> suffix is read off whatever
+application element carries it (<code class="docutils literal notranslate"><span class="pre">SmallDisplacementElement3D4N</span></code>,
+<code class="docutils literal notranslate"><span class="pre">VMS3D4N</span></code>), and the explicit geometry names (<code class="docutils literal notranslate"><span class="pre">Tetrahedra3D4</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Prism3D6</span></code>) are recognised too. <code class="docutils literal notranslate"><span class="pre">Conditions</span></code> are read as elements,
+since they are cells of the same mesh; they are written back under
+<code class="docutils literal notranslate"><span class="pre">Elements</span></code>: which cells a solver should treat as boundary is a modelling
+choice the mesh does not carry.</p></li>
+<li><p>The numbers a file gave its nodes and elements now survive a round trip.
+An Abaqus deck, a Nastran bulk data file, a Gmsh <code class="docutils literal notranslate"><span class="pre">.msh</span></code>, a FLAC3D grid
+and an MDPA file all number entities freely, and renumbering them 1..n
+leaves the author’s other files - a load case naming <code class="docutils literal notranslate"><span class="pre">GRID</span> <span class="pre">7000001</span></code>, a
+report keyed on element <code class="docutils literal notranslate"><span class="pre">4001</span></code> - pointing at the wrong thing. The reader
+records what the file said in <code class="docutils literal notranslate"><span class="pre">vertex_attrs[&quot;original_ids&quot;]</span></code> /
+<code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;original_ids&quot;]</span></code> and the writer puts it back. The key is
+not format-prefixed, so a mesh read from a <code class="docutils literal notranslate"><span class="pre">.bdf</span></code> and written as <code class="docutils literal notranslate"><span class="pre">.msh</span></code>
+keeps its numbering. Only a numbering the index does not already say is
+stored: a file numbering <code class="docutils literal notranslate"><span class="pre">1..n</span></code> in order records nothing, since the
+writer’s own renumbering reproduces it. Ids that a transform has since
+invalidated - <code class="docutils literal notranslate"><span class="pre">merge</span></code> collides two meshes that each numbered from one,
+splitting a cell leaves two entities carrying one id - are checked at the
+point of writing rather than trusted, and a mesh that lost its numbering
+gets dense ids and a warning rather than a file no solver loads. A format
+that numbers densely by construction has no id of its own to record and
+ignores the key on write; whether it carries one comes down to whether it
+has a general attribute channel, so a mesh read from a <code class="docutils literal notranslate"><span class="pre">.bdf</span></code>, welded and
+written as <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> keeps the ids of the vertices that survived, while OFF
+or STL drop the key with every other attribute.</p></li>
 <li><p>Two-dimensional files now follow one rule across every format that can
 spell one. A mesh always carries three coordinate columns, a file that
 declared two is padded with <code class="docutils literal notranslate"><span class="pre">z=0</span></code>, and the fact is recorded in
@@ -674,6 +709,174 @@ receives are the same ones. Every reader already accepted either ending.</p></li
 <section id="bug-fixes">
 <h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> hold a grid, and each now says so when
+handed something else. All three inferred their extent from the distinct
+coordinate on each axis, and none of them checked that those multiply back
+out to the mesh: a scattered mesh of seven vertices was written as a seven by
+seven by seven grid of 343 points, with seven rows of point data under a
+header claiming 343. The file was unreadable - its own reader refused it -
+but nothing said so at the point of writing. A mesh whose vertices are a
+grid in some other order was worse, since the count agreed: the file was
+read back happily with every point attribute sitting on the point mirrored
+through the diagonal. The extent is now read off the cells instead, which
+are a grid whatever the coordinates do, and a mesh whose cells are not one
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the shape that was found and pointing at
+<code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, which holds an arbitrary mesh.</p></li>
+<li><p>None of the three writes its connectivity - the reader rebuilds it from the
+extent - and none of them checked that the cells it was handed were the ones
+it would rebuild. Two tetrahedra over the points of a grid were written as
+the grid’s eight hexahedra, their <code class="docutils literal notranslate"><span class="pre">CellData</span></code> dropped on the way out for
+covering the wrong number of cells, and the mesh that came back was not the
+one that went in. Cells the extent does not read back now raise
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> at the point of writing.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vts</span></code> holds a curvilinear grid: it writes its points, so they need not
+lie on a lattice at all, and a warped block, a cylindrical shell and an
+aerofoil O-grid are all StructuredGrids. Taking the extent from the distinct
+coordinate on each axis meant none of them could be written - a warped 3x3x3
+grid counted 27 distinct values on every axis and went out declaring a
+27x27x27 one - and reading the extent off the cells is what lets the format
+hold what it is for.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> writes its three coordinate arrays out in full, so nothing says an
+axis has to ascend. They were taken as the sorted distinct value on each
+column, which turned a descending axis round underneath its own point data;
+they are read off the vertices a stride at a time now, and an axis keeps the
+direction it was given.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code> and <code class="docutils literal notranslate"><span class="pre">.vts</span></code> keep the extent of the file they were read from, and
+<code class="docutils literal notranslate"><span class="pre">.vti</span></code> the origin and step as well, so a grid that did not begin at zero -
+or that steps down an axis - goes back exactly where it stood. All three
+were trusted after a transform had moved the mesh out from under them, and
+each fails differently: a grid pruned to one of its cells was written under
+the extent of the grid it used to be and read back as twenty-seven vertices
+and eight cells it no longer held, a mesh moved five units went out under
+the origin it had left, and one scaled by ten went out under the step. What
+no longer describes the mesh is re-derived from it, the way the entity ids
+are re-checked at the point of writing rather than trusted.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.vti</span></code> took the step on the x axis for the step on all three. A
+lattice whose planes are unevenly spaced is a RectilinearGrid, not an
+ImageData, and one written as the latter came back with every plane past the
+second moved - x coordinates of 0, 1 and 5 read back as 0, 1 and 2, in a
+well-formed file of the right size. An axis that is not evenly spaced now
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> pointing at <code class="docutils literal notranslate"><span class="pre">.vtr</span></code>, which spells its coordinates
+out.</p></li>
+<li><p>Reading back the empty <code class="docutils literal notranslate"><span class="pre">.vts</span></code> this codec writes raised <code class="docutils literal notranslate"><span class="pre">ValueError:</span>
+<span class="pre">cannot</span> <span class="pre">reshape</span> <span class="pre">array</span> <span class="pre">of</span> <span class="pre">size</span> <span class="pre">0</span> <span class="pre">into</span> <span class="pre">shape</span> <span class="pre">(0,newaxis)</span></code>. An empty extent
+gives no column count to infer one from; a file with no points now reads
+as a mesh with none.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.vti</span></code> measures the grid step on each axis separately. Only the
+x axis was asked whether it had a second plane to measure against, and y
+and z were then indexed regardless, so any mesh flat in one of them - a
+sheet of quads, an image one voxel deep - raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> from inside
+the writer instead of being written, and a mesh flat in x quietly took the
+default spacing on all three axes rather than the steps it did have. A
+degenerate axis now keeps the default spacing, which is what VTK reads back
+for an extent of zero anyway, and a mesh with no vertices at all writes the
+<code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span></code> extent VTK spells an empty image with - the one the <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vtr</span></code> writers here already spell - rather than the <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code> that reads
+back as a point the mesh never held.</p></li>
+<li><p>Reading a <code class="docutils literal notranslate"><span class="pre">.vti</span></code> whose <code class="docutils literal notranslate"><span class="pre">Origin</span></code> or <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> spells two numbers where
+three belong raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> from inside the parse. The axes it does
+give are taken and the rest defaulted, and a bare number given as
+<code class="docutils literal notranslate"><span class="pre">vti_spacing</span></code> is taken for every axis rather than subscripted. Any number
+of them but three warns rather than passing in silence, and a short one is
+the worse of the two: a dropped fourth number describes no axis, where a
+missing third is an axis of the mesh given a value the file never spelled.
+This codec writes no coordinates, so those six numbers are the whole
+geometry.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> keeps the extent of the file it was read from, the way <code class="docutils literal notranslate"><span class="pre">.vti</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vts</span></code> do. A block that did not begin at zero was slid to the origin on the
+way out, which is the one thing a <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> assembling it next to its
+neighbours reads. It is checked against the mesh rather than trusted: one a
+transform has moved the mesh out from under is re-derived from the cells.</p></li>
+<li><p>All three keep the <code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> of the file they were read from as well
+as their own <code class="docutils literal notranslate"><span class="pre">Extent</span></code>. The two differ exactly when the file is one piece
+of a parallel set, which is the case the piece indices are kept for, and
+writing the piece extent into both narrowed the grid to the piece: a block
+that went back out at the indices it stood on still claimed to be the whole
+domain, so the <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code> or <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> assembling it read one
+neighbour where it should have read several. Kept only while the piece
+extent is, since an extent re-derived from the cells is zero-based and says
+nothing about the grid the mesh used to stand in.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> that is not six whole numbers now raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming the file and the attribute. Unpacked straight into ints, it failed
+with a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about a literal instead.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vti</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> holding a bare grid is readable by the codec that
+wrote it. Neither format spells a coordinate per vertex - an ImageData
+writes an origin and a step, a RectilinearGrid three axes - but the header
+check weighed the declared point count against the bytes on disk as though
+they did, so a plain 4x4x4 grid went out as a valid 231-byte file and came
+back as <code class="docutils literal notranslate"><span class="pre">ValidationError:</span> <span class="pre">declared_n_verts=64</span> <span class="pre">implies</span> <span class="pre">1536</span> <span class="pre">bytes</span> <span class="pre">of</span> <span class="pre">vertex</span>
+<span class="pre">data</span></code>. The heuristic is asked only of a format that spells what it
+declares.</p></li>
+<li><p>A format excused that heuristic is held to a tighter cap in its place. The
+heuristic is what made the loose one safe to leave loose: a format that
+writes its points has to spend bytes on each, so a header can only ask for
+as much memory as the file it sits in is long. An ImageData spends six
+indices on any number of points, so a 250-byte file could declare a hundred
+million planes on one axis and be expanded into the 2.4 GB of vertices they
+come to. The cap clears any grid that expands into a mesh a machine can
+work with and refuses the rest by name.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.vti</span></code> spells its <code class="docutils literal notranslate"><span class="pre">Origin</span></code> and <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> at the width a double
+reads back at. These six numbers are the whole geometry of an ImageData, and
+a <code class="docutils literal notranslate"><span class="pre">.10g</span></code> field kept ten of the seventeen a double carries: an origin of
+0.12345678901234 came back 2.6e-10 away and a step of 1.0000000001234 came
+back as a flat 1, moving every plane by one step more than the last. The
+writer had just checked the vertices against that origin and step to prove
+the file describes this mesh, and then wrote one that did not.</p></li>
+<li><p>The evenness an <code class="docutils literal notranslate"><span class="pre">ImageData</span></code> demands of an axis is measured against the
+step, not against the coordinate. A relative tolerance is a fraction of
+where the axis sits rather than of how far apart its planes are, so an axis
+at x = 1e6 was allowed half a millimetre of drift per plane: a visibly
+uneven lattice passed the check and came back regularised, with every plane
+past the second moved. A drift below what a double holds at that magnitude
+is still allowed, since no file could record it either way.</p></li>
+<li><p>An extent that ends before it starts on an axis holds no points, so it holds
+no cells either. All three readers counted the other two axes’ cells anyway,
+so <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> came back as four quadrilaterals over no vertices at all,
+every corner naming point zero of an empty array. An end two or more before
+its start turned the point count negative on top of that, which <code class="docutils literal notranslate"><span class="pre">.vts</span></code> then
+handed to <code class="docutils literal notranslate"><span class="pre">reshape</span></code> as a second unknown dimension. Such an extent now reads
+as the empty mesh it describes. Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> says the same thing with
+<code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> and had the same hole: a <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> or
+<code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> of <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">3</span> <span class="pre">3</span></code> came back as four quadrilaterals over no
+vertices, built from strides that were themselves zero, and a negative
+<code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> was reported to the caller as a negative count of points.</p></li>
+<li><p>The extent a mesh carries in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> may be no extent at all. A
+bare number has no length and a string that looks like one has characters
+rather than numbers, and either reached <code class="docutils literal notranslate"><span class="pre">len</span></code> and failed with a
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code> from inside the <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> writer. So could
+a <code class="docutils literal notranslate"><span class="pre">vti_origin</span></code> or <code class="docutils literal notranslate"><span class="pre">vti_spacing</span></code> holding something no float reads. None
+of them is trusted now: what cannot be read is named in a warning and the
+writer reads the mesh’s own extent, origin and step off it instead.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> builds its vertices from the coordinate arrays and everything else
+from the extent, and nothing in the file made the two agree. An array longer
+than its axis expanded into more vertices than the extent declared, while the
+cells, the offsets and every <code class="docutils literal notranslate"><span class="pre">PointData</span></code> array stayed sized to the extent -
+a mesh whose connectivity covered part of itself and whose attributes covered
+none of it, past every check the reader made. The lengths are compared now,
+and a mismatch raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the axis. Every axis is asked,
+including one the extent gives no plane at all: the point count is a product
+and goes to zero there, but the vertices are the coordinate arrays’ own outer
+product, so an axis left unchecked expanded <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> into nine
+vertices under an extent declaring none. An axis the file leaves no array for
+takes the one plane at zero the extent gives it, which is how a
+two-dimensional grid writes its third.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vts</span></code> reads the width of its points from the extent and the <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code>
+array together, so a file whose two disagreed came back as a mesh of the
+wrong width - one point of no coordinates at all, where the extent declared a
+point the array did not carry - and only failed later, on a shape nothing in
+the file explained. Both counts are named in a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> now. An array
+wider than three components still keeps its first three.</p></li>
+<li><p>An MFEM file that opens with a byte order mark is read rather than refused.
+The sniffer decodes the mark away and the reader did not, and the mark is
+not whitespace for <code class="docutils literal notranslate"><span class="pre">strip</span></code> to take off, so a <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> the registry had
+already claimed as MFEM failed for not starting with <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">mesh</span></code>.</p></li>
+<li><p>Every spelling of an MFEM header the sniffer accepts is one the reader
+dispatches on. The registry claims a <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> file by its upper-cased
+header and the reader matched case-sensitively, so <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NC</span> <span class="pre">MESH</span> <span class="pre">v1.0</span></code> was
+claimed as MFEM and then refused for not starting with <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">mesh</span></code>. The two
+NC spellings both reach the non-conforming reader as well: <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NC-Mesh</span></code>
+was falling through to the NURBS one, which read a refinement forest as
+B-spline control points and warned under the wrong variant’s name.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> hands back vertices with three columns. A file declaring
 <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> was read into an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">2)</span></code> array, which is not what a
 <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> holds: every consumer indexing <code class="docutils literal notranslate"><span class="pre">vertices[:,</span> <span class="pre">2]</span></code> - the
@@ -1401,7 +1604,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

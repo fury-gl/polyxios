@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="VTK Legacy" />
+<meta property="og:title" content="Kratos MDPA" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/vtk.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/mdpa.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
+<meta property="og:description" content=".mdpa read + write eager Summary of the specification: A Kratos.mdpa file is a flat list of Begin &lt;Section&gt;/ End &lt;Section&gt; blocks, and everything the format holds lives in one of them. ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtk_f1647263.png" />
-<meta property="og:image:alt" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
-<meta name="description" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_mdpa_149c906d.png" />
+<meta property="og:image:alt" content=".mdpa read + write eager Summary of the specification: A Kratos.mdpa file is a flat list of Begin &lt;Section&gt;/ End &lt;Section&gt; blocks, and everything the format holds lives in one of them. ..." />
+<meta name="description" content=".mdpa read + write eager Summary of the specification: A Kratos.mdpa file is a flat list of Begin &lt;Section&gt;/ End &lt;Section&gt; blocks, and everything the format holds lives in one of them. ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>VTK Legacy &#8212; polyxios</title>
+    <title>Kratos MDPA &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/vtk';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/mdpa';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/vtk.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/mdpa.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="VTK RectilinearGrid" href="vtr.html" />
-    <link rel="prev" title="Supported formats" href="index.html" />
+    <link rel="next" title="Lazy loading" href="../lazy_loading.html" />
+    <link rel="prev" title="Gaussian splat" href="splat.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
@@ -423,7 +423,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">installation.rst</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../usage.html">usage.rst</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">VTK Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtk.html">VTK Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtr.html">VTK RectilinearGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
@@ -449,7 +449,7 @@
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -520,7 +520,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">VTK Legacy</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Kratos MDPA</span></li>
   </ul>
 </nav>
 </div>
@@ -537,12 +537,13 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="vtk-legacy">
-<span id="format-vtk"></span><h1>VTK Legacy<a class="headerlink" href="#vtk-legacy" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">only</span></code></p>
+  <section id="kratos-mdpa">
+<span id="format-mdpa"></span><h1>Kratos MDPA<a class="headerlink" href="#kratos-mdpa" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.mdpa</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, <code class="docutils literal notranslate"><span class="pre">ASCII</span></code> or <code class="docutils literal notranslate"><span class="pre">BINARY</span></code> data mode, and a <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> keyword naming the geometry type. What follows depends on that type: an unstructured grid lists <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, then <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> as connectivity lists prefixed by their point count, then a parallel <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> array of integer type codes. Point and cell attributes arrive afterwards in <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> / <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> sections as named <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> arrays. In <code class="docutils literal notranslate"><span class="pre">BINARY</span></code> mode the arrays are raw big-endian values packed straight after their declaration line.</p>
+<p>A Kratos <code class="docutils literal notranslate"><span class="pre">.mdpa</span></code> file is a flat list of <code class="docutils literal notranslate"><span class="pre">Begin</span> <span class="pre">&lt;Section&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">End</span> <span class="pre">&lt;Section&gt;</span></code> blocks, and everything the format holds lives in one of them. Nothing is counted in a header, so a block runs until its <code class="docutils literal notranslate"><span class="pre">End</span></code>. <code class="docutils literal notranslate"><span class="pre">Nodes</span></code> carries <code class="docutils literal notranslate"><span class="pre">id</span> <span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span></code>, one node per line, numbered freely. An <code class="docutils literal notranslate"><span class="pre">Elements</span></code> block is headed by a Kratos <em>element class</em> - <code class="docutils literal notranslate"><span class="pre">Begin</span> <span class="pre">Elements</span> <span class="pre">Element3D4N</span></code> - and each line spells <code class="docutils literal notranslate"><span class="pre">id</span> <span class="pre">property_id</span> <span class="pre">&lt;nodes&gt;</span></code>; a <code class="docutils literal notranslate"><span class="pre">Conditions</span></code> block has the same shape and its own numbering. <code class="docutils literal notranslate"><span class="pre">Properties</span></code> blocks carry material and solver settings, <code class="docutils literal notranslate"><span class="pre">NodalData</span></code> and <code class="docutils literal notranslate"><span class="pre">ElementalData</span></code> carry one variable per block keyed by entity id, <code class="docutils literal notranslate"><span class="pre">ModelPartData</span></code> carries whole-mesh values, and a <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code> names the nodes, elements and conditions of a group - and may nest other parts inside itself.</p>
+<p>The element class name is a registered Kratos class rather than a geometry. The generic spelling is <code class="docutils literal notranslate"><span class="pre">Element&lt;space</span> <span class="pre">dim&gt;D&lt;node</span> <span class="pre">count&gt;N</span></code>, and an application registers its own element behind the same suffix: <code class="docutils literal notranslate"><span class="pre">SmallDisplacementElement3D4N</span></code>, <code class="docutils literal notranslate"><span class="pre">SurfaceLoadCondition3D3N</span></code>, <code class="docutils literal notranslate"><span class="pre">VMS3D4N</span></code>. Kratos also uses explicit geometry names in its own tables - <code class="docutils literal notranslate"><span class="pre">Tetrahedra3D4</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilateral3D4</span></code>, <code class="docutils literal notranslate"><span class="pre">Prism3D6</span></code>.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -552,91 +553,68 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>banner</p></td>
-<td><p># vtk DataFile Version x.y</p></td>
+<tr class="row-odd"><td><p>structure</p></td>
+<td><p>Begin &lt;Section&gt; … End &lt;Section&gt;, no counts</p></td>
 </tr>
-<tr class="row-even"><td><p>data mode</p></td>
-<td><p>ASCII or BINARY (binary payload is big-endian)</p></td>
+<tr class="row-even"><td><p>node record</p></td>
+<td><p>id x y z</p></td>
 </tr>
-<tr class="row-odd"><td><p>dataset types</p></td>
-<td><p>STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID, FIELD</p></td>
+<tr class="row-odd"><td><p>cell record</p></td>
+<td><p>id property_id &lt;nodes&gt;</p></td>
 </tr>
-<tr class="row-even"><td><p>connectivity</p></td>
-<td><p>CELLS &lt;n&gt; &lt;size&gt; followed by CELL_TYPES &lt;n&gt; integer codes</p></td>
+<tr class="row-even"><td><p>cell blocks</p></td>
+<td><p>Elements &lt;class&gt;, Conditions &lt;class&gt;</p></td>
 </tr>
-<tr class="row-odd"><td><p>attributes</p></td>
-<td><p>POINT_DATA / CELL_DATA with SCALARS, COLOR_SCALARS, VECTORS, NORMALS, TENSORS, TEXTURE_COORDINATES, FIELD</p></td>
+<tr class="row-odd"><td><p>indices</p></td>
+<td><p>1-based, free numbering</p></td>
+</tr>
+<tr class="row-even"><td><p>data blocks</p></td>
+<td><p>NodalData, ElementalData, ModelPartData</p></td>
+</tr>
+<tr class="row-odd"><td><p>groups</p></td>
+<td><p>SubModelPart, nestable</p></td>
+</tr>
+<tr class="row-even"><td><p>comments</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">//</span></code> to end of line</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://examples.vtk.org/site/VTKFileFormats/">Read the full VTK Legacy specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://github.com/KratosMultiphysics/Kratos/wiki/Input-data">Kratos Multiphysics input data ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.vtk"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
-</pre></div>
-</div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.vtk"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.mdpa"</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span>                        <span class="c1"># one entry per SubModelPart</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"original_ids"</span><span class="p">]</span>        <span class="c1"># the node ids the file spelled</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_attrs</span><span class="p">[</span><span class="s2">"mdpa_property_id"</span><span class="p">]</span>   <span class="c1"># the Properties block each cell points at</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span>                        <span class="c1"># the ModelPartData entries</span>
 </pre></div>
 </div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtk"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.mdpa"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Format-specific options:</p>
-<div class="pst-scrollable-table-container"><table class="px-spec-table table">
-<colgroup>
-<col style="width: 24.0%" />
-<col style="width: 20.0%" />
-<col style="width: 56.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Option</p></th>
-<th class="head"><p>Default</p></th>
-<th class="head"><p>Effect</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
-<td><p>Write a BINARY body instead of ASCII.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<p>The writer recognises no options; any that are passed are warned about and ignored.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>Binary files can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>; ASCII files must be parsed end to end before any value is available.</p></li>
-<li><p>Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.</p></li>
-<li><p>Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code>, <code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code>, <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.</p></li>
-<li><p>An attribute section that declares more values than the file holds raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array, rather than an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> naming nothing in ASCII or a reshape failure naming nothing in binary.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> keeps <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code> and <code class="docutils literal notranslate"><span class="pre">SPACING</span></code> in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> (<code class="docutils literal notranslate"><span class="pre">vtk_dimensions</span></code>, <code class="docutils literal notranslate"><span class="pre">vtk_origin</span></code>, <code class="docutils literal notranslate"><span class="pre">vtk_spacing</span></code>); <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> and <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> keep <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>. The points are expanded into an explicit array, so without those the grid behind them would be lost.</p></li>
-<li><p>Those <code class="docutils literal notranslate"><span class="pre">vtk_*</span></code> entries are read-only: <code class="docutils literal notranslate"><span class="pre">write</span></code> always emits an <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> and does not consume them.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> is read from the structured datasets as well as the unstructured ones. An array whose declared length matches neither the points nor the cells of the grid the header describes is dropped with a warning naming it, rather than reaching <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> as a validation error about lengths.</p></li>
-<li><p>A structured grid extends along whichever axes its <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> declare: <code class="docutils literal notranslate"><span class="pre">3</span> <span class="pre">1</span> <span class="pre">3</span></code> is a sheet of quads in the x-z plane, not a run of lines, and a column along <code class="docutils literal notranslate"><span class="pre">y</span></code> or <code class="docutils literal notranslate"><span class="pre">z</span></code> is indexed with its own stride.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> of one is an axis the grid does not extend along; one of zero - or the negative a malformed header spells - is an axis with no point on it at all, and one such axis empties the grid, since the point count is a product. It holds no cells either: counting the other two axes’ cells handed back quadrilaterals whose corners named points the file never laid out.</p></li>
-<li><p>VTK 5.1 cells - the default since VTK 9.0 - are read wherever they appear: <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> in an unstructured grid and <code class="docutils literal notranslate"><span class="pre">POLYGONS</span></code>, <code class="docutils literal notranslate"><span class="pre">LINES</span></code>, <code class="docutils literal notranslate"><span class="pre">VERTICES</span></code> or <code class="docutils literal notranslate"><span class="pre">TRIANGLE_STRIPS</span></code> in polydata. The two numbers on such a line are the length of the <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> array and the length of <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code>, so the mesh holds one cell fewer than the first of them; the offsets are counted up to the <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code> keyword, so a file spelling that line either way is read. <code class="docutils literal notranslate"><span class="pre">write(...,</span> <span class="pre">vtk_version=&quot;5.1&quot;)</span></code> declares the offsets length, which is what VTK’s own reader expects.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block - component names and information keys, written after every array by VTK 4.2 and later - is stepped over rather than read as an array. It is text even in a binary file, and it appears between the entries of a <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block as well as after a section.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block also sits inside a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section, between its offsets and its connectivity, and is stepped over there too.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">DATASET</span> <span class="pre">FIELD</span></code> file carries field arrays and no geometry. It reads as an empty <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code> whose <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> hold the arrays, with a warning saying so.</p></li>
-<li><p>Which cell spelling a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section uses is decided by what follows the header, not by the version in the first line, so a file declaring a version this reader has never heard of is still read by what it holds.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> takes its grid from its coordinate arrays: the points are their outer product, so a <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> header that disagrees with them is warned about and ignored.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> carries an explicit <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> array, which its <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> cannot be reconciled against the way a rectilinear grid’s coordinates can. When the two disagree the points are handed back without cells, with a warning naming both counts: the cells the header describes would index points the file does not hold.</p></li>
-<li><p>An attribute section is read by the count its own header declares, which is the only thing that says where one array ends and the next begins. An array that then covers no point or cell of the mesh is dropped with a warning naming it.</p></li>
-<li><p>The <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> line after a <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> section is optional, and a binary file without one is read as such rather than losing the head of its payload.</p></li>
-<li><p>A header missing a field, or spelling a count as something that is not a number, raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line it is on - the byte offset, in a binary file. This covers the geometry headers - <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code>, <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code>, <code class="docutils literal notranslate"><span class="pre">SPACING</span></code>, the coordinate arrays - as well as the attribute ones.</p></li>
-<li><p>A binary block is read as the type its header names, <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> included: an integer point array is not read at the width of a float. A type name with no numpy equivalent raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming it rather than being guessed at, since a guessed width reads numbers the file never held. An ASCII payload is text whatever its header calls it, so it is read either way.</p></li>
+<li><p>The class name and the geometry do not identify each other: <code class="docutils literal notranslate"><span class="pre">Element3D4N</span></code> is a tetrahedron, and a quadrilateral sitting in space would want the same name. polyxios writes the class name with the element’s <em>topological</em> dimension - a quadrilateral is <code class="docutils literal notranslate"><span class="pre">Element2D4N</span></code> whatever plane it lies in - which makes the pair unique and keeps a round trip exact. Reading is wider than writing: the <code class="docutils literal notranslate"><span class="pre">&lt;n&gt;D&lt;m&gt;N</span></code> suffix is read off whatever name carries it, and the explicit geometry names are recognised too.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Conditions</span></code> are read as elements, after the elements, because they are cells of the same mesh. That merges two id spaces, so a file whose condition id repeats an element id comes back without <code class="docutils literal notranslate"><span class="pre">original_ids</span></code> - a numbering with a duplicate in it is one no writer can spell back. Conditions are written under <code class="docutils literal notranslate"><span class="pre">Elements</span></code>: which cells a solver should treat as boundary is a modelling choice the mesh does not carry.</p></li>
+<li><p>Node ordering follows Kratos, which numbers its higher-order nodes the way GiD does. That agrees with polyxios for every type but two: a 20-node hexahedron and a 15-node wedge list their vertical mid-edge nodes before the ones on the top face, and both are permuted on the way in and back on the way out.</p></li>
+<li><p>An element of a type Kratos has no unambiguous class name for - a 3-node line, whose <code class="docutils literal notranslate"><span class="pre">Element2D3N</span></code> is how a triangle is spelled - is dropped on write with a warning, as is one whose node count does not match its type. A tag naming a dropped element leaves it out of its <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code>: Kratos refuses to load a file whose part names an element the file never declared.</p></li>
+<li><p>A data block spells a vector two ways and both are read: a <code class="docutils literal notranslate"><span class="pre">Variable&lt;Vector&gt;</span></code> declares its length (<code class="docutils literal notranslate"><span class="pre">[3]</span> <span class="pre">(1.0,2.0,3.0)</span></code>), while an <code class="docutils literal notranslate"><span class="pre">array_1d&lt;double,3&gt;</span></code> - what <code class="docutils literal notranslate"><span class="pre">DISPLACEMENT</span></code>, <code class="docutils literal notranslate"><span class="pre">VELOCITY</span></code> and the rest are - does not. A matrix (<code class="docutils literal notranslate"><span class="pre">[3,3]</span> <span class="pre">((…),(…),(…))</span></code>) is more than one value per entity, which no attribute column holds, so its block is passed over with a warning.</p></li>
+<li><p>Each <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code> becomes a <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> and/or <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> entry named after it, nested parts included. Kratos asks only that siblings differ, so two parts under different parents may carry one name; the second gets a <code class="docutils literal notranslate"><span class="pre">_2</span></code> suffix and a warning rather than its members poured into the first. A part contributing no member of its own - one that only groups its children - claims no name and becomes no tag.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;mdpa_property_id&quot;]</span></code> appears only when some cell points at something other than property 0; a file using one property says nothing a writer could not reproduce. The contents of a <code class="docutils literal notranslate"><span class="pre">Properties</span></code> block do not travel - only the id.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">ModelPartData</span></code> value carries no type of its own, so one spelling a number or <code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code> comes back as one: a mesh that wrote the string <code class="docutils literal notranslate"><span class="pre">&quot;42&quot;</span></code> reads it back as the integer 42.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">NodalData</span></code> or <code class="docutils literal notranslate"><span class="pre">ElementalData</span></code> block naming a variable polyxios keeps for itself - <code class="docutils literal notranslate"><span class="pre">original_ids</span></code>, <code class="docutils literal notranslate"><span class="pre">mdpa_property_id</span></code> - is read under a <code class="docutils literal notranslate"><span class="pre">_2</span></code> suffix and warned about, rather than buried under the key or left posing as it. A block naming no variable at all is read as <code class="docutils literal notranslate"><span class="pre">unnamed</span></code>, also with a warning.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Geometries</span></code>, <code class="docutils literal notranslate"><span class="pre">ConditionalData</span></code> and <code class="docutils literal notranslate"><span class="pre">Tables</span></code> blocks are not read, and each is warned about.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly; the format is ASCII.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -656,20 +634,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="index.html"
+       href="splat.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Supported formats</p>
+        <p class="prev-next-title">Gaussian splat</p>
       </div>
     </a>
     <a class="right-next"
-       href="vtr.html"
+       href="../lazy_loading.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">VTK RectilinearGrid</p>
+        <p class="prev-next-title">Lazy loading</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -704,7 +682,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/vtk.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/mdpa.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

@@ -65,6 +65,7 @@ Quirks worth knowing
 - A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
 - A ``Points`` array of a type that holds no numbers - ``type="String"``, or any type this reader does not know - raises :class:`~polyxios.exceptions.CodecError` naming the type.
 - Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+- ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
 
 .. seealso::
 

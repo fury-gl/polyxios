@@ -74,6 +74,11 @@ Quirks worth knowing
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`.
 - Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 - An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every ``CellData`` array belonging to nothing.
+- The writer holds a uniform grid and nothing else, and says so rather than spelling a file its own reader refuses. The extent is read off the cells, which are a grid whatever the coordinates do; the vertices then have to be that grid expanded, in the order the file reads them back - x fastest, z slowest - since the file holds no points of its own, and every axis has to be evenly spaced, since it holds one step per axis rather than a coordinate per plane. A mesh that is none of those raises :class:`~polyxios.exceptions.CodecError`. Write a :doc:`vtr` for a lattice whose planes are unevenly spaced, a :doc:`vts` for points that are not a lattice at all, or a :doc:`vtu` for an arbitrary mesh.
+- Cells that are not the grid's own - tetrahedra over grid points, or the same hexahedra in another order - raise as well. The file carries no connectivity, so they would be dropped on the way back in and their ``CellData`` with them.
+- A mesh with no vertices writes the extent VTK spells an empty grid with, ``0 -1 0 -1 0 -1``, and reads back as a mesh with none.
+- An extent that ends before it starts on any axis holds no points, so it holds no cells either - ``0 -1 0 2 0 2`` reads as an empty mesh rather than as four quads whose corners name points the file never spelled.
+- The extent, origin and step of the file a mesh was read from travel with it, so a grid that did not begin at zero - or that steps down an axis - goes back exactly where it stood. All three are checked against the vertices at the point of writing rather than trusted: pruning cells leaves the extent counting points that are not in the file, moving the mesh leaves the origin behind, and scaling it leaves the step behind. Whichever no longer describes the mesh is re-derived from it.
 
 .. seealso::
 

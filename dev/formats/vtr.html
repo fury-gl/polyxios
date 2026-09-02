@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=f83114f9"></script>
+    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -592,10 +593,15 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.</p></li>
-<li><p>Appended and base64 payloads are decoded eagerly - the XML container has no seekable layout for mmap, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> has no effect.</p></li>
+<li><p>Appended and base64 payloads are decoded eagerly, and <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code> rather than pretending otherwise - the XML container has no seekable layout for mmap.</p></li>
 <li><p>Multi-component attributes declare and honour <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code>, so an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> vector survives a round trip rather than coming back as <code class="docutils literal notranslate"><span class="pre">3n</span></code> rows.</p></li>
 <li><p>Binary arrays are written in the type their <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> declares, so an integer attribute stays an integer one.</p></li>
 <li><p>An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every <code class="docutils literal notranslate"><span class="pre">CellData</span></code> array belonging to nothing.</p></li>
+<li><p>The writer holds a lattice and nothing else, and says so rather than spelling a file its own reader refuses. The extent is read off the cells, and the three coordinate arrays are then read off the vertices a stride at a time - so an axis that runs downwards keeps its direction rather than being sorted round under its own point data. A mesh whose vertices are not that lattice expanded, in the order the file reads them back, raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>; so do cells that are not the grid’s own, which the file carries no connectivity for and would drop with their <code class="docutils literal notranslate"><span class="pre">CellData</span></code>. Write a <a class="reference internal" href="vts.html"><span class="doc">VTK StructuredGrid</span></a> for points that are not a lattice, or a <a class="reference internal" href="vtu.html"><span class="doc">VTK UnstructuredGrid</span></a> for an arbitrary mesh.</p></li>
+<li><p>A mesh with no vertices writes the extent VTK spells an empty grid with, <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">-1</span></code>, and reads back as a mesh with none.</p></li>
+<li><p>An extent that ends before it starts on any axis holds no points, so it holds no cells either - <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> reads as an empty mesh rather than as four quads whose corners name points the file never spelled.</p></li>
+<li><p>The extent counts the planes and the coordinate arrays spell them, and nothing in the file makes the two agree. An array of a different length raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming its axis: the cells, the offsets and every <code class="docutils literal notranslate"><span class="pre">PointData</span></code> array are sized off the extent, so a longer one used to expand into a mesh whose connectivity covered part of itself and whose attributes covered none of it. Every axis is asked, including one the extent gives no plane at all - the point count is a product and goes to zero on such an axis, but the vertices are built from the coordinates, so a file spelling one anyway came back as a mesh the extent called empty. An axis the file leaves no array for at all takes its one plane at zero, which is how a 2-D grid writes its z.</p></li>
+<li><p>The extent of the file a mesh was read from travels with it, so a block that did not begin at zero is written back at the indices it stood on rather than slid to the origin - which is what a <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> assembling it next to its neighbours reads. It is checked against the mesh at the point of writing rather than trusted: one a transform has moved the mesh out from under is re-derived from the cells.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -713,7 +719,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

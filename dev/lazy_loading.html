@@ -12,11 +12,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/lazy_loading.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="For large meshes (gigabytes of binary data), pass lazy=True. polyxios memory-maps the file and only loads the pages you actually touch - the rest stays on disk until needed. Lazy loading is support..." />
+<meta property="og:description" content="For large meshes (gigabytes of binary data), pass lazy=True. polyxios memory-maps the file and only loads the pages you actually touch - the rest stays on disk until needed. lazy=True is honoured f..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
 <meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_lazy_loading_2de580b8.png" />
-<meta property="og:image:alt" content="For large meshes (gigabytes of binary data), pass lazy=True. polyxios memory-maps the file and only loads the pages you actually touch - the rest stays on disk until needed. Lazy loading is support..." />
+<meta property="og:image:alt" content="For large meshes (gigabytes of binary data), pass lazy=True. polyxios memory-maps the file and only loads the pages you actually touch - the rest stays on disk until needed. lazy=True is honoured f..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=f83114f9"></script>
+    <script src="_static/documentation_options.js?v=c5537eb6"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -71,11 +71,11 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Transforms" href="transforms.html" />
-    <link rel="prev" title="VTK ImageData" href="formats/vti.html" />
+    <link rel="prev" title="Kratos MDPA" href="formats/mdpa.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">lazy_loading.rst</a></li>
@@ -547,10 +548,12 @@ stays on disk until needed.</p>
 <span class="c1"># Element connectivity is still on disk until you access it</span>
 </pre></div>
 </div>
-<p>Lazy loading is supported for binary <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.ply</span></code>, <code class="docutils literal notranslate"><span class="pre">.stl</span></code> and
-<code class="docutils literal notranslate"><span class="pre">.meshb</span></code> files. ASCII formats load eagerly (the whole file must be parsed to
-extract values). Binary STL lazy mode skips vertex deduplication - vertices are
-returned as-is (3 per triangle), avoiding the extra pass over the data.</p>
+<p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> is honoured for binary <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.ply</span></code> and <code class="docutils literal notranslate"><span class="pre">.stl</span></code> files.
+ASCII formats load eagerly (the whole file must be parsed to extract values).
+Binary STL lazy mode skips vertex deduplication - vertices are returned as-is
+(3 per triangle), avoiding the extra pass over the data. <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> needs no
+flag: a path is always memory-mapped and a file object always read into
+memory, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> there warns and changes nothing.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the per-format table records which formats support
@@ -569,12 +572,12 @@ lazy loading.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="formats/vti.html"
+       href="formats/mdpa.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">VTK ImageData</p>
+        <p class="prev-next-title">Kratos MDPA</p>
       </div>
     </a>
     <a class="right-next"
@@ -651,7 +654,7 @@ lazy loading.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       

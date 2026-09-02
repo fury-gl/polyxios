@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=f83114f9"></script>
+    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -70,12 +70,12 @@
     <link rel="canonical" href="https://polyxios.org/stable/formats/wkt.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="MFEM mesh" href="mfem.html" />
+    <link rel="next" title="VTK UnstructuredGrid" href="vtu.html" />
     <link rel="prev" title="TetGen" href="tetgen.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-01"/>
+    <meta name="docbuild:last-update" content="2026-09-02"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -120,7 +120,7 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 <aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-five</div>
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
 </aside>
 
   
@@ -442,13 +442,14 @@
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -596,6 +597,7 @@
 <li><p>An EWKT <code class="docutils literal notranslate"><span class="pre">SRID=</span></code> prefix is parsed and then dropped - polyxios carries no coordinate reference system.</p></li>
 <li><p>The ISO/SQL-MM surface family reads too: <code class="docutils literal notranslate"><span class="pre">TRIANGLE</span></code> as one triangle, <code class="docutils literal notranslate"><span class="pre">TIN</span></code> as a set of them, <code class="docutils literal notranslate"><span class="pre">POLYHEDRALSURFACE</span></code> as a set of polygons. A <code class="docutils literal notranslate"><span class="pre">TIN</span></code> patch that is not a triangle, or a <code class="docutils literal notranslate"><span class="pre">TRIANGLE</span></code> carrying an interior ring, is refused rather than read as something else.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">EMPTY</span></code> is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>; the geometry is spelled as text and has to be parsed before it holds numbers.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -624,11 +626,11 @@
       </div>
     </a>
     <a class="right-next"
-       href="mfem.html"
+       href="vtu.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">MFEM mesh</p>
+        <p class="prev-next-title">VTK UnstructuredGrid</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -713,7 +715,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-01.
+  Last updated on 2026-09-02.
   <br/>
 </p></div>
       
