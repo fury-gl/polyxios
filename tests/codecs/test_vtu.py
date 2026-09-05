@@ -102,7 +102,7 @@ def test_real_files(filename: str, expected_verts: int, expected_cells: int) -> 
 
 
 # ---------------------------------------------------------------------------
-# P1.5 - VTU reader/writer hardening
+# VTU reader/writer hardening
 # ---------------------------------------------------------------------------
 
 

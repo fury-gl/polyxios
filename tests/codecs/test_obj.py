@@ -91,7 +91,7 @@ def test_an_element_in_two_groups_keeps_both() -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.1 - texture coordinates, normals and face indices
+# Texture coordinates, normals and face indices
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +166,7 @@ def test_a_vertex_with_two_uvs_warns_that_one_is_kept(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.2 - groups on write
+# Groups on write
 # ---------------------------------------------------------------------------
 
 

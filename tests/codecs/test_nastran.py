@@ -1326,7 +1326,7 @@ def test_sniff_rejects_what_is_not_a_deck(head: bytes) -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.6 - real fields fit, whatever the value
+# Real fields fit, whatever the value
 # ---------------------------------------------------------------------------
 
 _EXTREME_VALUES: tuple[float, ...] = (

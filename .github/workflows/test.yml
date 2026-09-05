@@ -56,3 +56,45 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v --durations=10
+
+  # The comparison readers are never a polyxios dependency - the library is
+  # numpy and nothing else, and a user installing it gets no C++ toolkit. They
+  # are installed here alone, so the guards that hold a codec to another
+  # implementation run somewhere rather than skipping everywhere.
+  interop:
+    name: Interop (vtk, meshio)
+    if: github.event_name != 'schedule' || github.repository_owner == 'fury-gl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "meson-python>=0.15" "Cython>=3.0" "numpy>=1.24" meson ninja
+
+      - name: Install polyxios
+        run: pip install --no-build-isolation -e ".[dev]"
+
+      - name: Install the comparison readers
+        run: pip install vtk meshio
+
+      - name: Check they are importable
+        # Every guard that uses them is importorskip'd, so a failed install
+        # would leave this job green over tests that never ran.
+        run: |
+          python -c "import vtkmodules.vtkIOLegacy, vtkmodules.vtkCommonCore"
+          python -c "import vtkmodules.util.numpy_support"
+          python -c "import meshio, meshio.netgen._netgen"
+
+      - name: Run tests
+        run: pytest tests/ -v --durations=10

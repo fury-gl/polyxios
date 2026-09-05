@@ -1,6 +1,6 @@
 from typing import Final
 
-# Hard caps - prevent unbounded allocation from corrupt headers (meshio #1562)
+# Hard caps - prevent unbounded allocation from corrupt headers
 MAX_SAFE_VERTICES: Final[int] = 500_000_000
 MAX_SAFE_ELEMENTS: Final[int] = 2_000_000_000
 MAX_SAFE_CONN: Final[int] = 8_000_000_000
