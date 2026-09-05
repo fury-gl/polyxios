@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import warnings
 
 import numpy as np
 import pytest
@@ -499,3 +500,444 @@ def test_an_attribute_no_data_array_can_hold_names_itself(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="attribute 'label'"):
         write(poly, path)
+
+
+# ---------------------------------------------------------------------------
+# <FieldData>: the mesh's own metadata
+# ---------------------------------------------------------------------------
+
+
+def test_issue_1546_a_vtu_write_holds_the_field_data(tmp_path) -> None:
+    """The writer dropped global_attrs, so a time value, a material constant
+    or a solver tolerance did not survive being written."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"TimeValue": 0.25, "gravity": np.array([0.0, 0.0, -9.81])},
+    )
+    path = tmp_path / "field.vtu"
+
+    write(poly, path)
+    back = read(path)
+
+    np.testing.assert_allclose(back.global_attrs["TimeValue"], [0.25])
+    np.testing.assert_allclose(back.global_attrs["gravity"], [0.0, 0.0, -9.81])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_field_array_keeps_the_type_it_was_held_in(tmp_path, binary: bool) -> None:
+    """An identifier past 2**53 comes home a different number as a double."""
+    wide = np.array([9007199254740993], dtype=np.int64)
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"case_id": wide},
+    )
+    path = tmp_path / "wide.vtu"
+
+    write(poly, path, binary=binary)
+    back = read(path)
+
+    assert back.global_attrs["case_id"].dtype == np.int64
+    np.testing.assert_array_equal(back.global_attrs["case_id"], wide)
+
+
+def test_a_global_that_is_text_travels_beside_the_numbers(tmp_path) -> None:
+    """A <FieldData> block holds a String array beside its numeric ones, which
+    is where a name, a title or a solver's own label belongs."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"solver": "polyxios", "steps": 12},
+    )
+    path = tmp_path / "mixed.vtu"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write(poly, path)
+    back = read(path)
+
+    assert back.global_attrs["solver"] == "polyxios"
+    np.testing.assert_array_equal(back.global_attrs["steps"], [12])
+
+
+def test_a_global_no_array_of_any_kind_can_hold_is_named_and_dropped(
+    tmp_path,
+) -> None:
+    """A <FieldData> array holds numbers or text; a mapping is neither. The
+    mesh is still written - the loss is one key, not the file."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"run": {"id": 3}, "steps": 12},
+    )
+    path = tmp_path / "unspellable.vtu"
+
+    with pytest.warns(UserWarning, match=r"global_attrs \['run'\]"):
+        write(poly, path)
+    back = read(path)
+
+    assert "run" not in back.global_attrs
+    np.testing.assert_array_equal(back.global_attrs["steps"], [12])
+
+
+def test_several_strings_under_one_key_come_back_as_the_list_they_were(
+    tmp_path,
+) -> None:
+    """A text array holds one string per tuple, so a list of them travels as
+    one array and is cut back apart by the terminator after each."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"notes": ["first pass", "rerun with \u00e9"]},
+    )
+    path = tmp_path / "notes.vtu"
+
+    write(poly, path)
+
+    assert read(path).global_attrs["notes"] == ["first pass", "rerun with \u00e9"]
+
+
+def test_a_field_data_name_spelled_twice_keeps_the_first_and_says_so(
+    tmp_path,
+) -> None:
+    """A mapping holds one value per key, and letting the last win answered
+    one file two ways depending on the order the blocks were walked in - the
+    first is what a file of one array would have given."""
+    path = tmp_path / "twice.vtu"
+    extra = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" Name="t" NumberOfTuples="1"'
+        ' format="ascii">1</DataArray>\n'
+        '    <DataArray type="Float64" Name="t" NumberOfTuples="1"'
+        ' format="ascii">2</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    with pytest.warns(UserWarning, match=r"names array\(s\) \['t'\] more than"):
+        poly = read(path)
+
+    np.testing.assert_allclose(poly.global_attrs["t"], [1.0])
+
+
+def test_a_string_array_in_field_data_is_the_text_it_spells(tmp_path) -> None:
+    """VTK writes a label as a String array, whose payload is the characters
+    as numbers with a zero after each; read as numbers it was dropped."""
+    path = tmp_path / "label.vtu"
+    extra = (
+        "   <FieldData>\n"
+        '    <Array type="String" Name="title" NumberOfTuples="1"'
+        ' format="ascii">104 105 0</Array>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    assert read(path).global_attrs["title"] == "hi"
+
+
+def test_field_data_on_a_piece_is_read(tmp_path) -> None:
+    """VTK puts the block on the dataset and other writers put it on a Piece;
+    a mesh whose metadata is only read from one place loses the other."""
+    path = tmp_path / "piece_field.vtu"
+    extra = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">3.5</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [3.5])
+
+
+def test_field_data_on_the_dataset_wins_over_a_piece(tmp_path) -> None:
+    """Both places hold a key of the same name: the dataset's is the file's
+    own answer for the mesh, and a piece's is one piece's."""
+    path = tmp_path / "both.vtu"
+    piece_field = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">1</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    dataset_field = (
+        "  <FieldData>\n"
+        '   <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">2</DataArray>\n'
+        "  </FieldData>\n"
+    )
+    path.write_text(
+        _vtu(dataset_field + _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, piece_field))
+    )
+
+    np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [2])
+
+
+def test_an_unnamed_field_array_is_skipped(tmp_path) -> None:
+    """global_attrs is keyed by name, and the file gives no other handle - so
+    the array is dropped, and counted rather than lost in silence."""
+    path = tmp_path / "unnamed.vtu"
+    extra = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" NumberOfTuples="1" format="ascii">1</DataArray>\n'
+        '    <DataArray type="Float64" Name="kept" NumberOfTuples="1"'
+        ' format="ascii">2</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    with pytest.warns(UserWarning, match="no Name="):
+        poly = read(path)
+
+    assert tuple(poly.global_attrs) == ("kept",)
+
+
+def test_metadata_with_no_name_to_file_it_under_is_dropped(tmp_path) -> None:
+    """Every format here writes the key as the array's own handle, and a key
+    that is not one leaves the array unfindable where it does not make the
+    file unreadable outright."""
+    poly = _tet_mesh()
+    poly.global_attrs[""] = 1
+    poly.global_attrs["kept"] = 2
+    path = tmp_path / "nameless.vtu"
+
+    with pytest.warns(UserWarning, match="have no name a data array can carry"):
+        write(poly, path)
+
+    back = read(path)
+    assert tuple(back.global_attrs) == ("kept",)
+
+
+def test_a_key_that_is_not_a_name_is_reported_as_that(tmp_path, recwarn) -> None:
+    """A key with a perfectly good number under it is dropped for its name,
+    and used to be reported among the values no numeric array can spell."""
+    poly = _tet_mesh()
+    poly.global_attrs[7] = 1.0
+    poly.global_attrs["run"] = {"id": 3}
+    path = tmp_path / "misnamed.vtu"
+
+    write(poly, path)
+
+    said = [str(w.message) for w in recwarn]
+    assert any("[7] have no name a data array can carry" in m for m in said)
+    assert any("['run'] hold values no numeric array" in m for m in said)
+
+
+def test_a_key_that_is_not_a_name_is_dropped_whatever_text_is_under_it(
+    tmp_path, recwarn
+) -> None:
+    """The name check runs ahead of the split between numbers and text, so a
+    string under a key no attribute can carry is reported like any other."""
+    poly = _tet_mesh()
+    poly.global_attrs[""] = "polyxios"
+    path = tmp_path / "blank_key.vtu"
+
+    write(poly, path)
+
+    assert any("have no name a data array can carry" in str(w.message) for w in recwarn)
+    assert read(path).global_attrs == {}
+
+
+# ---------------------------------------------------------------------------
+# Tag groups: one membership column apiece
+# ---------------------------------------------------------------------------
+
+
+def test_a_tag_group_travels_as_its_own_column(tmp_path) -> None:
+    """A VTU has no set of its own, but PointData and CellData hold one column
+    per group - and an element in two groups is named by both, which a format
+    spelling one reference per element cannot say."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2], [1, 3, 2]]))],
+        vertex_tags={"corner": np.array([0, 3], dtype=np.int32)},
+        element_tags={
+            "a": np.array([0], dtype=np.int32),
+            "b": np.array([0, 1], dtype=np.int32),
+        },
+    )
+    path = tmp_path / "tagged.vtu"
+
+    write(poly, path)
+    back = read(path)
+
+    np.testing.assert_array_equal(back.element_tags["a"], [0])
+    np.testing.assert_array_equal(back.element_tags["b"], [0, 1])
+    np.testing.assert_array_equal(back.vertex_tags["corner"], [0, 3])
+    # The columns are tags, not attributes.
+    assert back.element_attrs == {}
+    assert back.vertex_attrs == {}
+
+
+def test_a_tag_column_is_named_so_a_reader_can_tell(tmp_path) -> None:
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_tags={"wall": np.array([0], dtype=np.int32)},
+    )
+    path = tmp_path / "named.vtu"
+
+    write(poly, path, binary=False)
+
+    assert 'Name="polyxios_tag_wall"' in path.read_text()
+
+
+def test_a_tag_name_holding_xml_markup_survives(tmp_path) -> None:
+    """A name is whatever another format called it. Written as it stands it
+    closed the attribute early and left a file no reader could parse."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        element_tags={'steel & "iron" <2>': np.array([0], dtype=np.int32)},
+    )
+    path = tmp_path / "markup.vtu"
+
+    write(poly, path)
+
+    assert list(read(path).element_tags) == ['steel & "iron" <2>']
+
+
+def test_a_name_holding_a_character_xml_cannot_spell_is_dropped(tmp_path) -> None:
+    """Escaping carries a markup character through; a control character is
+    outside XML's own Char production, so a numeric reference is no way round
+    it either and a file holding one parses in no reader at all."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"bell\x07": np.zeros(3), "kept": np.ones(3)},
+        element_tags={"nul\x00": np.array([0], dtype=np.int32)},
+        global_attrs={"vtab\x0b": np.array([1.0])},
+    )
+    path = tmp_path / "control.vtu"
+
+    with pytest.warns(UserWarning, match="XML cannot spell"):
+        write(poly, path)
+
+    back = read(path)
+    assert list(back.vertex_attrs) == ["kept"]
+    assert back.element_tags == {}
+    assert back.global_attrs == {}
+
+
+def test_an_attribute_keyed_by_something_that_is_not_text_still_writes(
+    tmp_path,
+) -> None:
+    """Nothing stops a caller keying an attribute by a number, and the name
+    rules are about what a file can spell, not about refusing one."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={5: np.zeros(3)},
+    )
+    path = tmp_path / "numbered.vtu"
+
+    write(poly, path)
+
+    assert list(read(path).vertex_attrs) == ["5"]
+
+
+def test_a_float_column_named_like_a_tag_stays_an_attribute(tmp_path) -> None:
+    """Rounding a member into place would name the wrong element."""
+    path = tmp_path / "halves.vtu"
+    extra = (
+        "   <CellData>\n"
+        '    <DataArray type="Float64" Name="polyxios_tag_odd" format="ascii">'
+        "0.5</DataArray>\n"
+        "   </CellData>\n"
+    )
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+
+    poly = read(path)
+
+    assert poly.element_tags == {}
+    np.testing.assert_allclose(poly.element_attrs["polyxios_tag_odd"], [0.5])
+
+
+def test_a_name_holding_whitespace_comes_back_the_name_it_was(tmp_path) -> None:
+    """An XML parser normalises a literal newline in an attribute value to a
+    space, so a name written as it stands came back a name it never was."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"a\nb\tc\rd": np.arange(3.0)},
+    )
+    path = tmp_path / "white.vtu"
+
+    write(poly, path)
+
+    assert list(read(path).vertex_attrs) == ["a\nb\tc\rd"]
+
+
+def test_a_field_array_that_miscounts_its_tuples_is_reported(tmp_path) -> None:
+    """Nothing else in the file counts a field array, so the declaration is
+    the only thing a reader can check it against."""
+    path = tmp_path / "miscount.vtu"
+    field = (
+        "  <FieldData>\n"
+        '   <DataArray type="Float64" Name="t" NumberOfTuples="9"'
+        ' format="ascii">1 2 3</DataArray>\n'
+        "  </FieldData>\n"
+    )
+    path.write_text(_vtu(field + _piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1)))
+
+    with pytest.warns(UserWarning, match="NumberOfTuples"):
+        poly = read(path)
+
+    np.testing.assert_allclose(poly.global_attrs["t"], [1, 2, 3])
+
+
+def test_a_name_two_pieces_spell_keeps_the_first_and_is_reported(tmp_path) -> None:
+    """global_attrs is one mapping over the whole mesh and the pieces are
+    joined into one mesh, so a name two of them carry has one slot for two
+    values. Folding the pieces with a plain update kept the last, which is
+    the one a reader of a single-piece file would never have seen."""
+    path = tmp_path / "two_pieces.vtu"
+    piece = (
+        '<Piece NumberOfPoints="1" NumberOfCells="0">'
+        '<FieldData><DataArray type="Int32" Name="run" NumberOfTuples="1"'
+        ' format="ascii">{run}</DataArray></FieldData>'
+        '<Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">{x} 0 0</DataArray></Points>'
+        '<Cells><DataArray type="Int64" Name="connectivity" format="ascii"/>'
+        '<DataArray type="Int64" Name="offsets" format="ascii"/>'
+        '<DataArray type="UInt8" Name="types" format="ascii"/></Cells></Piece>'
+    )
+    path.write_text(
+        '<?xml version="1.0"?>'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">'
+        "<UnstructuredGrid>"
+        + piece.format(run=1, x=0)
+        + piece.format(run=99, x=1)
+        + "</UnstructuredGrid></VTKFile>"
+    )
+
+    with pytest.warns(UserWarning, match="more than one Piece"):
+        back = read(path)
+
+    np.testing.assert_array_equal(back.global_attrs["run"], [1])
+
+
+def test_the_dataset_field_data_still_wins_over_a_piece(tmp_path) -> None:
+    """A piece describes its own part of the file; the dataset block
+    describes the file. Reading the pieces first is what makes them lose
+    to it, and reporting their own clash must not change that."""
+    path = tmp_path / "both.vtu"
+    path.write_text(
+        '<?xml version="1.0"?>'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">'
+        "<UnstructuredGrid>"
+        '<FieldData><DataArray type="Int32" Name="run" NumberOfTuples="1"'
+        ' format="ascii">7</DataArray></FieldData>'
+        '<Piece NumberOfPoints="1" NumberOfCells="0">'
+        '<FieldData><DataArray type="Int32" Name="run" NumberOfTuples="1"'
+        ' format="ascii">1</DataArray></FieldData>'
+        '<Points><DataArray type="Float64" NumberOfComponents="3"'
+        ' format="ascii">0 0 0</DataArray></Points>'
+        '<Cells><DataArray type="Int64" Name="connectivity" format="ascii"/>'
+        '<DataArray type="Int64" Name="offsets" format="ascii"/>'
+        '<DataArray type="UInt8" Name="types" format="ascii"/></Cells></Piece>'
+        "</UnstructuredGrid></VTKFile>"
+    )
+
+    np.testing.assert_array_equal(read(path).global_attrs["run"], [7])

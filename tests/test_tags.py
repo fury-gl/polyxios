@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from polyxios._tags import group_by_value, integer_column, values_from_tags
+from polyxios._tags import (
+    group_by_value,
+    integer_column,
+    mask_arrays,
+    member_indices,
+    member_values,
+    members_array,
+    values_from_tags,
+)
 
 
 def test_an_empty_column_names_no_groups() -> None:
@@ -113,3 +122,45 @@ def test_the_result_names_its_fields() -> None:
     assert held.named is True
     assert held.oversized == set()
     assert held.contested == set()
+
+
+# ---------------------------------------------------------------------------
+# A group of a shape numpy builds no array of
+# ---------------------------------------------------------------------------
+
+
+_MALFORMED = [
+    pytest.param([[0, 1], [2]], id="ragged"),
+    pytest.param({"a": 1}, id="mapping"),
+    pytest.param(["a", "b"], id="names"),
+]
+
+
+@pytest.mark.parametrize("members", _MALFORMED)
+def test_a_group_of_no_shape_names_nothing_rather_than_raising(members) -> None:
+    """Nothing checks a tag group on the way in. A ragged list is one numpy
+    builds no array of at all, and asking it to raised a bare ValueError out
+    of the middle of a write, naming neither the group nor the file."""
+    assert member_indices(members, 3).tolist() == []
+    assert member_values(members).tolist() == []
+
+
+def test_a_group_of_no_shape_is_reported_by_the_writer_that_drops_it() -> None:
+    """The same loss every other malformed group is reported as: the column
+    is short of the members the group named, and the writer says which."""
+    with pytest.warns(UserWarning, match=r"tag group\(s\) \['bad'\]"):
+        columns = mask_arrays({"bad": [[0, 1], [2]]}, 3, fmt=".vtu", kind="cell")
+
+    np.testing.assert_array_equal(columns["polyxios_tag_bad"], [0, 0, 0])
+
+
+def test_a_group_that_is_an_array_comes_back_as_one() -> None:
+    np.testing.assert_array_equal(members_array([2, 0]), [2, 0])
+    assert members_array([[0, 1], [2]]) is None
+
+
+def test_member_values_keeps_the_order_and_the_members_out_of_range() -> None:
+    """The unbounded twin of member_indices: a writer that counts what reached
+    no entity has to see those members rather than have them filtered away."""
+    np.testing.assert_array_equal(member_values([5, 0, -1]), [5, 0, -1])
+    np.testing.assert_array_equal(member_indices([5, 0, -1], 3), [0])

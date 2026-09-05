@@ -2,16 +2,19 @@ from collections import defaultdict
 from collections.abc import Callable
 import dataclasses
 from functools import reduce
+from typing import Final
 
 import numpy as np
 
 from polyxios._element_types import (
+    ELEMENT_FACES,
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
     QUADRATIC_SURFACE_CORNERS,
     SURFACE_ELEMENT_TYPES,
 )
-from polyxios._tags import member_indices
+from polyxios._faces import FACE_PARENT_KEY
+from polyxios._tags import member_indices, members_array
 from polyxios._types import PolyData
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
@@ -71,11 +74,15 @@ def _remapped_tags(
     """
     out: dict[str, np.ndarray] = {}
     for name, members in tags.items():
-        moved = remap[member_indices(members, n_items)]
+        held = members_array(members)
+        moved = remap[member_indices(held, n_items)]
         moved = moved[moved >= 0]
         if collapse:
             moved = np.unique(moved)
-        dtype = np.asarray(members).dtype
+        # The group's own width is kept where it has one. A group numpy builds
+        # no array of has none, and names nothing either, so what it comes back
+        # as is the empty column the remap left.
+        dtype = moved.dtype if held is None else held.dtype
         out[name] = moved.astype(dtype, copy=False) if dtype.kind in "iu" else moved
     return out
 
@@ -145,6 +152,68 @@ def _concat_attr(parts: list[np.ndarray], what: str) -> np.ndarray:
     return np.concatenate(parts)
 
 
+def _shifted_parents(column: np.ndarray, offset: int) -> np.ndarray:
+    """Renumber a ``face_parent`` column onto the mesh a merge is building.
+
+    Parameters
+    ----------
+    column
+        The column as one of the merged meshes carries it.
+    offset
+        Where that mesh's elements start in the merged one.
+
+    Returns
+    -------
+    numpy.ndarray
+        The column with every parent it names shifted by ``offset``, and the
+        ``-1`` that says "not a face" left alone. The column unchanged when it
+        is not one number per element, which is the same thing
+        :func:`~polyxios._faces.parent_faces` refuses to read.
+
+    Notes
+    -----
+    The one element attribute that is an index into the mesh rather than a
+    value. ``merge`` shifts the tag groups for the same reason; a column left
+    unshifted would name an element of whichever mesh went first, which
+    :func:`~polyxios._faces.is_parent_face` then answers by writing every
+    surface back as the ``*Elset`` it is not.
+
+    A column carrying whole numbers as doubles counts, because a mesh that
+    went out through a format spelling every attribute as one - legacy
+    ``.vtk`` among them - comes back holding them that way. So does one
+    carrying them as bools: every kind
+    :func:`~polyxios._faces.parent_faces` reads back is a kind this shifts,
+    or a merged mesh keeps a column that reader still trusts pointing into
+    whichever mesh went first.
+
+    An unsigned column is the one kind that cannot spell the ``-1`` saying
+    "not a face", so every row of one is shifted as the index it claims to
+    be. Nothing is broken by that - :func:`~polyxios._faces.is_parent_face`
+    checks each claim against the vertices before a writer acts on it - but
+    it is why ``-1`` is what these columns are built with.
+    """
+    held = np.asarray(column)
+    if offset == 0 or held.ndim != 1 or held.dtype.kind not in "biuf":
+        return held
+    if held.dtype.kind == "b":
+        # A bool column cannot spell the -1 that says "not a face", but it is
+        # one whole number per element, which is all parent_faces asks of it.
+        # Widened rather than left alone: a shift is what keeps it pointing
+        # at the element it pointed at before the merge.
+        held = held.astype(np.int64)
+    is_face = held >= 0
+    if not is_face.any():
+        return held
+    dtype = held.dtype
+    if dtype.kind in "iu" and int(held[is_face].max()) + offset > np.iinfo(dtype).max:
+        # An element index fits in the column a reader built for it, but two
+        # meshes laid end to end are counted past the end of one mesh's.
+        dtype = np.dtype(np.int64)
+    shifted = held.astype(dtype, copy=True)
+    shifted[is_face] += offset
+    return shifted
+
+
 def merge(*polys: PolyData) -> PolyData:
     """Merge multiple PolyData into one by concatenating vertices and elements.
 
@@ -205,12 +274,24 @@ def merge(*polys: PolyData) -> PolyData:
                 parts.append(_fill_like(ref, p.vertices.shape[0]))
         merged_vertex_attrs[key] = _concat_attr(parts, f"vertex_attrs['{key}']")
 
+    # Where each mesh's elements land, for the one attribute that is an
+    # element index rather than a value: a face_parent numbered from zero in
+    # its own mesh names another mesh's element once they are laid end to end.
+    elem_starts: list[int] = []
+    running = 0
+    for p in polys:
+        elem_starts.append(running)
+        running += len(p.element_types)
+
     merged_element_attrs: dict[str, np.ndarray] = {}
     for key in all_element_attr_keys:
         parts = []
-        for p in polys:
+        for start, p in zip(elem_starts, polys):
             if key in p.element_attrs:
-                parts.append(p.element_attrs[key])
+                held = p.element_attrs[key]
+                parts.append(
+                    _shifted_parents(held, start) if key == FACE_PARENT_KEY else held
+                )
             else:
                 ref = next(
                     q.element_attrs[key] for q in polys if key in q.element_attrs
@@ -580,71 +661,10 @@ def vertex_colors(poly: PolyData) -> np.ndarray | None:
 # Local corner-node face definitions for 3D volumetric element types.
 # Each entry is a list of tuples of local vertex indices that form one face.
 # Quadratic elements reuse corner nodes only (indices match linear sub-element).
-_VOL_ELEMENT_FACES: dict[str, list[tuple[int, ...]]] = {
-    "tetra": [
-        (0, 1, 3),
-        (1, 2, 3),
-        (2, 0, 3),
-        (0, 2, 1),
-    ],
-    "hexahedron": [
-        (0, 1, 2, 3),
-        (4, 5, 6, 7),
-        (0, 1, 5, 4),
-        (1, 2, 6, 5),
-        (2, 3, 7, 6),
-        (3, 0, 4, 7),
-    ],
-    # VTK voxel: bit-encoded ordering differs from hex
-    "voxel": [
-        (0, 1, 3, 2),
-        (4, 5, 7, 6),
-        (0, 1, 5, 4),
-        (2, 3, 7, 6),
-        (0, 2, 6, 4),
-        (1, 3, 7, 5),
-    ],
-    "wedge": [
-        (0, 1, 2),
-        (3, 4, 5),
-        (0, 1, 4, 3),
-        (1, 2, 5, 4),
-        (2, 0, 3, 5),
-    ],
-    "pyramid": [
-        (0, 1, 2, 3),
-        (0, 1, 4),
-        (1, 2, 4),
-        (2, 3, 4),
-        (3, 0, 4),
-    ],
-    "pentagonal_prism": [
-        (0, 1, 2, 3, 4),
-        (5, 6, 7, 8, 9),
-        (0, 1, 6, 5),
-        (1, 2, 7, 6),
-        (2, 3, 8, 7),
-        (3, 4, 9, 8),
-        (4, 0, 5, 9),
-    ],
-    "hexagonal_prism": [
-        (0, 1, 2, 3, 4, 5),
-        (6, 7, 8, 9, 10, 11),
-        (0, 1, 7, 6),
-        (1, 2, 8, 7),
-        (2, 3, 9, 8),
-        (3, 4, 10, 9),
-        (4, 5, 11, 10),
-        (5, 0, 6, 11),
-    ],
-}
-# Quadratic elements: reuse corner-node faces of their linear counterparts.
-_VOL_ELEMENT_FACES["quadratic_tetra"] = _VOL_ELEMENT_FACES["tetra"]
-_VOL_ELEMENT_FACES["triquadratic_hexahedron"] = _VOL_ELEMENT_FACES["hexahedron"]
-_VOL_ELEMENT_FACES["biquadratic_quadratic_wedge"] = _VOL_ELEMENT_FACES["wedge"]
-_VOL_ELEMENT_FACES["quadratic_hexahedron"] = _VOL_ELEMENT_FACES["hexahedron"]
-_VOL_ELEMENT_FACES["quadratic_wedge"] = _VOL_ELEMENT_FACES["wedge"]
-_VOL_ELEMENT_FACES["quadratic_pyramid"] = _VOL_ELEMENT_FACES["pyramid"]
+# The table moved to polyxios._element_types, which is where a per-element-type
+# fact belongs and where the codecs can reach it without importing this module.
+# The old name is kept: it is what extract_surface and helper.py read it by.
+_VOL_ELEMENT_FACES: Final[dict[str, tuple[tuple[int, ...], ...]]] = ELEMENT_FACES
 
 
 def extract_surface(poly: PolyData) -> PolyData:

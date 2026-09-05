@@ -64,6 +64,7 @@ from polyxios._element_types import (
 )
 from polyxios._ids import IDS_KEY, ids_for_write, record_ids
 from polyxios._io import Source, read_text, write_text
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -1436,8 +1437,8 @@ def _sub_model_parts(
     out_of_range = 0
     unwritten = 0
     for name in list(vertex_tags) + [n for n in element_tags if n not in vertex_tags]:
-        nodes = np.unique(np.asarray(vertex_tags.get(name, ()), dtype=np.int64))
-        elems = np.unique(np.asarray(element_tags.get(name, ()), dtype=np.int64))
+        nodes = np.unique(member_values(vertex_tags.get(name, ())))
+        elems = np.unique(member_values(element_tags.get(name, ())))
         kept_nodes = nodes[(nodes >= 0) & (nodes < all_node_ids.size)]
         kept_elems = elems[(elems >= 0) & (elems < elem_ids.size)]
         out_of_range += (nodes.size - kept_nodes.size) + (elems.size - kept_elems.size)

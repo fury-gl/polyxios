@@ -167,3 +167,32 @@ def test_a_piece_count_that_is_not_a_count_names_the_file(tmp_path) -> None:
 
     with pytest.raises(CodecError, match="NumberOfPoints='many'"):
         read(path)
+
+
+def test_issue_1546_a_vtp_write_holds_the_field_data(tmp_path) -> None:
+    """The writer dropped global_attrs, so a time value or a material constant
+    did not survive being written."""
+    poly = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        global_attrs={"TimeValue": 0.25},
+    )
+    path = tmp_path / "field.vtp"
+
+    write(poly, path)
+
+    np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [0.25])
+
+
+def test_field_data_on_a_piece_is_read(tmp_path) -> None:
+    """VTK puts the block on the dataset and other writers put it on a Piece."""
+    path = tmp_path / "piece_field.vtp"
+    extra = (
+        "   <FieldData>\n"
+        '    <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        ' format="ascii">3.5</DataArray>\n'
+        "   </FieldData>\n"
+    )
+    path.write_text(_polydata_file("0 0 0 1 0 0 0 1 0", 3, extra))
+
+    np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [3.5])

@@ -45,6 +45,7 @@ from polyxios._element_types import (
     MAX_SAFE_VERTICES,
 )
 from polyxios._io import Source, read_bytes, source_name, strip_gzip, write_text
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -508,7 +509,7 @@ def _surface_ids(poly: PolyData, surface: np.ndarray) -> np.ndarray:
     # before the first unnumbered tag is handed one.
     writing: list[tuple[int, np.ndarray]] = []
     for name, value in named:
-        idx = np.unique(np.asarray(poly.element_tags[name]).ravel().astype(np.int64))
+        idx = np.unique(member_values(poly.element_tags[name]))
         inside = idx[(idx >= 0) & (idx < n_elems)]
         out_of_range += idx.size - inside.size
         slots = slot[inside]

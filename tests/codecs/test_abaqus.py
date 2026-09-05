@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 import warnings
 
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios import make_polydata
-from polyxios._element_types import ELEMENT_TYPES
+from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
 from polyxios._types import PolyData
 from polyxios.codecs._abaqus import read, write
 from polyxios.exceptions import CodecError
@@ -809,3 +811,682 @@ def test_distinct_set_names_are_not_reported_as_merged(tmp_path) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         write(poly, tmp_path / "apart.inp")
+
+
+# ---------------------------------------------------------------------------
+# *HEADING: the deck's own title
+# ---------------------------------------------------------------------------
+
+
+def _deck(heading: str) -> str:
+    return (
+        f"{heading}"
+        "*Node\n"
+        "1, 0., 0., 0.\n"
+        "2, 1., 0., 0.\n"
+        "3, 0., 1., 0.\n"
+        "*Element, type=S3\n"
+        "1, 1, 2, 3\n"
+    )
+
+
+def test_a_heading_is_read_and_written_back(tmp_path) -> None:
+    """The one card in a mesh deck that describes the model rather than a
+    node, an element or a set."""
+    path = tmp_path / "titled.inp"
+    path.write_text(_deck("*Heading\nturbine blade, rev 3\n"))
+
+    poly = read(path)
+    assert poly.global_attrs["abaqus_heading"] == "turbine blade, rev 3"
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    assert read(out).global_attrs["abaqus_heading"] == "turbine blade, rev 3"
+
+
+def test_a_heading_survives_a_trip_through_the_vtk_xml_family(tmp_path) -> None:
+    """A <FieldData> block holds a String array beside its numeric ones, so
+    the one card describing the model reaches a .vtu and comes home."""
+    path = tmp_path / "titled.inp"
+    path.write_text(_deck("*Heading\nturbine blade, rev 3\n"))
+    through = tmp_path / "through.vtu"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        polyxios.write(read(path), through)
+    back = tmp_path / "back.inp"
+    write(polyxios.read(through), back)
+
+    assert read(back).global_attrs["abaqus_heading"] == "turbine blade, rev 3"
+
+
+def test_a_heading_a_legacy_vtk_cannot_hold_is_reported(tmp_path) -> None:
+    """A FIELD block spells numbers and nothing else, so the heading is lost
+    there - said out loud, the way every other unwritable value is."""
+    path = tmp_path / "titled.inp"
+    path.write_text(_deck("*Heading\nturbine blade, rev 3\n"))
+
+    with pytest.warns(UserWarning, match=r"global_attrs \['abaqus_heading'\]"):
+        polyxios.write(read(path), tmp_path / "flat.vtk")
+
+
+def test_a_heading_of_several_lines_keeps_them_all(tmp_path) -> None:
+    path = tmp_path / "long.inp"
+    path.write_text(_deck("*Heading\nturbine blade\nrev 3, cold run\n"))
+
+    assert read(path).global_attrs["abaqus_heading"] == (
+        "turbine blade\nrev 3, cold run"
+    )
+
+
+def test_a_heading_line_ending_in_a_comma_is_not_joined_to_the_next(
+    tmp_path,
+) -> None:
+    """A trailing comma continues a data line onto the one below it. A
+    heading holds no data, so a comma ending one of its lines is punctuation,
+    and joining the two handed back one line where the deck spelled two."""
+    path = tmp_path / "comma.inp"
+    path.write_text(_deck("*Heading\nturbine blade,\nrev 3 of the cold run\n"))
+
+    poly = read(path)
+    assert poly.global_attrs["abaqus_heading"] == (
+        "turbine blade,\nrev 3 of the cold run"
+    )
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    assert read(out).global_attrs["abaqus_heading"] == (
+        "turbine blade,\nrev 3 of the cold run"
+    )
+
+
+def test_a_deck_with_no_heading_of_its_own_records_none(tmp_path) -> None:
+    """polyxios writes its banner as a comment, so a round trip does not grow
+    a heading the caller never asked for."""
+    path = tmp_path / "plain.inp"
+    path.write_text(_deck(""))
+
+    poly = read(path)
+    assert "abaqus_heading" not in poly.global_attrs
+
+    out = tmp_path / "written.inp"
+    write(poly, out)
+    assert "abaqus_heading" not in read(out).global_attrs
+
+
+def test_a_heading_that_is_not_text_falls_back_to_the_banner(tmp_path) -> None:
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.global_attrs["abaqus_heading"] = 7
+    path = tmp_path / "odd.inp"
+
+    write(poly, path)
+
+    assert "** exported by polyxios" in path.read_text()
+    assert "abaqus_heading" not in read(path).global_attrs
+
+
+# ---------------------------------------------------------------------------
+# *SURFACE: a named side of an element
+# ---------------------------------------------------------------------------
+
+
+_TET_DECK = """*Node
+1, 0., 0., 0.
+2, 1., 0., 0.
+3, 0., 1., 0.
+4, 0., 0., 1.
+*Element, type=C3D4
+1, 1, 2, 3, 4
+*Elset, elset=solid
+1,
+"""
+
+
+def _abaqus_face_nodes() -> dict[str, list[tuple[int, ...]]]:
+    """The nodes Abaqus gives each face of each solid, zero-based.
+
+    Straight out of the element library: the faces of C3D4, C3D8, C3D6 and
+    C3D5 in the order their S<n> labels number them.
+    """
+    return {
+        "tetra": [(0, 1, 2), (0, 3, 1), (1, 3, 2), (2, 3, 0)],
+        "hexahedron": [
+            (0, 1, 2, 3),
+            (4, 7, 6, 5),
+            (0, 4, 5, 1),
+            (1, 5, 6, 2),
+            (2, 6, 7, 3),
+            (3, 7, 4, 0),
+        ],
+        "wedge": [(0, 1, 2), (3, 4, 5), (0, 1, 4, 3), (1, 2, 5, 4), (2, 0, 3, 5)],
+        "pyramid": [(0, 1, 2, 3), (0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)],
+    }
+
+
+def test_the_face_label_table_names_the_faces_abaqus_names() -> None:
+    """S3 of a C3D4 is a face polyxios also holds, under another number. The
+    table between the two numberings is checked against the element library
+    rather than against itself."""
+    from polyxios._element_types import ELEMENT_FACES
+    from polyxios.codecs._abaqus import _ABAQUS_FACE_ORDER
+
+    for type_name, faces in _abaqus_face_nodes().items():
+        order = _ABAQUS_FACE_ORDER[type_name]
+        assert len(order) == len(faces), type_name
+        for label, nodes in enumerate(faces, start=1):
+            local = order[label - 1]
+            assert set(ELEMENT_FACES[type_name][local]) == set(nodes), (
+                f"{type_name} S{label}"
+            )
+
+
+def test_a_surface_becomes_the_face_it_names(tmp_path) -> None:
+    """polyxios holds no face set, so a named side of a solid is read as the
+    triangle it describes - tagged with the surface's name, and carrying the
+    element it is a face of."""
+    path = tmp_path / "surf.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=inlet\nsolid, S1\n")
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 2
+    assert poly.element_types[1] == ELEMENT_TYPES["triangle"]
+    np.testing.assert_array_equal(poly.element_tags["inlet"], [1])
+    np.testing.assert_array_equal(poly.element_attrs["face_parent"], [-1, 0])
+    # S1 of a tetrahedron is the base, which polyxios numbers last.
+    np.testing.assert_array_equal(poly.element_attrs["face_index"], [-1, 3])
+    np.testing.assert_array_equal(poly.connectivity[4:], [0, 2, 1])
+
+
+def test_a_surface_may_name_one_element_rather_than_a_set(tmp_path) -> None:
+    path = tmp_path / "one.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=outlet\n1, S2\n")
+
+    poly = read(path)
+
+    np.testing.assert_array_equal(poly.element_tags["outlet"], [1])
+    np.testing.assert_array_equal(poly.element_attrs["face_index"], [-1, 0])
+
+
+def test_a_surface_may_be_declared_before_the_set_it_names(tmp_path) -> None:
+    """A deck is free to put the *Surface card above its *Elset."""
+    path = tmp_path / "early.inp"
+    path.write_text("*Surface, type=ELEMENT, name=inlet\nsolid, S1\n" + _TET_DECK)
+
+    assert read(path).element_tags["inlet"].tolist() == [1]
+
+
+def test_a_node_surface_becomes_a_vertex_tag(tmp_path) -> None:
+    path = tmp_path / "nodes.inp"
+    path.write_text(
+        _TET_DECK + "*Nset, nset=top\n4,\n*Surface, type=NODE, name=lid\ntop, 1.\n"
+    )
+
+    np.testing.assert_array_equal(read(path).vertex_tags["lid"], [3])
+
+
+def test_a_shell_side_tags_the_element_itself(tmp_path) -> None:
+    """SPOS and SNEG name a side of a shell, which is the element."""
+    path = tmp_path / "shell.inp"
+    path.write_text(
+        "*Node\n1, 0., 0., 0.\n2, 1., 0., 0.\n3, 0., 1., 0.\n"
+        "*Element, type=S3\n1, 1, 2, 3\n"
+        "*Surface, type=ELEMENT, name=skin\n1, SPOS\n"
+    )
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 1
+    np.testing.assert_array_equal(poly.element_tags["skin"], [0])
+    assert "face_parent" not in poly.element_attrs
+
+
+def test_a_surface_naming_nothing_the_deck_declares_is_reported(tmp_path) -> None:
+    path = tmp_path / "missing.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=inlet\nghost, S1\n")
+
+    with pytest.warns(UserWarning, match="neither a set nor an entity"):
+        poly = read(path)
+
+    assert "inlet" not in poly.element_tags
+
+
+def test_a_face_label_the_element_has_no_face_for_is_reported(tmp_path) -> None:
+    path = tmp_path / "toohigh.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=inlet\nsolid, S9\n")
+
+    with pytest.warns(UserWarning, match="no face of that element"):
+        poly = read(path)
+
+    # The element itself carries the name rather than the surface being lost.
+    np.testing.assert_array_equal(poly.element_tags["inlet"], [0])
+
+
+def test_a_surface_is_written_back_as_a_surface(tmp_path) -> None:
+    path = tmp_path / "surf.inp"
+    path.write_text(
+        _TET_DECK
+        + "*Surface, type=ELEMENT, name=inlet\nsolid, S1\n"
+        + "*Surface, type=ELEMENT, name=outlet\n1, S2\n"
+    )
+    poly = read(path)
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    text = out.read_text()
+
+    assert "*Surface, type=ELEMENT, name=inlet" in text
+    assert "inlet_S1, S1" in text
+    # The face is the surface, not an element card of its own.
+    assert text.count("*Element") == 1
+    assert "type=S3" not in text
+
+    back = read(out)
+    assert set(back.element_tags) == {"solid", "inlet", "outlet"}
+    np.testing.assert_array_equal(
+        back.element_attrs["face_index"], poly.element_attrs["face_index"]
+    )
+
+
+def test_a_written_surface_does_not_grow_over_a_round_trip(tmp_path) -> None:
+    """The elsets a surface generates are marked internal, and are read for
+    the surface's sake and then dropped - or every trip would add a group."""
+    path = tmp_path / "surf.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=inlet\nsolid, S1\n")
+
+    first = tmp_path / "first.inp"
+    write(read(path), first)
+    second = tmp_path / "second.inp"
+    write(read(first), second)
+
+    assert first.read_text() == second.read_text()
+    assert set(read(second).element_tags) == {"solid", "inlet"}
+
+
+def test_a_face_whose_parent_moved_is_written_as_an_element(tmp_path) -> None:
+    """A transform moves a mesh out from under the columns without either
+    being wrong. The vertices are what settle it: a face that is no longer
+    its parent's is the ordinary element it has become."""
+    path = tmp_path / "surf.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=inlet\nsolid, S1\n")
+    poly = read(path)
+
+    # Point the column at an element that is not the face's parent.
+    poly.element_attrs["face_parent"][1] = 1
+    out = tmp_path / "stale.inp"
+    write(poly, out)
+    text = out.read_text()
+
+    assert "*Surface" not in text
+    assert "type=S3" in text
+
+
+def test_a_group_mixing_faces_and_elements_stays_an_elset(tmp_path) -> None:
+    """A deck cannot name one group both ways, so the group that is not all
+    faces goes back as the *Elset it is."""
+    path = tmp_path / "mixed.inp"
+    path.write_text(
+        _TET_DECK
+        + "*Surface, type=ELEMENT, name=inlet\nsolid, S1\n"
+        + "*Elset, elset=inlet\n1,\n"
+    )
+    poly = read(path)
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    text = out.read_text()
+
+    assert "*Surface" not in text
+    assert "*Elset, elset=inlet" in text
+
+
+def test_a_surface_row_of_nothing_but_separators_is_skipped(tmp_path) -> None:
+    """A row that names no entity at all reached the resolver as an empty one
+    and took the read down with an IndexError."""
+    path = tmp_path / "blank.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=top\n,\n")
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 1
+    assert "top" not in poly.element_tags
+
+
+def test_a_side_named_twice_is_one_face(tmp_path) -> None:
+    """Two elements of the same three vertices are one face the deck said
+    twice, and the second is geometry the file never had."""
+    path = tmp_path / "twice.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=top\n1, S1\n1, S1\n")
+
+    poly = read(path)
+
+    assert len(poly.element_types) == 2
+    np.testing.assert_array_equal(poly.element_tags["top"], [1])
+
+
+def test_a_node_surface_keeps_every_set_a_joined_row_names(tmp_path) -> None:
+    """A row ending in a comma continues onto the next, so a node surface
+    arrives with every set it named on one row - and each is a member, where
+    the token after a set used to be read as a face label and dropped."""
+    path = tmp_path / "nodes.inp"
+    path.write_text(_TET_DECK + "*Surface, type=NODE, name=lid\n1,\n2,\n")
+
+    np.testing.assert_array_equal(read(path).vertex_tags["lid"], [0, 1])
+
+
+def test_a_surface_row_naming_more_than_one_pair_is_reported(tmp_path) -> None:
+    """An element surface names one set and one face label per row; the rest
+    of a joined row is read from and would go without a word."""
+    path = tmp_path / "joined.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=top\n1, S1,\n1, S2\n")
+
+    with pytest.warns(UserWarning, match="more than one set"):
+        poly = read(path)
+
+    np.testing.assert_array_equal(poly.element_tags["top"], [1])
+
+
+def test_a_face_a_second_group_names_is_written_as_an_element(tmp_path) -> None:
+    """A face on a surface is not written as an element card, so a second
+    group naming it would spell an *Elset of an element the deck never
+    defines - a deck Abaqus refuses to load."""
+    path = tmp_path / "shared.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=top\n1, S1\n")
+    poly = read(path)
+    poly.element_tags["both"] = np.array([0, 1], dtype=np.int32)
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    text = out.read_text()
+
+    assert "*Surface" not in text
+    assert "type=S3" in text
+    # Every id an *Elset names is one an *Element card defines.
+    back = read(out)
+    np.testing.assert_array_equal(back.element_tags["both"], [0, 1])
+
+
+def test_a_generated_set_does_not_take_a_name_the_mesh_already_uses(
+    tmp_path,
+) -> None:
+    """The sets a surface generates are marked internal, and a reader drops
+    those - so one landing on a caller's group would drop the group with it."""
+    path = tmp_path / "clash.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=top\n1, S1\n")
+    poly = read(path)
+    poly.element_tags["top_S1"] = np.array([0], dtype=np.int32)
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    back = read(out)
+
+    np.testing.assert_array_equal(back.element_tags["top_S1"], [0])
+    np.testing.assert_array_equal(back.element_tags["top"], [1])
+
+
+def test_a_surface_group_short_of_a_member_goes_back_as_an_elset(tmp_path) -> None:
+    """A *Surface names its faces through their parents and has nowhere to
+    say one of them reached no element; an *Elset counts them and reports it,
+    so the loss is worth the card."""
+    path = tmp_path / "stale.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=top\n1, S1\n")
+    poly = read(path)
+    poly.element_tags["top"] = np.array([1, 99], dtype=np.int32)
+
+    out = tmp_path / "again.inp"
+    with pytest.warns(UserWarning, match="index no element"):
+        write(poly, out)
+    text = out.read_text()
+
+    assert "*Surface" not in text
+    assert "type=S3" in text
+    np.testing.assert_array_equal(read(out).element_tags["top"], [1])
+
+
+def test_a_surface_named_like_a_generated_set_survives_the_read(tmp_path) -> None:
+    """The two share a folded key, so dropping the sets a surface generated
+    used to take the surface named after one of them with it."""
+    path = tmp_path / "named.inp"
+    path.write_text(
+        _TET_DECK
+        + "*Elset, elset=top_S1, internal\n1\n"
+        + "*Surface, type=ELEMENT, name=top_S1\n1, S2\n"
+        + "*Surface, type=ELEMENT, name=top\n1, S1\n"
+    )
+
+    poly = read(path)
+
+    assert "top_S1" in poly.element_tags
+    assert "top" in poly.element_tags
+
+
+def test_a_generated_set_does_not_take_the_name_of_a_surface(tmp_path) -> None:
+    """A generated set is marked internal and a reader drops those; one
+    landing on a surface's own name would drop the surface. The name a
+    surface generates for another is exactly the shape that collides."""
+    path = tmp_path / "clash.inp"
+    path.write_text(
+        _TET_DECK
+        + "*Surface, type=ELEMENT, name=top\n1, S1\n"
+        + "*Surface, type=ELEMENT, name=top_S1\n1, S2\n"
+    )
+    poly = read(path)
+
+    out = tmp_path / "again.inp"
+    write(poly, out)
+    text = out.read_text()
+
+    assert "elset=top_S1, internal" not in text
+    back = read(out)
+    np.testing.assert_array_equal(back.element_tags["top"], poly.element_tags["top"])
+    np.testing.assert_array_equal(
+        back.element_tags["top_S1"], poly.element_tags["top_S1"]
+    )
+
+
+def test_two_surfaces_spelling_one_card_name_are_reported(tmp_path) -> None:
+    """A name is folded before it is written and Abaqus matches one without
+    regard to case, so two groups may reach the same *Surface name. Every face
+    still reaches the file - the deck holds both cards and Abaqus merges them,
+    and the generated *Elsets are kept apart - but the two surfaces stop being
+    told apart, which is the loss *Elset already reports for the groups that
+    are not surfaces."""
+    path = tmp_path / "two.inp"
+    path.write_text(
+        _TET_DECK
+        + "*Surface, type=ELEMENT, name=top\n1, S1\n"
+        + "*Surface, type=ELEMENT, name=side\n1, S2\n"
+    )
+    poly = read(path)
+    poly.element_tags["a*b"] = poly.element_tags.pop("top")
+    poly.element_tags["a,b"] = poly.element_tags.pop("side")
+
+    out = tmp_path / "again.inp"
+    with pytest.warns(UserWarning, match="one card name between them"):
+        write(poly, out)
+    text = out.read_text()
+
+    # Both cards are written, and the sets they name are still told apart.
+    assert text.count("*Surface, type=ELEMENT, name=a_b\n") == 2
+    assert "elset=a_b_S1, internal" in text
+    assert "elset=a_b_S2, internal" in text
+    back = read(out)
+    np.testing.assert_array_equal(np.sort(back.element_tags["a_b"]), [1, 2])
+
+
+def test_a_mesh_holding_no_tag_mapping_at_all_still_writes(tmp_path) -> None:
+    """Nothing stops a caller building a PolyData with the mapping set to
+    None, and every other read of it in this codec answers the empty one."""
+    bare = dataclasses.replace(_tet_mesh(), element_tags=None)
+
+    out = tmp_path / "bare.inp"
+    write(bare, out)
+
+    assert read(out).element_types.size == 1
+
+
+def test_a_node_surface_reads_its_member_and_not_its_weight_factor(
+    tmp_path,
+) -> None:
+    """An Abaqus node-surface data line is one member and, after it, an
+    optional weight factor - and a whole number is as good a weight as a node
+    id, so the second field is not a second member."""
+    path = tmp_path / "weighted.inp"
+    path.write_text(_TET_DECK + "*Surface, type=NODE, name=lid\n1, 2\n")
+
+    poly = read(path)
+
+    np.testing.assert_array_equal(poly.vertex_tags["lid"], [0])
+
+
+def test_a_node_surface_continued_over_lines_keeps_every_member(tmp_path) -> None:
+    """A trailing comma joins the next line onto this one, which is the only
+    way several members reach one row - and there they are all members."""
+    path = tmp_path / "joined.inp"
+    path.write_text(_TET_DECK + "*Surface, type=NODE, name=lid\n1,\n2,\n3\n")
+
+    poly = read(path)
+
+    np.testing.assert_array_equal(poly.vertex_tags["lid"], [0, 1, 2])
+
+
+def test_a_surface_survives_a_round_trip_through_a_legacy_vtk(tmp_path) -> None:
+    """A legacy .vtk cell array is a double whatever it was handed, so the
+    two columns that link a face to its parent come back as floats; a deck
+    written from that mesh still puts the *Surface card back."""
+    path = tmp_path / "deck.inp"
+    path.write_text(_TET_DECK + "*Surface, type=ELEMENT, name=inlet\nsolid, S1\n")
+    poly = read(path)
+
+    middle = tmp_path / "middle.vtk"
+    polyxios.write(poly, str(middle))
+    back = polyxios.read(str(middle))
+    assert back.element_attrs["face_parent"].dtype.kind == "f"
+
+    out = tmp_path / "again.inp"
+    write(back, out)
+    text = out.read_text()
+
+    assert "*Surface, type=ELEMENT, name=inlet" in text
+    assert read(out).element_tags["inlet"].size == 1
+
+
+def test_an_internal_set_no_surface_names_is_kept(tmp_path) -> None:
+    """The internal sets a surface generates are scaffolding and go once it
+    has been read out of them. One no surface names is not scaffolding: it
+    used to go with them, and without a word."""
+    path = tmp_path / "internal.inp"
+    path.write_text(_TET_DECK + "*Elset, elset=keepme, internal\n1,\n")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        poly = read(path)
+
+    assert set(poly.element_tags) == {"solid", "keepme"}
+    assert poly.element_tags["keepme"].tolist() == [0]
+
+
+def test_an_internal_set_a_surface_names_still_goes(tmp_path) -> None:
+    """The other side of the same rule: a set the surface read its members
+    out of is written again on the way out, and would double every trip."""
+    path = tmp_path / "generated.inp"
+    path.write_text(
+        _TET_DECK
+        + "*Elset, elset=inlet_S1, internal\n1,\n"
+        + "*Surface, type=ELEMENT, name=inlet\ninlet_S1, S1\n"
+    )
+
+    poly = read(path)
+
+    assert set(poly.element_tags) == {"solid", "inlet"}
+
+
+def test_a_heading_that_would_start_a_card_is_refused(tmp_path) -> None:
+    """global_attrs travels through every format with a metadata slot, so a
+    heading may come back holding anything. A line starting with * ends the
+    card and begins the next one: written unchanged, a title of *Node and a
+    row below it spells the deck a vertex it never had."""
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.global_attrs["abaqus_heading"] = "rev 3\n*Node\n99, 5., 5., 5."
+    path = tmp_path / "injected.inp"
+
+    with pytest.warns(UserWarning, match="start a card"):
+        write(poly, path)
+
+    back = read(path)
+    # The card line is what goes; the row under it is ordinary text and
+    # stays on the heading, where it spells nothing.
+    assert back.vertices.shape[0] == 3
+    assert back.global_attrs["abaqus_heading"] == "rev 3\n99, 5., 5., 5."
+
+
+def test_a_heading_holding_a_comment_marker_is_refused(tmp_path) -> None:
+    """** opens a comment anywhere on a line, so a title holding one comes
+    back truncated at it and one starting with it comes back as nothing."""
+    verts = np.arange(9, dtype=np.float64).reshape(3, 3)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    poly.global_attrs["abaqus_heading"] = "run ** 3"
+    path = tmp_path / "commented.inp"
+
+    with pytest.warns(UserWarning, match="open a comment"):
+        write(poly, path)
+
+    assert "** exported by polyxios" in path.read_text()
+    assert "abaqus_heading" not in read(path).global_attrs
+
+
+def test_a_node_surface_reads_no_weight_factor_as_a_node(tmp_path) -> None:
+    """A node surface row is one member and an optional weight factor. The
+    join that a trailing comma makes takes the line break with it, so a whole
+    number after a set name would be read as a node of the surface - which is
+    a node the deck never named."""
+    path = tmp_path / "weighted.inp"
+    path.write_text(
+        _TET_DECK + "*Nset, nset=lid\n2,\n*Surface, type=NODE, name=skin\nlid,\n1\n"
+    )
+
+    poly = read(path)
+
+    assert poly.vertex_tags["skin"].tolist() == [1]
+
+
+def test_a_node_surface_still_keeps_a_joined_row_of_node_numbers(tmp_path) -> None:
+    """The other half of the same rule: a row that opens with a node number
+    rather than a set name is a row of node numbers, and every one of them is
+    a member."""
+    path = tmp_path / "numbered.inp"
+    path.write_text(_TET_DECK + "*Surface, type=NODE, name=skin\n1,\n2,\n")
+
+    poly = read(path)
+
+    assert poly.vertex_tags["skin"].tolist() == [0, 1]
+
+
+def test_a_solid_on_another_element_s_face_stays_a_solid(tmp_path) -> None:
+    """A tetra's four nodes can be exactly a hexahedron's face. The columns
+    say it is one, and its vertices agree - but a face this library built is
+    the quad its ring spells, so writing the tetra as a *Surface row would
+    cost the deck a volume element and hand back a quad."""
+    verts = np.arange(24, dtype=np.float64).reshape(8, 3)
+    poly = make_polydata(
+        verts,
+        [
+            ("hexahedron", np.array([[0, 1, 2, 3, 4, 5, 6, 7]])),
+            ("tetra", np.array([[0, 1, 2, 3]])),
+        ],
+    )
+    poly.element_attrs["face_parent"] = np.array([-1, 0], dtype=np.int32)
+    poly.element_attrs["face_index"] = np.array([-1, 0], dtype=np.int32)
+    poly.element_tags["skin"] = np.array([1], dtype=np.int32)
+    path = tmp_path / "coincident.inp"
+
+    write(poly, path)
+
+    assert "*Surface" not in path.read_text()
+    back = read(path)
+    assert [ELEMENT_TYPES_INV[int(t)] for t in back.element_types] == [
+        "hexahedron",
+        "tetra",
+    ]

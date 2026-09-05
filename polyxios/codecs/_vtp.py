@@ -3,16 +3,22 @@ from typing import Any
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._globals import globals_for_write, text_for_write
 from polyxios._io import Source, write_text
+from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
     format_attr_da,
     format_da,
+    format_field_data,
     join_piece_attrs,
     parse_xml,
     piece_count,
+    piece_field_data,
+    read_field_data,
     shaped_da,
+    spellable_arrays,
     undecodable_type,
     vtk_type_to_np,
 )
@@ -76,8 +82,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     if vtk_type != "PolyData":
         raise UnsupportedFormatError(
             f"VTP file declares type='{vtk_type}'; only 'PolyData' is supported "
-            "by the built-in VTP reader. For multi-block datasets see "
-            "examples/read_multiblock_vtp.py for a step-by-step loading tutorial."
+            "by the built-in VTP reader. A multi-block dataset is read by "
+            "polyxios.helper.read_multiblock(), or kept in pieces by "
+            "helper.read_blocks(); see examples/read_multiblock_vtp.py."
         )
 
     pd_elem = root.find("PolyData")
@@ -91,8 +98,15 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     all_types: list[int] = []
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
+    # Whole-mesh metadata. VTK puts the block on the dataset and some writers
+    # put it on a Piece, so both are read; the dataset's own is taken last,
+    # because that is the one the file means when it holds both. The pieces
+    # are read in one pass ahead of the walk below, which is what lets a name
+    # two of them spell be reported rather than quietly overwritten.
+    pieces = pd_elem.findall("Piece")
+    global_attrs: dict[str, Any] = piece_field_data(pieces, _decode)
 
-    for index, piece in enumerate(pd_elem.findall("Piece")):
+    for index, piece in enumerate(pieces):
         n_points = piece_count(piece, "NumberOfPoints", fmt=".vtp")
 
         # Where this piece's points land in the joined array: its cells
@@ -214,12 +228,19 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         compressed=compressed,
     )
 
+    global_attrs |= read_field_data(pd_elem, _decode)
+
     vertex_attrs = join_piece_attrs(
         all_vertex_attrs, expected=vertices.shape[0], kind="point"
     )
     element_attrs = join_piece_attrs(
         all_element_attrs, expected=len(element_types), kind="cell"
     )
+
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
 
     return PolyData(
         vertices=vertices,
@@ -228,6 +249,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=element_types,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
+        global_attrs=global_attrs,
     )
 
 
@@ -254,6 +278,15 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append('<?xml version="1.0"?>')
     lines.append('<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">')
     lines.append("  <PolyData>")
+    lines.extend(
+        format_field_data(
+            globals_for_write(poly, fmt=EXTENSION, text=True),
+            text=text_for_write(poly),
+            binary=binary,
+            indent=4,
+            fmt=EXTENSION,
+        )
+    )
 
     n_polys = n_elems  # write all as Polys for generality
 
@@ -276,15 +309,41 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(_da("offsets", off, "Int32", binary, 1, 10))
     lines.append("      </Polys>")
 
-    if poly.vertex_attrs:
+    # A tag group travels as one column of ones and zeros named for it: the
+    # channel holds one value per entity, and an element in two groups is
+    # named by both columns, which one label per element cannot say.
+    point_arrays = spellable_arrays(
+        with_tag_masks(
+            poly.vertex_attrs,
+            poly.vertex_tags,
+            poly.vertices.shape[0],
+            fmt=EXTENSION,
+            kind="point",
+        ),
+        fmt=EXTENSION,
+        kind="point",
+    )
+    cell_arrays = spellable_arrays(
+        with_tag_masks(
+            poly.element_attrs,
+            poly.element_tags,
+            len(poly.element_types),
+            fmt=EXTENSION,
+            kind="cell",
+        ),
+        fmt=EXTENSION,
+        kind="cell",
+    )
+
+    if point_arrays:
         lines.append("      <PointData>")
-        for name, arr in poly.vertex_attrs.items():
+        for name, arr in point_arrays.items():
             lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </PointData>")
 
-    if poly.element_attrs:
+    if cell_arrays:
         lines.append("      <CellData>")
-        for name, arr in poly.element_attrs.items():
+        for name, arr in cell_arrays.items():
             lines.append(format_attr_da(name, arr, binary=binary, indent=10))
         lines.append("      </CellData>")
 

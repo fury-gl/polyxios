@@ -9,11 +9,13 @@ For appended data:
 """
 
 import base64
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import math
-from typing import Any
+import re
+from typing import Any, TypeVar
 import warnings
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 import zlib
 
 import numpy as np
@@ -63,6 +65,43 @@ _GRID_AXES: dict[int, int] = {
 # The widest point index an int32 connectivity array can name.
 _INT32_MAX: int = int(np.iinfo(np.int32).max)
 
+# What one entry of a block of arrays holds. Only the names are looked at
+# where this is used, so the numeric arrays and the text ones go through the
+# same check without either losing its type on the way out.
+_Held = TypeVar("_Held")
+
+
+# What an array name has to be spelled as to survive the attribute it is
+# written into. The markup characters close the attribute early and leave a
+# file no reader can parse - polyxios's own included. The three whitespace
+# characters are the subtler loss: an XML parser normalises a literal one in
+# an attribute value to a space, so a name holding a newline comes back a
+# different name, silently. A numeric reference is exempt from that
+# normalisation, which is what carries them through unchanged.
+_NAME_ESCAPES: dict[str, str] = {
+    '"': "&quot;",
+    "\n": "&#10;",
+    "\r": "&#13;",
+    "\t": "&#9;",
+}
+
+# A character XML has no spelling for at all. The escapes above carry the ones
+# that only close the attribute early; these are outside the Char production,
+# so a numeric reference is no way round them either - a document holding one
+# is not XML, and every parser refuses it, this one included. An array named
+# with one is dropped rather than written into a file nothing can open.
+_UNSPELLABLE_NAME: re.Pattern[str] = re.compile(
+    "[^\u0009\u000a\u000d\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]"
+)
+
+# What a ``<FieldData>`` array of text declares itself as. VTK spells one for
+# a label the way it spells a numeric array for a value, and its payload is
+# the characters as numbers with a zero after each string.
+_STRING_TYPE: str = "String"
+
+# The character a text array ends each of its strings with.
+_STRING_END: int = 0
+
 
 def np_to_vtk_type(dt: np.dtype) -> tuple[str, np.dtype]:
     """Name a dtype the way a ``DataArray`` header does, and say what it is.
@@ -105,6 +144,7 @@ def format_da(
     binary: bool,
     n_comp: int,
     indent: int,
+    n_tuples: int | None = None,
 ) -> str:
     """Render one ``<DataArray>`` element.
 
@@ -127,6 +167,11 @@ def format_da(
         Components per tuple.
     indent
         Spaces to prefix the line with.
+    n_tuples
+        Tuples the array holds, declared on the element. A point or cell
+        array needs no such declaration - the Piece header already said how
+        many there are - but a field array is bound to nothing that counts
+        it, so it has to carry its own count.
 
     Returns
     -------
@@ -134,8 +179,9 @@ def format_da(
         The ``<DataArray>`` line.
     """
     pad = " " * indent
-    name_attr = f' Name="{name}"' if name else ""
+    name_attr = f' Name="{escape(str(name), _NAME_ESCAPES)}"' if name else ""
     comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
+    tuple_attr = "" if n_tuples is None else f' NumberOfTuples="{n_tuples}"'
     values = np.ascontiguousarray(arr, dtype=dtype)
 
     if binary:
@@ -147,8 +193,8 @@ def format_da(
         body = spell_values(values)
         fmt = "ascii"
     return (
-        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr} '
-        f'format="{fmt}">{body}</DataArray>'
+        f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr}'
+        f'{tuple_attr} format="{fmt}">{body}</DataArray>'
     )
 
 
@@ -203,6 +249,375 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
             f"VTK XML: attribute '{name}' holds {arr.dtype!s} values, which"
             " a DataArray has no numeric type for."
         ) from exc
+
+
+def spellable_arrays(
+    arrays: dict[str, _Held], *, fmt: str, kind: str, stacklevel: int = 3
+) -> dict[str, _Held]:
+    """Drop the arrays whose names no XML attribute can hold.
+
+    Parameters
+    ----------
+    arrays
+        The arrays a data section is about to write.
+    fmt
+        The format's extension, for the warning naming what was dropped.
+    kind
+        ``point``, ``cell`` or ``field``, named in the same warning.
+    stacklevel
+        How far above this frame the warning should point. The default
+        answers a codec's ``write``, which is where this is called from.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        The arrays whose names survive, in the order they were held. The same
+        mapping when every name does, so the common case allocates nothing.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming every array dropped. The name goes into an attribute
+        value, and a character outside XML's own Char production cannot be
+        put there by escaping it either: the file would parse in no reader,
+        so the array is left out and the rest of the mesh still writes.
+    """
+    # ``str`` rather than the name itself: nothing stops a caller keying an
+    # attribute by something that is not text, and it goes into the attribute
+    # as whatever it prints as, the way it did before there was a rule here.
+    dropped = {name for name in arrays if _UNSPELLABLE_NAME.search(str(name))}
+    if not dropped:
+        return arrays
+    warnings.warn(
+        f"{fmt} write: {kind} array name(s) {sorted(dropped, key=repr)} hold a"
+        " character XML cannot spell in an attribute; those arrays are not"
+        " written.",
+        UserWarning,
+        stacklevel=stacklevel,
+    )
+    return {name: arr for name, arr in arrays.items() if name not in dropped}
+
+
+def format_text_da(name: str, strings: Sequence[str], *, indent: int) -> str:
+    """Render one ``<Array type="String">`` element.
+
+    Parameters
+    ----------
+    name
+        Array name, escaped into the attribute the way a numeric one is.
+    strings
+        The strings the array holds, one per tuple.
+    indent
+        Spaces to prefix the line with.
+
+    Returns
+    -------
+    str
+        The ``<Array>`` line.
+
+    Notes
+    -----
+    Always ASCII, whatever the rest of the file is: ``format=`` is declared
+    per array, and spelling the characters as numbers is what VTK's own
+    writer does with a label. A string is written as its UTF-8 bytes, each
+    one number, with a zero after it - the terminator that says where one
+    string ends and the next begins.
+    """
+    codes: list[int] = []
+    for text in strings:
+        codes.extend(text.encode("utf-8"))
+        codes.append(_STRING_END)
+    body = " ".join(map(str, codes))
+    return (
+        f'{" " * indent}<Array type="{_STRING_TYPE}"'
+        f' Name="{escape(str(name), _NAME_ESCAPES)}"'
+        f' NumberOfTuples="{len(strings)}" format="ascii">{body}</Array>'
+    )
+
+
+def read_text_da(
+    elem: ET.Element, decode: Callable[[ET.Element], np.ndarray]
+) -> object:
+    """Read one ``<Array type="String">`` back into the value it spells.
+
+    Parameters
+    ----------
+    elem
+        The element, whose payload is the characters as numbers.
+    decode
+        Turns one ``DataArray`` element into its values, asked here for the
+        bytes rather than for the numbers a numeric array would hold.
+
+    Returns
+    -------
+    str or list of str
+        The one string the array holds, or all of them when it holds several.
+        An array holding none is an empty string, which is what a file that
+        spells the name but no characters means by it.
+
+    Notes
+    -----
+    Decoded through a stand-in element declaring ``UInt8`` rather than by
+    parsing the text here: an appended or base64 payload is bytes and an
+    ASCII one is those same bytes spelled as numbers, and the decoder already
+    tells the two apart. The stand-in is a copy because the tree belongs to
+    the caller, and a reader that rewrote ``type=`` in it would leave the
+    document saying something the file does not.
+    """
+    stand_in = ET.Element(elem.tag, {**elem.attrib, "type": "UInt8"})
+    stand_in.text = elem.text
+    raw = decode(stand_in).ravel().astype(np.uint8, copy=False)
+    # Trailing terminator dropped rather than split on: a well-formed array
+    # ends with one, and splitting would leave an empty string after it.
+    if raw.size and raw[-1] == _STRING_END:
+        raw = raw[:-1]
+    strings = [
+        part.decode("utf-8", errors="replace") for part in bytes(raw).split(b"\0")
+    ]
+    return strings[0] if len(strings) == 1 else strings
+
+
+def format_field_data(
+    spelled: dict[str, np.ndarray],
+    *,
+    text: dict[str, tuple[str, ...]] | None = None,
+    binary: bool,
+    indent: int,
+    fmt: str,
+) -> list[str]:
+    """Render a ``<FieldData>`` block, or nothing when there is none.
+
+    Parameters
+    ----------
+    spelled
+        The mesh metadata to write, already reduced to numeric arrays by
+        :func:`polyxios._globals.globals_for_write`.
+    text
+        The metadata that is text rather than numbers, from
+        :func:`polyxios._globals.text_for_write`. Written as ``String``
+        arrays in the same block, after the numeric ones.
+    binary
+        Base64 the raw bytes instead of spelling the numbers.
+    indent
+        Spaces to prefix the block's own lines with; its arrays sit two
+        further in.
+    fmt
+        The format's extension, for the warning naming an array whose name
+        no XML attribute can hold.
+
+    Returns
+    -------
+    list of str
+        The lines of the block, empty when the mesh carries no metadata.
+
+    Notes
+    -----
+    A field array belongs to the dataset rather than to its points or cells,
+    so nothing in the file counts it and it declares ``NumberOfTuples``
+    itself. Everything past the first dimension is a component, the same way
+    a point attribute is read, so an ``(n, 3)`` array comes back the shape it
+    went out as.
+    """
+    spelled = spellable_arrays(spelled, fmt=fmt, kind="field", stacklevel=4)
+    text = spellable_arrays(text or {}, fmt=fmt, kind="field text", stacklevel=4)
+    if not spelled and not text:
+        return []
+    pad = " " * indent
+    lines = [f"{pad}<FieldData>"]
+    for name, arr in spelled.items():
+        vtk_type, dtype = np_to_vtk_type(arr.dtype)
+        n_comp = components(arr)
+        lines.append(
+            format_da(
+                name,
+                arr,
+                vtk_type=vtk_type,
+                dtype=dtype,
+                binary=binary,
+                n_comp=n_comp,
+                indent=indent + 2,
+                n_tuples=arr.size // n_comp,
+            )
+        )
+    lines.extend(
+        format_text_da(name, strings, indent=indent + 2)
+        for name, strings in text.items()
+    )
+    lines.append(f"{pad}</FieldData>")
+    return lines
+
+
+def read_field_data(
+    parent: ET.Element,
+    decode: Callable[[ET.Element], np.ndarray],
+    *,
+    stacklevel: int = 3,
+) -> dict[str, Any]:
+    """Read every ``<FieldData>`` array under an element.
+
+    Parameters
+    ----------
+    parent
+        The dataset element, or one of its ``Piece`` children. Both are
+        places a writer may put the block, and VTK reads it from either.
+    decode
+        Turns one ``DataArray`` element into its values.
+    stacklevel
+        How far above this frame the warnings should point. The default
+        answers a codec's ``read``; :func:`piece_field_data` adds its own
+        frame to it.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray or str
+        One entry per named array, shaped by its component count; an array of
+        text is the string it holds, or the list of them when it holds
+        several. Empty when the element carries no field data.
+
+    Warns
+    -----
+    UserWarning
+        Once, counting the arrays the block leaves unnamed, and once naming
+        the arrays it spells twice.
+
+    Notes
+    -----
+    An unnamed array is skipped: ``global_attrs`` is keyed by name, and the
+    file gives no other handle to put it under. It is counted and reported
+    all the same, so the loss is not silent.
+    """
+    found: dict[str, Any] = {}
+    nameless = 0
+    miscounted: list[str] = []
+    repeated: list[str] = []
+    for block in parent.findall("FieldData"):
+        for da in block:
+            name = da.get("Name")
+            if name is None:
+                nameless += 1
+                continue
+            if name in found:
+                # The first is kept, the way the first Piece to spell a name
+                # is: a mapping holds one value per key either way, and a
+                # reader that let the last win would answer the same file
+                # two ways depending on the order it walked the blocks in.
+                repeated.append(name)
+                continue
+            if da.get("type") == _STRING_TYPE:
+                found[name] = read_text_da(da, decode)
+                continue
+            arr = decode(da)
+            if arr.size == 0 and undecodable_type(da) is not None:
+                continue
+            shaped = shaped_da(da, arr)
+            if not _tuples_agree(da, shaped):
+                miscounted.append(name)
+            found[name] = shaped
+    if repeated:
+        warnings.warn(
+            f"FieldData names array(s) {sorted(set(repeated))} more than once,"
+            " and a mesh's metadata holds one value per name; the first is"
+            " kept.",
+            UserWarning,
+            stacklevel=stacklevel,
+        )
+    if miscounted:
+        warnings.warn(
+            f"FieldData array(s) {sorted(miscounted)} hold a different number"
+            " of tuples from the NumberOfTuples= they declare; the values are"
+            " kept and the declaration ignored.",
+            UserWarning,
+            stacklevel=stacklevel,
+        )
+    if nameless:
+        warnings.warn(
+            f"FieldData holds {nameless} array(s) with no Name=, which the"
+            " mesh's metadata has no key to file them under; dropped.",
+            UserWarning,
+            stacklevel=stacklevel,
+        )
+    return found
+
+
+def piece_field_data(
+    pieces: Sequence[ET.Element], decode: Callable[[ET.Element], np.ndarray]
+) -> dict[str, Any]:
+    """Read the field data a dataset's ``Piece`` elements carry between them.
+
+    Parameters
+    ----------
+    pieces
+        The dataset's ``Piece`` children, in the order the file holds them.
+    decode
+        Turns one ``DataArray`` element into its values.
+
+    Returns
+    -------
+    dict of str to numpy.ndarray
+        One entry per named array, the first ``Piece`` to spell a name
+        keeping it. Empty when no piece carries a block.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming every array more than one ``Piece`` spells.
+        ``global_attrs`` is one mapping over the whole mesh and the pieces
+        are joined into one mesh, so a name two of them carry has one slot
+        for two values. The first is kept - the answer a file of one piece
+        would have given - rather than the last, which is what a plain
+        update left behind without a word.
+
+    Notes
+    -----
+    The dataset's own ``<FieldData>`` is read after this and wins outright:
+    it describes the whole file, where a piece describes its own part of it.
+    """
+    found: dict[str, Any] = {}
+    clashed: list[str] = []
+    for piece in pieces:
+        for name, arr in read_field_data(piece, decode, stacklevel=4).items():
+            if name in found:
+                clashed.append(name)
+            else:
+                found[name] = arr
+    if clashed:
+        warnings.warn(
+            f"FieldData array(s) {sorted(set(clashed))} are spelled by more"
+            " than one Piece, and a mesh's metadata holds one value per name;"
+            " the first Piece's is kept.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return found
+
+
+def _tuples_agree(elem: ET.Element, arr: np.ndarray) -> bool:
+    """Say whether an array holds the tuples its header declares.
+
+    Parameters
+    ----------
+    elem
+        The ``DataArray`` element.
+    arr
+        The values it decoded to, already shaped.
+
+    Returns
+    -------
+    bool
+        True when the element declares no count, declares one that is not a
+        number, or declares the one the array holds. A field array is bound
+        to nothing else in the file that counts it, so this declaration is
+        the only thing a reader can check it against - and a file that
+        spells two different counts is worth a word, the way one whose
+        DIMENSIONS disagree with its coordinates is.
+    """
+    declared = elem.get("NumberOfTuples")
+    if declared is None:
+        return True
+    try:
+        return int(declared) == arr.shape[0]
+    except ValueError:
+        return True
 
 
 def spell_values(arr: np.ndarray) -> str:

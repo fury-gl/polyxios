@@ -413,35 +413,42 @@ CAPABILITIES: dict[str, Cap] = {
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
         global_attrs=(
+            "gnum",
             "vti_extent",
             "vti_origin",
             "vti_spacing",
             "vti_whole_extent",
         ),
         attr_values=False,
-        note="Grid metadata replaces the caller's global_attrs, tags are lost"
-        " (see test_the_vtk_family_keeps_tags_it_has_room_for), and a vector"
+        note="Grid metadata joins the caller's global_attrs, and a vector"
         " attribute comes back flattened (see the xfail below).",
     ),
     ".vtk": Cap(
         "mixed",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        note="Legacy VTK keeps point and cell data; tags and field data do not"
-        " survive (see the xfails below).",
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum",),
     ),
     ".vtp": Cap(
         "surface",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        note="As .vtk, restricted to surface cells.",
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum",),
     ),
     ".vtr": Cap(
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        global_attrs=("vtr_extents", "vtr_whole_extent"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum", "vtr_extents", "vtr_whole_extent"),
         attr_values=False,
         note="As .vti, with rectilinear axis metadata.",
     ),
@@ -449,7 +456,9 @@ CAPABILITIES: dict[str, Cap] = {
         "structured",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        global_attrs=("vts_extent", "vts_whole_extent"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum", "vts_extent", "vts_whole_extent"),
         attr_values=False,
         note="As .vti, with curvilinear extent metadata.",
     ),
@@ -457,7 +466,9 @@ CAPABILITIES: dict[str, Cap] = {
         "mixed",
         vertex_attrs=("scalar", "vector"),
         element_attrs=("efloat", "eint"),
-        note="As .vtk; the missing <FieldData> is meshio #1546.",
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum",),
     ),
     ".wkt": Cap(
         "surface",
@@ -616,25 +627,30 @@ def test_an_unwritable_extension_refuses_to_be_written(tmp_path, ext: str) -> No
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="P2.5 / meshio #1546: no <FieldData>")
-@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp"])
+@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp", ".vti", ".vtr", ".vts"])
 def test_the_vtk_family_keeps_global_attrs(tmp_path, ext: str) -> None:
-    poly = _surface()
+    """Mesh metadata travels as field data, which holds arrays and not much
+    else: a scalar written from one comes back as a one-element array."""
+    poly = _structured() if ext in (".vti", ".vtr", ".vts") else _surface()
     path = tmp_path / f"mesh{ext}"
     polyxios.write(poly, path)
-    assert polyxios.read(path).global_attrs["gnum"] == 42
+    back = polyxios.read(path).global_attrs["gnum"]
+    np.testing.assert_array_equal(back, [42])
 
 
-@pytest.mark.xfail(strict=True, reason="P2.6: tags have no VTK array yet")
-@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp"])
+@pytest.mark.parametrize("ext", [".vtu", ".vtk", ".vtp", ".vti", ".vtr", ".vts"])
 def test_the_vtk_family_keeps_tags_it_has_room_for(tmp_path, ext: str) -> None:
-    """PointData and CellData can hold one int array per tag group."""
-    poly = _surface()
+    """PointData and CellData hold one membership column per tag group, so an
+    element in two groups is named by both - which a format spelling one
+    reference per element cannot say."""
+    poly = _structured() if ext in (".vti", ".vtr", ".vts") else _surface()
     path = tmp_path / f"mesh{ext}"
     polyxios.write(poly, path)
     back = polyxios.read(path)
     assert set(back.element_tags) == {"a", "b"}
     assert set(back.vertex_tags) == {"vgroup"}
+    for name, members in poly.element_tags.items():
+        np.testing.assert_array_equal(back.element_tags[name], members)
 
 
 @pytest.mark.parametrize("ext", [".vti", ".vts", ".vtr"])
@@ -738,3 +754,95 @@ def test_a_surface_writer_does_not_turn_a_tetrahedron_into_a_quad(
         polyxios.write(poly, path)
         back = polyxios.read(path)
     assert ELEMENT_TYPES["quad"] not in set(back.element_types.tolist())
+
+
+_FIELD_DATASET: dict[str, tuple[str, str, str]] = {
+    ".vtu": ("UnstructuredGrid", "UnstructuredGrid", ""),
+    ".vtp": ("PolyData", "PolyData", ""),
+    ".vti": (
+        "ImageData",
+        "ImageData",
+        ' WholeExtent="0 1 0 0 0 0" Origin="0 0 0" Spacing="1 1 1"',
+    ),
+    ".vtr": ("RectilinearGrid", "RectilinearGrid", ' WholeExtent="0 1 0 0 0 0"'),
+    ".vts": ("StructuredGrid", "StructuredGrid", ' WholeExtent="0 1 0 0 0 0"'),
+}
+
+
+def _field_block(value: int, indent: int) -> str:
+    pad = " " * indent
+    return (
+        f"{pad}<FieldData>\n"
+        f'{pad} <DataArray type="Float64" Name="TimeValue" NumberOfTuples="1"'
+        f' format="ascii">{value}</DataArray>\n'
+        f"{pad}</FieldData>\n"
+    )
+
+
+@pytest.mark.parametrize("ext", sorted(_FIELD_DATASET))
+def test_the_dataset_field_block_wins_over_a_piece_in_every_format(
+    tmp_path, ext: str
+) -> None:
+    """The same file read two ways is the bug: .vtu and .vtp took the
+    dataset's block and .vti, .vtr and .vts took the piece's."""
+    kind, element, attrs = _FIELD_DATASET[ext]
+    if ext == ".vtu":
+        piece = (
+            '   <Piece NumberOfPoints="2" NumberOfCells="1">\n'
+            + _field_block(1, 4)
+            + '    <Points><DataArray type="Float64" NumberOfComponents="3"'
+            ' format="ascii">0 0 0 1 0 0</DataArray></Points>\n'
+            "    <Cells>\n"
+            '     <DataArray type="Int32" Name="connectivity" format="ascii">0 1'
+            "</DataArray>\n"
+            '     <DataArray type="Int32" Name="offsets" format="ascii">2</DataArray>\n'
+            '     <DataArray type="UInt8" Name="types" format="ascii">3</DataArray>\n'
+            "    </Cells>\n"
+            "   </Piece>\n"
+        )
+    elif ext == ".vtp":
+        piece = (
+            '   <Piece NumberOfPoints="2" NumberOfLines="1">\n'
+            + _field_block(1, 4)
+            + '    <Points><DataArray type="Float64" NumberOfComponents="3"'
+            ' format="ascii">0 0 0 1 0 0</DataArray></Points>\n'
+            "    <Lines>\n"
+            '     <DataArray type="Int32" Name="connectivity" format="ascii">0 1'
+            "</DataArray>\n"
+            '     <DataArray type="Int32" Name="offsets" format="ascii">2</DataArray>\n'
+            "    </Lines>\n"
+            "   </Piece>\n"
+        )
+    elif ext == ".vts":
+        piece = (
+            '   <Piece Extent="0 1 0 0 0 0">\n'
+            + _field_block(1, 4)
+            + '    <Points><DataArray type="Float64" NumberOfComponents="3"'
+            ' format="ascii">0 0 0 1 0 0</DataArray></Points>\n'
+            "   </Piece>\n"
+        )
+    elif ext == ".vtr":
+        piece = (
+            '   <Piece Extent="0 1 0 0 0 0">\n'
+            + _field_block(1, 4)
+            + "    <Coordinates>\n"
+            '     <DataArray type="Float64" Name="x" format="ascii">0 1</DataArray>\n'
+            '     <DataArray type="Float64" Name="y" format="ascii">0</DataArray>\n'
+            '     <DataArray type="Float64" Name="z" format="ascii">0</DataArray>\n'
+            "    </Coordinates>\n"
+            "   </Piece>\n"
+        )
+    else:
+        piece = (
+            '   <Piece Extent="0 1 0 0 0 0">\n' + _field_block(1, 4) + "   </Piece>\n"
+        )
+
+    path = tmp_path / f"both{ext}"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        f'<VTKFile type="{kind}" version="1.0" byte_order="LittleEndian">\n'
+        f"  <{element}{attrs}>\n" + _field_block(2, 3) + piece + f"  </{element}>\n"
+        "</VTKFile>\n"
+    )
+
+    np.testing.assert_allclose(polyxios.read(path).global_attrs["TimeValue"], [2])

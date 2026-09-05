@@ -14,7 +14,7 @@ from polyxios._element_types import (
 )
 from polyxios._ids import IDS_KEY, ids_for_write, record_ids
 from polyxios._io import Source, read_text, write_text
-from polyxios._tags import member_indices
+from polyxios._tags import member_indices, members_array
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -1360,8 +1360,9 @@ def _resolve_physical_groups(
     typeless: list[str] = []
     unreachable: list[str] = []
     for name, members in poly.element_tags.items():
-        idx = member_indices(members, n_elems)
-        if idx.size != np.asarray(members).size:
+        held = members_array(members)
+        idx = member_indices(held, n_elems)
+        if held is None or idx.size != held.size:
             # Members that index no element of this mesh cost the group the
             # part of itself they stood for, so say which group lost them.
             unreachable.append(name)

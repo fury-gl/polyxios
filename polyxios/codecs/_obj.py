@@ -5,6 +5,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._faces import report_flattened_faces
 from polyxios._io import Source, open_text, source_name, write_text
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -309,8 +310,8 @@ def write(poly: PolyData, path: Source, **opts: object) -> None:
     # Build reverse tag map: element_idx - set of group names
     idx_to_groups: dict[int, list[str]] = {}
     for g, idxs in poly.element_tags.items():
-        for i in idxs:
-            idx_to_groups.setdefault(int(i), []).append(g)
+        for i in member_values(idxs).tolist():
+            idx_to_groups.setdefault(i, []).append(g)
 
     # A corner names a record only when the record was written; an attribute
     # dropped above must not leave the faces indexing it.

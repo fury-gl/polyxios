@@ -474,3 +474,88 @@ def test_float_tag_members_do_not_raise() -> None:
         vertex_tags={"inlet": np.array([0.0, 1.0])},
     )
     assert remove_orphan_vertices(poly).vertex_tags["inlet"].size == 0
+
+
+# One reference element per volume type, its nodes in polyxios's own order, so
+# a face's ring can be wound against the solid it came off rather than against
+# a second copy of the table it is being checked.
+_REFERENCE_SOLIDS: dict[str, np.ndarray] = {
+    "tetra": np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64),
+    "hexahedron": np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 0, 1],
+            [1, 1, 1],
+            [0, 1, 1],
+        ],
+        dtype=np.float64,
+    ),
+    "voxel": np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 1, 0],
+            [0, 0, 1],
+            [1, 0, 1],
+            [0, 1, 1],
+            [1, 1, 1],
+        ],
+        dtype=np.float64,
+    ),
+    "wedge": np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1]],
+        dtype=np.float64,
+    ),
+    "pyramid": np.array(
+        [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0.5, 0.5, 1]],
+        dtype=np.float64,
+    ),
+    "pentagonal_prism": np.array(
+        [
+            [np.cos(a), np.sin(a), z]
+            for z in (0.0, 1.0)
+            for a in np.linspace(0, 2 * np.pi, 5, endpoint=False)
+        ],
+        dtype=np.float64,
+    ),
+    "hexagonal_prism": np.array(
+        [
+            [np.cos(a), np.sin(a), z]
+            for z in (0.0, 1.0)
+            for a in np.linspace(0, 2 * np.pi, 6, endpoint=False)
+        ],
+        dtype=np.float64,
+    ),
+}
+
+
+def _points_outward(solid: np.ndarray, ring: tuple[int, ...]) -> bool:
+    """Say whether a face's ring is wound so its normal leaves the solid."""
+    face = solid[list(ring)]
+    normal = sum(
+        (np.cross(face[i], face[(i + 1) % len(face)]) for i in range(len(face))),
+        np.zeros(3),
+    )
+    return bool(np.dot(normal, face.mean(axis=0) - solid.mean(axis=0)) > 0)
+
+
+@pytest.mark.parametrize("type_name", sorted(_REFERENCE_SOLIDS))
+def test_every_face_of_a_solid_is_wound_outward(type_name: str) -> None:
+    """A skin is shaded by its normals, and every base among these was wound
+    the other way: five sides lit from outside and one from within, which is
+    the shape that reads as a hole in the mesh."""
+    from polyxios._element_types import ELEMENT_FACES
+
+    solid = _REFERENCE_SOLIDS[type_name]
+    inward = [
+        (index, ring)
+        for index, ring in enumerate(ELEMENT_FACES[type_name])
+        if not _points_outward(solid, ring)
+    ]
+
+    assert not inward

@@ -11,6 +11,7 @@ import numpy as np
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
 from polyxios._ids import ids_for_write, record_ids
 from polyxios._io import Source, read_text, write_text
+from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -794,7 +795,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     empty_tags = 0
     dropped_members = 0
     for name, tag in poly.element_tags.items():
-        members = [int(v) for v in np.asarray(tag).ravel()]
+        members = member_values(tag).tolist()
         written = [e for e in members if 0 <= e < n_elems and record_of_elem[e]]
         if not written:
             empty_tags += 1

@@ -140,6 +140,81 @@ New features
   flagged two-dimensional whose vertices have since left the plane is
   written in three, with a warning, rather than being flattened in silence.
 
+- Whole-mesh metadata now travels through the VTK family. ``.vtu``, ``.vtp``,
+  ``.vti``, ``.vtr`` and ``.vts`` read and write a ``<FieldData>`` block, and
+  legacy ``.vtk`` reads and writes a ``FIELD FieldData`` block between the
+  ``DATASET`` line and the geometry - so a time value, a material constant or
+  a solver tolerance in ``global_attrs`` survives a write instead of being
+  dropped. A legacy ``STRUCTURED_POINTS``, ``RECTILINEAR_GRID`` or
+  ``STRUCTURED_GRID`` file reads the block too, which is where VTK's own
+  writer puts a time value. The block holds arrays: a scalar comes back as a one-element array,
+  a field array keeps the type it was held in, and a value no numeric array
+  holds is dropped with a warning naming the key. A structured codec spells
+  its own grid entries - ``vti_extent``, ``vtr_extents``, ``vts_extent`` and
+  their neighbours - from the mesh on the way out, so those never travel as
+  field data in the format that records them; every other key does, and a
+  structured read takes its own grid over anything a field block names.
+
+- Text in ``global_attrs`` travels through the VTK XML family. A
+  ``<FieldData>`` block holds a ``String`` array beside its numeric ones, so a
+  name, a title or a solver's own label - an Abaqus ``*HEADING`` among them -
+  reaches a ``.vtu``, ``.vtp``, ``.vti``, ``.vtr`` or ``.vts`` and comes home
+  a string. One VTK itself wrote is read the same way, where such an array
+  used to be skipped with a warning about holding no numbers. A list of
+  strings is one array of several tuples and comes back the list it was. The
+  legacy ``FIELD`` block spells no text at all, so a string handed to a
+  ``.vtk`` is still dropped with a warning naming the key.
+
+- Abaqus ``.inp`` reads a ``*HEADING`` card into
+  ``global_attrs["abaqus_heading"]`` and writes it back, so the deck's own
+  title survives a round trip. polyxios's own banner stays a comment, so a
+  deck that never had a heading does not gain one.
+
+- ``helper.read_blocks`` and ``helper.read_multiblock`` read every VTK index
+  file - ``.vtm``, ``.pvtu``, ``.pvtp``, ``.pvtr``, ``.pvts``, ``.pvti``, and
+  a ``.vtp`` holding a ``<vtkMultiBlockDataSet>`` - where
+  ``read_multiblock_vtp`` read only the last of those. The first hands back
+  one ``PolyData`` per sub-file and the second merges them, so blocks that
+  mean different things can stay apart. An index naming another index is
+  followed and read flat, a pair naming each other is read once, a missing or
+  unreadable sub-file is skipped with a warning - the one the operating
+  system refuses among them - and a reference resolving outside the index
+  file's directory still raises ``PermissionError``, now
+  ``helper.Traversal``, which is one.
+  ``read()`` itself keeps handing back exactly one mesh, and the meta-file
+  refusals now name these two functions.
+
+- Tag groups travel through the VTK family. ``.vtk``, ``.vtu``, ``.vtp``,
+  ``.vti``, ``.vtr`` and ``.vts`` write one point or cell column of ones and
+  zeros per group, named ``polyxios_tag_<group>``, and read it back as the
+  group. None of those formats has a set of its own, and one column per group
+  is what keeps an element in two groups in both - which the single reference
+  a Medit or Netgen record carries cannot say. A column of that name holding
+  anything but whole numbers stays an attribute, since a member rounded into
+  place names the wrong element.
+
+- An Abaqus ``*SURFACE`` is read and written. A surface names a side of an
+  element, which the deck holds no element for, so polyxios reads it as the
+  triangle or quadrilateral that side describes, tagged with the surface's
+  name - the way the UGRID, SU2 and Netgen readers already hand back their
+  boundary faces. Two element attributes carry the link back:
+  ``face_parent``, the element it is a face of, and ``face_index``, which of
+  that element's faces. Writing puts the ``*Surface`` card back, with its
+  parent ``*Elset`` marked ``internal`` the way Abaqus marks its own, and an
+  internal set a surface named is dropped on the way in, so a round trip is
+  stable; one no surface names is a group the deck's author wrote and is kept.
+  A ``*Surface, type=NODE`` becomes a vertex tag - one member per data line,
+  since the field after it is a weight factor and a whole number is as good a
+  weight as a node id - and goes back out as the ``*Nset`` it now is, a node
+  set and a node surface being the same members under two cards. ``SPOS`` or
+  ``SNEG`` on a shell tags the element itself rather than duplicating it. The two columns are read back wherever
+  they hold whole numbers, so a deck that went out through a format carrying
+  every attribute as a double, legacy ``.vtk`` among them, still writes its
+  surfaces back. ``transforms.merge`` shifts ``face_parent`` onto the mesh it
+  is building, the way it already shifted the tag groups, so the surfaces of
+  two meshes joined into one - the blocks of an index file among them -
+  survive the join instead of naming the first mesh's elements.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 
@@ -178,6 +253,193 @@ Behaviour changes
 
 Bug fixes
 ~~~~~~~~~
+
+- An array whose name holds XML markup - an ampersand, a quote, an angle
+  bracket, as a group named in another format may - is written escaped by the
+  VTK XML formats. It used to close the ``Name`` attribute early and leave a
+  file no reader could parse, polyxios's own included. A name holding a
+  newline, a carriage return or a tab is escaped as a numeric reference for
+  the same reason: written as it stands, an XML parser normalises it to a
+  space and the array comes back under a name it never had. Legacy ``.vtk``
+  has no escaping to fall back on, so an array whose name holds whitespace is
+  dropped with a warning there rather than written as a name and a stray
+  token. A name holding a character XML has no spelling for at all - a
+  control character, which no numeric reference reaches either - is dropped
+  with a warning by the XML formats for the same reason.
+
+- A legacy ``.vtk`` ``FIELD`` header that leaves its type field out is read as
+  the ``float`` the ASCII scan has always defaulted it to, where the binary
+  scan skipped the array and carried on framing the block from the wrong
+  offset. The format makes the field mandatory, so this only ever answers a
+  malformed header - but the two scans have to answer it the same way, or one
+  file reads back as two different meshes depending on how it was written. A
+  header short of the name, component count and tuple count that frame its
+  payload is refused by both for the same reason, as is a block that declares
+  more arrays than the file holds, and as is one whose component or tuple
+  count is negative - the two are multiplied into the length of a payload,
+  and a negative one walked the binary scan backwards off the front of the
+  file and reshaped to a dimension numpy infers rather than the one the
+  header claimed.
+
+- Every legacy ``.vtk`` reader looks for its keywords below the ``DATASET``
+  line. The second line of the file is a free-text title, and the two readers
+  that scanned from the top of the file read one beginning with a keyword as
+  that keyword's header: a ``POLYDATA`` mesh titled ``Vertices of a cow`` or
+  ``Points of interest`` was refused, and the ``FIELD`` block this release
+  adds widened that to any title beginning ``Field``. The line is found
+  rather than counted, so a header carrying a blank line between its four is
+  read too, where an ``UNSTRUCTURED_GRID`` reader counting to four missed the
+  first keyword after it.
+
+- A legacy ``.vtk`` cell array is read against what its block actually holds.
+  A ``CELLS`` row, or a ``POLYGONS`` cell, declaring more vertices than it
+  goes on to list used to be trusted twice over: the row kept the indices it
+  had while the offsets advanced by the width it claimed, so every cell after
+  it was cut out of the wrong place - and the binary spelling of the same
+  fault reached numpy as a bare ``IndexError`` naming neither the file nor
+  the cell. Both are now a ``CodecError`` that names them.
+
+- Every remaining legacy ``.vtk`` section that reads numbers off ASCII lines
+  says which file and which section a malformed one came out of. ``POINTS``,
+  ``CELL_TYPES``, a ``X_COORDINATES`` array and a ``STRUCTURED_GRID``
+  ``POINTS`` block used to hand a bare ``ValueError`` about one token, or a
+  reshape, to a caller that had asked to read a file; a section that runs
+  into the keyword after it, or that the file ends inside, is refused by
+  name. A ``DATASET FIELD`` array the file runs out inside is dropped with a
+  warning instead of being reshaped into a shape it cannot fill. Thirty
+  thousand mutations of six corrupt files now leave the codec raising only
+  ``CodecError``.
+
+- ``transforms.merge`` keeps the surfaces of a mesh whose ``face_parent``
+  and ``face_index`` columns are doubles - which is every mesh that went out
+  through legacy ``.vtk``, where a cell array is a double whatever it held.
+  Merging one with a mesh carrying no such column fills that mesh's rows with
+  the blank a float dtype spells, NaN, and a NaN was read as a column that
+  could not be trusted at all rather than as the ``-1`` that says "not a
+  face" - so every surface the first mesh did carry was dropped without a
+  word, which is the loss shifting the column exists to prevent.
+
+- A ``<FieldData>`` name that more than one ``Piece`` of a ``.vtu`` or
+  ``.vtp`` spells keeps the first piece's value and is reported. The mesh's
+  metadata is one mapping over the joined mesh, so folding the pieces with a
+  plain update kept the last - a value a reader of a single-piece file would
+  never have seen, and a loss no warning named. The dataset's own block still
+  wins over every piece.
+
+- A legacy ``.vtk`` ``POINT_DATA`` or ``CELL_DATA`` header is written only
+  once its arrays are known to be nameable. A section whose names all hold
+  whitespace - which the format's whitespace-separated header field cannot
+  spell - used to declare itself over nothing, the way the ``FIELD`` block
+  already refused to. The names are now checked once per section rather than
+  once per array, so the warning names them together.
+
+- A legacy ``.vtk`` ASCII ``POINTS`` or ``CELLS`` block wrapped over several
+  lines is read. Both are a run of numbers the header counts, and VTK's own
+  reader takes them as one however they are broken up; read a row at a time,
+  a wrapped ``POINTS`` block silently kept three numbers of each line and
+  dropped the rest, and a wrapped ``CELLS`` block was refused for a row that
+  was never short. One row to a cell is still the path every file VTK writes
+  takes, and the run is gathered only once a row turns out not to hold its
+  own cell whole - so a well-formed file pays nothing for it, and a file that
+  is malformed either way is still named by its row.
+
+- The Cython fast paths for those two blocks are bounds-checked. They are
+  compiled with ``boundscheck=False``, which takes the check off their list
+  indexing as well as off their arrays, so a header declaring more rows than
+  the file holds, or a ``CELLS`` row holding no tokens at all - a blank line
+  inside the block, which the wrapped-block reader above takes in its stride -
+  read past the end of a list: a segmentation fault on a file the reader was
+  handed, not a diagnosis. The counts are numbers out of the file and are now
+  checked once per block, the row is checked before its first token is
+  indexed, and its own width against the tokens it lists. A width is held in
+  a machine word rather than a C ``int`` besides, since one past two billion
+  raised out of the conversion itself, before the check that names the row -
+  so both paths refuse the same files with the same sentence whether or not
+  the extension was built.
+
+- A tag group of a shape numpy builds no array of - a ragged list of lists, a
+  mapping, a column of names - is reported by every writer rather than raising
+  out of the middle of one. ``vertex_tags`` and ``element_tags`` are not
+  checked on the way in, and such a group used to reach a bare ``ValueError``
+  about an inhomogeneous shape in whichever codec looked at it first. It names
+  no entity, which is the loss the ``.inp``, ``.msh``, ``.su2``, ``.vol``,
+  ``.ugrid``, ``.f3grid``, ``.mdpa``, ``.node``, ``.obj`` and VTK writers
+  already report for a group whose members index nothing.
+
+- A ``<FieldData>`` block naming one array twice keeps the first and says so,
+  the way one whose name two ``Piece`` elements spell already did. A mesh's
+  metadata holds one value per key, and taking the last meant one file read
+  back two ways depending on the order its blocks were walked in. A legacy
+  ``.vtk`` ``FIELD`` block answers a repeated name the same way, where all
+  three of its parsers took the last without a word: one mesh has to read
+  back the same whichever spelling of the format it was written in.
+
+- A ``DATASET FIELD`` file holding a ``string`` array is read rather than
+  hung on. Its lines were counted from the array's own header, so one
+  declaring no strings never reached a line to step over and the reader
+  looped on the header for ever - a file of five lines that never returned.
+  Counting them after the header ends that, and ends an off-by-one with it:
+  an array of one string used to leave its text behind to be read as the
+  header of an array of its own. A component or tuple count that is negative
+  is skipped there too, the way the ``FIELD`` block inside a mesh already
+  refuses one: the two are multiplied into a length, and a negative one
+  sliced the values read from the wrong end and stored an empty array under
+  a name the file never spelled.
+
+- Every face in the table of a volume element's sides is wound so its normal
+  points out of the element. One face of each - a hexahedron's and a
+  pyramid's base, a wedge's and either prism's bottom, and three of a
+  voxel's six - was wound the other way, so ``transforms.extract_surface``
+  handed back a skin lit from inside along those faces, which is the shape
+  that reads as a hole in the mesh. The numbering is unchanged, so an Abaqus
+  ``S<n>`` and a ``face_index`` still name the face they always did.
+
+- A chain of VTK index files each naming the next is followed to a fixed
+  depth rather than as far as it is long. An index naming a parent of its
+  own was already refused, but a chain is no cycle: a deep enough one
+  recursed past the interpreter's own limit, and the ``RecursionError``
+  surfaced as a block that could not be read rather than as the file it was.
+
+- An ``abaqus_heading`` whose text would end the ``*Heading`` card is dropped
+  with a warning rather than written into the deck. A heading is free text
+  and travels through every format with a metadata slot, so it comes back
+  holding whatever was put in it; written unchanged, a line beginning ``*``
+  is the next card, and a title of ``*Node`` followed by a row spelled the
+  deck a vertex it never had. A line holding ``**`` goes for the same reason:
+  the marker opens a comment anywhere on a line, so such a title came back
+  truncated at it, or as nothing at all.
+
+- An Abaqus ``*Heading`` line ending in a comma keeps the line below it. A
+  trailing comma continues a data line onto the next one everywhere else in a
+  deck, and a heading holds no data: the rule glued a title of ``turbine
+  blade,`` to the ``rev 3`` under it, and the deck came back one line where
+  its author had written two.
+
+- An Abaqus ``*Surface, type=NODE`` row that a trailing comma joined onto the
+  next reads a whole number after a set name as that set's weight factor
+  rather than as a node of the surface. The join takes the line break with
+  it, and the line break is what told the one from the other; a row opening
+  with a node number is still a row of node numbers, which is the spelling
+  the join exists to read.
+
+- An element is written back as a ``*Surface`` row only when its own type is
+  the one a face of that width names. A tetrahedron's four nodes can be
+  exactly a hexahedron's face, and columns saying so passed the vertex check:
+  the solid was written as a side of the hexahedron instead of as an element
+  card, so the deck lost a volume element and handed back a quadrilateral.
+
+- A ``*Surface`` row that would take the mesh past the connectivity safety cap
+  is refused before its face is built rather than after, where a check that
+  only counted what was already there let the mesh past the cap by a face's
+  width.
+
+- A binary PLY face declaring more vertices than the file holds - 2**31-1 of
+  them - is refused with a ``CodecError`` naming the truncation, where the
+  whole-block read used to build a record dtype for it first and hand back
+  numpy's ``ValueError`` about a tuple shape, which named neither the file
+  nor the face. Every other format's declared counts were swept for the same
+  fault and are guarded; ``tests/test_declared_counts.py`` now holds one
+  corrupt header per format as a matrix.
 
 - ``.vti``, ``.vts`` and ``.vtr`` hold a grid, and each now says so when
   handed something else. All three inferred their extent from the distinct

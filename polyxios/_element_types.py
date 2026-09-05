@@ -315,3 +315,83 @@ TOPOLOGICAL_DIMENSION: Final[dict[int, int]] = {
     ELEMENT_TYPES["bezier_curve"]: 1,
     ELEMENT_TYPES["bezier_triangle"]: 2,
 }
+
+
+# The faces of every volume element type, as local vertex indices into the
+# element's own connectivity, in the order polyxios numbers them. It is one
+# table because the two things that need it must agree: extracting a boundary
+# surface, and reading a format that names a face by its number - an Abaqus
+# ``*Surface`` says ``S3``, and which face that is depends on both numberings.
+#
+# Every ring is wound so its normal points out of the element, which is what
+# lets a skin taken off a mesh be shaded: a face wound the other way is lit
+# from inside, and one element's base among five outward sides is the shape
+# that reads as a hole. Only the ring order carries this - the face numbering
+# is what ``face_index`` and an Abaqus ``S<n>`` are spelled against, and it is
+# the same either way.
+ELEMENT_FACES: Final[dict[str, tuple[tuple[int, ...], ...]]] = {
+    "tetra": (
+        (0, 1, 3),
+        (1, 2, 3),
+        (2, 0, 3),
+        (0, 2, 1),
+    ),
+    "hexahedron": (
+        (0, 3, 2, 1),
+        (4, 5, 6, 7),
+        (0, 1, 5, 4),
+        (1, 2, 6, 5),
+        (2, 3, 7, 6),
+        (3, 0, 4, 7),
+    ),
+    # VTK voxel: bit-encoded ordering differs from hex
+    "voxel": (
+        (0, 2, 3, 1),
+        (4, 5, 7, 6),
+        (0, 1, 5, 4),
+        (2, 6, 7, 3),
+        (0, 4, 6, 2),
+        (1, 3, 7, 5),
+    ),
+    "wedge": (
+        (0, 2, 1),
+        (3, 4, 5),
+        (0, 1, 4, 3),
+        (1, 2, 5, 4),
+        (2, 0, 3, 5),
+    ),
+    "pyramid": (
+        (0, 3, 2, 1),
+        (0, 1, 4),
+        (1, 2, 4),
+        (2, 3, 4),
+        (3, 0, 4),
+    ),
+    "pentagonal_prism": (
+        (0, 4, 3, 2, 1),
+        (5, 6, 7, 8, 9),
+        (0, 1, 6, 5),
+        (1, 2, 7, 6),
+        (2, 3, 8, 7),
+        (3, 4, 9, 8),
+        (4, 0, 5, 9),
+    ),
+    "hexagonal_prism": (
+        (0, 5, 4, 3, 2, 1),
+        (6, 7, 8, 9, 10, 11),
+        (0, 1, 7, 6),
+        (1, 2, 8, 7),
+        (2, 3, 9, 8),
+        (3, 4, 10, 9),
+        (4, 5, 11, 10),
+        (5, 0, 6, 11),
+    ),
+}
+# Quadratic elements: reuse corner-node faces of their linear counterparts.
+# The same object under both names, which tuples make safe to share.
+ELEMENT_FACES["quadratic_tetra"] = ELEMENT_FACES["tetra"]
+ELEMENT_FACES["triquadratic_hexahedron"] = ELEMENT_FACES["hexahedron"]
+ELEMENT_FACES["biquadratic_quadratic_wedge"] = ELEMENT_FACES["wedge"]
+ELEMENT_FACES["quadratic_hexahedron"] = ELEMENT_FACES["hexahedron"]
+ELEMENT_FACES["quadratic_wedge"] = ELEMENT_FACES["wedge"]
+ELEMENT_FACES["quadratic_pyramid"] = ELEMENT_FACES["pyramid"]

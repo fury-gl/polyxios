@@ -3,19 +3,24 @@ from typing import Any
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._globals import globals_for_write, text_for_write
 from polyxios._io import Source, write_text
+from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
     extent_points,
     extent_spans,
     format_attr_da,
+    format_field_data,
     grid_axes,
     parse_xml,
+    read_field_data,
     require_grid_order,
     require_structured_cells,
     shaped_da,
     sized_attrs,
+    spellable_arrays,
     structured_cell_shape,
     structured_cells,
     structured_cells_fit,
@@ -27,6 +32,10 @@ from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtr"
+
+# The keys this codec spells from the grid itself on the way out, so they
+# never travel as field data - a second copy of the grid, in the wrong shape.
+RESERVED_GLOBALS: frozenset[str] = frozenset({"vtr_extents", "vtr_whole_extent"})
 
 
 def _implied(span: int) -> np.ndarray:
@@ -193,7 +202,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point")
     element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell")
 
-    global_attrs: dict[str, Any] = {"vtr_extents": extent}
+    # Whole-mesh metadata, under the grid the reader rebuilt: a file naming
+    # one of the reader's own keys in its field data is describing the same
+    # grid twice, and the grid is what the points were laid out on. The
+    # dataset's own block is read last, as in every other codec here: a key
+    # spelled on both levels means what the dataset says it means.
+    global_attrs: dict[str, Any] = read_field_data(piece, _decode)
+    global_attrs |= read_field_data(rg, _decode)
+    global_attrs |= {"vtr_extents": extent}
     whole = rg.get("WholeExtent")
     if whole:
         # Read through the same guard the piece extent is: unpacked straight
@@ -203,6 +219,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             whole, fmt=EXTENSION, where="WholeExtent"
         )
 
+    # A column named for a tag group is that group's membership rather than an
+    # attribute over the entities; the name is the only thing that says so.
+    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
+    element_attrs, element_tags = tags_from_masks(element_attrs)
+
     return PolyData(
         vertices=vertices,
         connectivity=connectivity,
@@ -210,6 +231,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         element_types=element_types,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
+        vertex_tags=vertex_tags,
+        element_tags=element_tags,
         global_attrs=global_attrs,
     )
 
@@ -295,6 +318,17 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     bo = "LittleEndian"
     lines.append(f'<VTKFile type="RectilinearGrid" version="1.0" byte_order="{bo}">')
     lines.append(f'  <RectilinearGrid WholeExtent="{whole_str}">')
+    lines.extend(
+        format_field_data(
+            globals_for_write(
+                poly, reserved=RESERVED_GLOBALS, fmt=EXTENSION, text=True
+            ),
+            text=text_for_write(poly, reserved=RESERVED_GLOBALS),
+            binary=binary,
+            indent=4,
+            fmt=EXTENSION,
+        )
+    )
     lines.append(f'    <Piece Extent="{extent_str}">')
     lines.append("      <Coordinates>")
     lines.append(_format_data_array("x_coordinates", x_coords, binary, 8))
@@ -302,15 +336,41 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     lines.append(_format_data_array("z_coordinates", z_coords, binary, 8))
     lines.append("      </Coordinates>")
 
-    if poly.vertex_attrs:
+    # A tag group travels as one column of ones and zeros named for it: the
+    # channel holds one value per entity, and an element in two groups is
+    # named by both columns, which one label per element cannot say.
+    point_arrays = spellable_arrays(
+        with_tag_masks(
+            poly.vertex_attrs,
+            poly.vertex_tags,
+            poly.vertices.shape[0],
+            fmt=EXTENSION,
+            kind="point",
+        ),
+        fmt=EXTENSION,
+        kind="point",
+    )
+    cell_arrays = spellable_arrays(
+        with_tag_masks(
+            poly.element_attrs,
+            poly.element_tags,
+            len(poly.element_types),
+            fmt=EXTENSION,
+            kind="cell",
+        ),
+        fmt=EXTENSION,
+        kind="cell",
+    )
+
+    if point_arrays:
         lines.append("      <PointData>")
-        for name, arr in poly.vertex_attrs.items():
+        for name, arr in point_arrays.items():
             lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </PointData>")
 
-    if poly.element_attrs:
+    if cell_arrays:
         lines.append("      <CellData>")
-        for name, arr in poly.element_attrs.items():
+        for name, arr in cell_arrays.items():
             lines.append(_format_data_array(name, arr, binary, 8))
         lines.append("      </CellData>")
 

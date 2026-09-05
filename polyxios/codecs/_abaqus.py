@@ -5,30 +5,51 @@ lines. This codec reads the mesh cards - ``*NODE``, ``*ELEMENT``, ``*NSET``,
 ``*ELSET``, ``*SYSTEM`` and ``*INCLUDE`` - and ignores the solver cards
 around them, since a step definition says nothing about the geometry.
 
-Node and element sets become ``vertex_tags`` and ``element_tags``. A deck
+Node and element sets become ``vertex_tags`` and ``element_tags``, and a
+``*SURFACE`` becomes one too: polyxios holds no face set of its own, so a
+named side of a solid is read as the triangle or quadrilateral it describes,
+tagged with the surface's name and carrying the ``face_parent`` and
+``face_index`` columns that say which element's face it is. The writer reads
+those back and puts the ``*Surface`` card back. A side of a quadratic solid
+is read as the linear face its corner nodes describe - the mid-side nodes
+along its edges stay with the parent, which is where the deck spells them -
+and comes back the same ``*Surface`` on the way out. A ``type=NODE`` surface
+has no face to build: it names nodes, so it is read as the ``vertex_tags``
+group it already is and goes back out as an ``*Nset`` of the same name, the
+card it named them under being the one thing that does not survive. A deck
 split over several files with ``*INCLUDE`` is read as one mesh, with the
 included paths resolved against the parent file and refused when they leave
 its directory - an ``.inp`` is untrusted input like any other file.
 """
 
+from itertools import chain
 import os
 from pathlib import Path
-from typing import Any
+import re
+from typing import Any, NamedTuple
 import warnings
 
 import numpy as np
 
 from polyxios._dimension import mark_2d, output_dimension
 from polyxios._element_types import (
+    ELEMENT_FACES,
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
     MAX_SAFE_CONN,
     MAX_SAFE_ELEMENTS,
     MAX_SAFE_VERTICES,
 )
+from polyxios._faces import (
+    FACE_KEY_STRIDE,
+    face_keys,
+    parent_face_columns,
+    parent_face_mask,
+    parent_faces,
+)
 from polyxios._ids import ids_for_write, record_ids
 from polyxios._io import Source, is_buffer, read_text, source_name, write_text
-from polyxios._tags import member_indices
+from polyxios._tags import member_indices, members_array
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
@@ -40,6 +61,11 @@ _MAX_INCLUDE_DEPTH: int = 8
 
 # Characters a set name cannot carry: each of them ends the card early.
 _NAME_UNSAFE: frozenset[str] = frozenset(",=*")
+
+# The one card whose rows are free text rather than data, named here because
+# the line reader and the card reader both have to know it: the first joins
+# every other card's continuation lines, and this one's must not be joined.
+_HEADING: str = "HEADING"
 
 # Abaqus element cards, keyed by the base card with its modifier suffixes
 # removed. The suffixes - R (reduced integration), H (hybrid), I
@@ -330,37 +356,68 @@ def _expand_includes(
     return out
 
 
-def _logical_lines(raw_lines: list[str]) -> list[str]:
-    """Strip comments and join the continuation lines a data line may spill onto."""
+def _logical_lines(raw_lines: list[str]) -> list[tuple[str, bool]]:
+    """Strip comments and join the continuation lines a data line may spill onto.
+
+    Parameters
+    ----------
+    raw_lines
+        The deck's lines, includes already expanded.
+
+    Returns
+    -------
+    list of tuple[str, bool]
+        Each logical line, and whether more than one physical line was joined
+        to make it. A card whose data line holds a fixed number of fields -
+        a ``*Surface`` row is one member and one optional weight factor -
+        cannot otherwise tell its own second field from a neighbour joined
+        onto it once the line break is gone.
+
+    Notes
+    -----
+    A ``*Heading`` is the one card whose lines are not data. Its rows are the
+    title its author wrote, so a comma ending one of them is punctuation
+    rather than the continuation marker it is everywhere else, and joining
+    the two would hand back one line where the deck spelled two.
+    """
     raw = [
         ln.split("**")[0].rstrip()
         for ln in raw_lines
         if not ln.strip().startswith("**")
     ]
 
-    lines: list[str] = []
+    lines: list[tuple[str, bool]] = []
     buf = ""
+    joined = False
+    in_heading = False
     for ln in raw:
         stripped = ln.strip()
         if not stripped:
             if buf:
-                lines.append(buf)
+                lines.append((buf, joined))
                 buf = ""
+                joined = False
             continue
         if stripped.startswith("*"):
             if buf:
-                lines.append(buf)
+                lines.append((buf, joined))
                 buf = ""
-            lines.append(ln)
+                joined = False
+            lines.append((ln, False))
+            in_heading = stripped[1:].split(",")[0].strip().upper() == _HEADING
+        elif in_heading:
+            lines.append((ln, False))
         elif stripped.endswith(",") or buf:
+            joined = joined or bool(buf)
             buf += stripped
             if not stripped.endswith(","):
-                lines.append(buf)
+                lines.append((buf, joined))
                 buf = ""
+                joined = False
         else:
-            lines.append(ln)
+            lines.append((ln, False))
     if buf:
-        lines.append(buf)
+        lines.append((buf, joined))
     return lines
 
 
@@ -588,6 +645,359 @@ def _store_set(
     tags[key] = array.astype(np.int32, copy=False)
 
 
+# Which of polyxios's faces an Abaqus face label names, per element type: the
+# entry at ``S<n> - 1`` is the index into ELEMENT_FACES. Both numberings walk
+# the same faces in a different order, and only for the tetrahedron do they
+# disagree - Abaqus S1 is the base 1-2-3, which polyxios numbers last.
+# tests/codecs/test_abaqus.py checks every entry against the nodes Abaqus
+# gives the face, so the table cannot drift from either numbering.
+_ABAQUS_FACE_ORDER: dict[str, tuple[int, ...]] = {
+    "tetra": (3, 0, 1, 2),
+    "quadratic_tetra": (3, 0, 1, 2),
+    "hexahedron": (0, 1, 2, 3, 4, 5),
+    "quadratic_hexahedron": (0, 1, 2, 3, 4, 5),
+    "triquadratic_hexahedron": (0, 1, 2, 3, 4, 5),
+    "wedge": (0, 1, 2, 3, 4),
+    "quadratic_wedge": (0, 1, 2, 3, 4),
+    "pyramid": (0, 1, 2, 3, 4),
+    "quadratic_pyramid": (0, 1, 2, 3, 4),
+}
+
+# What a ring of this many vertices is written back as. A face of a solid is a
+# triangle or a quadrilateral; a face of a prism with more sides is a polygon.
+_FACE_TYPE_BY_WIDTH: dict[int, str] = {3: "triangle", 4: "quad"}
+
+_FACE_LABEL: re.Pattern[str] = re.compile(r"^S(\d+)$")
+
+# The same table read the other way: the label each of polyxios's own faces
+# carries on its parent's card. Built once rather than scanned for, because
+# the writer asks for a label per face of every surface it writes and a
+# linear search through the order is the wrong shape for that.
+_ABAQUS_FACE_LABEL: dict[str, dict[int, str]] = {
+    name: {local: f"S{number + 1}" for number, local in enumerate(order)}
+    for name, order in _ABAQUS_FACE_ORDER.items()
+}
+
+# The same table again as the packed ``(parent type, face number)`` keys it
+# holds a row for, sorted for np.isin: the writer asks of a whole surface at
+# once whether every one of its faces has a label, and a group naming a
+# hundred thousand of them asks it once rather than a hundred thousand times.
+_LABELLED_FACE_KEYS: np.ndarray = np.array(
+    sorted(
+        ELEMENT_TYPES[name] * FACE_KEY_STRIDE + local
+        for name, labels in _ABAQUS_FACE_LABEL.items()
+        for local in labels
+    ),
+    dtype=np.int64,
+)
+
+
+def _face_local_index(type_name: str | None, label: str) -> int | None:
+    """Return which face of an element an Abaqus label names.
+
+    Parameters
+    ----------
+    type_name
+        The parent's polyxios element type, or None for a code with no name.
+    label
+        The face label as the row spells it, upper case.
+
+    Returns
+    -------
+    int or None
+        The index into ``ELEMENT_FACES`` for this type, or None when the
+        label names no face of it - ``SPOS`` and ``SNEG`` name a side of a
+        shell, which is the element itself, and a solid has only the faces
+        its type holds.
+    """
+    order = _ABAQUS_FACE_ORDER.get(type_name or "")
+    match = _FACE_LABEL.match(label)
+    if order is None or match is None:
+        return None
+    number = int(match.group(1))
+    return order[number - 1] if 1 <= number <= len(order) else None
+
+
+class SurfaceRead(NamedTuple):
+    """What reading the ``*Surface`` cards leaves behind.
+
+    Attributes
+    ----------
+    parents
+        Element index to ``(parent element, local face)``, for the elements
+        the surfaces were read as.
+    referenced
+        The set names the rows named, upper-cased. Abaqus generates a set per
+        face label of a surface and marks it ``internal``; those are
+        scaffolding and go once the surface has been read out of them, and
+        this is what says which of the deck's internal sets are that rather
+        than a group its author wrote and asked to keep.
+    """
+
+    parents: dict[int, tuple[int, int]]
+    referenced: set[str]
+
+
+def _resolve_surfaces(
+    rows: list[tuple[str, str, list[str], bool]],
+    *,
+    element_tags: dict[str, np.ndarray],
+    element_folded: dict[str, str],
+    vertex_tags: dict[str, np.ndarray],
+    vertex_folded: dict[str, str],
+    elem_map: dict[int, int],
+    node_map: dict[int, int],
+    conn_list: list[int],
+    offsets_list: list[int],
+    types_list: list[int],
+) -> SurfaceRead:
+    """Turn the ``*Surface`` rows into elements, and say what they are faces of.
+
+    Parameters
+    ----------
+    rows
+        One ``(surface name, TYPE=, row tokens, was joined)`` per data line,
+        in file order.
+    element_tags, element_folded, vertex_tags, vertex_folded
+        The deck's sets, added to in place: a surface is a named group like
+        any other once its faces are elements.
+    elem_map, node_map
+        The deck's own numbering, for a row naming one entity rather than a set.
+    conn_list, offsets_list, types_list
+        The mesh being built, appended to in place.
+
+    Returns
+    -------
+    SurfaceRead
+        The elements that are faces, each with the element it is a face of and
+        which of that element's faces it is, and the set names the rows read
+        their members out of.
+
+    Notes
+    -----
+    polyxios holds no face set of its own - a mesh is vertices and elements -
+    so a named side of a solid is read as the triangle or quadrilateral it
+    describes, tagged with the surface's name, exactly as the UGRID, SU2 and
+    Netgen readers hand back their boundary faces. A label naming no face of
+    the parent's type - ``SPOS`` and ``SNEG``, which name a side of a shell -
+    tags the parent itself, since the face and the element are the same thing.
+
+    A ``type=NODE`` surface names nodes rather than a side of anything, so it
+    is a ``vertex_tags`` group and nothing more. The writer has no ``*Surface``
+    to put it back on - a node set and a node surface are the same members
+    under two cards, and only the card the deck used says which - so it goes
+    back out as an ``*Nset`` of the surface's own name.
+
+    A data line ending in a comma continues onto the next, so a ``type=NODE``
+    surface may arrive as every set it named on one row; ``joined`` is what
+    says so, and a row that is not joined holds one member and a weight
+    factor whatever its second token looks like.
+
+    One face is built per ``(surface, element, side)``, however many rows name
+    it: a side one surface names twice is one element, and two surfaces naming
+    the same side get one face apiece, since a face on two surfaces is a face
+    no ``*Surface`` card can be written from - the writer needs each group's
+    faces to itself to put the card back.
+    """
+    parents: dict[int, tuple[int, int]] = {}
+    referenced: set[str] = set()
+    members: dict[str, list[int]] = {}
+    node_members: dict[str, list[int]] = {}
+    unknown: set[str] = set()
+    unfaced: set[str] = set()
+    unbuilt: set[str] = set()
+    crowded: set[str] = set()
+    # One face per surface and side, so a side named twice is one element.
+    built: dict[tuple[str, int, int], int] = {}
+
+    for name, kind, row, joined in rows:
+        if kind.startswith("NODE"):
+            # A node surface data line names one set or node and, after it,
+            # an optional weight factor - never a second member. A whole
+            # number is as good a weight as a node id is, so reading past the
+            # first token would take one for the other; only a line the deck
+            # continued with a trailing comma holds several members at once,
+            # which is what the joined flag says. What the join removed is the
+            # line break that told a member from the weight after it, so the
+            # row's first token stands in for it: a row that opens with a set
+            # name is a row of set names, and a bare number in one is the
+            # weight of the set before it rather than a node of its own.
+            by_set = row[0].upper() in vertex_folded
+            for index, named in enumerate(row if joined else row[:1]):
+                folded = named.upper()
+                if index and by_set and folded not in vertex_folded:
+                    continue
+                referenced.add(folded)
+                picked = _named_members(named, vertex_tags, vertex_folded, node_map)
+                if picked is None:
+                    if index == 0:
+                        unknown.add(named)
+                    continue
+                node_members.setdefault(name, []).extend(picked)
+            continue
+
+        named = row[0]
+        referenced.add(named.upper())
+        label = row[1].upper() if len(row) > 1 else ""
+        if len(row) > 2:
+            crowded.add(name)
+
+        picked = _named_members(named, element_tags, element_folded, elem_map)
+        if picked is None:
+            unknown.add(named)
+            continue
+
+        for element in picked:
+            type_name = ELEMENT_TYPES_INV.get(int(types_list[element]))
+            local = _face_local_index(type_name, label)
+            if local is None:
+                # The side of a shell, or a label this codec has no face for:
+                # the element is the face, so the name goes on it.
+                if label and type_name in _ABAQUS_FACE_ORDER:
+                    unfaced.add(f"{label} of {type_name}")
+                members.setdefault(name, []).append(element)
+                continue
+            face = built.get((name, element, local))
+            if face is None:
+                face = _append_face(element, local, conn_list, offsets_list, types_list)
+                if face is None:
+                    # The parent holds fewer nodes than its own type's face
+                    # names, so there is no ring to build. Reported apart from
+                    # the labels that name no face: the element is not the
+                    # face either, so nothing here carries the surface's name.
+                    unbuilt.add(f"{label} of {type_name}")
+                    continue
+                built[(name, element, local)] = face
+                parents[face] = (element, local)
+                members.setdefault(name, []).append(face)
+
+    for name, picked in members.items():
+        _store_set(element_tags, element_folded, name, picked, "element")
+    for name, picked in node_members.items():
+        _store_set(vertex_tags, vertex_folded, name, picked, "node")
+
+    if unknown:
+        warnings.warn(
+            f".inp: *Surface rows name {sorted(unknown)}, which the deck"
+            " declares as neither a set nor an entity; they are skipped.",
+            stacklevel=3,
+        )
+    if unfaced:
+        warnings.warn(
+            f".inp: *Surface rows name {sorted(unfaced)}, which is no face of"
+            " that element; the element itself carries the surface's name.",
+            stacklevel=3,
+        )
+    if unbuilt:
+        warnings.warn(
+            f".inp: *Surface rows name {sorted(unbuilt)} of an element the"
+            " deck spells too few nodes for; those faces are skipped.",
+            stacklevel=3,
+        )
+    if crowded:
+        # An element surface names one set and one face label per row. A row
+        # carrying more is a spelling this codec reads no meaning from - two
+        # rows joined by a trailing comma, most likely - and the rest of it
+        # would be dropped without a word.
+        warnings.warn(
+            f".inp: *Surface {sorted(crowded)} has a row naming more than one"
+            " set and one face label; only the first pair of each is read.",
+            stacklevel=3,
+        )
+    return SurfaceRead(parents, referenced)
+
+
+def _named_members(
+    named: str,
+    tags: dict[str, np.ndarray],
+    folded: dict[str, str],
+    numbering: dict[int, int],
+) -> list[int] | None:
+    """Return the entities a ``*Surface`` row names, as mesh indices.
+
+    Parameters
+    ----------
+    named
+        The row's first token: a set name, or one entity's own number.
+    tags
+        The sets of that kind the deck declared.
+    folded
+        Their names upper-cased, since Abaqus matches a set name without
+        regard to case.
+    numbering
+        The deck's own numbering for that kind of entity.
+
+    Returns
+    -------
+    list of int or None
+        The mesh indices, or None when the deck declares neither a set nor an
+        entity of that name.
+    """
+    key = folded.get(named.upper())
+    if key is not None:
+        return tags[key].tolist()
+    try:
+        index = numbering[int(named)]
+    except (KeyError, ValueError):
+        return None
+    return [index]
+
+
+def _append_face(
+    element: int,
+    local: int,
+    conn_list: list[int],
+    offsets_list: list[int],
+    types_list: list[int],
+) -> int | None:
+    """Append one element's face to the mesh and return its index.
+
+    Parameters
+    ----------
+    element
+        The element the face belongs to.
+    local
+        Which of its faces, in the numbering of ``ELEMENT_FACES``.
+    conn_list, offsets_list, types_list
+        The mesh being built, appended to in place.
+
+    Returns
+    -------
+    int or None
+        The new element's index, or None when the parent holds fewer nodes
+        than its own type's face names - a malformed row this codec read as
+        far as it could.
+
+    Raises
+    ------
+    CodecError
+        If the face would take the mesh past the safety caps. A surface names
+        a whole ``*Elset`` per row, so a deck grows by its sets here rather
+        than by its element cards - the one place the cap the card reader
+        keeps could otherwise be walked around.
+    """
+    type_name = ELEMENT_TYPES_INV.get(int(types_list[element]))
+    corners = ELEMENT_FACES[type_name][local]
+    # The whole ring against the cap, not the count before it: a check that
+    # only refuses the face after the last one fits lets the mesh past the
+    # cap by a face's width, which is the one thing the cap is here to stop.
+    if (
+        len(types_list) >= MAX_SAFE_ELEMENTS
+        or len(conn_list) + len(corners) > MAX_SAFE_CONN
+    ):
+        raise CodecError(".inp: element count exceeds the safety caps.")
+    start, end = offsets_list[element], offsets_list[element + 1]
+    if max(corners) >= end - start:
+        return None
+    # Indexed rather than sliced: the parent's nodes are copied out whole by a
+    # slice, and a face reads a handful of them.
+    ring = [conn_list[start + c] for c in corners]
+    conn_list.extend(ring)
+    offsets_list.append(offsets_list[-1] + len(ring))
+    types_list.append(ELEMENT_TYPES[_FACE_TYPE_BY_WIDTH.get(len(ring), "polygon")])
+    return len(types_list) - 1
+
+
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an Abaqus ``.inp`` file.
 
@@ -669,6 +1079,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     set_generate = False
     system: tuple[np.ndarray, np.ndarray] | None = None
     system_rows: list[list[str]] = []
+    heading_rows: list[str] = []
+    surface_rows: list[tuple[str, str, list[str], bool]] = []
+    internal_sets: set[str] = set()
+    surface_name: str | None = None
+    surface_kind = "ELEMENT"
     instance: str | None = None
     instance_part: str | None = None
     instance_nodes: list[int] = []
@@ -736,7 +1151,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         elif mode == "element" and block_set:
             _store_set(element_tags, element_folded, block_set, block_elems, "element")
 
-    for ln in lines:
+    for ln, joined in lines:
         stripped = ln.strip()
         if not stripped:
             continue
@@ -777,6 +1192,24 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 set_name = params.get("ELSET") or None
                 set_instance = params.get("INSTANCE") or None
                 set_generate = "GENERATE" in params
+                if set_name is not None and "INTERNAL" in params:
+                    # Abaqus marks the sets it generates for a surface
+                    # itself. They are read - a *Surface names them - and
+                    # dropped once it has, so a round trip does not grow a
+                    # group per face label every time it is written.
+                    internal_sets.add(set_name.upper())
+            elif keyword == _HEADING:
+                mode = "heading"
+            elif keyword == "SURFACE":
+                mode = "surface"
+                surface_name = params.get("NAME") or None
+                surface_kind = (params.get("TYPE") or "ELEMENT").upper()
+                if surface_name is None:
+                    warnings.warn(
+                        ".inp: a *Surface card carries no NAME=; its rows name"
+                        " a set nothing can be filed under, and are skipped.",
+                        stacklevel=2,
+                    )
             elif keyword == "SYSTEM":
                 mode = "system"
             elif keyword in ("INSTANCE", "PART"):
@@ -896,6 +1329,24 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             if instance is not None:
                 instance_elems.append(index)
 
+        elif mode == "surface":
+            # A *Surface names a side of an element, which the deck holds no
+            # element for. The rows are kept whole and resolved after the
+            # scan: a surface may name an *Elset the deck declares below it.
+            # A row of nothing but separators names no entity at all, and is
+            # dropped here rather than reaching the resolver as an empty one.
+            row = [p.strip() for p in stripped.split(",") if p.strip()]
+            if surface_name is not None and row:
+                surface_rows.append((surface_name, surface_kind, row, joined))
+
+        elif mode == "heading":
+            # The deck's own title, the one thing in an .inp that describes
+            # the model rather than a node, an element or a set. Comment
+            # lines are already gone, so what is left is what its author
+            # wrote - the banner polyxios writes is a comment and reads back
+            # as nothing, which is what keeps a round trip from growing one.
+            heading_rows.append(stripped)
+
         elif mode in ("nset", "elset"):
             set_rows.append([p.strip() for p in stripped.split(",")])
         elif mode == "system":
@@ -929,19 +1380,52 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     n_verts = len(coords) // 3
     vertices = np.array(coords, dtype=np.float64).reshape(n_verts, 3)
 
+    # After the scan, because a surface may name an *Elset the deck declares
+    # further down, and the faces it adds are elements the deck never
+    # numbered - so they are numbered past its highest id rather than left
+    # without one, which would cost the whole deck its numbering.
+    parents, referenced_sets = _resolve_surfaces(
+        surface_rows,
+        element_tags=element_tags,
+        element_folded=element_folded,
+        vertex_tags=vertex_tags,
+        vertex_folded=vertex_folded,
+        elem_map=elem_map,
+        node_map=node_map,
+        conn_list=conn_list,
+        offsets_list=offsets_list,
+        types_list=types_list,
+    )
+    # The sets Abaqus generates for a surface are scaffolding and go once the
+    # surface has been read from them. Only those: an *Elset marked internal
+    # that no *Surface names is a group the deck's author asked to keep, and
+    # dropping it would lose it without a word. One a *Surface is itself named
+    # after is not scaffolding either - it and the surface share a key, and
+    # dropping it would take the surface with it.
+    scaffolding = (internal_sets & referenced_sets) - {
+        name.upper() for name, *_ in surface_rows
+    }
+    for folded_name in scaffolding:
+        element_tags.pop(element_folded.pop(folded_name, ""), None)
+
+    next_id = max(elem_id_list, default=0) + 1
+    elem_id_list.extend(range(next_id, next_id + len(types_list) - len(elem_id_list)))
+
     return PolyData(
         vertices=vertices,
         connectivity=np.array(conn_list, dtype=np.int32),
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_attrs=dict(record_ids(node_id_list, count=n_verts)),
-        element_attrs=dict(record_ids(elem_id_list, count=len(types_list))),
+        element_attrs=dict(record_ids(elem_id_list, count=len(types_list)))
+        | parent_face_columns(parents, len(types_list)),
         vertex_tags=vertex_tags,
         element_tags=element_tags,
         # A deck with no node card at all was refused above, so reaching
         # here means coordinates were read and a deck that never spelled a
         # third one is a plane.
-        global_attrs=mark_2d(3 if saw_z else 2),
+        global_attrs=mark_2d(3 if saw_z else 2)
+        | ({"abaqus_heading": "\n".join(heading_rows)} if heading_rows else {}),
     )
 
 
@@ -1013,12 +1497,20 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         n_spatial = 3
     cards = _POLYXIOS_TO_INP_2D if n_spatial == 2 else _POLYXIOS_TO_INP
 
+    # Which elements are a named side of another, and under which name. Those
+    # go back as the *Surface they came from rather than as element cards: a
+    # deck holding both would spell the same triangle twice, once as geometry
+    # the file never had.
+    surfaces, on_a_surface, face_columns = _surface_groups(poly)
+
     groups: dict[str, list[int]] = {}
     used: set[str] = set()
     # Which element type each card was given to, so one card asked to hold two
     # is caught before a block of rows of two lengths is written under it.
     holder_of: dict[str, str] = {}
     for i in range(n_elems):
+        if i in on_a_surface:
+            continue
         type_id = int(poly.element_types[i])
         name = ELEMENT_TYPES_INV.get(type_id)
         if name is None:
@@ -1057,11 +1549,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     n_verts = poly.vertices.shape[0]
     node_ids = ids_for_write(poly, kind="vertex", count=n_verts, fmt=".inp")
-    lines: list[str] = [
-        "*Heading",
-        "** exported by polyxios",
-        "*Node",
-    ]
+    lines: list[str] = ["*Heading"]
+    lines.extend(_heading_lines((poly.global_attrs or {}).get("abaqus_heading")))
+    lines.append("*Node")
     lines.extend(
         f"{node_id}, " + ", ".join(f"{c:.10g}" for c in v[:n_spatial])
         for node_id, v in zip(node_ids.tolist(), poly.vertices)
@@ -1081,7 +1571,10 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     in_write_order = np.empty(n_elems, dtype=np.int64)
     in_write_order[
         np.fromiter(
-            (ei for indices in groups.values() for ei in indices),
+            chain(
+                chain.from_iterable(groups.values()),
+                sorted(on_a_surface),
+            ),
             dtype=np.int64,
             count=n_elems,
         )
@@ -1103,11 +1596,308 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         _set_cards(poly.vertex_tags, "Nset", "nset", node_ids, n_verts, "node")
     )
     lines.extend(
-        _set_cards(poly.element_tags, "Elset", "elset", elem_ids, n_elems, "element")
+        _set_cards(
+            {k: v for k, v in (poly.element_tags or {}).items() if k not in surfaces},
+            "Elset",
+            "elset",
+            elem_ids,
+            n_elems,
+            "element",
+        )
     )
+    lines.extend(_surface_cards(surfaces, poly, elem_ids, face_columns))
 
     lines.append("")
     write_text(path, "\n".join(lines))
+
+
+def _heading_lines(heading: object) -> list[str]:
+    """Return the lines a ``*Heading`` card can carry, and a banner if none can.
+
+    Parameters
+    ----------
+    heading
+        The mesh's ``abaqus_heading``, whatever it was set to.
+
+    Returns
+    -------
+    list of str
+        The title's own lines, or the one-line banner this writer has always
+        emitted when the mesh carries no title a card can hold.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming the lines left out. A ``*Heading`` is free text and the
+        deck has no escape for either of the two spellings that end it, so a
+        line holding one is dropped rather than written into a deck it would
+        change the meaning of.
+
+    Notes
+    -----
+    A heading is the one place an ``.inp`` carries text the caller chose, and
+    the card ends wherever the next one begins. A line starting with ``*`` is
+    the next card - a title read back from a deck can never hold one, since
+    the reader ended the heading there, but ``global_attrs`` travels through
+    every format with a metadata slot and comes back holding whatever was put
+    in it. Writing it unchanged would spell geometry the mesh never had: a
+    title of ``*Node`` followed by a row adds a vertex to the deck.
+
+    ``**`` is the subtler one. It opens a comment anywhere on a line, so a
+    title holding one comes back truncated at it, and one starting with it
+    comes back as nothing at all.
+    """
+    if not isinstance(heading, str) or not heading.strip():
+        # A value that is not text has no heading line to be written on, and
+        # the banner stands in.
+        return ["** exported by polyxios"]
+    kept: list[str] = []
+    dropped: list[str] = []
+    for line in heading.splitlines():
+        (dropped if line.lstrip().startswith("*") or "**" in line else kept).append(
+            line
+        )
+    if dropped:
+        warnings.warn(
+            f".inp write: heading line(s) {dropped} start a card or open a"
+            " comment, which a *Heading has no way to spell; dropped.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return kept or ["** exported by polyxios"]
+
+
+def _surface_groups(
+    poly: PolyData,
+) -> tuple[dict[str, list[int]], set[int], tuple[np.ndarray, np.ndarray] | None]:
+    """Return the tag groups that are surfaces, and the elements on one.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+
+    Returns
+    -------
+    tuple[dict[str, list[int]], set[int], tuple of numpy.ndarray or None]
+        Each surface group's members, every element on one of them, and the
+        two columns they were read against - handed on rather than looked up
+        again by the card writer, which needs the same pair.
+
+    Notes
+    -----
+    A group is a surface when every element in it is still a face of another
+    element of this mesh - the ``face_parent`` and ``face_index`` columns say
+    which, and :func:`~polyxios._faces.parent_face_mask` checks the claim against
+    the vertices rather than trusting it, since a transform moves a mesh out
+    from under those columns. A group mixing faces with ordinary elements is
+    not a surface: it goes back as the ``*Elset`` it is, and its faces are
+    written as the elements they are, because a deck cannot name one group
+    both ways.
+
+    Nor is a group whose faces another group also names. A face on a surface
+    is written as the ``*Surface`` card and not as an element card, so a
+    second group naming it would spell an ``*Elset`` of an element the deck
+    never defines - a deck Abaqus refuses to load, and one whose second group
+    comes back short of the member it named. Such a group keeps its faces as
+    ordinary elements and both groups go back as ``*Elset`` cards.
+
+    How many groups reach each element is counted in one column rather than
+    by intersecting the groups against each other, so the walk stays linear
+    in the members the mesh holds however many groups spread them over.
+    """
+    columns = parent_faces(poly)
+    if columns is None:
+        return {}, set(), None
+    parent_col, index_col = columns
+
+    n_elems = len(poly.element_types)
+    named_by = np.zeros(n_elems, dtype=np.int64)
+    picked_of: dict[str, np.ndarray] = {}
+    # The groups that lost a member on the way in. A *Surface card names its
+    # faces through their parents and has nowhere to say that one of them
+    # reached no element, where an *Elset writer counts them and reports it;
+    # so a group short of a member goes back as the *Elset it is rather than
+    # as a surface that drops it without a word.
+    lossy: set[str] = set()
+    for name, members in (poly.element_tags or {}).items():
+        held = members_array(members)
+        reachable = member_indices(held, n_elems)
+        if held is None or reachable.size != held.size:
+            lossy.add(name)
+        # Unique after: a group naming one element twice names it once, and
+        # counting the repeat would read as a second group.
+        picked = np.unique(reachable)
+        if picked.size:
+            picked_of[name] = picked
+            named_by[picked] += 1
+
+    surfaces: dict[str, list[int]] = {}
+    on_a_surface: set[int] = set()
+    for name, picked in picked_of.items():
+        # A name a card cannot carry is no surface either: *Surface names its
+        # group and there is nothing to put on the card. Left an *Elset, which
+        # reports the loss the same way it does for any other group.
+        if (
+            name in lossy
+            or not _safe_set_name(name)
+            or not bool((named_by[picked] == 1).all())
+        ):
+            continue
+        # The vertex check first, and the label check only on what it passed:
+        # it is what says the parents are elements of this mesh at all, which
+        # is what makes their type codes safe to gather.
+        if not parent_face_mask(
+            poly, picked, parent_col[picked], index_col[picked]
+        ).all():
+            continue
+        keys = face_keys(poly.element_types[parent_col[picked]], index_col[picked])
+        if not np.isin(keys, _LABELLED_FACE_KEYS).all():
+            continue
+        members_list = picked.tolist()
+        surfaces[name] = members_list
+        on_a_surface.update(members_list)
+    return surfaces, on_a_surface, columns
+
+
+def _surface_cards(
+    surfaces: dict[str, list[int]],
+    poly: PolyData,
+    elem_ids: np.ndarray,
+    columns: tuple[np.ndarray, np.ndarray] | None,
+) -> list[str]:
+    """Write each surface as the ``*Elset`` and ``*Surface`` pair it came from.
+
+    Parameters
+    ----------
+    surfaces
+        Each surface group's members, from :func:`_surface_groups`.
+    poly
+        The mesh being written.
+    elem_ids
+        The number each element is written under.
+    columns
+        The ``face_parent`` and ``face_index`` columns, as
+        :func:`_surface_groups` read them.
+
+    Returns
+    -------
+    list of str
+        The cards, empty when the mesh carries no surface.
+
+    Warns
+    -----
+    UserWarning
+        Once, naming the surfaces that spell one card name between them. A
+        name is folded before it is written and Abaqus matches one without
+        regard to case, so two groups may reach the same ``*Surface`` name;
+        the deck holds both cards and Abaqus merges them, so every face still
+        reaches the file and the surfaces stop being told apart.
+
+    Notes
+    -----
+    A surface names sets of *parents*, one per face label, which is how Abaqus
+    spells it: ``S3`` of these elements, ``S4`` of those. The elset names are
+    the surface's own with the label appended, and are marked ``internal`` the
+    way Abaqus marks the sets it generates for a surface itself.
+    """
+    if not surfaces or columns is None:
+        return []
+    parent_col, index_col = columns
+
+    lines: list[str] = []
+    # The names the deck's own cards already carry, the surfaces among them. A
+    # generated set that reached one of them would be marked internal, and a
+    # reader that drops the sets a surface generated would drop the caller's
+    # group with it - or, where the name it took was a surface's, the surface.
+    taken = {
+        safe.upper()
+        for safe in (_safe_set_name(name) for name in (poly.element_tags or {}))
+        if safe
+    }
+    ids = np.asarray(elem_ids)
+    # Upper-cased card name to the groups that spell it, the way *Elset tracks
+    # it: two surfaces reaching one name come back from a round trip as one.
+    spelled: dict[str, list[str]] = {}
+    for name, picked in surfaces.items():
+        # Not empty: a group whose name folds to nothing was refused the name
+        # of a surface in _surface_groups, and *Elset reports the loss.
+        safe = _safe_set_name(name)
+        spelled.setdefault(safe.upper(), []).append(name)
+        members = np.asarray(picked, dtype=np.int64)
+        parents = parent_col[members]
+        # One label per (parent type, face number) pair, and a surface spreads
+        # its faces over a handful of them however many faces it holds. The
+        # groups come back in the order the surface first names each label,
+        # which is the order the rows were written in when the label was
+        # looked up once per face.
+        keys = face_keys(poly.element_types[parents], index_col[members])
+        order = np.argsort(keys, kind="stable")
+        ranked = keys[order]
+        starts = np.flatnonzero(np.concatenate(([True], ranked[1:] != ranked[:-1])))
+        groups = sorted(
+            zip(ranked[starts].tolist(), np.split(order, starts[1:])),
+            key=lambda pair: int(pair[1][0]),
+        )
+
+        rows: list[tuple[str, str]] = []
+        for key, group in groups:
+            # Present: a group whose label has no spelling was refused the
+            # name of a surface in _surface_groups.
+            label = _ABAQUS_FACE_LABEL[ELEMENT_TYPES_INV[key // FACE_KEY_STRIDE]][
+                key % FACE_KEY_STRIDE
+            ]
+            set_name = _unique_set_name(f"{safe}_{label}", taken)
+            lines.append(f"*Elset, elset={set_name}, internal")
+            text = [
+                str(number)
+                for number in ids[np.unique(parents[group])].astype(np.int64).tolist()
+            ]
+            lines.extend(
+                ", ".join(text[start : start + 16]) for start in range(0, len(text), 16)
+            )
+            rows.append((set_name, label))
+        lines.append(f"*Surface, type=ELEMENT, name={safe}")
+        lines.extend(f"{set_name}, {label}" for set_name, label in rows)
+    merged = [sorted(names) for names in spelled.values() if len(names) > 1]
+    if merged:
+        # Every face still reaches the file - Abaqus merges the cards rather
+        # than dropping one, and the generated *Elsets are kept apart above -
+        # but the surfaces stop being told apart, which is the loss *Elset
+        # reports the same way for the groups that are not surfaces.
+        named = "; ".join(", ".join(names) for names in sorted(merged))
+        warnings.warn(
+            f".inp: element tag group(s) {named} spell one card name between"
+            " them, since a name carrying ',', '=' or '*' cannot be written"
+            " and Abaqus ignores case; their faces were merged into one"
+            " *Surface.",
+            stacklevel=3,
+        )
+    return lines
+
+
+def _unique_set_name(wanted: str, taken: set[str]) -> str:
+    """Return a set name this deck has not used yet.
+
+    Parameters
+    ----------
+    wanted
+        The name to use if it is free.
+    taken
+        The names already written, added to in place.
+
+    Returns
+    -------
+    str
+        ``wanted``, or it with a number appended.
+    """
+    name = wanted
+    suffix = 2
+    while name.upper() in taken:
+        name = f"{wanted}_{suffix}"
+        suffix += 1
+    taken.add(name.upper())
+    return name
 
 
 def _is_planar(name: str | None, overrides: dict[str, str]) -> bool:
@@ -1248,8 +2038,9 @@ def _set_cards(
     # groups reaching the same name come back from a round trip as one.
     spelled: dict[str, list[str]] = {}
     for name, members in (tags or {}).items():
-        picked = member_indices(members, count)
-        if picked.size != np.asarray(members).size:
+        held = members_array(members)
+        picked = member_indices(held, count)
+        if held is None or picked.size != held.size:
             unreachable.add(name)
         ids = ident[picked]
         live = ids > 0
