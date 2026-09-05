@@ -27,12 +27,12 @@ def _mesh_with_type_code(code: int, dtype: object) -> PolyData:
     )
 
 
-def test_issue_1551_topological_dimension_of_a_surface() -> None:
+def test_topological_dimension_of_a_surface() -> None:
     """A triangle mesh is two-dimensional however it is embedded in space."""
     assert _tri_mesh().topological_dimension == 2
 
 
-def test_issue_1551_topological_dimension_takes_the_maximum() -> None:
+def test_topological_dimension_takes_the_maximum() -> None:
     """A mesh carrying its boundary must not be demoted to that boundary."""
     verts = np.array(
         [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -77,9 +77,7 @@ def test_issue_1551_topological_dimension_takes_the_maximum() -> None:
         ("lagrange_hexahedron", 3),
     ],
 )
-def test_issue_1551_topological_dimension_per_element_type(
-    type_str: str, expected: int
-) -> None:
+def test_topological_dimension_per_element_type(type_str: str, expected: int) -> None:
     verts = np.zeros((16, 3), dtype=np.float64)
     n_nodes = NODES_PER_ELEMENT[type_str]
     if n_nodes < 0:
@@ -89,33 +87,33 @@ def test_issue_1551_topological_dimension_per_element_type(
     assert poly.topological_dimension == expected
 
 
-def test_issue_1551_every_element_type_has_a_dimension() -> None:
+def test_every_element_type_has_a_dimension() -> None:
     """A type without an entry would silently read as a point cloud."""
     missing = set(ELEMENT_TYPES.values()) - set(TOPOLOGICAL_DIMENSION)
     assert not missing
 
 
-def test_issue_1551_topological_dimension_of_an_empty_mesh() -> None:
+def test_topological_dimension_of_an_empty_mesh() -> None:
     """No elements is not an error, and nothing in it rises above a point."""
     poly = make_polydata(np.zeros((0, 3), dtype=np.float64), [])
     assert poly.topological_dimension == 0
 
 
-def test_issue_1551_topological_dimension_rejects_an_unknown_code() -> None:
+def test_topological_dimension_rejects_an_unknown_code() -> None:
     """An unnamed code must not pass for a point cloud."""
     poly = _mesh_with_type_code(200, np.uint8)
     with pytest.raises(UnknownElementTypeError, match="200"):
         _ = poly.topological_dimension
 
 
-def test_issue_1551_topological_dimension_rejects_a_code_past_uint8() -> None:
+def test_topological_dimension_rejects_a_code_past_uint8() -> None:
     """A code too wide to be an element type is refused, not wrapped."""
     poly = _mesh_with_type_code(9999, np.int64)
     with pytest.raises(UnknownElementTypeError, match="9999"):
         _ = poly.topological_dimension
 
 
-def test_issue_1551_topological_dimension_rejects_a_negative_code() -> None:
+def test_topological_dimension_rejects_a_negative_code() -> None:
     """A negative code must not index the table from the far end."""
     poly = _mesh_with_type_code(-3, np.int64)
     with pytest.raises(UnknownElementTypeError, match="-3"):

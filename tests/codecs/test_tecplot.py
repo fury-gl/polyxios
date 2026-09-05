@@ -1022,10 +1022,10 @@ def test_meshio_point_data_survives_the_read(tmp_path: Path) -> None:
     np.testing.assert_allclose(read(out).vertex_attrs["P"], [1.0, 2.0, 3.0, 4.0])
 
 
-# --- meshio #1368: VARLOCATION cell-centered variables -----------------------
+# --- VARLOCATION cell-centered variables -------------------------------------
 
 
-def test_issue_1368_cellcentered_variable_lands_in_element_attrs(
+def test_cellcentered_variable_lands_in_element_attrs(
     tmp_path: Path,
 ) -> None:
     """A CELLCENTERED run holds E values; landing them on N nodes is wrong data."""
@@ -1044,7 +1044,7 @@ def test_issue_1368_cellcentered_variable_lands_in_element_attrs(
     assert poly.vertices.shape == (4, 3)
 
 
-def test_issue_1368_nodal_and_cellcentered_clause_both_honoured(
+def test_nodal_and_cellcentered_clause_both_honoured(
     tmp_path: Path,
 ) -> None:
     """The clause Tecplot itself writes names the nodal variables too."""
@@ -1063,7 +1063,7 @@ def test_issue_1368_nodal_and_cellcentered_clause_both_honoured(
     np.testing.assert_allclose(poly.element_attrs["P"], [7, 8])
 
 
-def test_issue_1368_cellcentered_coordinate_is_rejected(tmp_path: Path) -> None:
+def test_cellcentered_coordinate_is_rejected(tmp_path: Path) -> None:
     """A coordinate has to sit on the nodes; reading E of them would misplace them."""
     path = _write_tec(
         tmp_path,
@@ -1076,7 +1076,7 @@ def test_issue_1368_cellcentered_coordinate_is_rejected(tmp_path: Path) -> None:
         read(path)
 
 
-def test_issue_1368_cellcentered_needs_block_packing(tmp_path: Path) -> None:
+def test_cellcentered_needs_block_packing(tmp_path: Path) -> None:
     """POINT packing writes one record per node, so it cannot carry E values."""
     path = _write_tec(
         tmp_path,
@@ -1089,7 +1089,7 @@ def test_issue_1368_cellcentered_needs_block_packing(tmp_path: Path) -> None:
         read(path)
 
 
-def test_issue_1368_cellcentered_without_variables_is_rejected(
+def test_cellcentered_without_variables_is_rejected(
     tmp_path: Path,
 ) -> None:
     """VARLOCATION indexes the VARIABLES list; without it no index means anything."""
@@ -1102,7 +1102,7 @@ def test_issue_1368_cellcentered_without_variables_is_rejected(
         read(path)
 
 
-def test_issue_1368_element_attrs_survive_a_round_trip(tmp_path: Path) -> None:
+def test_element_attrs_survive_a_round_trip(tmp_path: Path) -> None:
     """Cell data written as nodal - or dropped - is the same bug from the other end."""
     poly = _tri_mesh()
     poly = PolyData(
@@ -1119,10 +1119,10 @@ def test_issue_1368_element_attrs_survive_a_round_trip(tmp_path: Path) -> None:
     assert "P" not in back.vertex_attrs
 
 
-# --- meshio #1372: zone labels ----------------------------------------------
+# --- zone labels ------------------------------------------------------------
 
 
-def test_issue_1372_zone_title_survives_a_round_trip(tmp_path: Path) -> None:
+def test_zone_title_survives_a_round_trip(tmp_path: Path) -> None:
     """A zone label names the part; dropping it merges parts on the far side."""
     path = _write_tec(
         tmp_path,
@@ -1141,7 +1141,7 @@ def test_issue_1372_zone_title_survives_a_round_trip(tmp_path: Path) -> None:
     assert read(tmp).global_attrs["tecplot_zone_title"] == "wing surface"
 
 
-def test_issue_1372_zone_title_holding_a_quote_is_folded(tmp_path: Path) -> None:
+def test_zone_title_holding_a_quote_is_folded(tmp_path: Path) -> None:
     """A raw quote closes the header string early and breaks the file it names."""
     poly = _tri_mesh()
     poly = PolyData(

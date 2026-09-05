@@ -151,7 +151,7 @@ def test_known_skip_keyword_transparent(tmp_path) -> None:
     np.testing.assert_allclose(poly2.vertices, poly.vertices)
 
 
-# --- meshio #1511, #1508: sections Medit binary can carry --------------------
+# --- sections Medit binary can carry -----------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -166,9 +166,7 @@ def test_known_skip_keyword_transparent(tmp_path) -> None:
         ("hexahedron", 8),
     ],
 )
-def test_issue_1511_every_entity_section_round_trips(
-    tmp_path, kind: str, n_nodes: int
-) -> None:
+def test_every_entity_section_round_trips(tmp_path, kind: str, n_nodes: int) -> None:
     """A section skipped on read is a block of the mesh that vanishes."""
     verts = np.arange(3 * n_nodes, dtype=np.float64).reshape(n_nodes, 3)
     poly = make_polydata(verts, [(kind, np.arange(n_nodes).reshape(1, n_nodes))])
@@ -180,7 +178,7 @@ def test_issue_1511_every_entity_section_round_trips(
     np.testing.assert_allclose(back.vertices, verts)
 
 
-def test_issue_1508_prisms_and_pyramids_travel_with_the_rest(tmp_path) -> None:
+def test_prisms_and_pyramids_travel_with_the_rest(tmp_path) -> None:
     verts = np.arange(24, dtype=np.float64).reshape(8, 3)
     poly = make_polydata(
         verts,
@@ -198,10 +196,10 @@ def test_issue_1508_prisms_and_pyramids_travel_with_the_rest(tmp_path) -> None:
     assert back.offsets[-1] == 3 + 5 + 6 + 8
 
 
-# --- meshio #1258: references are labels ------------------------------------
+# --- references are labels --------------------------------------------------
 
 
-def test_issue_1258_element_refs_become_tag_groups(tmp_path) -> None:
+def test_element_refs_become_tag_groups(tmp_path) -> None:
     """A label kept only as a column of ints does not survive a conversion."""
     verts = np.arange(12, dtype=np.float64).reshape(4, 3)
     poly = PolyData(
@@ -219,7 +217,7 @@ def test_issue_1258_element_refs_become_tag_groups(tmp_path) -> None:
     np.testing.assert_array_equal(back.element_tags["ref_20"], [1])
 
 
-def test_issue_1258_refs_survive_the_trip_to_vtk(tmp_path) -> None:
+def test_refs_survive_the_trip_to_vtk(tmp_path) -> None:
     """The headline case: a Medit region label readable in a .vtk."""
     import polyxios
 

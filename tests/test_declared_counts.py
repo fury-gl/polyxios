@@ -158,7 +158,7 @@ def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
     assert not outstanding
 
 
-def test_issue_1499_a_corrupt_face_count_is_refused_not_built(tmp_path) -> None:
+def test_a_corrupt_face_count_is_refused_not_built(tmp_path) -> None:
     """A binary PLY face declaring 2**31-1 vertices described a record wider
     than a C int can measure. The whole-block read built a dtype for it before
     bounding it against the file, and numpy answered with a ValueError about a

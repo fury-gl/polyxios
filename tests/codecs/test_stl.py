@@ -228,7 +228,7 @@ def test_binary_with_solid_header(tmp_path: Path) -> None:
     assert len(poly_lazy.element_types) == 4
 
 
-# --- meshio #1355: binary STL colours ----------------------------------------
+# --- binary STL colours ------------------------------------------------------
 
 
 def _binary_stl(facets: list[tuple[np.ndarray, int]], header: bytes = b"") -> bytes:
@@ -256,7 +256,7 @@ def _magics15(r: int, g: int, b: int) -> int:
     return (b << 10) | (g << 5) | r
 
 
-def test_issue_1355_binary_attribute_bytes_read_as_colours(tmp_path) -> None:
+def test_binary_attribute_bytes_read_as_colours(tmp_path) -> None:
     """The attribute word is where a binary STL keeps its per-facet colour."""
     path = tmp_path / "colour.stl"
     path.write_bytes(
@@ -269,14 +269,14 @@ def test_issue_1355_binary_attribute_bytes_read_as_colours(tmp_path) -> None:
     np.testing.assert_allclose(colors[1], [0.0, 1.0, 1.0], atol=1e-6)
 
 
-def test_issue_1355_facets_without_the_valid_bit_carry_no_colour(tmp_path) -> None:
+def test_facets_without_the_valid_bit_carry_no_colour(tmp_path) -> None:
     """A zero attribute word is what a writer leaves when it has no colour."""
     path = tmp_path / "plain.stl"
     path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
     assert "colors" not in read(path).element_attrs
 
 
-def test_issue_1355_a_partly_coloured_file_keeps_the_facets_that_have_one(
+def test_a_partly_coloured_file_keeps_the_facets_that_have_one(
     tmp_path,
 ) -> None:
     """An uncoloured facet in a coloured file must not take the colours along."""
@@ -287,7 +287,7 @@ def test_issue_1355_a_partly_coloured_file_keeps_the_facets_that_have_one(
     assert np.isnan(colors[1]).all()
 
 
-def test_issue_1355_colours_survive_a_round_trip(tmp_path) -> None:
+def test_colours_survive_a_round_trip(tmp_path) -> None:
     path = tmp_path / "src.stl"
     path.write_bytes(
         _binary_stl([(_TRI_A, _rgb15(31, 0, 0)), (_TRI_B, _rgb15(0, 0, 31))])
@@ -300,7 +300,7 @@ def test_issue_1355_colours_survive_a_round_trip(tmp_path) -> None:
     )
 
 
-def test_issue_1355_ascii_output_drops_colours_with_a_warning(tmp_path) -> None:
+def test_ascii_output_drops_colours_with_a_warning(tmp_path) -> None:
     """ASCII STL has no field for a colour; dropping one silently hides it."""
     path = tmp_path / "src.stl"
     path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 0, 0))]))
@@ -309,10 +309,10 @@ def test_issue_1355_ascii_output_drops_colours_with_a_warning(tmp_path) -> None:
         write(poly, tmp_path / "ascii.stl", binary=False)
 
 
-# --- meshio #1470: STL is per-facet, so a conversion needs dedup -------------
+# --- STL is per-facet, so a conversion needs dedup ---------------------------
 
 
-def test_issue_1470_coincident_facet_corners_are_merged(tmp_path) -> None:
+def test_coincident_facet_corners_are_merged(tmp_path) -> None:
     """STL repeats a shared corner per facet; keeping them explodes a .ply."""
     path = tmp_path / "shared.stl"
     path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
@@ -322,13 +322,13 @@ def test_issue_1470_coincident_facet_corners_are_merged(tmp_path) -> None:
     assert len(poly.element_types) == 2
 
 
-def test_issue_1470_the_merge_can_be_turned_off(tmp_path) -> None:
+def test_the_merge_can_be_turned_off(tmp_path) -> None:
     path = tmp_path / "shared.stl"
     path.write_bytes(_binary_stl([(_TRI_A, 0), (_TRI_B, 0)]))
     assert read(path, merge_vertices=False).vertices.shape == (6, 3)
 
 
-def test_issue_1355_a_magics_header_switches_the_colour_convention(tmp_path) -> None:
+def test_a_magics_header_switches_the_colour_convention(tmp_path) -> None:
     """Magics runs red in the low bits and clears the top bit to claim a colour."""
     path = tmp_path / "magics.stl"
     path.write_bytes(
@@ -342,7 +342,7 @@ def test_issue_1355_a_magics_header_switches_the_colour_convention(tmp_path) -> 
     np.testing.assert_allclose(colors[1], [0.0, 0.0, 1.0], atol=1e-6)
 
 
-def test_issue_1355_a_magics_facet_that_disowns_its_colour_carries_none(
+def test_a_magics_facet_that_disowns_its_colour_carries_none(
     tmp_path,
 ) -> None:
     """Magics sets the top bit to say the facet takes the part's colour."""
@@ -358,7 +358,7 @@ def test_issue_1355_a_magics_facet_that_disowns_its_colour_carries_none(
     assert np.isnan(colors[1]).all()
 
 
-def test_issue_1355_an_integer_colour_column_counts_to_255(tmp_path) -> None:
+def test_an_integer_colour_column_counts_to_255(tmp_path) -> None:
     """A uint8 colour scaled as 0..1 saturates and writes a white mesh."""
     path = tmp_path / "src.stl"
     path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 0, 0))]))
@@ -371,7 +371,7 @@ def test_issue_1355_an_integer_colour_column_counts_to_255(tmp_path) -> None:
     )
 
 
-def test_issue_1355_lazy_reads_see_the_same_colours(tmp_path) -> None:
+def test_lazy_reads_see_the_same_colours(tmp_path) -> None:
     """The lazy path reads the same words and must read them the same way."""
     path = tmp_path / "lazy.stl"
     path.write_bytes(_binary_stl([(_TRI_A, _rgb15(31, 0, 0))]))

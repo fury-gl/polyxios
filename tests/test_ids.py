@@ -230,10 +230,10 @@ $EndElements
 """
 
 
-def test_issue_1533_gmsh_keeps_the_numbers_the_file_gave(tmp_path) -> None:
-    """meshio #1533 / #1531: a .msh numbering its nodes from 101 and its
-    elements from 7001 came back numbered 1..n, so a load case naming node
-    103 pointed at a different node after a round trip."""
+def test_gmsh_keeps_the_numbers_the_file_gave(tmp_path) -> None:
+    """A .msh numbering its nodes from 101 and its elements from 7001 came
+    back numbered 1..n, so a load case naming node 103 pointed at a different
+    node after a round trip."""
     src = tmp_path / "sparse.msh"
     src.write_text(_MSH_SPARSE)
 
@@ -304,10 +304,10 @@ ENDDATA
 """
 
 
-def test_issue_1531_nastran_keeps_the_grid_and_element_ids(tmp_path) -> None:
-    """meshio #1531: a deck numbering GRID from 101 and elements from 4001
-    came back numbered 1..n, so every load case and property card in the
-    author's other files named the wrong entity."""
+def test_nastran_keeps_the_grid_and_element_ids(tmp_path) -> None:
+    """A deck numbering GRID from 101 and elements from 4001 came back
+    numbered 1..n, so every load case and property card in the author's other
+    files named the wrong entity."""
     src = tmp_path / "sparse.bdf"
     src.write_text(_BDF_SPARSE)
 
@@ -391,10 +391,10 @@ _INP_SPARSE = """*Heading
 """
 
 
-def test_issue_1533_abaqus_keeps_the_node_and_element_ids(tmp_path) -> None:
-    """meshio #1533: a deck numbering nodes from 101 came back numbered 1..n,
-    so the *Nset the deck's own boundary condition names reached other
-    nodes after a round trip."""
+def test_abaqus_keeps_the_node_and_element_ids(tmp_path) -> None:
+    """A deck numbering nodes from 101 came back numbered 1..n, so the *Nset
+    the deck's own boundary condition names reached other nodes after a round
+    trip."""
     src = tmp_path / "sparse.inp"
     src.write_text(_INP_SPARSE)
 
@@ -460,7 +460,7 @@ ZGROUP "rock" SLOT 1
 """
 
 
-def test_issue_1533_flac3d_keeps_the_gridpoint_and_record_ids(tmp_path) -> None:
+def test_flac3d_keeps_the_gridpoint_and_record_ids(tmp_path) -> None:
     src = tmp_path / "sparse.f3grid"
     src.write_text(_F3GRID_SPARSE)
 
