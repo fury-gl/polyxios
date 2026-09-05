@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
+    <script src="../_static/documentation_options.js?v=4d971c3f"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-02"/>
+    <meta name="docbuild:last-update" content="2026-09-05"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -597,6 +597,10 @@ it, so a deck can ask for reduced integration where the mesh only says
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
+<li><p>A <code class="docutils literal notranslate"><span class="pre">*SURFACE</span></code> names a side of an element, which the deck holds no element for. polyxios has no face set of its own - a mesh is vertices and elements - so the face is read as the triangle or quadrilateral it describes, tagged with the surface’s name, the way the UGRID, SU2 and Netgen readers hand back their boundary faces. Two element attributes say what it is a face of: <code class="docutils literal notranslate"><span class="pre">face_parent</span></code>, the element, and <code class="docutils literal notranslate"><span class="pre">face_index</span></code>, which of that element’s faces, both -1 for an element that is not a face. Abaqus numbers a solid’s faces in its own order, so <code class="docutils literal notranslate"><span class="pre">S1</span></code> of a C3D4 - its base - is the face polyxios numbers last.</p></li>
+<li><p>Writing puts the <code class="docutils literal notranslate"><span class="pre">*Surface</span></code> back, with the <code class="docutils literal notranslate"><span class="pre">*Elset</span></code> of parents it needs marked <code class="docutils literal notranslate"><span class="pre">internal</span></code> the way Abaqus marks its own. An internal set a <code class="docutils literal notranslate"><span class="pre">*Surface</span></code> names is read for the surface’s sake and then dropped, so a round trip does not grow a tag group per face label; one no surface names is a group the deck’s author wrote, and is kept. A face whose vertices are no longer its parent’s - a transform dropped or reordered the solids - is written as the ordinary element it has become, and a group mixing faces with other elements stays an <code class="docutils literal notranslate"><span class="pre">*Elset</span></code>, since a deck cannot name one group both ways.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SPOS</span></code> and <code class="docutils literal notranslate"><span class="pre">SNEG</span></code> name a side of a shell, which is the element itself, so the surface’s name goes on that element rather than on a duplicate of it. A <code class="docutils literal notranslate"><span class="pre">*Surface,</span> <span class="pre">type=NODE</span></code> becomes a vertex tag, and goes back out as an <code class="docutils literal notranslate"><span class="pre">*Nset</span></code> of the same name: a node set and a node surface are the same members under two cards, and only the card the deck used says which.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">*HEADING</span></code> card is the deck’s own title, and it is read into <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;abaqus_heading&quot;]</span></code> and written back from there. polyxios writes its own banner as a comment, so a deck with no heading of its own does not grow one over a round trip. A <code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> block holds text, so the title reaches a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>, <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> or <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and comes home; a legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block spells numbers only, and drops it with a warning.</p></li>
 <li><p>Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index. Several <code class="docutils literal notranslate"><span class="pre">*NODE</span></code> blocks accumulate, and a repeated id restates that node rather than adding another.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">*NSET</span></code> and <code class="docutils literal notranslate"><span class="pre">*ELSET</span></code> names become vertex and element tags, whether declared on the block itself or as a standalone card, with or without <code class="docutils literal notranslate"><span class="pre">GENERATE</span></code>; an entity in several sets stays in all of them. Abaqus matches a set name without regard to case, so a body naming <code class="docutils literal notranslate"><span class="pre">TOP</span></code> reaches the set declared as <code class="docutils literal notranslate"><span class="pre">Top</span></code>, and the same name in two cases is one set.</p></li>
 <li><p>Element cards are matched on their base name, so the modifier suffixes - <code class="docutils literal notranslate"><span class="pre">R</span></code> reduced integration, <code class="docutils literal notranslate"><span class="pre">H</span></code> hybrid, <code class="docutils literal notranslate"><span class="pre">I</span></code>, <code class="docutils literal notranslate"><span class="pre">M</span></code>, <code class="docutils literal notranslate"><span class="pre">T</span></code>, <code class="docutils literal notranslate"><span class="pre">P</span></code>, and the shell degree-of-freedom numbers - resolve to the same element: <code class="docutils literal notranslate"><span class="pre">CPS8R</span></code> reads as <code class="docutils literal notranslate"><span class="pre">CPS8</span></code>.</p></li>
@@ -726,7 +730,7 @@ it, so a deck can ask for reduced integration where the mesh only says
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-02.
+  Last updated on 2026-09-05.
   <br/>
 </p></div>
       

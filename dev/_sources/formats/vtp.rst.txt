@@ -59,6 +59,9 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
+- A tag group has no set of its own in this format, so it travels as one ``PointData`` or ``CellData`` column of ones and zeros named ``polyxios_tag_<group>``. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
+- ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. A key both levels spell is the dataset's, which is the file's own answer for the mesh where a piece's is one piece's. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
+- ``<FieldData>`` holds a ``String`` array beside its numeric ones, so a ``global_attrs`` value that is text - a name, a title, a solver's own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
 - Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
 - Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
 - A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.

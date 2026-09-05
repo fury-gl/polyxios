@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
+    <script src="../_static/documentation_options.js?v=4d971c3f"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-02"/>
+    <meta name="docbuild:last-update" content="2026-09-05"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -826,10 +826,21 @@ deviates from it, and links to the authoritative document.</p>
 <section id="parallel-and-multi-block-meta-files">
 <h2>Parallel and multi-block meta-files<a class="headerlink" href="#parallel-and-multi-block-meta-files" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.vtm</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> are registered too,
-but they hold no geometry - only references to sub-files. Reading one raises
-<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> with a pointer to
-<code class="docutils literal notranslate"><span class="pre">examples/read_parallel_vtk.py</span></code>, rather than failing with a parse error further in.
-Writing them is not supported.</p>
+but they hold no geometry - only references to sub-files. <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code>
+hands back one mesh, always, so reading an index raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> rather than failing with a
+parse error further in. The several live in the helper instead:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span><span class="p">,</span> <span class="n">transforms</span>
+
+<span class="n">whole</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_multiblock</span><span class="p">(</span><span class="s2">"case.pvtu"</span><span class="p">)</span>   <span class="c1"># every piece, merged</span>
+<span class="n">blocks</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_blocks</span><span class="p">(</span><span class="s2">"case.vtm"</span><span class="p">)</span>       <span class="c1"># one PolyData per sub-file</span>
+</pre></div>
+</div>
+<p>Both follow an index that names another index, skip a sub-file that is missing
+or unreadable with a line on the <code class="docutils literal notranslate"><span class="pre">polyxios</span></code> logger, and refuse a reference
+resolving outside the index file’s own directory.
+<code class="docutils literal notranslate"><span class="pre">examples/read_parallel_vtk.py</span></code> walks through what they do. Writing an index
+file is not supported.</p>
 <div class="toctree-wrapper compound">
 </div>
 </section>
@@ -940,7 +951,7 @@ Writing them is not supported.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-02.
+  Last updated on 2026-09-05.
   <br/>
 </p></div>
       

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c5537eb6"></script>
+    <script src="../_static/documentation_options.js?v=4d971c3f"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-02"/>
+    <meta name="docbuild:last-update" content="2026-09-05"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -608,6 +608,10 @@
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
+<li><p>A tag group has no set of its own in this format, so it travels as one <code class="docutils literal notranslate"><span class="pre">PointData</span></code> or <code class="docutils literal notranslate"><span class="pre">CellData</span></code> column of ones and zeros named <code class="docutils literal notranslate"><span class="pre">polyxios_tag_&lt;group&gt;</span></code>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <code class="docutils literal notranslate"><span class="pre">&lt;Piece&gt;</span></code> alike, and written back from <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> holds a <code class="docutils literal notranslate"><span class="pre">String</span></code> array beside its numeric ones, so a <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">vts_*</span></code> grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> entry does.</p></li>
 <li><p>Multi-component attributes are cut into tuples with <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code>, so an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> vector reads back with its shape rather than as <code class="docutils literal notranslate"><span class="pre">3n</span></code> rows.</p></li>
 <li><p>The implicit grid is expanded to explicit connectivity on read, so the resulting <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code> carries real elements rather than an extent.</p></li>
 <li><p>That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.</p></li>
@@ -739,7 +743,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-02.
+  Last updated on 2026-09-05.
   <br/>
 </p></div>
       

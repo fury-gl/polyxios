@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/api/generated/polyxios.helper.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="Functions" />
+<meta property="og:description" content="Functions Exceptions" />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_api_generated_polyxios.helper_1b1cc1f8.png" />
-<meta property="og:image:alt" content="Functions" />
-<meta name="description" content="Functions" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_api_generated_polyxios.helper_03b83172.png" />
+<meta property="og:image:alt" content="Functions Exceptions" />
+<meta name="description" content="Functions Exceptions" />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=c5537eb6"></script>
+    <script src="../../_static/documentation_options.js?v=4d971c3f"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-02"/>
+    <meta name="docbuild:last-update" content="2026-09-05"/>
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -545,6 +545,12 @@
 <p class="rubric">Functions</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_blocks</span></code>(path)</p></td>
+<td><p>Read every mesh a VTK index file names, one PolyData per sub-file.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_multiblock</span></code>(path)</p></td>
+<td><p>Read a VTK index file and merge every mesh it names into one.</p></td>
+</tr>
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_multiblock_vtp</span></code>(path)</p></td>
 <td><p>Load a vtkMultiBlockDataSet .vtp index file and merge its components.</p></td>
 </tr>
@@ -556,6 +562,15 @@
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualize_mesh</span></code>(polydata, *[, lines, points])</p></td>
 <td><p>Visualize a PolyData mesh using FURY.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="rubric">Exceptions</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Traversal</span></code></p></td>
+<td><p>A sub-file reference that points outside its own index's directory.</p></td>
 </tr>
 </tbody>
 </table>
@@ -655,7 +670,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-02.
+  Last updated on 2026-09-05.
   <br/>
 </p></div>
       

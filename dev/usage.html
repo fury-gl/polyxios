@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=c5537eb6"></script>
+    <script src="_static/documentation_options.js?v=4d971c3f"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-02"/>
+    <meta name="docbuild:last-update" content="2026-09-05"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -745,6 +745,32 @@ element referencing it, and a flat mesh of solid cells - a tetrahedron is one
 however flat it lies - keeps its third column in every format that reads the
 node count per element from a separate number.</p>
 </section>
+<section id="several-meshes-in-one-file">
+<h2>Several meshes in one file<a class="headerlink" href="#several-meshes-in-one-file" title="Link to this heading">#</a></h2>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> hands back one <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code>, always. A
+function that sometimes returns a sequence puts the branch in every caller, so
+a file that holds several meshes is treated as what it is - an index of
+sub-files, holding no geometry of its own - and reading one raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> naming the format.</p>
+<p>The several live in <a class="reference internal" href="api/generated/polyxios.helper.html#module-polyxios.helper" title="polyxios.helper"><code class="xref py py-mod docutils literal notranslate"><span class="pre">polyxios.helper</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span>
+
+<span class="n">whole</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_multiblock</span><span class="p">(</span><span class="s2">"case.pvtu"</span><span class="p">)</span>   <span class="c1"># every piece, merged</span>
+<span class="n">blocks</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_blocks</span><span class="p">(</span><span class="s2">"case.vtm"</span><span class="p">)</span>       <span class="c1"># one PolyData per sub-file</span>
+</pre></div>
+</div>
+<p>Both read <code class="docutils literal notranslate"><span class="pre">.vtm</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtp</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code> and <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>,
+as well as a <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> holding a <code class="docutils literal notranslate"><span class="pre">&lt;vtkMultiBlockDataSet&gt;</span></code>. An index naming
+another index is followed and read flat; a sub-file that is missing or
+unreadable is skipped with a line on the <code class="docutils literal notranslate"><span class="pre">polyxios</span></code> logger, so a partially
+downloaded companion directory still loads; and a reference resolving outside
+the index file’s own directory raises <code class="docutils literal notranslate"><span class="pre">PermissionError</span></code> rather than reading
+it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">helper.read_blocks</span></code> is the one to reach for when the blocks mean different
+things - a fluid domain and a solid one, one part per block - since
+<code class="xref py py-func docutils literal notranslate"><span class="pre">merge()</span></code> joins them into a mesh that no longer says
+which was which.</p>
+</section>
 <section id="where-to-go-next">
 <h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -810,6 +836,7 @@ node count per element from a separate number.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#entity-numbering">Entity numbering</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-dimensional-meshes">Two-dimensional meshes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#several-meshes-in-one-file">Several meshes in one file</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-go-next">Where to go next</a></li>
 </ul>
   </nav></div>
@@ -868,7 +895,7 @@ node count per element from a separate number.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-02.
+  Last updated on 2026-09-05.
   <br/>
 </p></div>
       
