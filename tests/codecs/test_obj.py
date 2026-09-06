@@ -69,7 +69,7 @@ def test_unsupported_lazy() -> None:
         read(tmp, lazy=True)
 
 
-def test_multi_group_element_tags() -> None:
+def test_an_element_in_two_groups_keeps_both() -> None:
     """Element 0 in both 'inlet' and 'wall' - both must survive roundtrip."""
     verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
     poly = make_polydata(

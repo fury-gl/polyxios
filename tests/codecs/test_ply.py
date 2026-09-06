@@ -188,7 +188,7 @@ def test_real_armadillo() -> None:
     assert "intensity" in poly.element_attrs
 
 
-# --- meshio #1394: PLY edge elements -----------------------------------------
+# --- PLY edge elements -------------------------------------------------------
 
 
 def _edge_mesh():
@@ -203,7 +203,7 @@ def _edge_mesh():
 
 
 @pytest.mark.parametrize("binary", [False, True], ids=["ascii", "binary"])
-def test_issue_1394_lines_are_written_as_ply_edges(tmp_path, binary: bool) -> None:
+def test_lines_are_written_as_ply_edges(tmp_path, binary: bool) -> None:
     """A line written as a degenerate face is not what a PLY reader expects."""
     poly = _edge_mesh()
     out = tmp_path / "edges.ply"
@@ -225,7 +225,7 @@ def test_issue_1394_lines_are_written_as_ply_edges(tmp_path, binary: bool) -> No
 
 
 @pytest.mark.parametrize("binary", [False, True], ids=["ascii", "binary"])
-def test_issue_1394_an_edge_only_mesh_round_trips(tmp_path, binary: bool) -> None:
+def test_an_edge_only_mesh_round_trips(tmp_path, binary: bool) -> None:
     verts = np.array([[0.0, 0, 0], [1, 0, 0], [2, 0, 0]], dtype=np.float64)
     poly = make_polydata(verts, [("line", np.array([[0, 1], [1, 2]]))])
     out = tmp_path / "lines.ply"
@@ -236,7 +236,7 @@ def test_issue_1394_an_edge_only_mesh_round_trips(tmp_path, binary: bool) -> Non
     np.testing.assert_allclose(back.vertices, verts)
 
 
-def test_issue_1394_an_edge_element_is_read_from_a_hand_written_file(
+def test_an_edge_element_is_read_from_a_hand_written_file(
     tmp_path,
 ) -> None:
     """Files in the wild spell the two ends vertex1/vertex2, not a face list."""

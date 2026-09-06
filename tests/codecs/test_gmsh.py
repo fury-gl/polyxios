@@ -93,7 +93,7 @@ def test_node_permutations_match_meshio() -> None:
         np.testing.assert_array_equal(ref, order, err_msg=name)
 
 
-def test_issue_1517_meshio_does_not_permute_the_18_node_prism() -> None:
+def test_meshio_does_not_permute_the_18_node_prism() -> None:
     """meshio reads Gmsh's prism18 straight through; that is the bug, recorded.
 
     Kept so the disagreement is deliberate rather than discovered later: our
@@ -309,7 +309,9 @@ def test_physical_names_roundtrip(tmp_path: Path) -> None:
     np.testing.assert_array_equal(poly2.element_tags["skin"], [0, 1])
 
 
-def test_element_tags_without_phys_tag_get_generated_ids(tmp_path: Path) -> None:
+def test_every_group_gets_a_tag_of_its_own_on_write(
+    tmp_path: Path,
+) -> None:
     poly = _tri_mesh()
     tagged = make_polydata(
         poly.vertices, [("triangle", poly.connectivity.reshape(3, 3))]
@@ -321,6 +323,30 @@ def test_element_tags_without_phys_tag_get_generated_ids(tmp_path: Path) -> None
     poly2 = read(out)
     np.testing.assert_array_equal(poly2.element_tags["inlet"], [0])
     np.testing.assert_array_equal(poly2.element_tags["outlet"], [2])
+
+
+def test_a_group_that_cannot_hold_its_own_tag_warns_rather_than_lies(
+    tmp_path: Path,
+) -> None:
+    """An MSH element carries one physical tag, so overlapping groups collide.
+
+    The first group to claim an element keeps it; the loser cannot be written
+    at all, and saying so is the only honest outcome - a name silently standing
+    for the wrong elements is what a reader would trust.
+    """
+    poly = _tri_mesh()
+    tagged = make_polydata(
+        poly.vertices, [("triangle", poly.connectivity.reshape(3, 3))]
+    )
+    tagged.element_tags["inlet"] = np.array([0, 2], dtype=np.int32)
+    tagged.element_tags["wall"] = np.array([2], dtype=np.int32)
+    out = tmp_path / "overlap.msh"
+    with pytest.warns(UserWarning, match="wall"):
+        write(tagged, out)
+
+    poly2 = read(out)
+    np.testing.assert_array_equal(poly2.element_tags["inlet"], [0, 2])
+    assert "wall" not in poly2.element_tags
 
 
 def test_physical_names_without_a_count_header_are_kept(tmp_path: Path) -> None:
@@ -394,7 +420,9 @@ def test_physical_name_keeps_members_of_other_dimensions(tmp_path: Path) -> None
     np.testing.assert_array_equal(poly.element_tags["region"], [0, 1])
 
 
-def test_groups_sharing_a_tag_across_dimensions_roundtrip(tmp_path: Path) -> None:
+def test_groups_sharing_a_tag_across_dimensions_roundtrip(
+    tmp_path: Path,
+) -> None:
     # A physical tag is scoped to a dimension, so a surface and a volume group
     # may both be tag 1. Dropping one of them on write would leave the survivor
     # claiming the other's elements when the file is read back.
@@ -799,7 +827,7 @@ def test_coordinates_roundtrip_exactly(tmp_path: Path) -> None:
     np.testing.assert_array_equal(read(out).vertices, verts)
 
 
-# --- meshio #1517: 18-node prism node ordering -------------------------------
+# --- 18-node prism node ordering ---------------------------------------------
 
 # Gmsh numbers a prism18's mid-nodes by its own edge and face tables, VTK by
 # its own; the two disagree, so the file's node 7 is not VTK's node 7. The
@@ -859,7 +887,7 @@ def _p18_msh(points: np.ndarray) -> str:
     )
 
 
-def test_issue_1517_prism18_is_permuted_into_vtk_order(tmp_path: Path) -> None:
+def test_prism18_is_permuted_into_vtk_order(tmp_path: Path) -> None:
     """Gmsh's edge and face tables are not VTK's; identity bends the element."""
     points = _p18_points()
     path = _write_text(tmp_path, "p18.msh", _p18_msh(points))
@@ -884,7 +912,7 @@ def test_issue_1517_prism18_is_permuted_into_vtk_order(tmp_path: Path) -> None:
         )
 
 
-def test_issue_1517_prism18_survives_a_round_trip(tmp_path: Path) -> None:
+def test_prism18_survives_a_round_trip(tmp_path: Path) -> None:
     """A permutation applied on read and not on write is the same bug, mirrored."""
     points = _p18_points()
     poly = read(_write_text(tmp_path, "p18.msh", _p18_msh(points)))
@@ -913,7 +941,7 @@ def test_pyramid14_is_still_skipped_with_a_warning(tmp_path: Path) -> None:
     assert len(poly.element_types) == 0
 
 
-# --- meshio #1281: $NodeData / $ElementData ----------------------------------
+# --- $NodeData / $ElementData ------------------------------------------------
 
 
 _TET_HEADER = (
@@ -923,7 +951,7 @@ _TET_HEADER = (
 )
 
 
-def test_issue_1281_node_data_becomes_a_vertex_attr(tmp_path: Path) -> None:
+def test_node_data_becomes_a_vertex_attr(tmp_path: Path) -> None:
     """A solution field dropped on read makes the reader useless for results."""
     path = _write_text(
         tmp_path,
@@ -935,7 +963,7 @@ def test_issue_1281_node_data_becomes_a_vertex_attr(tmp_path: Path) -> None:
     np.testing.assert_allclose(poly.vertex_attrs["T"], [10.0, 20.0, 30.0, 40.0])
 
 
-def test_issue_1281_node_data_of_any_width_is_kept(tmp_path: Path) -> None:
+def test_node_data_of_any_width_is_kept(tmp_path: Path) -> None:
     """The spec allows any component count, not only 1, 3 and 9."""
     rows = "\n".join(
         f"{i + 1} " + " ".join(str(i * 5 + k) for k in range(5)) for i in range(4)
@@ -953,7 +981,7 @@ def test_issue_1281_node_data_of_any_width_is_kept(tmp_path: Path) -> None:
     np.testing.assert_allclose(poly.vertex_attrs["state"][2], [10, 11, 12, 13, 14])
 
 
-def test_issue_1281_element_data_becomes_an_element_attr(tmp_path: Path) -> None:
+def test_element_data_becomes_an_element_attr(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path,
         "ed.msh",
@@ -964,7 +992,7 @@ def test_issue_1281_element_data_becomes_an_element_attr(tmp_path: Path) -> None
     np.testing.assert_allclose(poly.element_attrs["rho"], [1.5, 2.5])
 
 
-def test_issue_1281_several_data_fields_all_arrive(tmp_path: Path) -> None:
+def test_several_data_fields_all_arrive(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path,
         "two.msh",
@@ -977,7 +1005,7 @@ def test_issue_1281_several_data_fields_all_arrive(tmp_path: Path) -> None:
     np.testing.assert_allclose(poly.vertex_attrs["b"], [9, 8, 7, 6])
 
 
-def test_issue_1281_partial_node_data_is_filled_with_nan(tmp_path: Path) -> None:
+def test_partial_node_data_is_filled_with_nan(tmp_path: Path) -> None:
     """A field naming half the nodes must not shift onto the wrong ones."""
     path = _write_text(
         tmp_path,
@@ -991,7 +1019,7 @@ def test_issue_1281_partial_node_data_is_filled_with_nan(tmp_path: Path) -> None
     assert np.isnan(values[[0, 2]]).all()
 
 
-def test_issue_1281_data_naming_an_unknown_node_warns(tmp_path: Path) -> None:
+def test_data_naming_an_unknown_node_warns(tmp_path: Path) -> None:
     path = _write_text(
         tmp_path,
         "ghost.msh",
@@ -1002,7 +1030,7 @@ def test_issue_1281_data_naming_an_unknown_node_warns(tmp_path: Path) -> None:
     assert "T" not in poly.vertex_attrs
 
 
-def test_issue_1281_a_data_field_named_like_phys_tag_is_renamed(
+def test_a_data_field_named_like_phys_tag_is_renamed(
     tmp_path: Path,
 ) -> None:
     """phys_tag is this codec's own element attribute; a clash would hide it."""
@@ -1061,10 +1089,10 @@ def test_malformed_data_section_is_skipped_with_a_warning(tmp_path: Path) -> Non
     assert "T" not in poly.vertex_attrs
 
 
-# --- meshio #1421, #1404, #865, #524, #1116 ----------------------------------
+# --- the small and mixed meshes a round trip has to survive ------------------
 
 
-def test_issue_1421_single_line_element_mesh_round_trips(tmp_path: Path) -> None:
+def test_single_line_element_mesh_round_trips(tmp_path: Path) -> None:
     """A one-line mesh is the smallest thing Gmsh can hold; it must re-read."""
     verts = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
     poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
@@ -1080,7 +1108,7 @@ def test_issue_1421_single_line_element_mesh_round_trips(tmp_path: Path) -> None
     np.testing.assert_array_equal(mesh.cells[0].data, [[0, 1]])
 
 
-def test_issue_1404_reading_prints_nothing(tmp_path: Path, capsys) -> None:
+def test_reading_prints_nothing(tmp_path: Path, capsys) -> None:
     """A library that prints on read corrupts whatever the caller pipes it to."""
     path = _write_text(tmp_path, "quiet.msh", _TET_HEADER)
     read(path)
@@ -1089,7 +1117,7 @@ def test_issue_1404_reading_prints_nothing(tmp_path: Path, capsys) -> None:
     assert captured.err == ""
 
 
-def test_issue_865_mixed_cell_types_survive_a_write(tmp_path: Path) -> None:
+def test_mixed_cell_types_survive_a_write(tmp_path: Path) -> None:
     """CSR holds mixed types natively, so no block splitting can drop one."""
     verts = np.array(
         [[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]], dtype=np.float64
@@ -1111,7 +1139,39 @@ def test_issue_865_mixed_cell_types_survive_a_write(tmp_path: Path) -> None:
     np.testing.assert_array_equal(back.offsets, poly.offsets)
 
 
-def test_issue_1116_a_flat_mesh_keeps_its_zero_z(tmp_path: Path) -> None:
+def test_mixed_element_types_carry_their_element_data(
+    tmp_path: Path,
+) -> None:
+    """$ElementData is one flat list, so a per-type split is what loses it.
+
+    CSR never splits, so the field stays aligned with the elements it came in
+    with however many types the mesh holds.
+    """
+    verts = np.array(
+        [[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]], dtype=np.float64
+    )
+    poly = make_polydata(
+        verts,
+        [
+            ("line", np.array([[0, 1]])),
+            ("triangle", np.array([[0, 1, 2]])),
+            ("tetra", np.array([[0, 1, 2, 3]])),
+            ("vertex", np.array([[4]])),
+        ],
+        element_attrs={"rho": np.array([1.0, 2.0, 3.0, 4.0])},
+        vertex_attrs={"temp": np.array([10.0, 20.0, 30.0, 40.0, 50.0])},
+    )
+    out = tmp_path / "mixed_data.msh"
+    write(poly, out)
+    back = read(out)
+    # What must survive is the pairing, not the order a writer chose to emit.
+    assert sorted(
+        zip(back.element_types.tolist(), back.element_attrs["rho"].tolist())
+    ) == sorted(zip(poly.element_types.tolist(), poly.element_attrs["rho"].tolist()))
+    np.testing.assert_allclose(back.vertex_attrs["temp"], [10.0, 20, 30, 40, 50])
+
+
+def test_a_flat_mesh_keeps_its_zero_z(tmp_path: Path) -> None:
     """A 2-D mesh is 3-D with z=0; dropping the column changes the geometry."""
     verts = np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]])
     poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
@@ -1122,7 +1182,7 @@ def test_issue_1116_a_flat_mesh_keeps_its_zero_z(tmp_path: Path) -> None:
     np.testing.assert_allclose(back.vertices[:, 2], 0.0)
 
 
-def test_issue_1281_vertex_attrs_are_written_as_node_data(tmp_path: Path) -> None:
+def test_vertex_attrs_are_written_as_node_data(tmp_path: Path) -> None:
     """A field read into vertex_attrs and dropped on write is half a codec."""
     poly = PolyData(
         vertices=_TET_VERTS,
@@ -1145,7 +1205,7 @@ def test_issue_1281_vertex_attrs_are_written_as_node_data(tmp_path: Path) -> Non
     np.testing.assert_allclose(mesh.point_data["T"], [0, 1, 2, 3])
 
 
-def test_issue_1281_element_attrs_are_written_as_element_data(tmp_path: Path) -> None:
+def test_element_attrs_are_written_as_element_data(tmp_path: Path) -> None:
     poly = PolyData(
         vertices=_TET_VERTS,
         connectivity=np.array([0, 1, 2, 0, 1, 3], dtype=np.int32),

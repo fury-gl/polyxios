@@ -1479,7 +1479,7 @@ def test_a_field_that_fits_keeps_its_leading_zero() -> None:
     assert _fmt_real(0.5, width=8) == "0.5"
 
 
-# --- meshio #1505: higher-order solid cards ----------------------------------
+# --- higher-order solid cards ------------------------------------------------
 
 
 def _grids(n: int) -> str:
@@ -1523,7 +1523,7 @@ def _elem_card(name: str, n_nodes: int) -> str:
         ("CQUAD", 9, "biquadratic_quad"),
     ],
 )
-def test_issue_1505_a_card_holds_the_element_its_grid_count_names(
+def test_a_card_holds_the_element_its_grid_count_names(
     tmp_path, card: str, n_nodes: int, kind: str
 ) -> None:
     """A card name does not say its order; the grid points it carries do."""
@@ -1533,7 +1533,7 @@ def test_issue_1505_a_card_holds_the_element_its_grid_count_names(
     assert len(poly.connectivity) == n_nodes
 
 
-def test_issue_1505_cpenta15_midside_nodes_are_permuted_to_vtk(tmp_path) -> None:
+def test_cpenta15_midside_nodes_are_permuted_to_vtk(tmp_path) -> None:
     """Nastran runs the prism's vertical edges last, VTK runs the top ring last."""
     deck = _deck(_elem_card("CPENTA", 15), 15)
     poly = read(_write(tmp_path, deck))
@@ -1555,7 +1555,7 @@ def test_issue_1505_cpenta15_midside_nodes_are_permuted_to_vtk(tmp_path) -> None
         "biquadratic_quad",
     ],
 )
-def test_issue_1505_higher_order_types_survive_a_round_trip(tmp_path, kind) -> None:
+def test_higher_order_types_survive_a_round_trip(tmp_path, kind) -> None:
     """A type read and not written back is lost at the first export."""
     n_nodes = {
         "quadratic_tetra": 10,
@@ -1627,10 +1627,10 @@ def test_an_unknown_element_card_still_warns(tmp_path) -> None:
     assert len(poly.element_types) == 0
 
 
-# --- meshio #1396: shell offsets ---------------------------------------------
+# --- shell offsets -----------------------------------------------------------
 
 
-def test_issue_1396_shell_zoffs_is_read_and_written(tmp_path) -> None:
+def test_shell_zoffs_is_read_and_written(tmp_path) -> None:
     """A shell's offset moves its mid-surface; dropping it moves the geometry."""
     deck = _deck("CTRIA3,1,1,1,2,3,0.,0.5\nCQUAD4,2,1,1,2,3,4,0.,-0.25\n", 4)
     poly = read(_write(tmp_path, deck))
@@ -1641,7 +1641,7 @@ def test_issue_1396_shell_zoffs_is_read_and_written(tmp_path) -> None:
     np.testing.assert_allclose(read(out).element_attrs["zoffs"], [0.5, -0.25])
 
 
-def test_issue_1396_a_deck_without_offsets_carries_no_zoffs(tmp_path) -> None:
+def test_a_deck_without_offsets_carries_no_zoffs(tmp_path) -> None:
     """An attribute of zeros invented for every mesh is noise, not data."""
     poly = read(_write(tmp_path, _deck("CTRIA3,1,1,1,2,3\n", 4)))
     assert "zoffs" not in poly.element_attrs
@@ -1701,7 +1701,7 @@ def test_a_grounded_cbush_is_skipped_rather_than_refused(tmp_path) -> None:
     ("card", "n_nodes", "zoffs_at"),
     [("CTRIA6", 6, 10), ("CQUAD8", 8, 16)],
 )
-def test_issue_1396_the_quadratic_shells_carry_zoffs_too(
+def test_the_quadratic_shells_carry_zoffs_too(
     tmp_path, card: str, n_nodes: int, zoffs_at: int
 ) -> None:
     """A quadratic shell's offset moves its mid-surface just as a linear one's."""

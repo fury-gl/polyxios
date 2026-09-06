@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 import tempfile
 
@@ -7,8 +8,14 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata
+from polyxios._element_types import ELEMENT_TYPES_INV
 from polyxios.codecs._vtk import read, write
-from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.exceptions import (
+    CodecError,
+    IndexOverflowError,
+    LazyReadError,
+    UnknownElementTypeError,
+)
 from polyxios.validate import validate
 
 
@@ -81,13 +88,14 @@ def test_element_attrs() -> None:
     np.testing.assert_allclose(poly2.element_attrs["stress"], stress, atol=1e-6)
 
 
-def test_vtk_version_42_has_cells_keyword() -> None:
+def test_a_v42_write_spells_cells_not_offsets() -> None:
     poly = _synthetic_mesh()
     with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
         tmp = f.name
     write(poly, tmp, vtk_version="4.2")
-    assert "CELLS" in Path(tmp).read_text()
-    assert "OFFSETS" not in Path(tmp).read_text()
+    content = Path(tmp).read_text()
+    assert "CELLS" in content
+    assert "OFFSETS" not in content
 
 
 def test_ascii_lazy_raises() -> None:
@@ -1586,7 +1594,7 @@ def _field_grid(field: bytes) -> bytes:
 
 @pytest.mark.parametrize("binary", [False, True])
 @pytest.mark.parametrize("vtk_version", ["4.2", "5.1"])
-def test_issue_1546_a_vtk_write_holds_the_field_data(
+def test_a_vtk_write_holds_the_field_data(
     tmp_path, binary: bool, vtk_version: str
 ) -> None:
     """The writer dropped global_attrs, so a time value, a material constant
@@ -2445,3 +2453,367 @@ def test_a_field_dataset_array_of_a_negative_count_is_skipped(tmp_path) -> None:
 
     assert "backwards" not in back.global_attrs
     np.testing.assert_allclose(back.global_attrs["kept"], [7.0])
+
+
+def test_a_connectivity_index_past_int32_is_refused(tmp_path) -> None:
+    """Legacy 4.2 spells its connectivity in 32-bit ints, so a wider index
+    would be written truncated - a silently different mesh."""
+    verts = np.zeros((4, 3), dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    big = dataclasses.replace(
+        poly,
+        connectivity=np.array([0, 1, 2**31], dtype=np.int64),
+        offsets=np.array([0, 3], dtype=np.int64),
+    )
+    with pytest.raises(IndexOverflowError):
+        write(big, tmp_path / "big.vtk", vtk_version="4.2")
+
+
+def test_an_unknown_cell_type_is_named_not_an_index_error(
+    tmp_path,
+) -> None:
+    """VTK type 99 is not in the table; looking it up must not index past it."""
+    text = (
+        "# vtk DataFile Version 4.2\n"
+        "Test mesh\n"
+        "ASCII\n"
+        "DATASET UNSTRUCTURED_GRID\n"
+        "POINTS 3 float\n"
+        "0 0 0\n1 0 0\n0 1 0\n"
+        "CELLS 1 4\n"
+        "3 0 1 2\n"
+        "CELL_TYPES 1\n"
+        "99\n"
+    )
+    out = tmp_path / "unknown.vtk"
+    out.write_text(text)
+    with pytest.raises(UnknownElementTypeError):
+        read(out)
+
+
+@pytest.mark.parametrize(
+    ("code", "name", "n_nodes"),
+    [
+        (68, "lagrange_curve", 2),
+        (69, "lagrange_triangle", 3),
+        (70, "lagrange_quadrilateral", 4),
+        (71, "lagrange_tetrahedron", 4),
+        (72, "lagrange_hexahedron", 8),
+        (73, "lagrange_wedge", 6),
+        (74, "lagrange_pyramid", 5),
+    ],
+)
+def test_a_lagrange_cell_type_is_read_rather_than_refused(
+    tmp_path, code: int, name: str, n_nodes: int
+) -> None:
+    """The high-order codes are real VTK types; the table has to carry them.
+
+    A Lagrange cell is arbitrary-order, so its node count is a property of the
+    cell rather than of the type. Each case here uses the linear count, the
+    smallest one the shape admits.
+    """
+    nodes = " ".join(str(i) for i in range(n_nodes))
+    text = (
+        "# vtk DataFile Version 4.2\n"
+        "Lagrange\n"
+        "ASCII\n"
+        "DATASET UNSTRUCTURED_GRID\n"
+        "POINTS 8 float\n"
+        "0 0 0\n1 0 0\n1 1 0\n0 1 0\n"
+        "0 0 1\n1 0 1\n1 1 1\n0 1 1\n"
+        f"CELLS 1 {n_nodes + 1}\n"
+        f"{n_nodes} {nodes}\n"
+        "CELL_TYPES 1\n"
+        f"{code}\n"
+    )
+    out = tmp_path / "lagrange.vtk"
+    out.write_text(text)
+
+    poly = read(out)
+    assert ELEMENT_TYPES_INV[int(poly.element_types[0])] == name
+
+    # The reverse map is what a write leans on, so send the type back out.
+    back_out = tmp_path / "lagrange_again.vtk"
+    write(poly, back_out, vtk_version="4.2")
+    assert f"\n{code}\n" in back_out.read_text()
+    back = read(back_out)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+
+
+def test_a_rank_two_element_attr_is_written_as_tensors(tmp_path) -> None:
+    """A 3x3 per element is a TENSORS array; a FIELD block reads back flat."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    stress = np.eye(3)[np.newaxis, :, :].repeat(2, axis=0)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"stress": stress},
+    )
+    out = tmp_path / "tensor.vtk"
+    write(poly, out)
+    content = out.read_text()
+    assert "TENSORS" in content
+    assert "FIELD FieldData" not in content
+
+    back = read(out)
+    assert back.element_attrs["stress"].shape == (2, 3, 3)
+
+
+@pytest.mark.parametrize("binary", [False, True])
+@pytest.mark.parametrize("n_comp", [5, 7, 9])
+def test_a_tuple_too_wide_for_scalars_travels_as_a_field_array(
+    tmp_path, binary: bool, n_comp: int
+) -> None:
+    """A legacy SCALARS header names at most four components.
+
+    Five is the first width past it, and a reader that holds the format to
+    its own range refuses a SCALARS wider than four outright. A FIELD array
+    carries its component count in its own header and so has no ceiling.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    wide = np.arange(2.0 * n_comp).reshape(2, n_comp)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"wide": wide},
+    )
+    out = tmp_path / "wide.vtk"
+    write(poly, out, binary=binary)
+
+    written = out.read_bytes()
+    assert b"SCALARS wide" not in written
+    # The header itself, not only the absence of the other one: a FIELD array
+    # whose counts are wrong is the same unreadable file by another route.
+    assert f"wide {n_comp} 2 double".encode() in written
+    np.testing.assert_allclose(read(out).element_attrs["wide"], wide)
+
+
+def test_a_tuple_of_no_components_is_dropped_before_its_header(tmp_path) -> None:
+    """Zero components is as far outside a SCALARS header's range as nine.
+
+    The drop happens before the section header is written, so a section left
+    with nothing to carry is never declared - a POINT_DATA over no arrays is
+    a promise the file does not keep.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"empty": np.zeros((2, 0)), "kept": np.arange(2.0)},
+        vertex_attrs={"empty": np.zeros((4, 0))},
+    )
+    out = tmp_path / "empty.vtk"
+    with pytest.warns(UserWarning, match="no components"):
+        write(poly, out)
+
+    content = out.read_text()
+    assert "double 0" not in content
+    assert "POINT_DATA" not in content
+    assert "SCALARS kept double 1" in content
+    np.testing.assert_allclose(read(out).element_attrs["kept"], [0.0, 1.0])
+
+
+@pytest.mark.parametrize("n_comp", [1, 2, 3, 4])
+def test_a_tuple_scalars_can_hold_keeps_its_scalars_spelling(
+    tmp_path, n_comp: int
+) -> None:
+    """Four components or fewer stay SCALARS or VECTORS - the narrow spellings.
+
+    Sending those through a FIELD array too would cost every reader the
+    lookup table a SCALARS section carries.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    values = np.arange(2.0 * n_comp).reshape(2, n_comp)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"narrow": values},
+    )
+    out = tmp_path / "narrow.vtk"
+    write(poly, out)
+    content = out.read_text()
+
+    expected = "VECTORS narrow" if n_comp == 3 else f"SCALARS narrow double {n_comp}"
+    assert expected in content
+    # Scoped to the section: the dataset's own metadata is a FIELD block too,
+    # and this says nothing about that one.
+    assert "FIELD" not in content.split("CELL_DATA")[1]
+    # A single component comes home flat: the format has no trailing 1-axis.
+    np.testing.assert_allclose(
+        read(out).element_attrs["narrow"].ravel(), values.ravel()
+    )
+
+
+@pytest.mark.parametrize("vtk_version", ["4.2", "5.1"])
+def test_a_binary_block_is_closed_by_the_newline_the_format_expects(
+    tmp_path, vtk_version: str
+) -> None:
+    """A binary block ends on a newline, and the next keyword line follows it.
+
+    Without one the terminator a reader finds is the first 0x0a inside the
+    block itself, so the keyword line it reads starts in the middle of the
+    numbers: a reader that holds the format to this refuses the file, where
+    this one recovered by looking for the keyword anyway.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"s": np.arange(2.0)},
+        vertex_attrs={"v": np.arange(12.0).reshape(4, 3)},
+    )
+    out = tmp_path / "b.vtk"
+    write(poly, out, binary=True, vtk_version=vtk_version)
+    written = out.read_bytes()
+
+    for keyword in (b"CELL_TYPES 2", b"POINT_DATA 4", b"CELL_DATA 2"):
+        assert b"\n" + keyword + b"\n" in written, keyword
+    assert written.endswith(b"\n")
+    np.testing.assert_allclose(read(out).vertex_attrs["v"], poly.vertex_attrs["v"])
+
+
+@pytest.mark.parametrize("vtk_version", ["4.2", "5.1"])
+def test_a_binary_file_written_without_those_newlines_still_reads(
+    tmp_path, vtk_version: str
+) -> None:
+    """Files this writer already wrote have no terminator; they must still read.
+
+    The reader steps over the newline when there is one rather than requiring
+    it, so the fix to the writer costs nothing already on disk.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"s": np.arange(2.0)},
+    )
+    out = tmp_path / "old.vtk"
+    write(poly, out, binary=True, vtk_version=vtk_version)
+    # What the writer produced before it closed its blocks: the same bytes
+    # with the terminator after each payload taken back out. Only the
+    # keywords that follow a payload - a v5.1 OFFSETS follows the CELLS
+    # header line, whose newline is the header's own.
+    after_payload = [b"CELLS ", b"CELL_TYPES ", b"CELL_DATA "]
+    if vtk_version == "5.1":
+        after_payload.append(b"CONNECTIVITY ")
+    stripped = out.read_bytes()
+    for keyword in after_payload:
+        stripped = stripped.replace(b"\n" + keyword, keyword)
+    old = tmp_path / "stripped.vtk"
+    old.write_bytes(stripped)
+
+    back = read(old)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_allclose(back.element_attrs["s"], [0.0, 1.0])
+
+
+def test_a_symmetric_tensor_keeps_its_shear_terms_where_vtk_puts_them(
+    tmp_path,
+) -> None:
+    """Six components are XX, YY, ZZ, XY, YZ, XZ - VTK's order, not Voigt's.
+
+    Classical Voigt runs its last three the other way, and reading them that
+    way puts XZ where YZ belongs. Nothing downstream can tell the result from
+    a tensor that was always that way, so the order is pinned here.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    sym = np.array([[10.0, 20, 30, 40, 50, 60], [1.0, 2, 3, 4, 5, 6]])
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"stress": sym},
+    )
+    out = tmp_path / "sym.vtk"
+    write(poly, out)
+    assert "TENSORS stress double" in out.read_text()
+
+    back = read(out).element_attrs["stress"]
+    np.testing.assert_allclose(back[0], [[10, 40, 60], [40, 20, 50], [60, 50, 30]])
+    np.testing.assert_allclose(back[1], [[1, 4, 6], [4, 2, 5], [6, 5, 3]])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_tensors6_section_is_read_as_the_six_it_holds(tmp_path, binary: bool) -> None:
+    """VTK 9 spells a symmetric tensor TENSORS6, which carries six not nine.
+
+    Read as a TENSORS the header would be taken for nine, which in a binary
+    file reads six values plus whatever follows them and leaves the scan
+    standing in the middle of the next array.
+    """
+    payload = (
+        np.array([[10.0, 20, 30, 40, 50, 60], [1.0, 2, 3, 4, 5, 6]])
+        .astype(">f8")
+        .tobytes()
+        if binary
+        else b"10 20 30 40 50 60\n1 2 3 4 5 6\n"
+    )
+    after = np.array([7.0, 8.0]).astype(">f8").tobytes() if binary else b"7 8\n"
+    head = (
+        f"# vtk DataFile Version 4.2\nsym\n{'BINARY' if binary else 'ASCII'}\n"
+        "DATASET UNSTRUCTURED_GRID\nPOINTS 4 double\n"
+    ).encode()
+    points = (
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]).astype(">f8").tobytes()
+        + b"\n"
+        if binary
+        else b"0 0 0\n1 0 0\n0 1 0\n0 0 1\n"
+    )
+    cells = (
+        np.array([3, 0, 1, 2, 3, 0, 1, 3], dtype=">i4").tobytes() + b"\n"
+        if binary
+        else b"3 0 1 2\n3 0 1 3\n"
+    )
+    types = np.array([5, 5], dtype=">i4").tobytes() + b"\n" if binary else b"5 5\n"
+    out = tmp_path / "t6.vtk"
+    out.write_bytes(
+        head
+        + points
+        + b"CELLS 2 8\n"
+        + cells
+        + b"CELL_TYPES 2\n"
+        + types
+        + b"CELL_DATA 2\nTENSORS6 sym double\n"
+        + payload
+        + (b"\n" if binary else b"")
+        + b"SCALARS after double 1\nLOOKUP_TABLE default\n"
+        + after
+    )
+
+    back = read(out)
+    np.testing.assert_allclose(
+        back.element_attrs["sym"][0], [[10, 40, 60], [40, 20, 50], [60, 50, 30]]
+    )
+    # The array behind it survives: a tuple counted wrong takes everything
+    # after it down with the scan.
+    np.testing.assert_allclose(back.element_attrs["after"], [7.0, 8.0])
+
+
+@pytest.mark.parametrize("vtk_version", ["4.2", "5.1"])
+@pytest.mark.parametrize("binary", [False, True])
+def test_another_reader_takes_what_this_writer_writes(
+    tmp_path, binary: bool, vtk_version: str
+) -> None:
+    """A file only this reader takes back is a file that failed to be written.
+
+    Both of the things this guards - a binary block closed by its newline and
+    a wide tuple spelled as a FIELD array - read here whether or not they are
+    right, because this reader recovers from either. A reader that holds the
+    format to its own rules is what tells the two apart.
+    """
+    meshio = pytest.importorskip("meshio")
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        element_attrs={"wide": np.arange(18.0).reshape(2, 9), "s": np.arange(2.0)},
+        vertex_attrs={"v": np.arange(12.0).reshape(4, 3)},
+        global_attrs={"time": np.array([2.5])},
+    )
+    out = tmp_path / "interop.vtk"
+    write(poly, out, binary=binary, vtk_version=vtk_version)
+
+    mesh = meshio.read(out)
+    np.testing.assert_allclose(mesh.points, verts)
+    np.testing.assert_allclose(mesh.cell_data["wide"][0], poly.element_attrs["wide"])
+    np.testing.assert_allclose(mesh.point_data["v"], poly.vertex_attrs["v"])

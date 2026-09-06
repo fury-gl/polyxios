@@ -507,7 +507,7 @@ def test_an_attribute_no_data_array_can_hold_names_itself(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_issue_1546_a_vtu_write_holds_the_field_data(tmp_path) -> None:
+def test_a_vtu_write_holds_the_field_data(tmp_path) -> None:
     """The writer dropped global_attrs, so a time value, a material constant
     or a solver tolerance did not survive being written."""
     poly = make_polydata(

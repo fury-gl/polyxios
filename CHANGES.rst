@@ -254,6 +254,46 @@ Behaviour changes
 Bug fixes
 ~~~~~~~~~
 
+- A legacy ``.vtk`` ``SCALARS`` header names between one and four components
+  and no more. The writer spelled every tuple it had no ``VECTORS`` or
+  ``TENSORS`` branch for as ``SCALARS`` whatever its width, so a nine-component
+  per-element array went out as ``SCALARS name double 9`` - a count outside
+  the range the format gives that field, which a reader holding it to that
+  range refuses outright. Such a tuple now travels as a ``FIELD`` array, whose
+  own header carries the component count and so has no ceiling; four
+  components and under keep the ``SCALARS`` spelling and its lookup table. An
+  array of no components at all is outside the same range from the other end,
+  and is dropped with a warning before its section header is written rather
+  than spelled ``SCALARS name double 0``.
+
+- A binary block in a legacy ``.vtk`` file is closed by a newline, and the
+  keyword line after it is found by reading to the next one. Only the
+  dataset's ``FIELD`` block wrote that newline: the points, the cells, the
+  cell types and every attribute array ran straight into the keyword after
+  them, so the terminator a reader found was the first ``0x0a`` inside the
+  following payload and the keyword line it read began in the middle of the
+  numbers. Other readers refused those files where polyxios recovered by
+  looking for the keyword anyway. Every binary block now closes the way the
+  format says, and a file written before this still reads: the newline is
+  stepped over where it is there rather than required.
+
+- A symmetric tensor's six components are ``XX``, ``YY``, ``ZZ``, ``XY``,
+  ``YZ``, ``XZ`` - the order VTK itself hands back for the cell at
+  ``(i, j)``. The writer mirrored a six-component array into the full 3x3 a
+  ``TENSORS`` section holds using the classical Voigt order instead, whose
+  last three run the other way, so ``XZ`` and ``YZ`` came out in each other's
+  places. Nothing downstream can tell that from a tensor that was always that
+  way, which is why it went unseen.
+
+- A legacy ``.vtk`` ``TENSORS6`` section is read as the six components it
+  holds. VTK 9 writes a symmetric tensor with that keyword, and every reader
+  here matched it as a ``TENSORS`` and took its tuples for nine: an ASCII file
+  failed with a ``CodecError`` about a row that is not numbers, and a binary
+  one read six values plus whatever followed them, then went on from the
+  middle of the next array and dropped every array after it. The six are
+  mirrored into the full 3x3, so a mesh holds one tensor shape whichever
+  spelling the file used.
+
 - An array whose name holds XML markup - an ampersand, a quote, an angle
   bracket, as a group named in another format may - is written escaped by the
   VTK XML formats. It used to close the ``Name`` attribute early and leave a
