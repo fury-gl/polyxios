@@ -69,7 +69,7 @@ def test_unsupported_lazy() -> None:
         read(tmp, lazy=True)
 
 
-def test_multi_group_element_tags() -> None:
+def test_an_element_in_two_groups_keeps_both() -> None:
     """Element 0 in both 'inlet' and 'wall' - both must survive roundtrip."""
     verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
     poly = make_polydata(
@@ -91,7 +91,7 @@ def test_multi_group_element_tags() -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.1 - texture coordinates, normals and face indices
+# Texture coordinates, normals and face indices
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +166,7 @@ def test_a_vertex_with_two_uvs_warns_that_one_is_kept(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# P1.2 - groups on write
+# Groups on write
 # ---------------------------------------------------------------------------
 
 

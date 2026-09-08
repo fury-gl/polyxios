@@ -169,7 +169,7 @@ def test_a_piece_count_that_is_not_a_count_names_the_file(tmp_path) -> None:
         read(path)
 
 
-def test_issue_1546_a_vtp_write_holds_the_field_data(tmp_path) -> None:
+def test_a_vtp_write_holds_the_field_data(tmp_path) -> None:
     """The writer dropped global_attrs, so a time value or a material constant
     did not survive being written."""
     poly = make_polydata(

@@ -1,12 +1,13 @@
 from bisect import bisect_left
-from collections.abc import Sequence
-from itertools import accumulate
+from collections.abc import Callable, Iterable, Sequence
+from itertools import accumulate, islice
 import mmap
 import re
-from typing import Any
+from typing import Any, Final
 import warnings
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 from polyxios._element_types import (
     ELEMENT_TYPES,
@@ -51,6 +52,11 @@ MAX_CONNECTIVITY_INDEX_V42: int = 2**31 - 1
 MAX_CONNECTIVITY_INDEX_V51: int = 2**63 - 1
 MAX_CONNECTIVITY_INDEX: int = MAX_CONNECTIVITY_INDEX_V42
 
+# What a cell type no table names is written as. A polygon says only that
+# the cell has the corners it lists, which is the most a reader can be told
+# about a shape this writer cannot name.
+_VTK_POLYGON: Final[int] = 7
+
 _VTK_DTYPE_MAP: dict[str, str] = {
     "float": "f4",
     "double": "f8",
@@ -93,6 +99,34 @@ _NP_TO_VTK_DTYPE: dict[str, str] = {
 # double it converts to, the way an attribute array already is.
 _FIELD_FALLBACK: str = "double"
 
+# A legacy SCALARS header names between one and four components inclusive.
+_MAX_SCALARS_COMPONENTS: Final[int] = 4
+
+# How many values one write spells at a time. A block is spelled in runs
+# rather than joined whole: the join is what a write of any size costs, and
+# holding the whole of a large mesh as one string costs several times what
+# the mesh itself does. The runs are cut on whole rows, so the bytes are the
+# ones a single join would have produced.
+_ASCII_RUN: Final[int] = 1 << 16
+
+# How many cells one write of a v4.2 CELLS section spells at a time. Counted
+# in cells rather than values because a cell is one line whatever its width.
+_CELLS_RUN: Final[int] = 1 << 12
+
+# The nine cells of a 3x3 tensor, taken from the six a symmetric one carries.
+# VTK orders those XX, YY, ZZ, XY, YZ, XZ - the order its own reader hands
+# back when asked for the cell at (i, j), and not the classical Voigt one,
+# whose last three run the other way. Reading them in the wrong order
+# transposes a stress tensor's two shear terms into each other's places,
+# which no later step can tell from a tensor that was always that way.
+_SYMMETRIC_TENSOR_CELLS: Final[tuple[int, ...]] = (0, 3, 5, 3, 1, 4, 5, 4, 2)
+
+# What a TENSORS tuple holds, by the keyword that names it: the symmetric
+# spelling VTK 9 writes carries six values, the plain one all nine.
+_SYMMETRIC_TENSOR_KEYWORD: Final[str] = "TENSORS6"
+_SYMMETRIC_TENSOR_COMPONENTS: Final[int] = 6
+_TENSOR_COMPONENTS: Final[int] = 9
+
 # What a binary header is read as when it leaves its type field out. The
 # format makes the field mandatory, so this only ever answers a malformed
 # one - but every reader here has to answer it the same way, or the same
@@ -129,6 +163,7 @@ _ATTRIBUTE_KEYWORDS: frozenset[str] = frozenset(
         "NORMALS",
         "TEXTURE_COORDINATES",
         "TENSORS",
+        "TENSORS6",
         "FIELD",
         "LOOKUP_TABLE",
     }
@@ -357,14 +392,11 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
         # CELL_TYPES
         fh.write(f"CELL_TYPES {n_elems}\n".encode())
-        vtk_types = np.array(
-            [_polyxios_to_vtk_code(poly.element_types[i]) for i in range(n_elems)],
-            dtype=np.int32,
-        )
+        vtk_types = _vtk_cell_codes(poly.element_types)
         if binary:
             _write_bin_i32(vtk_types, fh)
         else:
-            fh.write((" ".join(str(t) for t in vtk_types) + "\n").encode())
+            _write_ascii_ints(vtk_types, fh, per_line=n_elems)
 
         # POINT_DATA and CELL_DATA. A tag group travels among them as one
         # column of ones and zeros named for it: the section holds one value
@@ -381,6 +413,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                 kind="point",
             ),
             kind="point",
+            n_items=n_verts,
         )
         cell_arrays = _spellable_arrays(
             with_tag_masks(
@@ -391,6 +424,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
                 kind="cell",
             ),
             kind="cell",
+            n_items=n_elems,
         )
 
         if point_arrays:
@@ -410,76 +444,299 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 def _polyxios_to_vtk_code(type_code: int) -> int:
     name = ELEMENT_TYPES_INV.get(int(type_code))
     if name is None or name not in POLYXIOS_TO_VTK:
-        return 7  # fallback to polygon
+        return _VTK_POLYGON
     return POLYXIOS_TO_VTK[name]
 
 
+# One row per code a byte can hold, which is every code polyxios names and
+# then some: the table is built once at import and a mesh is translated by
+# indexing it, so no write pays the dictionary hop even once. A row no type
+# claims holds the polygon fallback, so an unknown code reads out of the
+# table as the same answer the per-code lookup gives it.
+_VTK_CODE_TABLE: Final[np.ndarray] = np.array(
+    [_polyxios_to_vtk_code(code) for code in range(256)], dtype=np.int32
+)
+
+
+def _vtk_cell_codes(type_codes: np.ndarray) -> np.ndarray:
+    """Translate a run of polyxios element types into VTK cell codes.
+
+    Parameters
+    ----------
+    type_codes
+        One polyxios type code per cell.
+
+    Returns
+    -------
+    numpy.ndarray
+        One VTK code per cell, as ``int32``. A code the table does not reach
+        - a negative one, or one past the last a byte can hold - names no
+        element type and takes the polygon fallback, which is what the
+        per-code lookup answers for any code it does not know.
+
+    Notes
+    -----
+    Nothing here is sized by the codes themselves: the table is a fixed 256
+    rows and the gather is bounded before it runs, so a mesh carrying a
+    stray code costs a pass rather than an allocation the size of the code.
+    """
+    types = np.asarray(type_codes)
+    if types.size == 0:
+        return np.empty(0, dtype=np.int32)
+    flat = np.reshape(types, -1)
+    if flat.dtype.kind not in "iu":
+        flat = flat.astype(np.int64)
+    if flat.dtype == np.uint8:
+        # What a mesh built here carries. Every value the dtype can hold is
+        # a row of the table, so the gather needs no bounds check at all.
+        return _VTK_CODE_TABLE[flat]
+    within = np.clip(flat, 0, _VTK_CODE_TABLE.size - 1)
+    codes = _VTK_CODE_TABLE[within]
+    codes[within != flat] = _VTK_POLYGON
+    return codes
+
+
 def _write_cells_v42(poly: PolyData, fh: object, binary: bool) -> None:
-    """Write v4.2 CELLS + CELL_TYPES sections."""
+    """Write the v4.2 ``CELLS`` section, each cell prefixed by its count.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    fh
+        Open binary file object.
+    binary
+        Write the stream as big-endian ints rather than spelling it.
+
+    Notes
+    -----
+    The declared length counts the run the offsets name and not the whole of
+    the connectivity: the two are the same for a mesh built here, and where
+    a hand-built one leaves a tail no cell reaches, the header says what the
+    section goes on to hold rather than promising the tail as well. Both
+    spellings count it off the same offsets, so the two cannot declare
+    different lengths for one mesh.
+
+    Neither spelling holds more than a run of cells at a time, so the memory
+    a write of any size costs is a fixed one above the mesh it was handed.
+    """
     n_elems = len(poly.element_types)
-    # total_size = connectivity size + n_elems (each cell prefixed by count)
-    total_size = len(poly.connectivity) + n_elems
+    offsets = np.asarray(poly.offsets)
+    first = int(offsets[0]) if n_elems else 0
+    last = int(offsets[n_elems]) if n_elems else 0
+    # Each cell is its own count and then its nodes, so the stream is longer
+    # than the connectivity it names by one value per cell.
+    total_size = last - first + n_elems
     fh.write(f"CELLS {n_elems} {total_size}\n".encode())  # type: ignore[union-attr]
+    if not total_size:
+        return
+
+    width = _uniform_cell_width(offsets, n_elems)
+    runs = range(0, n_elems, _CELLS_RUN)
+    conn = poly.connectivity
 
     if binary:
-        # Build interleaved [count, idx0, idx1, ...] int32 stream
-        parts: list[np.ndarray] = []
-        for i in range(n_elems):
-            s = int(poly.offsets[i])
-            e = int(poly.offsets[i + 1])
-            cnt = e - s
-            parts.append(np.array([cnt], dtype=np.int32))
-            parts.append(poly.connectivity[s:e].astype(np.int32))
-        if parts:
-            _write_bin_i32(np.concatenate(parts), fh)
-    else:
-        for i in range(n_elems):
-            s = int(poly.offsets[i])
-            e = int(poly.offsets[i + 1])
-            face = poly.connectivity[s:e]
-            fh.write(
-                (str(e - s) + " " + " ".join(str(v) for v in face) + "\n").encode()
-            )  # type: ignore[union-attr]
+        _write_bin_block(
+            (
+                _v42_cell_run(
+                    conn, offsets, start, min(start + _CELLS_RUN, n_elems), width
+                )
+                for start in runs
+            ),
+            fh,
+            ">i4",
+        )
+        return
+
+    for start in runs:
+        stop = min(start + _CELLS_RUN, n_elems)
+        run = _v42_cell_run(conn, offsets, start, stop, width)
+        if width:
+            # Every cell is one row of the same length, so the shared writer
+            # cuts the rows and this never spells a value in Python.
+            _write_ascii_ints(run, fh, per_line=width + 1)
+            continue
+        # Ragged rows are no rectangle for ``zip`` to cut, so one shared
+        # iterator spells each value once and ``islice`` takes a row at a
+        # time off it. Slicing the run per cell instead would copy it again,
+        # once for the nodes and once for the tuple they are spelled from.
+        rows = (offsets[start + 1 : stop + 1] - offsets[start:stop] + 1).tolist()
+        spelled = map(str, run.tolist())
+        body = "\n".join([" ".join(islice(spelled, row)) for row in rows])
+        fh.write((body + "\n").encode())  # type: ignore[union-attr]
+
+
+def _uniform_cell_width(offsets: np.ndarray, n_elems: int) -> int:
+    """Count the nodes every cell holds, where they all hold the same many.
+
+    Parameters
+    ----------
+    offsets
+        CSR offsets, one more than there are cells.
+    n_elems
+        How many cells the mesh holds.
+
+    Returns
+    -------
+    int
+        The shared node count, or ``0`` where the cells differ - which is
+        also what a mesh of no cells answers, having no width to share.
+
+    Notes
+    -----
+    A mesh of one element type is the common one, and a shared width is what
+    lets a run of cells be laid out as rows of an array rather than a cell
+    at a time.
+    """
+    if n_elems == 0:
+        return 0
+    sizes = offsets[1 : n_elems + 1] - offsets[:n_elems]
+    first = int(sizes[0])
+    return first if bool((sizes == sizes[0]).all()) else 0
+
+
+def _v42_cell_run(
+    conn: np.ndarray, offsets: np.ndarray, start: int, stop: int, width: int
+) -> np.ndarray:
+    """Lay out cells ``[start, stop)`` as the v4.2 section spells them.
+
+    Parameters
+    ----------
+    conn
+        The mesh's connectivity.
+    offsets
+        CSR offsets, one more than there are cells.
+    start, stop
+        The half-open run of cells to lay out.
+    width
+        The node count every cell in the mesh shares, or ``0`` where they
+        differ, as :func:`_uniform_cell_width` counts it.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``int32``, each cell its node count and then its nodes.
+
+    Notes
+    -----
+    A shared width makes the run a rectangle: the counts are one column and
+    the connectivity reshapes into the rest, which is a copy and no more.
+    Where the widths differ the counts are scattered to where the offsets
+    put them and the nodes fill in around them - still one pass, but one
+    that has to find the gaps first. Either way the cells of a run are
+    contiguous in the connectivity, which is what CSR offsets mean.
+    """
+    n_cells = stop - start
+    lo = int(offsets[start])
+    hi = int(offsets[stop])
+    if width:
+        block = np.empty((n_cells, width + 1), dtype=np.int32)
+        block[:, 0] = width
+        block[:, 1:] = conn[lo:hi].reshape(n_cells, width)
+        return block.reshape(-1)
+
+    heads = (offsets[start:stop] - lo).astype(np.int64) + np.arange(
+        n_cells, dtype=np.int64
+    )
+    run = np.empty(hi - lo + n_cells, dtype=np.int32)
+    run[heads] = offsets[start + 1 : stop + 1] - offsets[start:stop]
+    elsewhere = np.ones(run.size, dtype=np.bool_)
+    elsewhere[heads] = False
+    run[elsewhere] = conn[lo:hi]
+    return run
 
 
 def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
-    """Write v5.1 OFFSETS + CONNECTIVITY sections.
+    """Write the v5.1 ``CELLS`` section as an OFFSETS and CONNECTIVITY pair.
 
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    fh
+        Open binary file object.
+    binary
+        Write both blocks as big-endian ints rather than spelling them.
+
+    Notes
+    -----
     The two numbers on a v5.1 ``CELLS`` line are the length of the OFFSETS
     array and the length of the CONNECTIVITY array - not the cell count,
     which is one less than the first of them. VTK's own reader takes the
     first number literally and stops with "Error reading cell array
     connectivity header" when it does not match the values that follow.
-    """
-    conn_size = len(poly.connectivity)
-    offsets64 = poly.offsets.astype(np.int64)
 
-    fh.write(f"CELLS {len(offsets64)} {conn_size}\n".encode())  # type: ignore[union-attr]
+    Both are cut to the cells ``CELL_TYPES`` goes on to name. An offsets
+    array kept at a buffer's original length names cells the types after it
+    never reach, and a reader that believes the offsets builds them anyway -
+    taking each one's type from past the end of the array that holds them.
+    A connectivity tail no offset reaches goes the same way, so the section
+    holds the run the cells name and nothing after it.
+
+    An offsets array that does not start at zero is one whose first cell
+    begins partway into the connectivity. Only the run from there is
+    written, so the offsets are rebased onto it: unlike v4.2, which spells
+    each cell's node indices inline, these are positions in the block that
+    follows them.
+    """
+    n_elems = len(poly.element_types)
+    offsets64 = np.asarray(poly.offsets[: n_elems + 1], dtype=np.int64)
+    first = int(offsets64[0]) if offsets64.size else 0
+    last = int(offsets64[-1]) if offsets64.size else 0
+    if first:
+        offsets64 = offsets64 - first
+    conn64 = np.asarray(poly.connectivity[first:last], dtype=np.int64)
+
+    fh.write(f"CELLS {offsets64.size} {conn64.size}\n".encode())  # type: ignore[union-attr]
     fh.write(b"OFFSETS vtktypeint64\n")
-    if binary:
-        fh.write(offsets64.astype(np.dtype(">i8")).tobytes())  # type: ignore[union-attr]
-    else:
-        fh.write((" ".join(str(x) for x in offsets64) + "\n").encode())  # type: ignore[union-attr]
+    _write_int64_block(offsets64, fh, binary=binary)
 
     fh.write(b"CONNECTIVITY vtktypeint64\n")
-    conn64 = poly.connectivity.astype(np.int64)
+    _write_int64_block(conn64, fh, binary=binary)
+
+
+def _write_int64_block(values: np.ndarray, fh: object, *, binary: bool) -> None:
+    """Write a v5.1 ``vtktypeint64`` block and the newline that closes it.
+
+    Parameters
+    ----------
+    values
+        The values, already 64-bit.
+    fh
+        Open binary file object.
+    binary
+        Write the payload as big-endian raw bytes rather than spelling it.
+
+    Notes
+    -----
+    A binary block closes on a newline the same way a spelled one does; see
+    :func:`_write_bin_block` for what a reader does with one that omits it.
+    """
     if binary:
-        fh.write(conn64.astype(np.dtype(">i8")).tobytes())  # type: ignore[union-attr]
-    else:
-        fh.write((" ".join(str(x) for x in conn64) + "\n").encode())  # type: ignore[union-attr]
+        _write_bin_block((values,), fh, ">i8")
+        return
+    _write_ascii_ints(values, fh, per_line=values.size)
 
 
 def _spellable_arrays(
-    arrays: dict[str, np.ndarray], *, kind: str, stacklevel: int = 3
+    arrays: dict[str, np.ndarray],
+    *,
+    kind: str,
+    n_items: int | None = None,
+    stacklevel: int = 3,
 ) -> dict[str, np.ndarray]:
-    """Drop the arrays a legacy header cannot name, naming them once.
+    """Drop the arrays a legacy header cannot spell, naming them once.
 
     Parameters
     ----------
     arrays
         The arrays a section is about to write.
     kind
-        ``point``, ``cell`` or ``metadata``, named in the warning.
+        ``point``, ``cell`` or ``metadata``, named in the warnings.
+    n_items
+        How many points or cells the section covers, which is how many
+        tuples each of its arrays owes. ``None`` for a field block, whose
+        arrays each declare their own tuple count and so owe no other.
     stacklevel
         How far above this frame the warning should point. The default
         answers a codec's ``write``, which is where this is called from; a
@@ -488,39 +745,82 @@ def _spellable_arrays(
     Returns
     -------
     dict of str to numpy.ndarray
-        The arrays whose names survive, in the order they were held. The same
-        mapping when every name does, so the common case allocates nothing.
+        The arrays that survive, in the order they were held. The same
+        mapping when every one does, so the common case allocates nothing.
 
     Warns
     -----
     UserWarning
-        Once, naming every array dropped. A legacy header names its array in
-        a whitespace-separated field, so a name that holds whitespace is read
-        back as a name and a stray token - and the array after it as that
-        token's values. There is no escaping in the format to fall back on,
-        and a name that is blank leaves the array with no handle at all.
+        Once per reason, naming every array dropped for it. A legacy header
+        names its array in a whitespace-separated field, so a name that holds
+        whitespace is read back as a name and a stray token - and the array
+        after it as that token's values. There is no escaping in the format
+        to fall back on, and a name that is blank leaves the array with no
+        handle at all. A tuple of no components is the other unspellable
+        thing: every header here counts components from one, and the
+        ``SCALARS 0`` a zero-width array would be spelled as is a count the
+        format puts outside its own range, which a strict reader refuses.
+        The last is a row count the section does not cover. Only the section
+        header says where one of its arrays ends, so an array of more rows
+        or fewer runs past that end or stops short of it, and the reader
+        takes the values on either side of the boundary for the keyword line
+        that should be there - which costs every array after it as well.
 
     Notes
     -----
     Asked before the section header is written, not while its arrays are:
     every section here declares itself ahead of its contents, and a
-    ``POINT_DATA`` promising arrays that all turn out to be unnameable is a
+    ``POINT_DATA`` promising arrays that all turn out to be unspellable is a
     header over nothing. Every section spells its names the same way, which
     is why the attribute writer and the field block both ask here.
     """
     # ``str`` rather than the name itself: nothing stops a caller keying an
     # attribute by something that is not text, and it goes into the header as
     # whatever it prints as, the way it did before there was a rule here.
-    dropped = {name for name in arrays if not name or _WHITESPACE.search(str(name))}
-    if not dropped:
-        return arrays
-    warnings.warn(
-        f".vtk: {kind} array name(s) {sorted(dropped, key=repr)} are not"
-        " written: a name that is blank, or that holds whitespace, is one no"
-        " legacy header field can spell.",
-        UserWarning,
-        stacklevel=stacklevel,
+    unnamed = {name for name in arrays if not name or _WHITESPACE.search(str(name))}
+    empty = {
+        name
+        for name, arr in arrays.items()
+        if name not in unnamed and not _components(arr)
+    }
+    uncovered = (
+        set()
+        if n_items is None
+        else {
+            name
+            for name, arr in arrays.items()
+            if name not in unnamed
+            and name not in empty
+            and np.shape(arr)[:1] != (n_items,)
+        }
     )
+    if not unnamed and not empty and not uncovered:
+        return arrays
+    if unnamed:
+        warnings.warn(
+            f".vtk: {kind} array name(s) {sorted(unnamed, key=repr)} are not"
+            " written: a name that is blank, or that holds whitespace, is one"
+            " no legacy header field can spell.",
+            UserWarning,
+            stacklevel=stacklevel,
+        )
+    if empty:
+        warnings.warn(
+            f".vtk: {kind} array(s) {sorted(empty, key=repr)} are not written:"
+            " a tuple of no components is a width no legacy header can name.",
+            UserWarning,
+            stacklevel=stacklevel,
+        )
+    if uncovered:
+        warnings.warn(
+            f".vtk: {kind} array(s) {sorted(uncovered, key=repr)} are not"
+            f" written: the section holds one tuple per {kind} and declares"
+            f" {n_items} of them, so rows the mesh cannot match would be read"
+            " as the keyword line that ends the array.",
+            UserWarning,
+            stacklevel=stacklevel,
+        )
+    dropped = unnamed | empty | uncovered
     return {name: arr for name, arr in arrays.items() if name not in dropped}
 
 
@@ -573,8 +873,7 @@ def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
             f"{name} {n_comp} {values.size // n_comp} {vtk_name}\n".encode()
         )
         if binary:
-            fh.write(values.astype(">" + np_str).tobytes())  # type: ignore[union-attr]
-            fh.write(b"\n")  # type: ignore[union-attr]
+            _write_bin_block((values,), fh, ">" + np_str)
         elif np_str[0] == "f":
             _write_ascii_f64(values.ravel().astype(np.float64), fh, per_line=n_comp)
         else:
@@ -894,7 +1193,7 @@ def _read_structured_field_block(
 
 
 def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) -> None:
-    """Write a single attribute array to a VTK file (SCALARS/VECTORS/TENSORS).
+    """Write one attribute array as SCALARS, VECTORS, TENSORS or FIELD.
 
     An array's header says nothing about whether it belongs to the points or
     the cells - the section it is written under does, and the caller has
@@ -914,9 +1213,22 @@ def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) ->
 
     Notes
     -----
-    The name is taken as spellable. :func:`_spellable_arrays` is what says so,
-    and the caller asks it before writing the section header rather than here,
-    so a section whose arrays are all dropped is not declared at all.
+    The array is taken as one a legacy header can spell: a name no field can
+    hold and a tuple of no components alike are dropped by
+    :func:`_spellable_arrays`, which the caller asks before writing the
+    section header rather than here, so a section whose arrays are all
+    dropped is not declared at all.
+
+    Which spelling a tuple gets follows its width, and the narrow ones are
+    tried first: three components are a ``VECTORS``, a full nine or the six
+    of a symmetric tensor a ``TENSORS``, and anything else up to four a
+    ``SCALARS``. The six are mirrored into the full nine rather than written
+    as the ``TENSORS6`` VTK 9 spells them with, which a reader older than
+    that keyword would not know. What is left is a width no narrow header can
+    name, and it goes out as a ``FIELD`` array, whose own header carries the
+    component count and so has no ceiling. A ``SCALARS`` header is capped at
+    four components by the format, and a wider one leaves what the file
+    means to how forgiving the reader that opens it happens to be.
     """
     values = np.ascontiguousarray(arr, dtype=np.float64)
 
@@ -929,17 +1241,21 @@ def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) ->
     elif values.ndim == 3 and values.shape[1:] == (3, 3):
         header = f"TENSORS {name} double\n"
         per_line = 3
-    elif values.ndim == 2 and values.shape[1] == 6:
-        # Voigt 6-component - expand to the full 3x3 a TENSORS section holds.
-        values = values[:, [0, 3, 4, 3, 1, 5, 4, 5, 2]]
+    elif values.ndim == 2 and values.shape[1] == _SYMMETRIC_TENSOR_COMPONENTS:
+        values = values[:, list(_SYMMETRIC_TENSOR_CELLS)]
         header = f"TENSORS {name} double\n"
         per_line = 3
     else:
         # Generic multi-component. Every dimension past the first belongs to
         # the tuple, so a (n, 2, 4) array is eight components and not two.
-        header = f"SCALARS {name} double {_components(values)}\n"
-        header += "LOOKUP_TABLE default\n"
-        per_line = values.size
+        n_comp = _components(values)
+        per_line = n_comp
+        if n_comp > _MAX_SCALARS_COMPONENTS:
+            header = (
+                f"FIELD FieldData 1\n{name} {n_comp} {values.size // n_comp} double\n"
+            )
+        else:
+            header = f"SCALARS {name} double {n_comp}\nLOOKUP_TABLE default\n"
 
     fh.write(header.encode())  # type: ignore[union-attr]
     if binary:
@@ -952,13 +1268,65 @@ def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) ->
         _write_ascii_f64(values.ravel(), fh, per_line=per_line)
 
 
-def _components(arr: np.ndarray) -> int:
+def _tensor_tuple_size(keyword: str) -> int:
+    """Count the values one tuple of a TENSORS section holds.
+
+    Parameters
+    ----------
+    keyword
+        The section's keyword, as the file spelled it.
+
+    Returns
+    -------
+    int
+        Six for the symmetric spelling VTK 9 writes, nine otherwise.
+    """
+    return (
+        _SYMMETRIC_TENSOR_COMPONENTS
+        if keyword.upper() == _SYMMETRIC_TENSOR_KEYWORD
+        else _TENSOR_COMPONENTS
+    )
+
+
+def _full_tensors(
+    flat: Sequence[float] | np.ndarray, n_items: int, *, n_comp: int
+) -> np.ndarray:
+    """Shape a run of tensor values into one 3x3 per point or cell.
+
+    Parameters
+    ----------
+    flat
+        The values a TENSORS section held, already flat.
+    n_items
+        How many points or cells the section covers.
+    n_comp
+        Values per tuple, from :func:`_tensor_tuple_size`.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(n_items, 3, 3)``. A symmetric tuple is mirrored into the
+        cells below the diagonal rather than kept at six, so a mesh holds one
+        tensor shape whichever spelling the file used.
+    """
+    values = np.asarray(flat, dtype=np.float64)
+    if n_comp == _SYMMETRIC_TENSOR_COMPONENTS:
+        mirrored = values.reshape(n_items, n_comp)[:, list(_SYMMETRIC_TENSOR_CELLS)]
+        return mirrored.reshape(n_items, 3, 3)
+    return values.reshape(n_items, 3, 3)
+
+
+def _components(arr: ArrayLike) -> int:
     """Count the components one tuple of an attribute array holds.
 
     Parameters
     ----------
     arr
-        The array, one tuple per row.
+        The array, one tuple per row. Any rectangular nested sequence too,
+        so that a caller keying an attribute by a list of lists is counted
+        the same as one keying it by an array - the writer takes either. A
+        ragged one has no shape to count and raises here, before a section
+        header promising it has been written.
 
     Returns
     -------
@@ -966,9 +1334,62 @@ def _components(arr: np.ndarray) -> int:
         Components per tuple; 1 for a one-dimensional array.
     """
     count = 1
-    for dim in arr.shape[1:]:
+    for dim in np.shape(arr)[1:]:
         count *= int(dim)
     return count
+
+
+def _write_ascii_block(
+    flat: np.ndarray, fh: object, *, per_line: int, spell: Callable[[Any], str]
+) -> None:
+    """Spell a flat run of numbers into a legacy VTK file.
+
+    Parameters
+    ----------
+    flat
+        The values, already flat.
+    fh
+        Open binary file object.
+    per_line
+        Values per line; ``flat.size`` puts them all on one, and so does any
+        count at or above it. A run it does not divide goes on one line
+        rather than losing its last few values. Zero is read as one, so a
+        caller counting components off an empty run cannot divide by it.
+    spell
+        What one value is spelled by, once it is a Python number.
+
+    Notes
+    -----
+    A write per line costs a syscall per point, so the values are joined
+    before they are written - but in runs of :data:`_ASCII_RUN` rather than
+    whole, because the string a large mesh joins to is several times the
+    mesh. Each run is cut on a whole line, so the bytes are the ones a
+    single join would have produced.
+
+    One shared iterator spells each value once and ``zip`` cuts the run into
+    rows; grouping a spelled list by slices copies it again, and a join per
+    row costs more than the one this pays.
+    """
+    n_values = flat.size
+    if not n_values:
+        fh.write(b"\n")  # type: ignore[union-attr]
+        return
+    per_line = max(per_line, 1)
+
+    if per_line >= n_values or n_values % per_line:
+        # One line, still written in runs: the separator between two runs is
+        # the one that would have stood between the values they join.
+        for start in range(0, n_values, _ASCII_RUN):
+            run = " ".join(map(spell, flat[start : start + _ASCII_RUN].tolist()))
+            fh.write((" " + run if start else run).encode())  # type: ignore[union-attr]
+        fh.write(b"\n")  # type: ignore[union-attr]
+        return
+
+    step = max(_ASCII_RUN // per_line, 1) * per_line
+    for start in range(0, n_values, step):
+        spelled = map(spell, flat[start : start + step].tolist())
+        body = "\n".join(map(" ".join, zip(*[spelled] * per_line)))
+        fh.write((body + "\n").encode())  # type: ignore[union-attr]
 
 
 def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
@@ -977,8 +1398,7 @@ def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
     ``repr`` of a Python float is the shortest decimal that reads back as
     that double, so a value written this way survives the round trip; the
     fixed ``'%.10g'`` this used quietly dropped the last seven digits of
-    every coordinate a ``double`` section claimed to hold. The whole block
-    is joined and written once: a write per line costs a syscall per point.
+    every coordinate a ``double`` section claimed to hold.
 
     Parameters
     ----------
@@ -990,16 +1410,7 @@ def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
         Values per line; ``flat.size`` puts them all on one. A run it does
         not divide goes on one line rather than losing its last few values.
     """
-    values = flat.tolist()
-    if per_line >= len(values) or len(values) % per_line:
-        body = " ".join(map(repr, values))
-    else:
-        # One shared iterator spells each value once and zip cuts the run
-        # into rows; grouping a spelled list by slices copies it again, and
-        # a join per row costs more than the one this pays.
-        spelled = map(repr, values)
-        body = "\n".join(map(" ".join, zip(*[spelled] * per_line)))
-    fh.write((body + "\n").encode() if body else b"\n")  # type: ignore[union-attr]
+    _write_ascii_block(flat, fh, per_line=per_line, spell=repr)
 
 
 def _write_ascii_ints(flat: np.ndarray, fh: object, *, per_line: int) -> None:
@@ -1019,21 +1430,64 @@ def _write_ascii_ints(flat: np.ndarray, fh: object, *, per_line: int) -> None:
         Values per line, one tuple to a row. A run it does not divide goes on
         one line rather than losing its last few values.
     """
-    values = flat.tolist()
-    if per_line >= len(values) or len(values) % per_line:
-        body = " ".join(map(str, values))
-    else:
-        spelled = map(str, values)
-        body = "\n".join(map(" ".join, zip(*[spelled] * per_line)))
-    fh.write((body + "\n").encode() if body else b"\n")  # type: ignore[union-attr]
+    _write_ascii_block(flat, fh, per_line=per_line, spell=str)
+
+
+def _write_bin_block(
+    runs: Iterable[np.ndarray], fh: object, dtype: str | np.dtype
+) -> None:
+    """Write one binary block from the runs it is held in, and close it.
+
+    Parameters
+    ----------
+    runs
+        The values, in as many runs as the caller holds them; each is
+        converted and written as it comes, so a caller that yields them can
+        write a mesh of any size without laying the whole block out first.
+    fh
+        Open binary file object.
+    dtype
+        The big-endian type the block is written in.
+
+    Notes
+    -----
+    The newline that ends a block is the format's, not a convenience: the
+    keyword line after a block is found by reading to the next one. Without
+    it the terminator a reader finds is the first ``0x0a`` inside the
+    *following* block's payload, which puts the keyword line somewhere in
+    the middle of the numbers. Every binary block here is written through
+    this, so no caller can leave one off.
+    """
+    big_endian = np.dtype(dtype)
+    for run in runs:
+        fh.write(np.asarray(run).astype(big_endian).tobytes())  # type: ignore[union-attr]
+    fh.write(b"\n")  # type: ignore[union-attr]
 
 
 def _write_bin_f64(arr: np.ndarray, fh: object) -> None:
-    fh.write(arr.astype(np.dtype(">f8")).tobytes())  # type: ignore[union-attr]
+    """Write a block of big-endian doubles; see :func:`_write_bin_block`.
+
+    Parameters
+    ----------
+    arr
+        The values, already flat.
+    fh
+        Open binary file object.
+    """
+    _write_bin_block((arr,), fh, ">f8")
 
 
 def _write_bin_i32(arr: np.ndarray, fh: object) -> None:
-    fh.write(arr.astype(np.dtype(">i4")).tobytes())  # type: ignore[union-attr]
+    """Write a block of big-endian 32-bit ints; see :func:`_write_bin_block`.
+
+    Parameters
+    ----------
+    arr
+        The values, already flat.
+    fh
+        Open binary file object.
+    """
+    _write_bin_block((arr,), fh, ">i4")
 
 
 def _read_polydata_ascii(path: Source) -> PolyData:
@@ -2390,9 +2844,10 @@ def _parse_vtk_data_attrs(
         elif upper.startswith("TENSORS"):
             parts = line.split()
             name = _attr_name(parts, f"line {i + 1}")
+            n_comp = _tensor_tuple_size(parts[0])
             i += 1
-            i, vals = _read_ascii_values(lines, i, n_declared * 9, name=name)
-            attrs[name] = np.array(vals, dtype=np.float64).reshape(n_declared, 3, 3)
+            i, vals = _read_ascii_values(lines, i, n_declared * n_comp, name=name)
+            attrs[name] = _full_tensors(vals, n_declared, n_comp=n_comp)
 
         elif upper.startswith("FIELD"):
             parts = line.split()
@@ -3171,14 +3626,15 @@ def _parse_binary_attrs(
             parts = line.split()
             name = _attr_name(parts, where)
             np_dt = _binary_dtype(parts, 2, where)
-            n_bytes = n_items * 9 * np.dtype(np_dt).itemsize
+            n_comp = _tensor_tuple_size(parts[0])
+            n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
             raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
                 np.float64
             )
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
-            attrs[name] = raw.reshape(n_items, 3, 3)
+            attrs[name] = _full_tensors(raw, n_items, n_comp=n_comp)
 
         elif upper.startswith("FIELD"):
             n_arrays = _attr_count(line.split(), 2, where)
@@ -4284,19 +4740,20 @@ def _scan_structured_attr(
 
     if upper.startswith("TENSORS"):
         name = _attr_name(parts, where)
+        n_comp = _tensor_tuple_size(parts[0])
         i += 1
         if is_binary:
             np_dt = _binary_dtype(parts, 2, where)
             data_pos = offsets[i] if i < len(offsets) else len(raw)
-            n_bytes = n_items * 9 * np.dtype(np_dt).itemsize
+            n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(data_pos, n_bytes, len(raw), name=name)
             arr = np.frombuffer(raw[data_pos : data_pos + n_bytes], dtype=np_dt).astype(
                 np.float64
             )
-            attrs[name] = arr.reshape(n_items, 3, 3)
+            attrs[name] = _full_tensors(arr, n_items, n_comp=n_comp)
             return _skip_payload(offsets, i, n_lines, data_pos + n_bytes)
-        i, values = _read_ascii_values(texts, i, n_items * 9, name=name)
-        attrs[name] = np.array(values, dtype=np.float64).reshape(n_items, 3, 3)
+        i, values = _read_ascii_values(texts, i, n_items * n_comp, name=name)
+        attrs[name] = _full_tensors(values, n_items, n_comp=n_comp)
         return i
 
     if upper.startswith("FIELD"):

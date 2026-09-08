@@ -676,7 +676,7 @@ def test_tetgen_numbered_stem(tmp_path: Path) -> None:
     np.testing.assert_allclose(read(tmp_path / "mesh.1.ele").vertices, poly.vertices)
 
 
-def test_issue_1318_ele_attributes_are_real_not_integer(tmp_path) -> None:
+def test_ele_attributes_are_real_not_integer(tmp_path) -> None:
     """A region attribute is a REAL; reading it as an int truncates the value."""
     (tmp_path / "m.node").write_text("4 3 0 0\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n")
     (tmp_path / "m.ele").write_text("1 4 1\n1 1 2 3 4 2.75\n")
@@ -686,7 +686,7 @@ def test_issue_1318_ele_attributes_are_real_not_integer(tmp_path) -> None:
     np.testing.assert_allclose(region, [2.75])
 
 
-def test_issue_1318_several_real_attributes_keep_their_fractions(tmp_path) -> None:
+def test_several_real_attributes_keep_their_fractions(tmp_path) -> None:
     (tmp_path / "m.node").write_text("4 3 0 0\n1 0 0 0\n2 1 0 0\n3 0 1 0\n4 0 0 1\n")
     (tmp_path / "m.ele").write_text("1 4 2\n1 1 2 3 4 -0.5 1.25\n")
     poly = read(tmp_path / "m.ele")

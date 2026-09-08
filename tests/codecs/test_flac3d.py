@@ -1181,7 +1181,7 @@ def test_write_ignores_unknown_options(tmp_path: Path) -> None:
     assert len(read(tmp_path / "opts.f3grid").element_types) == 1
 
 
-def test_issue_584_a_large_grid_reads_without_boxing_every_number(
+def test_a_large_grid_reads_without_boxing_every_number(
     tmp_path: Path,
 ) -> None:
     """A read that boxes each coordinate costs several times the file itself.

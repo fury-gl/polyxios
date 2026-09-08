@@ -259,7 +259,7 @@ def test_vertex_colors_still_falls_back_to_an_unnamed_attr() -> None:
     np.testing.assert_allclose(transforms.vertex_colors(poly), [[1, 0, 0]] * 3)
 
 
-def test_issue_1548_merge_duplicate_vertices_welds_coincident_points() -> None:
+def test_merge_duplicate_vertices_welds_coincident_points() -> None:
     """Two triangles written corner-by-corner share an edge once welded."""
     verts = np.array(
         [
@@ -284,14 +284,14 @@ def test_issue_1548_merge_duplicate_vertices_welds_coincident_points() -> None:
     assert result.connectivity.dtype == poly.connectivity.dtype
 
 
-def test_issue_1548_merge_duplicate_vertices_keeps_a_clean_mesh_untouched() -> None:
+def test_merge_duplicate_vertices_keeps_a_clean_mesh_untouched() -> None:
     poly = _tri_mesh()
     result = merge_duplicate_vertices(poly)
     np.testing.assert_allclose(result.vertices, poly.vertices)
     np.testing.assert_array_equal(result.connectivity, poly.connectivity)
 
 
-def test_issue_1548_merge_duplicate_vertices_keeps_the_first_of_each_group() -> None:
+def test_merge_duplicate_vertices_keeps_the_first_of_each_group() -> None:
     """The survivor is the lowest original index, so vertex order is stable."""
     verts = np.array(
         [[2, 0, 0], [0, 0, 0], [2, 0, 0], [1, 0, 0], [0, 0, 0]],
@@ -307,7 +307,7 @@ def test_issue_1548_merge_duplicate_vertices_keeps_the_first_of_each_group() -> 
     )
 
 
-def test_issue_1548_merge_duplicate_vertices_is_order_independent() -> None:
+def test_merge_duplicate_vertices_is_order_independent() -> None:
     """Welding must not depend on the order the duplicates arrive in."""
     verts = np.array(
         [[0, 0, 0], [1, 0, 0], [0, 0, 0], [1, 0, 0], [0, 0, 0]],
@@ -321,7 +321,7 @@ def test_issue_1548_merge_duplicate_vertices_is_order_independent() -> None:
     )
 
 
-def test_issue_1548_merge_duplicate_vertices_tolerance() -> None:
+def test_merge_duplicate_vertices_tolerance() -> None:
     """Points within the tolerance weld; points outside it survive apart."""
     verts = np.array(
         [[0, 0, 0], [1e-9, 0, 0], [1, 0, 0]],
@@ -335,7 +335,7 @@ def test_issue_1548_merge_duplicate_vertices_tolerance() -> None:
     np.testing.assert_allclose(welded.vertices, verts[[0, 2]])
 
 
-def test_issue_1548_merge_duplicate_vertices_keeps_the_original_coordinates() -> None:
+def test_merge_duplicate_vertices_keeps_the_original_coordinates() -> None:
     """A tolerance decides who merges; it must not move the survivor."""
     verts = np.array([[0.3333333, 0, 0], [0.3333334, 0, 0]], dtype=np.float64)
     poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
@@ -343,12 +343,12 @@ def test_issue_1548_merge_duplicate_vertices_keeps_the_original_coordinates() ->
     np.testing.assert_allclose(result.vertices, verts[[0]])
 
 
-def test_issue_1548_merge_duplicate_vertices_rejects_a_negative_tolerance() -> None:
+def test_merge_duplicate_vertices_rejects_a_negative_tolerance() -> None:
     with pytest.raises(ValueError, match="tol"):
         merge_duplicate_vertices(_tri_mesh(), tol=-1.0)
 
 
-def test_issue_1548_merge_duplicate_vertices_carries_attrs_and_tags() -> None:
+def test_merge_duplicate_vertices_carries_attrs_and_tags() -> None:
     """The survivor keeps its own attributes, and tags follow the remap."""
     verts = np.array(
         [[0, 0, 0], [1, 0, 0], [0, 0, 0], [0, 1, 0]],
@@ -371,12 +371,12 @@ def test_issue_1548_merge_duplicate_vertices_carries_attrs_and_tags() -> None:
     assert result.vertex_tags["inlet"].dtype == poly.vertex_tags["inlet"].dtype
 
 
-def test_issue_1548_merge_duplicate_vertices_of_an_empty_mesh() -> None:
+def test_merge_duplicate_vertices_of_an_empty_mesh() -> None:
     poly = make_polydata(np.zeros((0, 3), dtype=np.float64), [])
     assert merge_duplicate_vertices(poly).vertices.shape[0] == 0
 
 
-def test_issue_1548_merge_duplicate_vertices_leaves_orphans_alone() -> None:
+def test_merge_duplicate_vertices_leaves_orphans_alone() -> None:
     """Welding is not culling - an unreferenced vertex is not a duplicate."""
     verts = np.array(
         [[0, 0, 0], [1, 0, 0], [0, 1, 0], [9, 9, 9]],
@@ -386,7 +386,7 @@ def test_issue_1548_merge_duplicate_vertices_leaves_orphans_alone() -> None:
     assert merge_duplicate_vertices(poly).vertices.shape[0] == 4
 
 
-def test_issue_1470_welding_a_facet_soup_makes_it_a_surface(tmp_path) -> None:
+def test_welding_a_facet_soup_makes_it_a_surface(tmp_path) -> None:
     """The STL corner-per-facet soup becomes a connected mesh once welded."""
     verts = np.array(
         [
@@ -405,9 +405,7 @@ def test_issue_1470_welding_a_facet_soup_makes_it_a_surface(tmp_path) -> None:
     assert welded.topological_dimension == 2
 
 
-def test_issue_1548_merge_duplicate_vertices_rejects_a_tolerance_that_overflows() -> (
-    None
-):
+def test_merge_duplicate_vertices_rejects_a_tolerance_that_overflows() -> None:
     """A tol that snaps a finite coordinate to infinity would weld everything."""
     verts = np.array([[1, 0, 0], [2, 0, 0]], dtype=np.float64)
     poly = make_polydata(verts, [("line", np.array([[0, 1]]))])
@@ -415,7 +413,7 @@ def test_issue_1548_merge_duplicate_vertices_rejects_a_tolerance_that_overflows(
         merge_duplicate_vertices(poly, tol=1e-310)
 
 
-def test_issue_1548_merge_duplicate_vertices_welds_infinite_coordinates() -> None:
+def test_merge_duplicate_vertices_welds_infinite_coordinates() -> None:
     """A tolerance must not turn a mesh's own infinities into an error."""
     verts = np.array([[np.inf, 0, 0], [np.inf, 0, 0], [1, 0, 0]], dtype=np.float64)
     poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])

@@ -1287,7 +1287,7 @@ def test_reads_what_meshio_writes(tmp_path: Path) -> None:
     )
 
 
-def test_issue_1369_a_facedescriptors_section_is_stepped_over(tmp_path) -> None:
+def test_a_facedescriptors_section_is_stepped_over(tmp_path) -> None:
     """Netgen writes one per surface; a second-order mesh always has them."""
     path = tmp_path / "fd.vol"
     path.write_text(
@@ -1305,7 +1305,7 @@ def test_issue_1369_a_facedescriptors_section_is_stepped_over(tmp_path) -> None:
     assert len(poly.element_types) == 1
 
 
-def test_issue_1369_an_empty_facedescriptors_section_is_silent(tmp_path) -> None:
+def test_an_empty_facedescriptors_section_is_silent(tmp_path) -> None:
     path = tmp_path / "fd0.vol"
     path.write_text(
         "mesh3d\n\ndimension\n3\n\ngeomtype\n0\n\n"

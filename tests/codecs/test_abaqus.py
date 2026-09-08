@@ -164,7 +164,7 @@ _TWO_TETRA = (
 )
 
 
-# --- meshio #1515, #320, #1393: the element type table ------------------------
+# --- the element type table ---------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -193,7 +193,7 @@ _TWO_TETRA = (
         ("DC3D8", "hexahedron", 8),
     ],
 )
-def test_issue_1515_element_suffixes_are_stripped_before_lookup(
+def test_element_suffixes_are_stripped_before_lookup(
     tmp_path: Path, inp_type: str, kind: str, n_nodes: int
 ) -> None:
     """A reduced-integration or hybrid card is the same element as its base."""
@@ -207,7 +207,7 @@ def test_issue_1515_element_suffixes_are_stripped_before_lookup(
     assert len(poly.connectivity) == n_nodes
 
 
-def test_issue_1393_unknown_card_warns_and_keeps_the_rest(tmp_path: Path) -> None:
+def test_unknown_card_warns_and_keeps_the_rest(tmp_path: Path) -> None:
     """An unknown card must not take the blocks around it down with it."""
     path = _write_inp(
         tmp_path,
@@ -220,7 +220,7 @@ def test_issue_1393_unknown_card_warns_and_keeps_the_rest(tmp_path: Path) -> Non
     assert list(poly.element_types) == [ELEMENT_TYPES["tetra"]]
 
 
-def test_issue_1299_element_type_option_forces_the_card(tmp_path: Path) -> None:
+def test_element_type_option_forces_the_card(tmp_path: Path) -> None:
     """A solver deck often needs C3D8R where the mesh only says 'hexahedron'."""
     verts = np.arange(24, dtype=np.float64).reshape(8, 3)
     poly = make_polydata(verts, [("hexahedron", np.arange(8).reshape(1, 8))])
@@ -230,7 +230,7 @@ def test_issue_1299_element_type_option_forces_the_card(tmp_path: Path) -> None:
     assert list(read(tmp).element_types) == [ELEMENT_TYPES["hexahedron"]]
 
 
-def test_issue_1299_element_type_for_a_type_not_present_warns(tmp_path: Path) -> None:
+def test_element_type_for_a_type_not_present_warns(tmp_path: Path) -> None:
     """A silently ignored override writes a deck the user did not ask for."""
     with pytest.warns(UserWarning, match="triangle"):
         write(_tet_mesh(), tmp_path / "o.inp", element_type={"triangle": "S3R"})
@@ -247,10 +247,10 @@ def test_quadratic_types_survive_a_round_trip(tmp_path: Path) -> None:
     np.testing.assert_array_equal(back.connectivity, poly.connectivity)
 
 
-# --- meshio #1528, #309: several *NODE blocks --------------------------------
+# --- several *NODE blocks ----------------------------------------------------
 
 
-def test_issue_1528_multiple_node_blocks_accumulate(tmp_path: Path) -> None:
+def test_multiple_node_blocks_accumulate(tmp_path: Path) -> None:
     """A second *NODE block adds nodes; overwriting drops the first block."""
     path = _write_inp(
         tmp_path,
@@ -264,7 +264,7 @@ def test_issue_1528_multiple_node_blocks_accumulate(tmp_path: Path) -> None:
     np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 3])
 
 
-def test_issue_309_repeated_node_id_updates_rather_than_appends(
+def test_repeated_node_id_updates_rather_than_appends(
     tmp_path: Path,
 ) -> None:
     """A repeated id is the same node restated; appending leaves a stray vertex."""
@@ -280,10 +280,10 @@ def test_issue_309_repeated_node_id_updates_rather_than_appends(
     np.testing.assert_allclose(poly.vertices[3], [0.0, 0.0, 2.0])
 
 
-# --- meshio #1527: node and element sets -------------------------------------
+# --- node and element sets ---------------------------------------------------
 
 
-def test_issue_1527_nset_on_a_node_block_becomes_a_vertex_tag(
+def test_nset_on_a_node_block_becomes_a_vertex_tag(
     tmp_path: Path,
 ) -> None:
     """The NSET names the block's nodes; dropping it loses the boundary."""
@@ -362,10 +362,10 @@ def test_an_element_id_defined_twice_is_reported(tmp_path: Path) -> None:
     assert len(poly.element_types) == 2
 
 
-# --- meshio #1531: *INCLUDE --------------------------------------------------
+# --- *INCLUDE ----------------------------------------------------------------
 
 
-def test_issue_1531_include_is_resolved_against_the_parent(tmp_path: Path) -> None:
+def test_include_is_resolved_against_the_parent(tmp_path: Path) -> None:
     """A deck split over files reads as one mesh or it does not read at all."""
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "nodes.inp").write_text(
@@ -380,7 +380,7 @@ def test_issue_1531_include_is_resolved_against_the_parent(tmp_path: Path) -> No
     assert len(poly.element_types) == 1
 
 
-def test_issue_1531_include_escaping_the_parent_is_refused(tmp_path: Path) -> None:
+def test_include_escaping_the_parent_is_refused(tmp_path: Path) -> None:
     """An .inp is untrusted input; a relative path must not read /etc/passwd."""
     (tmp_path / "secret.inp").write_text("*Node\n1, 0, 0, 0\n", encoding="utf-8")
     (tmp_path / "deck").mkdir()
@@ -392,14 +392,14 @@ def test_issue_1531_include_escaping_the_parent_is_refused(tmp_path: Path) -> No
         read(path)
 
 
-def test_issue_1531_include_recursion_is_capped(tmp_path: Path) -> None:
+def test_include_recursion_is_capped(tmp_path: Path) -> None:
     """A deck that includes itself would otherwise read until memory runs out."""
     path = _write_inp(tmp_path, "*Node\n1, 0, 0, 0\n*Include, input=m.inp\n")
     with pytest.raises(CodecError, match="nest|depth"):
         read(path)
 
 
-def test_issue_1531_missing_include_names_the_file(tmp_path: Path) -> None:
+def test_missing_include_names_the_file(tmp_path: Path) -> None:
     path = _write_inp(tmp_path, "*Node\n1, 0, 0, 0\n*Include, input=gone.inp\n")
     with pytest.raises(CodecError, match="gone.inp"):
         read(path)
@@ -414,10 +414,10 @@ def test_include_from_a_buffer_is_refused(tmp_path: Path) -> None:
         read(buf)
 
 
-# --- meshio #1569: *SYSTEM ---------------------------------------------------
+# --- *SYSTEM -----------------------------------------------------------------
 
 
-def test_issue_1569_system_shifts_the_nodes_that_follow(tmp_path: Path) -> None:
+def test_system_shifts_the_nodes_that_follow(tmp_path: Path) -> None:
     """Ignoring *SYSTEM puts a whole part at the wrong place in the assembly."""
     path = _write_inp(
         tmp_path,
@@ -434,7 +434,7 @@ def test_issue_1569_system_shifts_the_nodes_that_follow(tmp_path: Path) -> None:
     np.testing.assert_allclose(poly.vertices[2], [2.0, 0.0, 0.0])
 
 
-def test_issue_1569_system_rotates_the_nodes_that_follow(tmp_path: Path) -> None:
+def test_system_rotates_the_nodes_that_follow(tmp_path: Path) -> None:
     """The two points on the data line define the local axes, not just a shift."""
     path = _write_inp(
         tmp_path,
@@ -446,10 +446,10 @@ def test_issue_1569_system_rotates_the_nodes_that_follow(tmp_path: Path) -> None
     np.testing.assert_allclose(poly.vertices[0], [0.0, 1.0, 0.0], atol=1e-12)
 
 
-# --- meshio #1456: parts and instances ---------------------------------------
+# --- parts and instances -----------------------------------------------------
 
 
-def test_issue_1456_instances_are_merged_with_their_own_numbering(
+def test_instances_are_merged_with_their_own_numbering(
     tmp_path: Path,
 ) -> None:
     """Two instances both number their nodes from 1; merging blind folds them."""
@@ -473,10 +473,10 @@ def test_issue_1456_instances_are_merged_with_their_own_numbering(
     np.testing.assert_array_equal(poly.element_tags["i2"], [1])
 
 
-# --- meshio #1529: the writer's output ---------------------------------------
+# --- the writer's output -----------------------------------------------------
 
 
-def test_issue_1529_meshio_reads_what_polyxios_writes(tmp_path: Path) -> None:
+def test_meshio_reads_what_polyxios_writes(tmp_path: Path) -> None:
     """An .inp no other reader accepts is not an export, it is a dead end."""
     meshio = pytest.importorskip("meshio")
     verts = np.array(
@@ -493,7 +493,7 @@ def test_issue_1529_meshio_reads_what_polyxios_writes(tmp_path: Path) -> None:
     np.testing.assert_array_equal(mesh.cells[0].data, [[0, 1, 2, 3], [1, 2, 3, 4]])
 
 
-def test_issue_1529_element_tags_are_written_as_elsets(tmp_path: Path) -> None:
+def test_element_tags_are_written_as_elsets(tmp_path: Path) -> None:
     meshio = pytest.importorskip("meshio")
     verts = np.array(
         [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]], dtype=np.float64
@@ -514,7 +514,7 @@ def test_issue_1529_element_tags_are_written_as_elsets(tmp_path: Path) -> None:
     np.testing.assert_array_equal(back.vertex_tags["fixed"], [0, 2])
 
 
-def test_issue_1529_reads_what_meshio_writes(tmp_path: Path) -> None:
+def test_reads_what_meshio_writes(tmp_path: Path) -> None:
     meshio = pytest.importorskip("meshio")
     verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
     tmp = tmp_path / "meshio.inp"

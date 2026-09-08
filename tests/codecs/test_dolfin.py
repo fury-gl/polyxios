@@ -224,7 +224,7 @@ def test_mixed_type_write_warns(tmp_path: Path) -> None:
     assert len(poly2.element_types) == 1
 
 
-def test_issue_265_a_gmsh_mesh_with_physical_groups_writes(tmp_path: Path) -> None:
+def test_a_gmsh_mesh_with_physical_groups_writes(tmp_path: Path) -> None:
     """A DOLFIN XML holds one cell type; a mixed mesh must not fail the write."""
     import polyxios
 
@@ -248,7 +248,7 @@ def test_issue_265_a_gmsh_mesh_with_physical_groups_writes(tmp_path: Path) -> No
     assert len(back.element_types) == 1
 
 
-def test_issue_265_a_single_type_gmsh_mesh_writes_without_a_word(
+def test_a_single_type_gmsh_mesh_writes_without_a_word(
     tmp_path: Path,
 ) -> None:
     import polyxios

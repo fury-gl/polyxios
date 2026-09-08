@@ -107,10 +107,10 @@ def test_a_medit_extension_needs_no_fmt(tmp_path: Path) -> None:
     np.testing.assert_array_equal(back.connectivity, [0, 1, 2, 3])
 
 
-# --- meshio #1311: what bamg writes -----------------------------------------
+# --- what bamg writes -------------------------------------------------------
 
 
-def test_issue_1311_dimension_on_its_own_line_and_no_end(tmp_path: Path) -> None:
+def test_dimension_on_its_own_line_and_no_end(tmp_path: Path) -> None:
     """bamg puts the count on the keyword's line and omits the closing End."""
     path = _write_mesh(
         tmp_path,
@@ -125,7 +125,7 @@ def test_issue_1311_dimension_on_its_own_line_and_no_end(tmp_path: Path) -> None
     np.testing.assert_array_equal(poly.element_attrs["ref"], [4])
 
 
-def test_issue_1311_a_two_dimensional_file_pads_z(tmp_path: Path) -> None:
+def test_a_two_dimensional_file_pads_z(tmp_path: Path) -> None:
     path = _write_mesh(
         tmp_path,
         "MeshVersionFormatted 2\nDimension\n2\nVertices\n2\n"
@@ -141,7 +141,7 @@ def test_trailing_junk_after_end_is_not_read(tmp_path: Path) -> None:
     assert len(poly.element_types) == 1
 
 
-# --- meshio #1511, #1508: the sections a Medit file can carry ----------------
+# --- the sections a Medit file can carry -------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -157,7 +157,7 @@ def test_trailing_junk_after_end_is_not_read(tmp_path: Path) -> None:
         ("Hexahedra", 8, "hexahedron"),
     ],
 )
-def test_issue_1511_every_entity_section_reads(
+def test_every_entity_section_reads(
     tmp_path: Path, section: str, n_nodes: int, kind: str
 ) -> None:
     """A section a reader skips is a block of the mesh that vanishes."""
@@ -174,7 +174,7 @@ def test_issue_1511_every_entity_section_reads(
     np.testing.assert_array_equal(poly.connectivity, np.arange(n_nodes))
 
 
-def test_issue_1508_several_sections_land_in_one_mesh(tmp_path: Path) -> None:
+def test_several_sections_land_in_one_mesh(tmp_path: Path) -> None:
     verts = "\n".join(f"{float(i)} 0. 0. 0" for i in range(8))
     path = _write_mesh(
         tmp_path,
@@ -223,10 +223,10 @@ def test_a_metadata_section_is_skipped_without_a_word(tmp_path: Path) -> None:
     assert len(poly.element_types) == 1
 
 
-# --- meshio #1258: references are labels, and labels have to survive ---------
+# --- references are labels, and labels have to survive -----------------------
 
 
-def test_issue_1258_element_refs_become_tag_groups(tmp_path: Path) -> None:
+def test_element_refs_become_tag_groups(tmp_path: Path) -> None:
     """A label kept only as a column of ints does not survive a conversion."""
     verts = "\n".join(f"{float(i)} 0. 0. 0" for i in range(4))
     path = _write_mesh(
@@ -241,7 +241,7 @@ def test_issue_1258_element_refs_become_tag_groups(tmp_path: Path) -> None:
     np.testing.assert_array_equal(poly.element_tags["ref_20"], [1])
 
 
-def test_issue_1258_refs_survive_the_trip_to_vtk(tmp_path: Path) -> None:
+def test_refs_survive_the_trip_to_vtk(tmp_path: Path) -> None:
     """The headline case: a Medit region label readable in a .vtk."""
     verts = "\n".join(f"{float(i)} 0. 0. 0" for i in range(4))
     src = _write_mesh(
@@ -256,7 +256,7 @@ def test_issue_1258_refs_survive_the_trip_to_vtk(tmp_path: Path) -> None:
     np.testing.assert_array_equal(back.element_attrs["ref"], [10, 20])
 
 
-def test_issue_1258_vertex_refs_are_kept_when_any_is_set(tmp_path: Path) -> None:
+def test_vertex_refs_are_kept_when_any_is_set(tmp_path: Path) -> None:
     poly = read(_write_mesh(tmp_path, _TET))
     np.testing.assert_array_equal(poly.vertex_attrs["ref"], [1, 1, 2, 2])
 
