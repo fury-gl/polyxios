@@ -4273,6 +4273,77 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
+A legacy .vtk SCALARS header names between one and four components
+and no more. The writer spelled every tuple it had no VECTORS or
+TENSORS branch for as SCALARS whatever its width, so a nine-component
+per-element array went out as SCALARS name double 9 - a count outside
+the range the format gives that field, which leaves what the file means to
+how forgiving each reader happens to be. Such a tuple now travels as a
+FIELD array, whose
+own header carries the component count and so has no ceiling; four
+components and under keep the SCALARS spelling and its lookup table. An
+array of no components at all is outside the same range from the other end,
+and is dropped with a warning before its section header is written rather
+than spelled SCALARS name double 0.
+
+A binary block in a legacy .vtk file is closed by a newline, and the
+keyword line after it is found by reading to the next one. Only the
+dataset’s FIELD block wrote that newline: the points, the cells, the
+cell types and every attribute array ran straight into the keyword after
+them, so the terminator a reader found was the first 0x0a inside the
+following payload and the keyword line it read began in the middle of the
+numbers - a file whose sections a reader could only find by hunting for
+the keyword, as polyxios itself did. Every binary block now closes the way
+the format says, and a file written before this still reads: the newline
+is stepped over where it is there rather than required.
+
+A symmetric tensor’s six components are XX, YY, ZZ, XY,
+YZ, XZ - the order VTK itself hands back for the cell at
+(i, j). The writer mirrored a six-component array into the full 3x3 a
+TENSORS section holds using the classical Voigt order instead, whose
+last three run the other way, so XZ and YZ came out in each other’s
+places. Nothing downstream can tell that from a tensor that was always that
+way, which is why it went unseen.
+
+The two numbers on a legacy .vtk v4.2 CELLS line count the cells
+and the values that follow them. The second was taken from the length of
+the whole connectivity array rather than from the run the offsets name.
+The two are the same for a mesh built here, but a mesh holding a
+connectivity its last offset stops short of - a slice kept at its original
+length - declared values the section never went on to write, which leaves
+the next reader inside the numbers. Both spellings now declare what they
+write, and the spelled one no longer says one thing where the binary one
+says another.
+
+The first number on a legacy .vtk v5.1 CELLS line counts the
+offsets that follow it, and every offset past the first names a cell.
+The whole offsets array was written whatever the mesh’s cell count, so a
+mesh holding one kept at a buffer’s original length declared cells the
+CELL_TYPES after it never named - and a reader that believes the
+offsets builds them anyway, taking each one’s type from past the end of
+the array that holds it. Both sections now stop at the cells the types
+name. An offsets array that begins partway into the connectivity is
+rebased onto the run written after it, so the two versions answer such a
+mesh with the same cells rather than only v4.2 doing so.
+
+An attribute array whose row count is not the one its section covers is
+dropped, with a warning, before that section is declared. Only the section
+header says where one of its arrays ends, so an array of more rows ran past
+that end and one of fewer stopped short of it, and either way the reader
+took the values on the wrong side of the boundary for the keyword line that
+should have been there - costing every array after it in the section as
+well. VTK’s own reader stopped on such a file with Unsupported cell
+attribute type.
+
+A legacy .vtk TENSORS6 section is read as the six components it
+holds. VTK 9 writes a symmetric tensor with that keyword, and every reader
+here matched it as a TENSORS and took its tuples for nine: an ASCII file
+failed with a CodecError about a row that is not numbers, and a binary
+one read six values plus whatever followed them, then went on from the
+middle of the next array and dropped every array after it. The six are
+mirrored into the full 3x3, so a mesh holds one tensor shape whichever
+spelling the file used.
+
 An array whose name holds XML markup - an ampersand, a quote, an angle
 bracket, as a group named in another format may - is written escaped by the
 VTK XML formats. It used to close the Name attribute early and leave a
@@ -5096,6 +5167,18 @@ nothing about which of their own calls found the file.
 
 Optimizations
 
+A legacy .vtk write no longer builds the whole of a mesh as one string
+or one array before writing it. Every block is written in runs, so the
+bytes are the ones a single join produced while the memory a write holds
+above the mesh is a fixed run whatever the mesh’s size. A run of cells
+that share a node count - which is every mesh of one element type - is
+laid out as rows of an array rather than a cell at a time, and both
+spellings share that layout. CELL_TYPES is translated by indexing a
+table built once at import rather than by a dictionary hop per cell.
+Writing 400k triangles: spelled, 923 ms and 54 MB above the
+mesh became 431 ms and 6 MB; binary, 564 ms and 128 MB became 15 ms and
+10 MB.
+
 Reading an OBJ file resolves a face corner inline when it names a plain
 index inside what has been declared, which is what nearly every corner
 does; the rest still go the long way round, where the message naming the
@@ -5185,7 +5268,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1064: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1147: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5233,7 +5316,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1095: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1178: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5248,7 +5331,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1107: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1190: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5354,7 +5437,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1180: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1263: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
