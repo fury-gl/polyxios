@@ -58,7 +58,8 @@ Writing
 
     px.write(mesh, "out.stl")
 
-Format-specific options:
+Format-specific options
+-----------------------
 
 .. list-table::
    :header-rows: 1
@@ -70,7 +71,11 @@ Format-specific options:
      - Effect
    * - ``binary``
      - ``False``
-     - Write the 50-byte-per-facet binary form instead of ASCII.
+     - On write: emit the 50-byte-per-facet binary form instead of ASCII.
+   * - ``merge_vertices``
+     - ``True``
+     - On read: deduplicate the coincident vertices STL repeats per facet.
+       Ignored under ``lazy=True``, which never merges.
 
 Quirks worth knowing
 --------------------

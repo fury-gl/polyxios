@@ -214,6 +214,24 @@ New features
   is building, the way it already shifted the tag groups, so the surfaces of
   two meshes joined into one - the blocks of an index file among them -
   survive the join instead of naming the first mesh's elements.
+- ``read()`` now forwards the options it does not recognise to the codec it
+  chose, the way ``write()`` already did, and so does the dispatcher a
+  contested extension resolves through. An option a reader does not take
+  raises ``TypeError`` naming it. STL's ``merge_vertices`` was written as a
+  read option and had never been reachable without importing the codec
+  itself; it is now ``read(path, merge_vertices=False)``.
+- OBJ reads ``split_seams=True``, which keeps the texture coordinates and
+  normals a per-vertex array otherwise drops. OBJ indexes ``vt`` and ``vn``
+  per face corner, so a vertex on a seam is given two texture coordinates and
+  one on a hard edge two normals, and folding them one per vertex kept the
+  last. Splitting copies the vertex once per distinct pairing its corners
+  name: the first corner keeps the index it had and each later one takes a
+  fresh index off the end, so a vertex no face names stays where it was, the
+  faces keep their count and their order, and a file whose corners agree
+  reads exactly as it does without the option. Records nothing indexes are
+  counted against the ``v`` records the file wrote rather than the vertices
+  the split left, and a copy takes what the vertex it came from takes. The
+  warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
