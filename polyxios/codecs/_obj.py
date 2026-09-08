@@ -12,7 +12,7 @@ from polyxios.exceptions import CodecError, LazyReadError
 EXTENSION: str = ".obj"
 
 
-def read(path: Source, *, lazy: bool = False) -> PolyData:
+def read(path: Source, *, lazy: bool = False, split_seams: bool = False) -> PolyData:
     """Parse an OBJ file and return a PolyData.
 
     Parameters
@@ -21,6 +21,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         Path to the .obj file.
     lazy
         Not supported for OBJ - raises LazyReadError.
+    split_seams
+        Give a vertex its own copy for each distinct texture coordinate and
+        normal its corners name, so a seam keeps both of its texture
+        coordinates and a hard edge both of its normals. The mesh gains a
+        vertex per extra pairing and loses none; a file whose corners agree
+        reads exactly as it does without this.
 
     Returns
     -------
@@ -44,6 +50,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     seam has two texture coordinates for one corner. polyxios stores one
     value per vertex, so a corner assigns to its vertex and a vertex named
     twice with different values keeps the last, which is warned about.
+    ``split_seams`` is the way to keep both: the vertex is copied once per
+    distinct pairing its corners name, which is what a renderer wants and
+    what changes the vertex count.
 
     A negative index counts back from what the file has declared so far, as
     the format defines; ``f -3 -2 -1`` is the last three vertices.
@@ -165,6 +174,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             element_types=np.array([], dtype=np.uint8),
         )
 
+    n_source = len(vertices)
+    origin: np.ndarray | None = None
+    if split_seams:
+        vertices, face_vertices, origin = _split_corners(
+            vertices, face_vertices, face_texcoords, face_normals
+        )
+
     verts_arr = np.array(vertices, dtype=np.float64)
 
     # Build CSR connectivity from face_vertices
@@ -207,6 +223,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             face_vertices,
             face_indices,
             n_vertices=len(vertices),
+            n_source=n_source,
+            origin=origin,
             what=what,
         )
         if array is not None:
@@ -650,12 +668,126 @@ def _parse_face(
     return v_idx, vt_idx, vn_idx
 
 
+def _split_corners(
+    vertices: list[list[float]],
+    face_vertices: list[list[int]],
+    face_texcoords: list[list[int | None]],
+    face_normals: list[list[int | None]],
+) -> tuple[list[list[float]], list[list[int]], np.ndarray | None]:
+    """Give a vertex one copy per distinct pair of records its corners name.
+
+    Parameters
+    ----------
+    vertices
+        The ``v`` records, in file order.
+    face_vertices
+        Vertex indices per face.
+    face_texcoords, face_normals
+        Indices into the ``vt`` and ``vn`` records per face corner, None
+        where the corner named none.
+
+    Returns
+    -------
+    tuple of (list of list of float, list of list of int, numpy.ndarray or None)
+        The vertices with the copies appended, the faces reindexed onto them,
+        and the ``v`` record each vertex came from. The originals keep the
+        indices they had, so a vertex no face names survives and a file whose
+        corners agree comes back unchanged - and comes back with None for the
+        map, which is what says nothing was copied.
+
+    Notes
+    -----
+    A vertex is copied rather than moved: the first corner to name it keeps
+    its index and every later pairing takes a fresh one off the end. That
+    makes the split a no-op where there is nothing to split, which is what
+    lets a caller leave it on for a whole directory of files.
+    """
+    counts = [len(face) for face in face_vertices]
+    n_corners = sum(counts)
+    if n_corners == 0:
+        return vertices, face_vertices, None
+
+    tex = np.fromiter(
+        (-1 if i is None else i for face in face_texcoords for i in face),
+        dtype=np.int64,
+        count=n_corners,
+    )
+    nrm = np.fromiter(
+        (-1 if i is None else i for face in face_normals for i in face),
+        dtype=np.int64,
+        count=n_corners,
+    )
+    # Corners that name neither record have nothing to disagree about, and a
+    # mesh carrying neither is the common case: settle it before sorting
+    # anything.
+    max_tex = int(tex.max())
+    max_nrm = int(nrm.max())
+    if max_tex < 0 and max_nrm < 0:
+        return vertices, face_vertices, None
+
+    vert = np.fromiter(
+        (v for face in face_vertices for v in face),
+        dtype=np.int64,
+        count=n_corners,
+    )
+
+    # A corner is identified by (v, vt, vn). Ranking the (vt, vn) pairs first
+    # bounds the combined key by len(vertices) * n_corners, which stays inside
+    # int64 for any mesh that fits in memory, and sorting one integer column
+    # is several times cheaper than a lexsort of three.
+    pairs, pair_rank = np.unique(
+        (tex + 1) * (max_nrm + 2) + (nrm + 1), return_inverse=True
+    )
+    unique, first_occ, inverse = np.unique(
+        vert * len(pairs) + pair_rank, return_index=True, return_inverse=True
+    )
+
+    # The vertex is the key's high digit, so the sorted keys name the vertices
+    # in order too and one pass counts the distinct ones. As many pairings as
+    # vertices means every vertex was named the same way throughout.
+    sorted_vert = unique // len(pairs)
+    if len(unique) == 1 + int(np.count_nonzero(np.diff(sorted_vert))):
+        return vertices, face_vertices, None
+
+    # First-occurrence order, so which copy keeps the original index is the
+    # file's own order rather than whatever np.unique sorted them into.
+    order = np.argsort(first_occ)
+    named = sorted_vert[order]
+    _, firsts = np.unique(named, return_index=True)
+    keeps = np.zeros(len(named), dtype=bool)
+    keeps[firsts] = True
+
+    n_source = len(vertices)
+    ordered_id = np.empty(len(named), dtype=np.int64)
+    ordered_id[keeps] = named[keeps]
+    extra = ~keeps
+    copied = named[extra]
+    ordered_id[extra] = n_source + np.arange(len(copied), dtype=np.int64)
+
+    rank = np.empty(len(order), dtype=np.int64)
+    rank[order] = np.arange(len(order), dtype=np.int64)
+    corner_id = ordered_id[rank][inverse]
+
+    split_vertices = vertices + [list(vertices[v]) for v in copied]
+    origin = np.concatenate((np.arange(n_source, dtype=np.int64), copied))
+
+    split_faces: list[list[int]] = []
+    start = 0
+    for n in counts:
+        split_faces.append(corner_id[start : start + n].tolist())
+        start += n
+
+    return split_vertices, split_faces, origin
+
+
 def _per_vertex(
     values: list[list[float]],
     face_vertices: list[list[int]],
     face_indices: list[list[int | None]],
     *,
     n_vertices: int,
+    n_source: int,
+    origin: np.ndarray | None,
     what: str,
 ) -> np.ndarray | None:
     """Fold per-corner OBJ records into one value per vertex.
@@ -671,6 +803,14 @@ def _per_vertex(
         none.
     n_vertices
         How many vertices the mesh has.
+    n_source
+        How many ``v`` records the file held, which is what records nothing
+        indexes have to line up with; the same as ``n_vertices`` unless
+        ``split_seams`` copied a vertex.
+    origin
+        The ``v`` record each vertex came from, None when none was copied.
+        Records nothing indexes are gathered through it, so a copy carries
+        what the vertex it came from carries.
     what
         'texture coordinate' or 'normal', for the warning.
 
@@ -697,14 +837,18 @@ def _per_vertex(
     keeps = named >= 0
 
     if not keeps.any():
-        if len(values) != n_vertices:
+        # Records nothing indexes are matched against the file's own vertex
+        # count: the copies a split made are not records the file declared,
+        # and pairing them off one for one would line the array up with a
+        # count the file never wrote.
+        if len(values) != n_source:
             warnings.warn(
-                f".obj: {len(values)} {what}(s) for {n_vertices} vertices and no"
+                f".obj: {len(values)} {what}(s) for {n_source} vertices and no"
                 f" face indexes them, so they cannot be matched up; dropped.",
                 stacklevel=4,
             )
             return None
-        return records
+        return records if origin is None else records[origin]
 
     corners = np.fromiter(
         (vi for face in face_vertices for vi in face),
@@ -726,7 +870,8 @@ def _per_vertex(
     if bool(np.any(differs & ~(np.isnan(final) & np.isnan(rows)))):
         warnings.warn(
             f".obj: a vertex is given more than one {what}, which a per-vertex"
-            " array cannot hold; the last one written wins.",
+            " array cannot hold; the last one written wins. Pass"
+            " split_seams=True to keep them all.",
             stacklevel=4,
         )
     return out
