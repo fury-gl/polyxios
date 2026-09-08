@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios import make_polydata
 from polyxios._types import PolyData
 from polyxios.codecs._stl import _BINARY_FACET_SIZE, _HEADER_SIZE, read, write
@@ -403,3 +404,11 @@ def test_a_magics_file_keeps_the_facets_that_do_carry_one(tmp_path) -> None:
     colors = read(path).element_attrs["colors"]
     np.testing.assert_allclose(colors[0], [0.0, 1.0, 0.0], atol=1e-6)
     assert np.isnan(colors[1]).all()
+
+
+def test_merge_vertices_is_reachable_from_the_public_read(tmp_path: Path) -> None:
+    """The option was only ever usable by importing the codec itself."""
+    tmp = tmp_path / "test.stl"
+    write(_tetrahedron(), tmp, binary=True)
+    assert polyxios.read(tmp, merge_vertices=False).vertices.shape[0] == 4 * 3
+    assert polyxios.read(tmp, merge_vertices=True).vertices.shape[0] == 4
