@@ -4,12 +4,45 @@
 Changelog
 =========
 
-.. _changes_0.5.0:
+.. _changes_0.4.1:
 
-0.5.0 (upcoming)
+0.4.1 (upcoming)
 ----------------
 
-(No entries yet.)
+0.4.0 reached PyPI only after its release workflow was repaired and re-run by
+hand, and its documentation never reached the site at all. Every one of the
+bugs was in the machinery rather than the library, so 0.4.1 is the same code,
+released the way a release is meant to run.
+
+Bug fixes
+~~~~~~~~~
+
+- The step that creates the GitHub Release no longer interpolates the
+  changelog into the shell script it runs. The notes are reStructuredText and
+  0.4.0's carry 2848 backticks, so every ``literal`` in them opened a command
+  substitution and the step died before ``gh`` was reached. Every release so
+  far built its wheels and then failed there, which is why the tags before
+  this one carry no assets. The notes travel through the environment now,
+  which is never parsed as shell.
+- A release can be re-run for a tag that already exists. The jobs check out
+  the tag being released rather than the branch the run was dispatched from,
+  which after a release is the next development version - so a release that
+  failed halfway is finished by re-running it, rather than by moving the tag
+  away from the artifacts built under it.
+- The section a release opens for the next cycle is written above the release
+  just cut, not below it. It was inserted before the second per-version
+  anchor, a rule that dates from a marker matching the file's own label, and
+  cutting 0.4.0 left 0.5.0 sitting between 0.4.0 and 0.3.0.
+- A pull request title is escaped before the release quotes it into the
+  changelog. One title spelling an extension as ``*.dat`` is an unterminated
+  emphasis marker to the documentation build, which treats a warning as an
+  error: the 0.4.0 stats block broke the build for the tag and for every
+  branch off it. The check the release runs cannot catch this on its own,
+  since it builds the documentation before the stats are appended.
+- A version's documentation can be published from a ref that is not its own
+  tag. A tag is immutable, so a tag whose documentation cannot build had no
+  way to reach the site at all; a manual run now chooses the tree to build
+  separately from the version directory it publishes as.
 
 .. _changes_0.4.0:
 
