@@ -5,8 +5,14 @@ The published site keeps one directory per documentation version::
     /                 index.html (redirect), switcher.json, .nojekyll
     /dev/             built from master on every merge
     /stable/          a copy of the newest release
-    /0.3/             built from tag v0.3.0
-    /0.2/             built from tag v0.2.0
+    /0.4.1/           built from tag v0.4.1
+    /0.4.0/           built from tag v0.4.0
+    /0.2.0/           built from tag v0.2.0
+
+One directory per release, not per ``X.Y`` series: two releases of one series
+are two sets of documentation, and the switcher entry has to carry the exact
+version its pages report or the theme reads them as something other than the
+stable docs and banners them as a development build.
 
 This script reads the directories that are actually present and writes
 ``switcher.json`` from them, so the switcher can never offer a version that was
@@ -24,34 +30,111 @@ import argparse
 import json
 from pathlib import Path
 import re
+import shutil
 import sys
 
-#: Directory names that hold docs but are not a release series.
+#: Directory names that hold docs but are not a release.
 DEV_DIR = "dev"
 STABLE_DIR = "stable"
 
-_SERIES = re.compile(r"^\d+\.\d+$")
+#: A release directory. The two-component spelling is what the site used
+#: before it published one directory per release; it is still recognised so a
+#: directory left over from then is listed rather than dropped.
+_RELEASE = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+
+#: How a built directory records the exact version it was built from.
+_BUILT_VERSION = re.compile(r"VERSION:\s*['\"]([^'\"]+)['\"]")
 
 
-def _series_key(name: str) -> tuple[int, int]:
-    """Return a sortable key for an ``X.Y`` directory name.
+def _release_key(name: str) -> tuple[int, int, int]:
+    """Return a sortable key for a release directory name.
 
     Parameters
     ----------
     name
-        Directory name, already known to match ``X.Y``.
+        Directory name, already known to match ``X.Y`` or ``X.Y.Z``.
 
     Returns
     -------
     tuple of int
-        Major and minor, as integers.
+        Major, minor and patch, the patch defaulting to zero.
     """
-    major, minor = name.split(".")
-    return int(major), int(minor)
+    parts = [int(part) for part in name.split(".")]
+    while len(parts) < 3:
+        parts.append(0)
+    return parts[0], parts[1], parts[2]
+
+
+def built_version(directory: Path) -> str | None:
+    """Return the exact version a built directory reports, if it says.
+
+    Sphinx writes the release string into ``_static/documentation_options.js``,
+    which is how a directory named for a series can still say which release it
+    actually holds.
+
+    Parameters
+    ----------
+    directory
+        A version directory under the site root.
+
+    Returns
+    -------
+    str or None
+        The version string, or None when the file is missing or says nothing.
+    """
+    options = directory / "_static" / "documentation_options.js"
+    if not options.is_file():
+        return None
+    match = _BUILT_VERSION.search(options.read_text(encoding="utf-8", errors="replace"))
+    return match.group(1) if match else None
+
+
+def migrate_series_dirs(root: Path) -> list[tuple[str, str]]:
+    """Rename a leftover ``X.Y`` directory to the release it actually holds.
+
+    The site published one directory per series before it published one per
+    release. Such a directory holds exactly one release - the newest of its
+    series - so it is renamed to that version and the old name is left behind
+    as a redirect, since links to it are already out in the world.
+
+    Parameters
+    ----------
+    root
+        The site root.
+
+    Returns
+    -------
+    list of tuple of str
+        The renames performed, as ``(old_name, new_name)`` pairs.
+    """
+    renamed: list[tuple[str, str]] = []
+    for path in sorted(root.iterdir()):
+        if not path.is_dir() or not re.fullmatch(r"\d+\.\d+", path.name):
+            continue
+        version = built_version(path)
+        if version is None or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+            continue
+        target = root / version
+        if target.exists():
+            # The release already has its own directory - published straight
+            # there, or renamed on an earlier run. The old name is then a
+            # second copy of the same pages, so it becomes a redirect too.
+            if built_version(target) != version:
+                continue
+            shutil.rmtree(path)
+            path.mkdir()
+        else:
+            path.rename(target)
+            path.mkdir()
+        (path / "index.html").write_text(
+            render_redirect(f"../{version}/"), encoding="utf-8"
+        )
+        renamed.append((path.name, version))
+    return renamed
 
 
 def discover(root: Path) -> tuple[list[str], bool]:
-    """Find the release series and the dev build present under ``root``.
+    """Find the releases and the dev build present under ``root``.
 
     Parameters
     ----------
@@ -61,11 +144,18 @@ def discover(root: Path) -> tuple[list[str], bool]:
     Returns
     -------
     tuple
-        The release series newest first, and whether a ``dev`` build exists.
+        The releases newest first, and whether a ``dev`` build exists.
     """
+    # A directory counts as a release when it holds a build that says which
+    # version it is. The redirect left behind by a rename matches the name
+    # pattern too, and listing it would offer the same docs twice.
     series = sorted(
-        (p.name for p in root.iterdir() if p.is_dir() and _SERIES.match(p.name)),
-        key=_series_key,
+        (
+            p.name
+            for p in root.iterdir()
+            if p.is_dir() and _RELEASE.match(p.name) and built_version(p) is not None
+        ),
+        key=_release_key,
         reverse=True,
     )
     return series, (root / DEV_DIR).is_dir()
@@ -77,7 +167,7 @@ def build_entries(series: list[str], has_dev: bool, base_url: str) -> list[dict]
     Parameters
     ----------
     series
-        Release series names, newest first.
+        Release versions, newest first.
     has_dev
         Whether a dev build is published.
     base_url
@@ -119,7 +209,7 @@ def redirect_target(series: list[str], has_dev: bool) -> str:
     Parameters
     ----------
     series
-        Release series names, newest first.
+        Release versions, newest first.
     has_dev
         Whether a dev build is published.
 
@@ -209,7 +299,7 @@ def hoist_site_files(root: Path, series: list[str], has_dev: bool) -> list[str]:
     root
         The site root.
     series
-        Release series names, newest first.
+        Release versions, newest first.
     has_dev
         Whether a dev build is published.
 
@@ -259,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     base_url = args.base_url.rstrip("/")
+    renamed = migrate_series_dirs(root)
     series, has_dev = discover(root)
     entries = build_entries(series, has_dev, base_url)
 
@@ -274,6 +365,8 @@ def main(argv: list[str] | None = None) -> int:
 
     copied = hoist_site_files(root, series, has_dev)
 
+    for old, new in renamed:
+        print(f"{old}/ now redirects to {new}/")
     print(f"versions: dev={has_dev} releases={series or 'none'}")
     print(f"root redirects to {redirect_target(series, has_dev)}")
     print(f"hoisted to root: {', '.join(copied) or 'nothing'}")
