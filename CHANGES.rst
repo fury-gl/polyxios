@@ -4,6 +4,13 @@
 Changelog
 =========
 
+.. _changes_0.5.0:
+
+0.5.0 (upcoming)
+----------------
+
+(No entries yet.)
+
 .. _changes_0.4.0:
 
 0.4.0 (2026-09-09)
@@ -1186,19 +1193,12 @@ Pull Requests (17):
 * :ghpull:`47`: BF: P1 format correctness - Nastran, Medit, Abaqus, Gmsh, PLY/STL, Tecplot
 * :ghpull:`46`: BF: OBJ, legacy VTK, VTK XML and Nastran correctness
 * :ghpull:`45`: NF: buffer/file-handle IO and transparent gzip
-* :ghpull:`44`: NF: Handle *.dat via a sniffer to redirect to the correct codec
+* :ghpull:`44`: NF: Handle \*.dat via a sniffer to redirect to the correct codec
 * :ghpull:`43`: CI: publish versioned docs from the tag push
 
 Issues (1):
 
 * :ghissue:`58`: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
-
-.. _changes_0.5.0:
-
-0.5.0 (upcoming)
-----------------
-
-(No entries yet.)
 
 .. _changes_0.3.0:
 

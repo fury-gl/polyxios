@@ -400,10 +400,13 @@ def _prepend_upcoming_section(changes_path, *, next_version):
     new_section = f"{anchor}\n\n{heading}\n{underline}\n\n(No entries yet.)\n\n"
     with open(changes_path) as f:
         content = f.read()
+    # The first per-version anchor is where the newest release starts; the
+    # file's own ".. _changes:" label has no trailing underscore and so is
+    # not one of them.
     marker = ".. _changes_"
-    insert_at = content.find(marker, content.find(marker) + 1)
+    insert_at = content.find(marker)
     if insert_at == -1:
-        insert_at = content.find(marker)
+        insert_at = len(content)
     with open(changes_path, "w") as f:
         f.write(content[:insert_at] + new_section + content[insert_at:])
 

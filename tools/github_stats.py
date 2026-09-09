@@ -30,6 +30,30 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 ISO8601 = "%Y-%m-%dT%H:%M:%SZ"
+
+_RST_INLINE_MARKUP = re.compile(r"([*`|_\\])")
+
+
+def _escape_rst(title):
+    """Backslash-escape the inline markup a title may carry.
+
+    A title is quoted verbatim into the changelog, and the docs build treats
+    a warning as an error: one PR named ``Handle *.dat via a sniffer`` is an
+    unterminated emphasis marker and fails the whole build.
+
+    Parameters
+    ----------
+    title : str
+        Pull request or issue title, as GitHub returned it.
+
+    Returns
+    -------
+    str
+        The title with every reStructuredText inline marker escaped.
+    """
+    return _RST_INLINE_MARKUP.sub(r"\\\1", title)
+
+
 PER_PAGE = 100
 REPO = "fury-gl/polyxios"
 
@@ -153,11 +177,15 @@ def generate_stats(*, since_tag=None, since_days=None, branch=None):
                 f"{len(pulls)} pull requests and {len(issues)} regular issues."
             )
         lines += ["", f"Pull Requests ({len(pulls)}):", ""]
-        lines += [f"* :ghpull:`{pr['number']}`: {pr['title']}" for pr in pulls]
+        lines += [
+            f"* :ghpull:`{pr['number']}`: {_escape_rst(pr['title'])}" for pr in pulls
+        ]
 
         if not branch:
             lines += ["", f"Issues ({len(issues)}):", ""]
-            lines += [f"* :ghissue:`{i['number']}`: {i['title']}" for i in issues]
+            lines += [
+                f"* :ghissue:`{i['number']}`: {_escape_rst(i['title'])}" for i in issues
+            ]
 
     return "\n".join(lines)
 
