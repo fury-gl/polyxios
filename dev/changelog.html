@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.4.0 (upcoming): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several fo..." />
+<meta property="og:description" content="0.5.0 (upcoming):(No entries yet.) 0.4.0 (2026-09-09): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_c53c1a04.png" />
-<meta property="og:image:alt" content="0.4.0 (upcoming): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several fo..." />
-<meta name="description" content="0.4.0 (upcoming): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several fo..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_633f8d98.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming):(No entries yet.) 0.4.0 (2026-09-09): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, ..." />
+<meta name="description" content="0.5.0 (upcoming):(No entries yet.) 0.4.0 (2026-09-09): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=c5a7bc78"></script>
+    <script src="_static/documentation_options.js?v=ef7b7662"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -74,7 +74,7 @@
     <link rel="prev" title="Development Guide" href="development.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
+  <meta name="docsearch:version" content="0.5" />
     <meta name="docbuild:last-update" content="2026-09-09"/>
   
     
@@ -537,7 +537,11 @@
   <section id="changes">
 <span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
 <section id="upcoming">
-<span id="changes-0-4-0"></span><h2>0.4.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<span id="changes-0-5-0"></span><h2>0.5.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<p>(No entries yet.)</p>
+</section>
+<section id="changes-0-4-0">
+<span id="id2"></span><h2>0.4.0 (2026-09-09)<a class="headerlink" href="#changes-0-4-0" title="Link to this heading">#</a></h2>
 <p>Meshes read and written over file objects and gzip alike, one new format,
 entity numbering and whole-mesh metadata that survive a round trip, and an
 extension shared by several formats resolved by what the file holds.</p>
@@ -1652,14 +1656,45 @@ re-reads five canonical meshes through every writable codec, checked
 against a table declaring exactly what each format keeps. A new codec
 cannot join the registry without an entry.</p></li>
 </ul>
+<p>GitHub stats for 2026/08/18 - 2026/09/09 (tag: v0.3.0)</p>
+<p>These lists are automatically generated and may be incomplete or contain duplicates.</p>
+<p>The following 1 authors contributed 89 commits.</p>
+<ul class="simple">
+<li><p>Serge Koudoro</p></li>
+</ul>
+<p>We closed a total of 18 issues, 17 pull requests and 1 regular issues.</p>
+<p>Pull Requests (17):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/60">PR #60</a>: DOC: the README and the guides say what 0.4.0 added</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/59">PR #59</a>: NF: OBJ keeps the texture coordinates a seam gives two of</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/56">PR #56</a>: TEST: the regression guards are named for what they guard</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/57">PR #57</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/55">PR #55</a>: NF: whole-mesh metadata, tag groups and face sets across the codecs</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/54">PR #54</a>: BF: .vti, .vts and .vtr hold a grid, and say so when handed something else</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/53">PR #53</a>: NF: add a Kratos MDPA codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/51">PR #51</a>: NF: meshes keep the numbers their file gave (P2.4)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/52">PR #52</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/49">PR #49</a>: NF: one rule for two-dimensional meshes (P2.3)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/50">PR #50</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/48">PR #48</a>:  NF: topological dimension and duplicate-vertex welding</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/47">PR #47</a>: BF: P1 format correctness - Nastran, Medit, Abaqus, Gmsh, PLY/STL, Tecplot</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/46">PR #46</a>: BF: OBJ, legacy VTK, VTK XML and Nastran correctness</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/45">PR #45</a>: NF: buffer/file-handle IO and transparent gzip</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/44">PR #44</a>: NF: Handle *.dat via a sniffer to redirect to the correct codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/43">PR #43</a>: CI: publish versioned docs from the tag push</p></li>
+</ul>
+<p>Issues (1):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/58">GH#58</a>: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs</p></li>
+</ul>
 </section>
 </section>
 <section id="changes-0-3-0">
-<span id="id2"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
+<span id="id3"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
 <p>Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.</p>
-<section id="id3">
-<h3>New features<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
+<section id="id4">
+<h3>New features<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:</p>
@@ -1691,8 +1726,8 @@ free, small and large field formats.</p></li>
 a credits page generated from the git history, and a page per format.</p></li>
 </ul>
 </section>
-<section id="id4">
-<h3>Changes<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<section id="id5">
+<h3>Changes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -1704,8 +1739,8 @@ and resolves destination paths defensively.</p></li>
 as errors.</p></li>
 </ul>
 </section>
-<section id="id5">
-<h3>Bug fixes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
+<section id="id6">
+<h3>Bug fixes<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
@@ -1766,10 +1801,10 @@ multiblock partial loading and visualization colours.</p></li>
 </section>
 </section>
 <section id="changes-0-2-0">
-<span id="id6"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id7"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id7">
-<h3>New features<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
+<section id="id8">
+<h3>New features<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -1860,7 +1895,8 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.4.0 (upcoming)</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.5.0 (upcoming)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-0">0.4.0 (2026-09-09)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
@@ -1869,13 +1905,13 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">New features</a></li>
 </ul>
 </li>
 </ul>
