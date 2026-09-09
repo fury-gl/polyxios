@@ -82,7 +82,11 @@ px.write(mesh, <span class="s">"brain.ply"</span>)
 px.write(mesh, <span class="s">"brain.stl"</span>, binary=<span class="b">True</span>)
 
 <span class="c"># gigabytes? memory-map it</span>
-mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)<span class="px-cursor">&#9608;</span></pre>
+mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)
+
+<span class="c"># a buffer or a .gz, same call</span>
+mesh = px.read(buf, fmt=<span class="s">".ply"</span>)
+mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9608;</span></pre>
     </div>
   </section>
 

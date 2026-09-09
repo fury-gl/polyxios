@@ -23,6 +23,7 @@ mesh = px.read("brain.vtk")
 # Inspect
 print(mesh.vertices.shape)  # (n_verts, 3)
 print(len(mesh.element_types))  # number of elements
+print(mesh.topological_dimension)  # 0 points, 1 lines, 2 surfaces, 3 volumes
 
 # Write to a different format
 px.write(mesh, "brain.ply")
@@ -35,6 +36,47 @@ Need binary output or format-specific options?
 px.write(mesh, "brain.vtk", binary=True)
 px.write(mesh, "brain.ply", binary=True, endian="little")
 ```
+
+---
+
+## Files, buffers and streams
+
+Anything with a `read` or a `write` works where a path does, so a mesh never
+has to touch disk:
+
+```python
+import io
+
+buf = io.BytesIO()
+px.write(mesh, buf, fmt=".ply")  # fmt= names the format
+
+buf.seek(0)
+same = px.read(buf, fmt=".ply")
+
+with open("brain.vtk", "rb") as fh:
+    mesh = px.read(fh)  # a named handle needs no fmt=
+```
+
+A handle polyxios is given is read or written where it stands and is never
+closed - the caller keeps control of its own file. A buffer with no file name
+has no extension to infer a format from, so `fmt=` is required there; `open()`
+gives a handle a name, and that is enough. TetGen is the one format a buffer
+cannot carry: a mesh is a `.node` and an `.ele` file found beside each other.
+
+## Compressed files
+
+gzip is transparent for every format at once:
+
+```python
+mesh = px.read("brain.vol.gz")  # decompressed on the way in
+px.write(mesh, "brain.vtk.gz")  # compressed on the way out
+px.write(mesh, buf, fmt=".obj.gz")  # a buffer says it with fmt=
+```
+
+Reading looks at the content, so a file compressed without being renamed reads
+just as well as one ending in `.gz`. Writing looks at the name, an output file
+having no content to inspect yet. The compressed output carries no timestamp
+and no embedded name, so the same mesh always produces the same bytes.
 
 ---
 
@@ -97,6 +139,13 @@ STL lazy mode skips vertex deduplication - vertices are returned as-is (3 per
 triangle), avoiding the extra pass over the data. `.meshb` needs no flag: a
 path is always memory-mapped, so `lazy=True` there warns and changes nothing.
 
+`mmap` maps a file descriptor from byte zero, so the formats whose lazy read
+hands back arrays viewing the mapping need a real, uncompressed file standing
+at its start: an `io.BytesIO`, a handle part-way into a file, or a gzipped one
+raises `LazyReadError` naming the reason rather than quietly loading eagerly.
+Binary STL's lazy mode only skips work, so it takes a buffer or a compressed
+file like any other read.
+
 ---
 
 ## Supported formats
@@ -149,12 +198,16 @@ is recognised but not read - more coming via the plugin system.
 
 ## Transforms
 
+Every transform takes a `PolyData` and returns a new one - nothing is modified
+in place - so they compose freely.
+
 ```python
 from functools import partial
 
 from polyxios.transforms import (
     pipeline,
     merge,
+    merge_duplicate_vertices,
     filter_element_type,
     remove_orphan_vertices,
 )
@@ -166,9 +219,25 @@ clean = pipeline(
 )
 result = clean(mesh)
 
+# Weld coincident vertices - the STL facet soup back into a surface
+welded = merge_duplicate_vertices(mesh)
+snapped = merge_duplicate_vertices(mesh, tol=1e-6)
+
 # Merge two meshes into one
 combined = merge(mesh_a, mesh_b)
 ```
+
+| Transform | What it does |
+|-----------|--------------|
+| `pipeline(*fns)` | Compose transforms left to right into one callable |
+| `merge(*polys)` | Concatenate several meshes into one, offsetting the indices |
+| `filter_element_type(poly, keep=...)` | Keep only the named element types |
+| `remove_orphan_vertices(poly)` | Drop vertices no element references, remap indices |
+| `reindex(poly)` | Alias of `remove_orphan_vertices` |
+| `merge_duplicate_vertices(poly, tol=...)` | Weld coincident vertices into one |
+| `triangulate(poly)` | Split every surface element into triangles |
+| `extract_surface(poly)` | Return the boundary faces of a volumetric mesh |
+| `vertex_colors(poly)` | Per-vertex RGB out of the vertex attributes, or `None` |
 
 ---
 
@@ -251,6 +320,7 @@ For the full release workflow see [`docs/development.rst`](docs/development.rst)
 - **All element groups preserved** - a face belonging to multiple tags stays in all of them
 - **Safe on untrusted files** - header counts validated before any memory allocation
 - **Memory-efficient** - lazy mmap loading for large binary files
+- **Paths, buffers and gzip alike** - one API over files, streams and `.gz`
 - **Works without a compiler** - pure Python fallbacks included; Cython hot-paths optional
 
 ---

@@ -9,6 +9,10 @@ Changelog
 0.4.0 (upcoming)
 ----------------
 
+Meshes read and written over file objects and gzip alike, one new format,
+entity numbering and whole-mesh metadata that survive a round trip, and an
+extension shared by several formats resolved by what the file holds.
+
 New features
 ~~~~~~~~~~~~
 
