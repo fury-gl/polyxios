@@ -22,6 +22,11 @@ on:
         description: 'Ref to build from (blank = the tag itself)'
         required: false
         default: ''
+      stable:
+        description: 'Also publish as /stable/'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -40,7 +45,7 @@ jobs:
 
     outputs:
       target: ${{ steps.target.outputs.dir }}
-      is_release: ${{ steps.target.outputs.is_release }}
+      is_stable: ${{ steps.target.outputs.is_stable }}
 
     steps:
       - uses: actions/checkout@v7
@@ -69,25 +74,31 @@ jobs:
                 || inputs.tag
                 || (github.ref_type == 'tag' && github.ref_name)
                 || '' }}
+          # A manual run backfilling an older release says so, and that copy
+          # stays out of /stable/ and out of the index. Only a run left at the
+          # default claims to be the newest release.
+          WANT_STABLE: ${{ github.event_name != 'workflow_dispatch' || inputs.stable }}
         run: |
           set -euo pipefail
           if [ -n "${RELEASE_TAG}" ]; then
-            series="$(printf '%s' "${RELEASE_TAG#v}" | cut -d. -f1,2)"
-            if ! printf '%s' "$series" | grep -Eq '^[0-9]+\.[0-9]+$'; then
-              echo "::error::tag '${RELEASE_TAG}' does not parse to an X.Y series"
+            # The directory is the release itself, not its X.Y series: two
+            # releases of one series are two sets of documentation, and the
+            # switcher entry has to carry the exact version the pages report
+            # or the theme decides they are not the stable ones and banners
+            # them as a development build.
+            version="${RELEASE_TAG#v}"
+            if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::tag '${RELEASE_TAG}' does not parse to an X.Y.Z version"
               exit 1
             fi
-            echo "dir=$series" >> "$GITHUB_OUTPUT"
-            echo "switcher=$series" >> "$GITHUB_OUTPUT"
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-            # Only this build becomes /stable/, so only it may be indexed.
-            # Backfilling an old tag therefore overwrites /stable/ with that
-            # older copy - re-run the newest tag afterwards to put it back.
-            echo "is_stable=true" >> "$GITHUB_OUTPUT"
+            echo "dir=$version" >> "$GITHUB_OUTPUT"
+            echo "switcher=$version" >> "$GITHUB_OUTPUT"
+            # Only the copy served as /stable/ may be indexed; every other
+            # version is a duplicate of it.
+            echo "is_stable=${WANT_STABLE}" >> "$GITHUB_OUTPUT"
           else
             echo "dir=dev" >> "$GITHUB_OUTPUT"
             echo "switcher=dev" >> "$GITHUB_OUTPUT"
-            echo "is_release=false" >> "$GITHUB_OUTPUT"
             echo "is_stable=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -171,7 +182,7 @@ jobs:
       - name: Place this build under its version directory
         env:
           TARGET: ${{ needs.build.outputs.target }}
-          IS_RELEASE: ${{ needs.build.outputs.is_release }}
+          IS_STABLE: ${{ needs.build.outputs.is_stable }}
         run: |
           set -euo pipefail
           rm -rf "site/${TARGET}"
@@ -180,7 +191,7 @@ jobs:
 
           # A release is also served from /stable/, which is the URL worth
           # linking to because it survives the next release.
-          if [ "${IS_RELEASE}" = "true" ]; then
+          if [ "${IS_STABLE}" = "true" ]; then
             rm -rf site/stable
             mkdir -p site/stable
             cp -a html/. site/stable/
