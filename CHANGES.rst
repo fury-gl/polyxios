@@ -1193,7 +1193,7 @@ Pull Requests (17):
 * :ghpull:`47`: BF: P1 format correctness - Nastran, Medit, Abaqus, Gmsh, PLY/STL, Tecplot
 * :ghpull:`46`: BF: OBJ, legacy VTK, VTK XML and Nastran correctness
 * :ghpull:`45`: NF: buffer/file-handle IO and transparent gzip
-* :ghpull:`44`: NF: Handle *.dat via a sniffer to redirect to the correct codec
+* :ghpull:`44`: NF: Handle \*.dat via a sniffer to redirect to the correct codec
 * :ghpull:`43`: CI: publish versioned docs from the tag push
 
 Issues (1):
