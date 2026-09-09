@@ -498,3 +498,62 @@ def test_an_extension_every_owner_shares_says_nothing(monkeypatch) -> None:
         warnings.simplefilter("error")
         registry = build_default_registry()
     assert ".mesh" in registry
+
+
+# ---------------------------------------------------------------------------
+# Format-specific read options
+# ---------------------------------------------------------------------------
+
+
+def test_a_read_option_reaches_the_codec(tmp_path) -> None:
+    """px.read forwards what it does not recognise, the way px.write does."""
+    path = tmp_path / "seam.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nvt 0.5 0.5\n"
+        "f 1/1 2/2 3/3\nf 1/5 3/3 4/4\n"
+    )
+    assert len(polyxios.read(path, split_seams=True).vertices) == 5
+
+
+def test_an_option_the_reader_does_not_take_names_itself(tmp_path) -> None:
+    path = tmp_path / "tri.obj"
+    path.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    with pytest.raises(TypeError, match="not_an_option"):
+        polyxios.read(path, not_an_option=True)
+
+
+def test_a_dispatcher_hands_a_read_option_on(tmp_path) -> None:
+    """A contested extension resolves through a wrapper, which must not eat
+    the option on its way past."""
+    seen: dict[str, object] = {}
+
+    def _reader(*, path, lazy=False, **opts):
+        seen.update(opts)
+        return None
+
+    codec = Codec(read=_reader, write=lambda *a, **k: None, sniff=lambda head: True)
+    dispatcher = _make_dispatcher(".dat", [("spy", codec)])
+
+    path = tmp_path / "any.dat"
+    path.write_text("anything\n")
+    dispatcher.read(path, flavour="salt")
+    assert seen == {"flavour": "salt"}
+
+
+def test_a_dispatcher_falling_back_to_the_owner_keeps_the_option(tmp_path) -> None:
+    """No sniffer speaks up, so the read goes to the owner - with what it
+    was given."""
+    seen: dict[str, object] = {}
+
+    def _reader(*, path, lazy=False, **opts):
+        seen.update(opts)
+        return None
+
+    owner = Codec(read=_reader, write=lambda *a, **k: None, sniff=lambda head: False)
+    dispatcher = _make_dispatcher(".dat", [("owner", owner)], ("owner", owner))
+
+    path = tmp_path / "any.dat"
+    path.write_text("anything\n")
+    dispatcher.read(path, flavour="salt")
+    assert seen == {"flavour": "salt"}

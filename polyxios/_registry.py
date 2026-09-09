@@ -22,7 +22,7 @@ class Codec(NamedTuple):
     Attributes
     ----------
     read
-        Reader callable, invoked as ``read(path=..., lazy=...)``.
+        Reader callable, invoked as ``read(path=..., lazy=..., **opts)``.
     write
         Writer callable, invoked as ``write(poly=..., path=..., **opts)``.
     sniff
@@ -97,7 +97,7 @@ def _make_dispatcher(
         shared = f"'{ext}' is shared between formats, of which only {named} reads here"
         no_match = f"the file's content does not look like {named}"
 
-    def read(path: Source, *, lazy: bool = False) -> object:
+    def read(path: Source, *, lazy: bool = False, **opts: object) -> object:
         # Sniffing a caller's handle spends bytes the codec still needs, so
         # the position is put back afterwards. A stream that cannot rewind
         # has no way to give them back at all: say so before a single byte is
@@ -147,7 +147,7 @@ def _make_dispatcher(
                 )
                 continue
             if matched:
-                return codec.read(path=path, lazy=lazy)
+                return codec.read(path=path, lazy=lazy, **opts)
 
         # Nothing recognised the file. An extension a format owns and merely
         # shares still belongs to that format, so the read goes to it rather
@@ -156,7 +156,7 @@ def _make_dispatcher(
         # dispatcher can only say that no sniffer spoke up. An extension no
         # one owns has no such fallback and does stop here.
         if default_writer is not None:
-            return default_writer[1].read(path=path, lazy=lazy)
+            return default_writer[1].read(path=path, lazy=lazy, **opts)
 
         # A sniffer that raised never answered, so reporting that the content
         # matched nothing would state a verdict no one reached; say what

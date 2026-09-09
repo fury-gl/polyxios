@@ -466,3 +466,236 @@ def test_a_file_carrying_neither_says_nothing(tmp_path) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         assert len(read(path).element_types) == 1
+
+
+# ---------------------------------------------------------------------------
+# Splitting a vertex the corners disagree about
+# ---------------------------------------------------------------------------
+
+
+_SEAM = (
+    "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+    "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nvt 0.5 0.5\n"
+    "vn 0 0 1\n"
+    "f 1/1/1 2/2/1 3/3/1\nf 1/5/1 3/3/1 4/4/1\n"
+)
+
+
+def test_a_seam_keeps_both_uvs_when_the_vertex_is_split(tmp_path) -> None:
+    """The corner that disagreed gets its own vertex rather than the last
+    value written over the first."""
+    path = tmp_path / "seam.obj"
+    path.write_text(_SEAM)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        poly = read(path, split_seams=True)
+
+    assert len(poly.vertices) == 5
+    uv = poly.vertex_attrs["texcoords"]
+    np.testing.assert_allclose(uv[0], [0, 0])
+    np.testing.assert_allclose(uv[4], [0.5, 0.5])
+    # The copy sits where the vertex it came from sits.
+    np.testing.assert_allclose(poly.vertices[4], poly.vertices[0])
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 4, 2, 3])
+
+
+def test_a_file_whose_corners_agree_reads_the_same_either_way(tmp_path) -> None:
+    """Splitting is a no-op where there is nothing to split, so it can be
+    left on for a directory of files."""
+    path = tmp_path / "plain.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n"
+    )
+
+    plain = read(path)
+    split = read(path, split_seams=True)
+
+    np.testing.assert_array_equal(split.vertices, plain.vertices)
+    np.testing.assert_array_equal(split.connectivity, plain.connectivity)
+    np.testing.assert_array_equal(split.offsets, plain.offsets)
+    np.testing.assert_array_equal(
+        split.vertex_attrs["texcoords"], plain.vertex_attrs["texcoords"]
+    )
+
+
+def test_a_hard_edge_splits_on_the_normal_alone(tmp_path) -> None:
+    """A vertex two faces give different normals is the same conflict, in
+    the other slot."""
+    path = tmp_path / "hard.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vn 0 0 1\nvn 1 0 0\n"
+        "f 1//1 2//1 3//1\nf 1//2 3//1 4//1\n"
+    )
+
+    poly = read(path, split_seams=True)
+
+    assert len(poly.vertices) == 5
+    normals = poly.vertex_attrs["normals"]
+    np.testing.assert_allclose(normals[0], [0, 0, 1])
+    np.testing.assert_allclose(normals[4], [1, 0, 0])
+
+
+def test_a_vertex_no_face_names_keeps_its_index_through_a_split(tmp_path) -> None:
+    """Copies go on the end, so an unnamed vertex is where it was."""
+    path = tmp_path / "orphan.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 9 9 9\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0.5 0.5\n"
+        "f 1/1 2/2 3/3\nf 1/4 2/2 3/3\n"
+    )
+
+    poly = read(path, split_seams=True)
+
+    assert len(poly.vertices) == 5
+    np.testing.assert_allclose(poly.vertices[3], [9, 9, 9])
+    assert np.isnan(poly.vertex_attrs["texcoords"][3]).all()
+
+
+def test_corners_that_name_different_slots_split_on_the_one_that_differs(
+    tmp_path,
+) -> None:
+    """'f 1//1' and 'f 1/2/1' disagree about the texture coordinate, which a
+    missing index is as much as a different one."""
+    path = tmp_path / "mixed.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n"
+        "vn 0 0 1\n"
+        "f 1//1 2//1 3//1\nf 1/1/1 3//1 4//1\n"
+    )
+
+    poly = read(path, split_seams=True)
+
+    assert len(poly.vertices) == 5
+    uv = poly.vertex_attrs["texcoords"]
+    assert np.isnan(uv[0]).all()
+    np.testing.assert_allclose(uv[4], [0, 0])
+
+
+def test_a_split_leaves_the_elements_where_they_were(tmp_path) -> None:
+    """Only the indices inside an f record move; the records do not."""
+    path = tmp_path / "tagged.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nvt 0.5 0.5\n"
+        "usemtl skin\ng left\nf 1/1 2/2 3/3\n"
+        "g right\nf 1/5 3/3 4/4\n"
+    )
+
+    with pytest.warns(UserWarning, match="texture coordinate"):
+        plain = read(path)
+    split = read(path, split_seams=True)
+
+    np.testing.assert_array_equal(split.element_types, plain.element_types)
+    np.testing.assert_array_equal(split.offsets, plain.offsets)
+    np.testing.assert_array_equal(
+        split.element_attrs["material"], plain.element_attrs["material"]
+    )
+    assert split.element_tags.keys() == plain.element_tags.keys()
+    for name, members in plain.element_tags.items():
+        np.testing.assert_array_equal(split.element_tags[name], members)
+
+
+def test_the_seam_warning_names_the_way_out(tmp_path) -> None:
+    path = tmp_path / "seam.obj"
+    path.write_text(_SEAM)
+    with pytest.warns(UserWarning, match="split_seams=True"):
+        read(path)
+
+
+def test_a_split_mesh_round_trips_with_its_uvs(tmp_path) -> None:
+    path = tmp_path / "seam.obj"
+    path.write_text(_SEAM)
+    poly = read(path, split_seams=True)
+
+    out = tmp_path / "out.obj"
+    write(poly, out)
+    back = read(out)
+
+    np.testing.assert_allclose(back.vertices, poly.vertices, atol=1e-8)
+    np.testing.assert_allclose(
+        back.vertex_attrs["texcoords"], poly.vertex_attrs["texcoords"], atol=1e-8
+    )
+
+
+def test_records_nothing_indexes_follow_the_vertex_a_copy_came_from(tmp_path) -> None:
+    """The vt records line up with the v records and no face names them, so
+    a split driven by the normals must not cost them their footing."""
+    path = tmp_path / "unindexed.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n"
+        "vn 0 0 1\nvn 1 0 0\n"
+        "f 1//1 2//1 3//1\nf 1//2 3//1 4//1\n"
+    )
+
+    with pytest.warns(UserWarning, match="more than one normal"):
+        plain = read(path)
+    split = read(path, split_seams=True)
+
+    assert len(split.vertices) == 5
+    uv = split.vertex_attrs["texcoords"]
+    np.testing.assert_array_equal(uv[:4], plain.vertex_attrs["texcoords"])
+    np.testing.assert_allclose(uv[4], uv[0])
+
+
+def test_records_nothing_indexes_are_counted_against_the_file(tmp_path) -> None:
+    """Five vt for four v is five vt for four v however many vertices the
+    split ends with; a count that matches by accident is not a match."""
+    path = tmp_path / "miscounted.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nvt 9 9\n"
+        "vn 0 0 1\nvn 1 0 0\n"
+        "f 1//1 2//1 3//1\nf 1//2 3//1 4//1\n"
+    )
+
+    with pytest.warns(UserWarning, match="5 texture coordinate"):
+        split = read(path, split_seams=True)
+
+    assert len(split.vertices) == 5
+    assert "texcoords" not in split.vertex_attrs
+
+
+def test_a_file_naming_no_vt_or_vn_is_left_alone_by_a_split(tmp_path) -> None:
+    """Corners that name neither record have nothing to disagree about."""
+    path = tmp_path / "bare.obj"
+    path.write_text("v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\nf 1 3 4\n")
+
+    plain = read(path)
+    split = read(path, split_seams=True)
+
+    np.testing.assert_array_equal(split.vertices, plain.vertices)
+    np.testing.assert_array_equal(split.connectivity, plain.connectivity)
+
+
+def test_a_split_resolves_negative_indices_the_way_a_plain_read_does(tmp_path) -> None:
+    """A relative corner is an absolute one by the time it is split."""
+    path = tmp_path / "relative.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n"
+        "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nvt 0.5 0.5\n"
+        "f -4/-5 -3/-4 -2/-3\nf -4/-1 -2/-3 -1/-2\n"
+    )
+
+    poly = read(path, split_seams=True)
+
+    assert len(poly.vertices) == 5
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 4, 2, 3])
+    np.testing.assert_allclose(poly.vertex_attrs["texcoords"][4], [0.5, 0.5])
+
+
+def test_a_vertex_named_twice_in_one_face_splits(tmp_path) -> None:
+    """The corners of a single face disagree as readily as two faces do."""
+    path = tmp_path / "degenerate.obj"
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 1 1 0\nvt 0 0\nvt 1 0\nvt 1 1\nf 1/1 2/2 1/3\n"
+    )
+
+    poly = read(path, split_seams=True)
+
+    assert len(poly.vertices) == 4
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 3])
+    np.testing.assert_allclose(poly.vertices[3], poly.vertices[0])

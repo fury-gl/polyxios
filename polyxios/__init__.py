@@ -41,6 +41,7 @@ def read(
     fmt: str | None = None,
     lazy: bool = False,
     registry: dict | None = None,
+    **opts: object,
 ) -> PolyData:
     """Read a mesh file and return a PolyData.
 
@@ -63,6 +64,8 @@ def read(
         LazyReadError.
     registry
         Custom codec registry. Uses the built-in registry if None.
+    **opts
+        Format-specific options passed to the codec's read function.
 
     Returns
     -------
@@ -81,9 +84,11 @@ def read(
         formats sharing an extension apart.
     LazyReadError
         If ``lazy`` is set and the source cannot be mapped.
+    TypeError
+        If an option is passed that the chosen codec's reader does not take.
     """
     codec = resolve(path, fmt, registry or _REGISTRY)
-    return codec.read(path=path, lazy=lazy)
+    return codec.read(path=path, lazy=lazy, **opts)
 
 
 def write(
