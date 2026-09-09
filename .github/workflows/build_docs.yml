@@ -18,6 +18,10 @@ on:
         description: 'Tag to publish as a release version (blank = build dev)'
         required: false
         default: ''
+      ref:
+        description: 'Ref to build from (blank = the tag itself)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -43,7 +47,10 @@ jobs:
         with:
           # A manual run naming a tag builds that tag, not the branch it was
           # dispatched from; every other event already points at the right ref.
-          ref: ${{ inputs.tag || github.ref }}
+          # `ref` overrides the tree without moving the version it publishes
+          # as: a tag whose own docs cannot build is immutable, and the only
+          # way to publish that version is from a ref that can.
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
           # Full history: docs/_ext/contributors.py builds the credits page
           # from `git shortlog`, and a shallow clone would truncate it.
           fetch-depth: 0
