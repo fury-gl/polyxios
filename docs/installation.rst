@@ -12,6 +12,15 @@ pip (recommended)
 
     pip install polyxios
 
+conda
+-----
+
+polyxios is packaged on conda-forge:
+
+.. code-block:: bash
+
+    conda install -c conda-forge polyxios
+
 Development install
 -------------------
 
