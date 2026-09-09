@@ -1193,6 +1193,13 @@ Issues (1):
 
 * :ghissue:`58`: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
 
+.. _changes_0.5.0:
+
+0.5.0 (upcoming)
+----------------
+
+(No entries yet.)
+
 .. _changes_0.3.0:
 
 0.3.0 (2026-08-18)
