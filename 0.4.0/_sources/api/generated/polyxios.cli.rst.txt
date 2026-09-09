@@ -1,0 +1,16 @@
+polyxios.cli
+============
+
+.. automodule:: polyxios.cli
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      cmd_convert
+      cmd_fetch
+      cmd_list
+      cmd_viz
+      main
+   

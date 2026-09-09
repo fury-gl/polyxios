@@ -1,0 +1,1979 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" data-theme="dark">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta property="og:title" content="Changelog" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
+<meta property="og:site_name" content="polyxios" />
+<meta property="og:description" content="0.4.0 (2026-09-09): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several ..." />
+<meta property="og:image:width" content="1146" />
+<meta property="og:image:height" content="600" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_a949fdeb.png" />
+<meta property="og:image:alt" content="0.4.0 (2026-09-09): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several ..." />
+<meta name="description" content="0.4.0 (2026-09-09): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several ..." />
+<meta name="twitter:card" content="summary_large_image" />
+
+    <meta name="robots" content="noindex, follow" />
+    <title>Changelog &#8212; polyxios</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "dark";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=01cf4d0a" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="_static/documentation_options.js?v=6c02275b"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=5a050afe"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'changelog';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            true;
+        </script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="_static/js/homepage.js?v=0de8ffed"></script>
+    <link rel="canonical" href="https://polyxios.org/stable/changelog.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Credits" href="credits.html" />
+    <link rel="prev" title="Development Guide" href="development.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.4" />
+    <meta name="docbuild:last-update" content="2026-09-09"/>
+  
+    
+    <script src="_static/searchtools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script src="searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="dark">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+<aside class="bd-header-announcement" aria-label="Announcement">
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
+</aside>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">&lt;polyxios /&gt;</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="usage.html">docs</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="formats/index.html">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+        <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.11</span></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="usage.html">docs</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="formats/index.html">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+        
+          <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.11</span></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">docs/</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">installation.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">usage.rst</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="formats/index.html">formats/</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtk.html">VTK Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtr.html">VTK RectilinearGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtp.html">VTK PolyData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/obj.html">Wavefront OBJ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/ply.html">Stanford PLY</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/off.html">OFF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/abaqus.html">Abaqus</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/avs.html">AVS-UCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/medit.html">Medit ASCII</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/gmsh.html">Gmsh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/nastran.html">Nastran</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/tecplot.html">Tecplot ASCII</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/su2.html">SU2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/tetgen.html">TetGen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transforms.html">transforms.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">cli.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plugins.html">plugins.rst</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="api/index.html">api/</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="api/generated/polyxios.html">polyxios</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.version.html">polyxios.version</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.codecs.html">polyxios.codecs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.cli.html">polyxios.cli</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">contributing.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="development.html">development.rst</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">changelog.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="credits.html">credits.rst</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Changelog</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="changes">
+<span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
+<section id="changes-0-4-0">
+<span id="id2"></span><h2>0.4.0 (2026-09-09)<a class="headerlink" href="#changes-0-4-0" title="Link to this heading">#</a></h2>
+<p>Meshes read and written over file objects and gzip alike, one new format,
+entity numbering and whole-mesh metadata that survive a round trip, and an
+extension shared by several formats resolved by what the file holds.</p>
+<section id="new-features">
+<h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">read()</span></code> and <code class="docutils literal notranslate"><span class="pre">write()</span></code> now take an open binary file object wherever
+they take a path, so a mesh round-trips through <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code>, a socket
+or a file inside an archive without touching disk. A handle polyxios was
+given is read or written where it stands and is never closed. A buffer
+with no file name cannot have its format inferred, so <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> is
+required there; a handle from <code class="docutils literal notranslate"><span class="pre">open()</span></code> carries its own extension and
+does not need it. TetGen is the exception: a <code class="docutils literal notranslate"><span class="pre">.node</span></code>/<code class="docutils literal notranslate"><span class="pre">.ele</span></code> pair is
+two files and still needs a path.</p></li>
+<li><p>Lazy reads over a file object work when the handle is backed by a real
+file and stands at its start - mmap needs a descriptor and addresses a
+file from byte zero - and raise <code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming the reason for an
+in-memory buffer or a handle part-way into a file. Only the formats whose
+lazy read hands back arrays viewing the mapping ask for that. Binary STL’s
+lazy mode copies what it reads - it skips vertex deduplication and nothing
+else - so it takes a buffer like any other read rather than sending the
+caller to an eager read that would merge the vertices it was asked to keep.</p></li>
+<li><p>gzip is now transparent for every format: a file opening with the gzip
+magic is decompressed on the way in, whatever it is named, and a
+destination named <code class="docutils literal notranslate"><span class="pre">.gz</span></code> is compressed on the way out. <code class="docutils literal notranslate"><span class="pre">.vol.gz</span></code> is
+read as Netgen rather than refused, <code class="docutils literal notranslate"><span class="pre">.gz</span></code> names the compression rather
+than the format when a codec is chosen - in <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> as well as in a file
+name - and the compressed output is byte-reproducible (no timestamp, no
+embedded name). <code class="docutils literal notranslate"><span class="pre">fmt=&quot;.obj.gz&quot;</span></code> is how a nameless buffer asks for
+compression, since it has no name to end in <code class="docutils literal notranslate"><span class="pre">.gz</span></code>. A compressed member
+need not run to the end of what it sits in, so a mesh gzipped into the
+middle of an archive reads without the bytes after it becoming an error,
+and a file holding several members back to back - what <code class="docutils literal notranslate"><span class="pre">cat</span> <span class="pre">a.gz</span> <span class="pre">b.gz</span></code>
+leaves - is read and measured as the whole it decompresses to. A path and
+a file object go through the same reader, so one compressed file reads the
+same way and fails the same way whichever it was handed over as. A
+destination that compresses on its own, such as a handle from
+<code class="docutils literal notranslate"><span class="pre">gzip.open()</span></code>, is written to as it is rather than compressed a second
+time. Lazy reads still need an uncompressed file and say so, and TetGen -
+which opens its own sibling files rather than going through this layer -
+refuses a compressed file rather than parsing it as text, by its content on
+the way in and by its name on the way out, and for whichever half of the
+pair carries it rather than only for the one the caller named. Whether a
+source is compressed is decided by the whole four-byte gzip header rather
+than by the two magic bytes alone: those open one file in every 65536 by
+chance,
+and in a headerless binary format they are an ordinary coordinate’s low
+mantissa bytes - a <code class="docutils literal notranslate"><span class="pre">.splat</span></code> whose first x is 10.658965 opens with exactly
+them and is a mesh, not an archive.</p></li>
+<li><p>The formats that check a header against the size of the file it came from
+now take that size from the read they were already making rather than
+measuring the source separately. Measuring a compressed one cost a whole
+decompression pass that the read then repeated, and a stream that cannot
+seek could not be measured at all, so legacy VTK, the VTK XML formats and
+<code class="docutils literal notranslate"><span class="pre">.splat</span></code> read one pass faster and from more kinds of source than before.</p></li>
+<li><p>Extensions several unrelated formats share are now resolved by looking
+inside the file. A codec declares <code class="docutils literal notranslate"><span class="pre">SNIFF_EXTENSIONS</span></code>, a
+<code class="docutils literal notranslate"><span class="pre">sniff(head)</span> <span class="pre">-&gt;</span> <span class="pre">bool</span></code> test and a <code class="docutils literal notranslate"><span class="pre">SNIFF_PRIORITY</span></code>; the contested
+extension resolves to a dispatcher that delegates to the first codec
+recognising the opening bytes, and names the candidates when none does.
+Writing to such an extension raises, an output file having no content to
+inspect.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> is the first user of this: a Tecplot header resolves to the
+Tecplot codec, a bulk data card to the Nastran one. It no longer needs
+<code class="docutils literal notranslate"><span class="pre">fmt=</span></code>, which still works for the cases sniffing cannot settle.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.plt</span></code> is registered to the Tecplot codec so a binary Tecplot file is
+told what is wrong instead of resolving nowhere. Reading it is not
+supported.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PolyData.topological_dimension</span></code> reports the highest dimension the mesh
+actually holds - 0 for points, 1 for lines, 2 for surfaces, 3 for volumes -
+taking the maximum over the element types present, so a tetrahedral mesh
+that also carries its boundary triangles still reads as 3-D. It is the
+dimension of the elements, not of the space they sit in: a triangle mesh
+embedded in 3-D is 2-D. An empty mesh is 0.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transforms.merge_duplicate_vertices</span></code> welds coincident vertices into
+one, the equivalent of ParaView’s “Clean to Grid”. Formats that write a
+corner per element - STL above all - hand back a soup of unconnected
+vertices, and welding is what turns it back into a surface. <code class="docutils literal notranslate"><span class="pre">tol=</span></code>
+snaps coordinates to a grid of that step before comparing; the default
+welds only exactly equal ones, and a <code class="docutils literal notranslate"><span class="pre">tol</span></code> so small that snapping
+overflows to infinity is refused rather than welding every point it
+overflowed. The survivor of each group is its lowest original index and
+keeps its own coordinates and attributes, so the result does not depend
+on which duplicate the file listed first and a tolerance never moves a
+point. Welding is not culling: a vertex no
+element references is kept - compose with <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> to
+drop those too.</p></li>
+<li><p>Kratos MDPA <code class="docutils literal notranslate"><span class="pre">.mdpa</span></code> is read and written: nodes, elements named by Kratos
+element class, conditions, <code class="docutils literal notranslate"><span class="pre">Properties</span></code> ids, <code class="docutils literal notranslate"><span class="pre">NodalData</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ElementalData</span></code> variables, <code class="docutils literal notranslate"><span class="pre">ModelPartData</span></code> and nested <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code>
+groups. The class name and the geometry do not identify each other -
+<code class="docutils literal notranslate"><span class="pre">Element3D4N</span></code> is a tetrahedron, and a quadrilateral in space would want
+the same name - so the writer spells the class with the element’s
+topological dimension, which makes the pair unique and keeps a round trip
+exact. Reading is wider: the <code class="docutils literal notranslate"><span class="pre">&lt;n&gt;D&lt;m&gt;N</span></code> suffix is read off whatever
+application element carries it (<code class="docutils literal notranslate"><span class="pre">SmallDisplacementElement3D4N</span></code>,
+<code class="docutils literal notranslate"><span class="pre">VMS3D4N</span></code>), and the explicit geometry names (<code class="docutils literal notranslate"><span class="pre">Tetrahedra3D4</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Prism3D6</span></code>) are recognised too. <code class="docutils literal notranslate"><span class="pre">Conditions</span></code> are read as elements,
+since they are cells of the same mesh; they are written back under
+<code class="docutils literal notranslate"><span class="pre">Elements</span></code>: which cells a solver should treat as boundary is a modelling
+choice the mesh does not carry.</p></li>
+<li><p>The numbers a file gave its nodes and elements now survive a round trip.
+An Abaqus deck, a Nastran bulk data file, a Gmsh <code class="docutils literal notranslate"><span class="pre">.msh</span></code>, a FLAC3D grid
+and an MDPA file all number entities freely, and renumbering them 1..n
+leaves the author’s other files - a load case naming <code class="docutils literal notranslate"><span class="pre">GRID</span> <span class="pre">7000001</span></code>, a
+report keyed on element <code class="docutils literal notranslate"><span class="pre">4001</span></code> - pointing at the wrong thing. The reader
+records what the file said in <code class="docutils literal notranslate"><span class="pre">vertex_attrs[&quot;original_ids&quot;]</span></code> /
+<code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;original_ids&quot;]</span></code> and the writer puts it back. The key is
+not format-prefixed, so a mesh read from a <code class="docutils literal notranslate"><span class="pre">.bdf</span></code> and written as <code class="docutils literal notranslate"><span class="pre">.msh</span></code>
+keeps its numbering. Only a numbering the index does not already say is
+stored: a file numbering <code class="docutils literal notranslate"><span class="pre">1..n</span></code> in order records nothing, since the
+writer’s own renumbering reproduces it. Ids that a transform has since
+invalidated - <code class="docutils literal notranslate"><span class="pre">merge</span></code> collides two meshes that each numbered from one,
+splitting a cell leaves two entities carrying one id - are checked at the
+point of writing rather than trusted, and a mesh that lost its numbering
+gets dense ids and a warning rather than a file no solver loads. A format
+that numbers densely by construction has no id of its own to record and
+ignores the key on write; whether it carries one comes down to whether it
+has a general attribute channel, so a mesh read from a <code class="docutils literal notranslate"><span class="pre">.bdf</span></code>, welded and
+written as <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> keeps the ids of the vertices that survived, while OFF
+or STL drop the key with every other attribute.</p></li>
+<li><p>Two-dimensional files now follow one rule across every format that can
+spell one. A mesh always carries three coordinate columns, a file that
+declared two is padded with <code class="docutils literal notranslate"><span class="pre">z=0</span></code>, and the fact is recorded in
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> so a writer can drop the column again. It says
+something about the mesh rather than about the file it came from, so a
+plane read as a 2-D Netgen <code class="docutils literal notranslate"><span class="pre">.vol</span></code> - which has no two-dimensional
+spelling of its own to write back - still lands as an <code class="docutils literal notranslate"><span class="pre">NDIME=</span> <span class="pre">2</span></code> SU2
+case. Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot,
+Abaqus and WKT all record it on the way in, and every one of those but
+Netgen restores it on the way out. Coordinates outrank the flag: a mesh
+flagged two-dimensional whose vertices have since left the plane is
+written in three, with a warning, rather than being flattened in silence.</p></li>
+<li><p>Whole-mesh metadata now travels through the VTK family. <code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> and <code class="docutils literal notranslate"><span class="pre">.vts</span></code> read and write a <code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> block, and
+legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> reads and writes a <code class="docutils literal notranslate"><span class="pre">FIELD</span> <span class="pre">FieldData</span></code> block between the
+<code class="docutils literal notranslate"><span class="pre">DATASET</span></code> line and the geometry - so a time value, a material constant or
+a solver tolerance in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> survives a write instead of being
+dropped. A legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> or
+<code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> file reads the block too, which is where VTK’s own
+writer puts a time value. The block holds arrays: a scalar comes back as a one-element array,
+a field array keeps the type it was held in, and a value no numeric array
+holds is dropped with a warning naming the key. A structured codec spells
+its own grid entries - <code class="docutils literal notranslate"><span class="pre">vti_extent</span></code>, <code class="docutils literal notranslate"><span class="pre">vtr_extents</span></code>, <code class="docutils literal notranslate"><span class="pre">vts_extent</span></code> and
+their neighbours - from the mesh on the way out, so those never travel as
+field data in the format that records them; every other key does, and a
+structured read takes its own grid over anything a field block names.</p></li>
+<li><p>Text in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> travels through the VTK XML family. A
+<code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> block holds a <code class="docutils literal notranslate"><span class="pre">String</span></code> array beside its numeric ones, so a
+name, a title or a solver’s own label - an Abaqus <code class="docutils literal notranslate"><span class="pre">*HEADING</span></code> among them -
+reaches a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>, <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> or <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and comes home
+a string. One VTK itself wrote is read the same way, where such an array
+used to be skipped with a warning about holding no numbers. A list of
+strings is one array of several tuples and comes back the list it was. The
+legacy <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block spells no text at all, so a string handed to a
+<code class="docutils literal notranslate"><span class="pre">.vtk</span></code> is still dropped with a warning naming the key.</p></li>
+<li><p>Abaqus <code class="docutils literal notranslate"><span class="pre">.inp</span></code> reads a <code class="docutils literal notranslate"><span class="pre">*HEADING</span></code> card into
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;abaqus_heading&quot;]</span></code> and writes it back, so the deck’s own
+title survives a round trip. polyxios’s own banner stays a comment, so a
+deck that never had a heading does not gain one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">helper.read_blocks</span></code> and <code class="docutils literal notranslate"><span class="pre">helper.read_multiblock</span></code> read every VTK index
+file - <code class="docutils literal notranslate"><span class="pre">.vtm</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtp</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, and
+a <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> holding a <code class="docutils literal notranslate"><span class="pre">&lt;vtkMultiBlockDataSet&gt;</span></code> - where
+<code class="docutils literal notranslate"><span class="pre">read_multiblock_vtp</span></code> read only the last of those. The first hands back
+one <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> per sub-file and the second merges them, so blocks that
+mean different things can stay apart. An index naming another index is
+followed and read flat, a pair naming each other is read once, a missing or
+unreadable sub-file is skipped with a warning - the one the operating
+system refuses among them - and a reference resolving outside the index
+file’s directory still raises <code class="docutils literal notranslate"><span class="pre">PermissionError</span></code>, now
+<code class="docutils literal notranslate"><span class="pre">helper.Traversal</span></code>, which is one.
+<code class="docutils literal notranslate"><span class="pre">read()</span></code> itself keeps handing back exactly one mesh, and the meta-file
+refusals now name these two functions.</p></li>
+<li><p>Tag groups travel through the VTK family. <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> and <code class="docutils literal notranslate"><span class="pre">.vts</span></code> write one point or cell column of ones and
+zeros per group, named <code class="docutils literal notranslate"><span class="pre">polyxios_tag_&lt;group&gt;</span></code>, and read it back as the
+group. None of those formats has a set of its own, and one column per group
+is what keeps an element in two groups in both - which the single reference
+a Medit or Netgen record carries cannot say. A column of that name holding
+anything but whole numbers stays an attribute, since a member rounded into
+place names the wrong element.</p></li>
+<li><p>An Abaqus <code class="docutils literal notranslate"><span class="pre">*SURFACE</span></code> is read and written. A surface names a side of an
+element, which the deck holds no element for, so polyxios reads it as the
+triangle or quadrilateral that side describes, tagged with the surface’s
+name - the way the UGRID, SU2 and Netgen readers already hand back their
+boundary faces. Two element attributes carry the link back:
+<code class="docutils literal notranslate"><span class="pre">face_parent</span></code>, the element it is a face of, and <code class="docutils literal notranslate"><span class="pre">face_index</span></code>, which of
+that element’s faces. Writing puts the <code class="docutils literal notranslate"><span class="pre">*Surface</span></code> card back, with its
+parent <code class="docutils literal notranslate"><span class="pre">*Elset</span></code> marked <code class="docutils literal notranslate"><span class="pre">internal</span></code> the way Abaqus marks its own, and an
+internal set a surface named is dropped on the way in, so a round trip is
+stable; one no surface names is a group the deck’s author wrote and is kept.
+A <code class="docutils literal notranslate"><span class="pre">*Surface,</span> <span class="pre">type=NODE</span></code> becomes a vertex tag - one member per data line,
+since the field after it is a weight factor and a whole number is as good a
+weight as a node id - and goes back out as the <code class="docutils literal notranslate"><span class="pre">*Nset</span></code> it now is, a node
+set and a node surface being the same members under two cards. <code class="docutils literal notranslate"><span class="pre">SPOS</span></code> or
+<code class="docutils literal notranslate"><span class="pre">SNEG</span></code> on a shell tags the element itself rather than duplicating it. The two columns are read back wherever
+they hold whole numbers, so a deck that went out through a format carrying
+every attribute as a double, legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> among them, still writes its
+surfaces back. <code class="docutils literal notranslate"><span class="pre">transforms.merge</span></code> shifts <code class="docutils literal notranslate"><span class="pre">face_parent</span></code> onto the mesh it
+is building, the way it already shifted the tag groups, so the surfaces of
+two meshes joined into one - the blocks of an index file among them -
+survive the join instead of naming the first mesh’s elements.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">read()</span></code> now forwards the options it does not recognise to the codec it
+chose, the way <code class="docutils literal notranslate"><span class="pre">write()</span></code> already did, and so does the dispatcher a
+contested extension resolves through. An option a reader does not take
+raises <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> naming it. STL’s <code class="docutils literal notranslate"><span class="pre">merge_vertices</span></code> was written as a
+read option and had never been reachable without importing the codec
+itself; it is now <code class="docutils literal notranslate"><span class="pre">read(path,</span> <span class="pre">merge_vertices=False)</span></code>.</p></li>
+<li><p>OBJ reads <code class="docutils literal notranslate"><span class="pre">split_seams=True</span></code>, which keeps the texture coordinates and
+normals a per-vertex array otherwise drops. OBJ indexes <code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code>
+per face corner, so a vertex on a seam is given two texture coordinates and
+one on a hard edge two normals, and folding them one per vertex kept the
+last. Splitting copies the vertex once per distinct pairing its corners
+name: the first corner keeps the index it had and each later one takes a
+fresh index off the end, so a vertex no face names stays where it was, the
+faces keep their count and their order, and a file whose corners agree
+reads exactly as it does without the option. Records nothing indexes are
+counted against the <code class="docutils literal notranslate"><span class="pre">v</span></code> records the file wrote rather than the vertices
+the split left, and a copy takes what the vertex it came from takes. The
+warning about the values it drops now names the option that keeps them.</p></li>
+</ul>
+</section>
+<section id="behaviour-changes">
+<h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Medit <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> records a two-dimensional file in
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> rather than keeping the file’s own number in
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;medit_dimension&quot;]</span></code>, which is now the shared spelling
+every format uses. A three-dimensional file sets nothing, where it used to
+set <code class="docutils literal notranslate"><span class="pre">medit_dimension:</span> <span class="pre">3</span></code>.</p></li>
+<li><p>Formats that had always written three coordinate columns now write two for
+a mesh that came from a two-dimensional file and has stayed flat: TetGen’s
+<code class="docutils literal notranslate"><span class="pre">.node</span></code> header declares 2, a Tecplot zone declares <code class="docutils literal notranslate"><span class="pre">X</span></code> and <code class="docutils literal notranslate"><span class="pre">Y</span></code>
+alone, an Abaqus node card carries two coordinates, and a <code class="docutils literal notranslate"><span class="pre">.meshb</span></code>
+header declares <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code>. Two of those constrain the rest of the
+file, and the writer keeps them consistent rather than emitting one no
+reader loads: an Abaqus deck of two-column node cards is written under the
+planar element cards - <code class="docutils literal notranslate"><span class="pre">CPS3</span></code>, <code class="docutils literal notranslate"><span class="pre">CPS4</span></code>, <code class="docutils literal notranslate"><span class="pre">T2D2</span></code> - since Abaqus takes a
+node’s dimensionality from the element referencing it, and a Tecplot zone
+keeps its third coordinate variable when the mesh carries a variable of its
+own named <code class="docutils literal notranslate"><span class="pre">Z</span></code>, which the positional naming would otherwise read back as
+the z column. A mesh holding an element type with no planar Abaqus card - a
+solid, a biquadratic quad - or an <code class="docutils literal notranslate"><span class="pre">element_type=</span></code> override naming a
+three-dimensional card stays three-dimensional too. A flat mesh of solid
+cells - a tetrahedron is one however flat it lies - keeps its third column
+everywhere the node count per element is declared separately from the
+coordinate count: an MFEM <code class="docutils literal notranslate"><span class="pre">vertices</span></code> block, a Tecplot <code class="docutils literal notranslate"><span class="pre">ET=TETRAHEDRON</span></code>
+zone, a TetGen <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file, a Medit <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code> section in either
+spelling and a DOLFIN <code class="docutils literal notranslate"><span class="pre">celltype=&quot;tetrahedron&quot;</span></code> each need three, whatever
+the flag says. A <code class="docutils literal notranslate"><span class="pre">dim=</span></code> given to the DOLFIN writer by name is the
+caller’s own word and is left alone.</p></li>
+<li><p>Text formats are written with <code class="docutils literal notranslate"><span class="pre">\n</span></code> line endings on every platform.
+Writing used to go through <code class="docutils literal notranslate"><span class="pre">Path.write_text</span></code>, which turned them into
+<code class="docutils literal notranslate"><span class="pre">\r\n</span></code> on Windows; every write now goes through the same binary path a
+buffer does, so the bytes a path receives and the bytes a <code class="docutils literal notranslate"><span class="pre">BytesIO</span></code>
+receives are the same ones. Every reader already accepted either ending.</p></li>
+</ul>
+</section>
+<section id="bug-fixes">
+<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> header names between one and four components
+and no more. The writer spelled every tuple it had no <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or
+<code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> branch for as <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> whatever its width, so a nine-component
+per-element array went out as <code class="docutils literal notranslate"><span class="pre">SCALARS</span> <span class="pre">name</span> <span class="pre">double</span> <span class="pre">9</span></code> - a count outside
+the range the format gives that field, which leaves what the file means to
+how forgiving each reader happens to be. Such a tuple now travels as a
+<code class="docutils literal notranslate"><span class="pre">FIELD</span></code> array, whose
+own header carries the component count and so has no ceiling; four
+components and under keep the <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> spelling and its lookup table. An
+array of no components at all is outside the same range from the other end,
+and is dropped with a warning before its section header is written rather
+than spelled <code class="docutils literal notranslate"><span class="pre">SCALARS</span> <span class="pre">name</span> <span class="pre">double</span> <span class="pre">0</span></code>.</p></li>
+<li><p>A binary block in a legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file is closed by a newline, and the
+keyword line after it is found by reading to the next one. Only the
+dataset’s <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block wrote that newline: the points, the cells, the
+cell types and every attribute array ran straight into the keyword after
+them, so the terminator a reader found was the first <code class="docutils literal notranslate"><span class="pre">0x0a</span></code> inside the
+following payload and the keyword line it read began in the middle of the
+numbers - a file whose sections a reader could only find by hunting for
+the keyword, as polyxios itself did. Every binary block now closes the way
+the format says, and a file written before this still reads: the newline
+is stepped over where it is there rather than required.</p></li>
+<li><p>A symmetric tensor’s six components are <code class="docutils literal notranslate"><span class="pre">XX</span></code>, <code class="docutils literal notranslate"><span class="pre">YY</span></code>, <code class="docutils literal notranslate"><span class="pre">ZZ</span></code>, <code class="docutils literal notranslate"><span class="pre">XY</span></code>,
+<code class="docutils literal notranslate"><span class="pre">YZ</span></code>, <code class="docutils literal notranslate"><span class="pre">XZ</span></code> - the order VTK itself hands back for the cell at
+<code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">j)</span></code>. The writer mirrored a six-component array into the full 3x3 a
+<code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> section holds using the classical Voigt order instead, whose
+last three run the other way, so <code class="docutils literal notranslate"><span class="pre">XZ</span></code> and <code class="docutils literal notranslate"><span class="pre">YZ</span></code> came out in each other’s
+places. Nothing downstream can tell that from a tensor that was always that
+way, which is why it went unseen.</p></li>
+<li><p>The two numbers on a legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> v4.2 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> line count the cells
+and the values that follow them. The second was taken from the length of
+the whole connectivity array rather than from the run the offsets name.
+The two are the same for a mesh built here, but a mesh holding a
+connectivity its last offset stops short of - a slice kept at its original
+length - declared values the section never went on to write, which leaves
+the next reader inside the numbers. Both spellings now declare what they
+write, and the spelled one no longer says one thing where the binary one
+says another.</p></li>
+<li><p>The first number on a legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> line counts the
+offsets that follow it, and every offset past the first names a cell.
+The whole offsets array was written whatever the mesh’s cell count, so a
+mesh holding one kept at a buffer’s original length declared cells the
+<code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> after it never named - and a reader that believes the
+offsets builds them anyway, taking each one’s type from past the end of
+the array that holds it. Both sections now stop at the cells the types
+name. An offsets array that begins partway into the connectivity is
+rebased onto the run written after it, so the two versions answer such a
+mesh with the same cells rather than only v4.2 doing so.</p></li>
+<li><p>An attribute array whose row count is not the one its section covers is
+dropped, with a warning, before that section is declared. Only the section
+header says where one of its arrays ends, so an array of more rows ran past
+that end and one of fewer stopped short of it, and either way the reader
+took the values on the wrong side of the boundary for the keyword line that
+should have been there - costing every array after it in the section as
+well. VTK’s own reader stopped on such a file with <code class="docutils literal notranslate"><span class="pre">Unsupported</span> <span class="pre">cell</span>
+<span class="pre">attribute</span> <span class="pre">type</span></code>.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">TENSORS6</span></code> section is read as the six components it
+holds. VTK 9 writes a symmetric tensor with that keyword, and every reader
+here matched it as a <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> and took its tuples for nine: an ASCII file
+failed with a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> about a row that is not numbers, and a binary
+one read six values plus whatever followed them, then went on from the
+middle of the next array and dropped every array after it. The six are
+mirrored into the full 3x3, so a mesh holds one tensor shape whichever
+spelling the file used.</p></li>
+<li><p>An array whose name holds XML markup - an ampersand, a quote, an angle
+bracket, as a group named in another format may - is written escaped by the
+VTK XML formats. It used to close the <code class="docutils literal notranslate"><span class="pre">Name</span></code> attribute early and leave a
+file no reader could parse, polyxios’s own included. A name holding a
+newline, a carriage return or a tab is escaped as a numeric reference for
+the same reason: written as it stands, an XML parser normalises it to a
+space and the array comes back under a name it never had. Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>
+has no escaping to fall back on, so an array whose name holds whitespace is
+dropped with a warning there rather than written as a name and a stray
+token. A name holding a character XML has no spelling for at all - a
+control character, which no numeric reference reaches either - is dropped
+with a warning by the XML formats for the same reason.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> header that leaves its type field out is read as
+the <code class="docutils literal notranslate"><span class="pre">float</span></code> the ASCII scan has always defaulted it to, where the binary
+scan skipped the array and carried on framing the block from the wrong
+offset. The format makes the field mandatory, so this only ever answers a
+malformed header - but the two scans have to answer it the same way, or one
+file reads back as two different meshes depending on how it was written. A
+header short of the name, component count and tuple count that frame its
+payload is refused by both for the same reason, as is a block that declares
+more arrays than the file holds, and as is one whose component or tuple
+count is negative - the two are multiplied into the length of a payload,
+and a negative one walked the binary scan backwards off the front of the
+file and reshaped to a dimension numpy infers rather than the one the
+header claimed.</p></li>
+<li><p>Every legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> reader looks for its keywords below the <code class="docutils literal notranslate"><span class="pre">DATASET</span></code>
+line. The second line of the file is a free-text title, and the two readers
+that scanned from the top of the file read one beginning with a keyword as
+that keyword’s header: a <code class="docutils literal notranslate"><span class="pre">POLYDATA</span></code> mesh titled <code class="docutils literal notranslate"><span class="pre">Vertices</span> <span class="pre">of</span> <span class="pre">a</span> <span class="pre">cow</span></code> or
+<code class="docutils literal notranslate"><span class="pre">Points</span> <span class="pre">of</span> <span class="pre">interest</span></code> was refused, and the <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block this release
+adds widened that to any title beginning <code class="docutils literal notranslate"><span class="pre">Field</span></code>. The line is found
+rather than counted, so a header carrying a blank line between its four is
+read too, where an <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> reader counting to four missed the
+first keyword after it.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> cell array is read against what its block actually holds.
+A <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> row, or a <code class="docutils literal notranslate"><span class="pre">POLYGONS</span></code> cell, declaring more vertices than it
+goes on to list used to be trusted twice over: the row kept the indices it
+had while the offsets advanced by the width it claimed, so every cell after
+it was cut out of the wrong place - and the binary spelling of the same
+fault reached numpy as a bare <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> naming neither the file nor
+the cell. Both are now a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> that names them.</p></li>
+<li><p>Every remaining legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> section that reads numbers off ASCII lines
+says which file and which section a malformed one came out of. <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code>, a <code class="docutils literal notranslate"><span class="pre">X_COORDINATES</span></code> array and a <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code>
+<code class="docutils literal notranslate"><span class="pre">POINTS</span></code> block used to hand a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about one token, or a
+reshape, to a caller that had asked to read a file; a section that runs
+into the keyword after it, or that the file ends inside, is refused by
+name. A <code class="docutils literal notranslate"><span class="pre">DATASET</span> <span class="pre">FIELD</span></code> array the file runs out inside is dropped with a
+warning instead of being reshaped into a shape it cannot fill. Thirty
+thousand mutations of six corrupt files now leave the codec raising only
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transforms.merge</span></code> keeps the surfaces of a mesh whose <code class="docutils literal notranslate"><span class="pre">face_parent</span></code>
+and <code class="docutils literal notranslate"><span class="pre">face_index</span></code> columns are doubles - which is every mesh that went out
+through legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, where a cell array is a double whatever it held.
+Merging one with a mesh carrying no such column fills that mesh’s rows with
+the blank a float dtype spells, NaN, and a NaN was read as a column that
+could not be trusted at all rather than as the <code class="docutils literal notranslate"><span class="pre">-1</span></code> that says “not a
+face” - so every surface the first mesh did carry was dropped without a
+word, which is the loss shifting the column exists to prevent.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> name that more than one <code class="docutils literal notranslate"><span class="pre">Piece</span></code> of a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or
+<code class="docutils literal notranslate"><span class="pre">.vtp</span></code> spells keeps the first piece’s value and is reported. The mesh’s
+metadata is one mapping over the joined mesh, so folding the pieces with a
+plain update kept the last - a value a reader of a single-piece file would
+never have seen, and a loss no warning named. The dataset’s own block still
+wins over every piece.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> or <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> header is written only
+once its arrays are known to be nameable. A section whose names all hold
+whitespace - which the format’s whitespace-separated header field cannot
+spell - used to declare itself over nothing, the way the <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block
+already refused to. The names are now checked once per section rather than
+once per array, so the warning names them together.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> ASCII <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> or <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> block wrapped over several
+lines is read. Both are a run of numbers the header counts, and VTK’s own
+reader takes them as one however they are broken up; read a row at a time,
+a wrapped <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> block silently kept three numbers of each line and
+dropped the rest, and a wrapped <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> block was refused for a row that
+was never short. One row to a cell is still the path every file VTK writes
+takes, and the run is gathered only once a row turns out not to hold its
+own cell whole - so a well-formed file pays nothing for it, and a file that
+is malformed either way is still named by its row.</p></li>
+<li><p>The Cython fast paths for those two blocks are bounds-checked. They are
+compiled with <code class="docutils literal notranslate"><span class="pre">boundscheck=False</span></code>, which takes the check off their list
+indexing as well as off their arrays, so a header declaring more rows than
+the file holds, or a <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> row holding no tokens at all - a blank line
+inside the block, which the wrapped-block reader above takes in its stride -
+read past the end of a list: a segmentation fault on a file the reader was
+handed, not a diagnosis. The counts are numbers out of the file and are now
+checked once per block, the row is checked before its first token is
+indexed, and its own width against the tokens it lists. A width is held in
+a machine word rather than a C <code class="docutils literal notranslate"><span class="pre">int</span></code> besides, since one past two billion
+raised out of the conversion itself, before the check that names the row -
+so both paths refuse the same files with the same sentence whether or not
+the extension was built.</p></li>
+<li><p>A tag group of a shape numpy builds no array of - a ragged list of lists, a
+mapping, a column of names - is reported by every writer rather than raising
+out of the middle of one. <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> and <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> are not
+checked on the way in, and such a group used to reach a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+about an inhomogeneous shape in whichever codec looked at it first. It names
+no entity, which is the loss the <code class="docutils literal notranslate"><span class="pre">.inp</span></code>, <code class="docutils literal notranslate"><span class="pre">.msh</span></code>, <code class="docutils literal notranslate"><span class="pre">.su2</span></code>, <code class="docutils literal notranslate"><span class="pre">.vol</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.ugrid</span></code>, <code class="docutils literal notranslate"><span class="pre">.f3grid</span></code>, <code class="docutils literal notranslate"><span class="pre">.mdpa</span></code>, <code class="docutils literal notranslate"><span class="pre">.node</span></code>, <code class="docutils literal notranslate"><span class="pre">.obj</span></code> and VTK writers
+already report for a group whose members index nothing.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> block naming one array twice keeps the first and says so,
+the way one whose name two <code class="docutils literal notranslate"><span class="pre">Piece</span></code> elements spell already did. A mesh’s
+metadata holds one value per key, and taking the last meant one file read
+back two ways depending on the order its blocks were walked in. A legacy
+<code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block answers a repeated name the same way, where all
+three of its parsers took the last without a word: one mesh has to read
+back the same whichever spelling of the format it was written in.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">DATASET</span> <span class="pre">FIELD</span></code> file holding a <code class="docutils literal notranslate"><span class="pre">string</span></code> array is read rather than
+hung on. Its lines were counted from the array’s own header, so one
+declaring no strings never reached a line to step over and the reader
+looped on the header for ever - a file of five lines that never returned.
+Counting them after the header ends that, and ends an off-by-one with it:
+an array of one string used to leave its text behind to be read as the
+header of an array of its own. A component or tuple count that is negative
+is skipped there too, the way the <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block inside a mesh already
+refuses one: the two are multiplied into a length, and a negative one
+sliced the values read from the wrong end and stored an empty array under
+a name the file never spelled.</p></li>
+<li><p>Every face in the table of a volume element’s sides is wound so its normal
+points out of the element. One face of each - a hexahedron’s and a
+pyramid’s base, a wedge’s and either prism’s bottom, and three of a
+voxel’s six - was wound the other way, so <code class="docutils literal notranslate"><span class="pre">transforms.extract_surface</span></code>
+handed back a skin lit from inside along those faces, which is the shape
+that reads as a hole in the mesh. The numbering is unchanged, so an Abaqus
+<code class="docutils literal notranslate"><span class="pre">S&lt;n&gt;</span></code> and a <code class="docutils literal notranslate"><span class="pre">face_index</span></code> still name the face they always did.</p></li>
+<li><p>A chain of VTK index files each naming the next is followed to a fixed
+depth rather than as far as it is long. An index naming a parent of its
+own was already refused, but a chain is no cycle: a deep enough one
+recursed past the interpreter’s own limit, and the <code class="docutils literal notranslate"><span class="pre">RecursionError</span></code>
+surfaced as a block that could not be read rather than as the file it was.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">abaqus_heading</span></code> whose text would end the <code class="docutils literal notranslate"><span class="pre">*Heading</span></code> card is dropped
+with a warning rather than written into the deck. A heading is free text
+and travels through every format with a metadata slot, so it comes back
+holding whatever was put in it; written unchanged, a line beginning <code class="docutils literal notranslate"><span class="pre">*</span></code>
+is the next card, and a title of <code class="docutils literal notranslate"><span class="pre">*Node</span></code> followed by a row spelled the
+deck a vertex it never had. A line holding <code class="docutils literal notranslate"><span class="pre">**</span></code> goes for the same reason:
+the marker opens a comment anywhere on a line, so such a title came back
+truncated at it, or as nothing at all.</p></li>
+<li><p>An Abaqus <code class="docutils literal notranslate"><span class="pre">*Heading</span></code> line ending in a comma keeps the line below it. A
+trailing comma continues a data line onto the next one everywhere else in a
+deck, and a heading holds no data: the rule glued a title of <code class="docutils literal notranslate"><span class="pre">turbine</span>
+<span class="pre">blade,</span></code> to the <code class="docutils literal notranslate"><span class="pre">rev</span> <span class="pre">3</span></code> under it, and the deck came back one line where
+its author had written two.</p></li>
+<li><p>An Abaqus <code class="docutils literal notranslate"><span class="pre">*Surface,</span> <span class="pre">type=NODE</span></code> row that a trailing comma joined onto the
+next reads a whole number after a set name as that set’s weight factor
+rather than as a node of the surface. The join takes the line break with
+it, and the line break is what told the one from the other; a row opening
+with a node number is still a row of node numbers, which is the spelling
+the join exists to read.</p></li>
+<li><p>An element is written back as a <code class="docutils literal notranslate"><span class="pre">*Surface</span></code> row only when its own type is
+the one a face of that width names. A tetrahedron’s four nodes can be
+exactly a hexahedron’s face, and columns saying so passed the vertex check:
+the solid was written as a side of the hexahedron instead of as an element
+card, so the deck lost a volume element and handed back a quadrilateral.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">*Surface</span></code> row that would take the mesh past the connectivity safety cap
+is refused before its face is built rather than after, where a check that
+only counted what was already there let the mesh past the cap by a face’s
+width.</p></li>
+<li><p>A binary PLY face declaring more vertices than the file holds - 2**31-1 of
+them - is refused with a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the truncation, where the
+whole-block read used to build a record dtype for it first and hand back
+numpy’s <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about a tuple shape, which named neither the file
+nor the face. Every other format’s declared counts were swept for the same
+fault and are guarded; <code class="docutils literal notranslate"><span class="pre">tests/test_declared_counts.py</span></code> now holds one
+corrupt header per format as a matrix.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> hold a grid, and each now says so when
+handed something else. All three inferred their extent from the distinct
+coordinate on each axis, and none of them checked that those multiply back
+out to the mesh: a scattered mesh of seven vertices was written as a seven by
+seven by seven grid of 343 points, with seven rows of point data under a
+header claiming 343. The file was unreadable - its own reader refused it -
+but nothing said so at the point of writing. A mesh whose vertices are a
+grid in some other order was worse, since the count agreed: the file was
+read back happily with every point attribute sitting on the point mirrored
+through the diagonal. The extent is now read off the cells instead, which
+are a grid whatever the coordinates do, and a mesh whose cells are not one
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the shape that was found and pointing at
+<code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, which holds an arbitrary mesh.</p></li>
+<li><p>None of the three writes its connectivity - the reader rebuilds it from the
+extent - and none of them checked that the cells it was handed were the ones
+it would rebuild. Two tetrahedra over the points of a grid were written as
+the grid’s eight hexahedra, their <code class="docutils literal notranslate"><span class="pre">CellData</span></code> dropped on the way out for
+covering the wrong number of cells, and the mesh that came back was not the
+one that went in. Cells the extent does not read back now raise
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> at the point of writing.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vts</span></code> holds a curvilinear grid: it writes its points, so they need not
+lie on a lattice at all, and a warped block, a cylindrical shell and an
+aerofoil O-grid are all StructuredGrids. Taking the extent from the distinct
+coordinate on each axis meant none of them could be written - a warped 3x3x3
+grid counted 27 distinct values on every axis and went out declaring a
+27x27x27 one - and reading the extent off the cells is what lets the format
+hold what it is for.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> writes its three coordinate arrays out in full, so nothing says an
+axis has to ascend. They were taken as the sorted distinct value on each
+column, which turned a descending axis round underneath its own point data;
+they are read off the vertices a stride at a time now, and an axis keeps the
+direction it was given.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code> and <code class="docutils literal notranslate"><span class="pre">.vts</span></code> keep the extent of the file they were read from, and
+<code class="docutils literal notranslate"><span class="pre">.vti</span></code> the origin and step as well, so a grid that did not begin at zero -
+or that steps down an axis - goes back exactly where it stood. All three
+were trusted after a transform had moved the mesh out from under them, and
+each fails differently: a grid pruned to one of its cells was written under
+the extent of the grid it used to be and read back as twenty-seven vertices
+and eight cells it no longer held, a mesh moved five units went out under
+the origin it had left, and one scaled by ten went out under the step. What
+no longer describes the mesh is re-derived from it, the way the entity ids
+are re-checked at the point of writing rather than trusted.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.vti</span></code> took the step on the x axis for the step on all three. A
+lattice whose planes are unevenly spaced is a RectilinearGrid, not an
+ImageData, and one written as the latter came back with every plane past the
+second moved - x coordinates of 0, 1 and 5 read back as 0, 1 and 2, in a
+well-formed file of the right size. An axis that is not evenly spaced now
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> pointing at <code class="docutils literal notranslate"><span class="pre">.vtr</span></code>, which spells its coordinates
+out.</p></li>
+<li><p>Reading back the empty <code class="docutils literal notranslate"><span class="pre">.vts</span></code> this codec writes raised <code class="docutils literal notranslate"><span class="pre">ValueError:</span>
+<span class="pre">cannot</span> <span class="pre">reshape</span> <span class="pre">array</span> <span class="pre">of</span> <span class="pre">size</span> <span class="pre">0</span> <span class="pre">into</span> <span class="pre">shape</span> <span class="pre">(0,newaxis)</span></code>. An empty extent
+gives no column count to infer one from; a file with no points now reads
+as a mesh with none.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.vti</span></code> measures the grid step on each axis separately. Only the
+x axis was asked whether it had a second plane to measure against, and y
+and z were then indexed regardless, so any mesh flat in one of them - a
+sheet of quads, an image one voxel deep - raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> from inside
+the writer instead of being written, and a mesh flat in x quietly took the
+default spacing on all three axes rather than the steps it did have. A
+degenerate axis now keeps the default spacing, which is what VTK reads back
+for an extent of zero anyway, and a mesh with no vertices at all writes the
+<code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span></code> extent VTK spells an empty image with - the one the <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vtr</span></code> writers here already spell - rather than the <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span></code> that reads
+back as a point the mesh never held.</p></li>
+<li><p>Reading a <code class="docutils literal notranslate"><span class="pre">.vti</span></code> whose <code class="docutils literal notranslate"><span class="pre">Origin</span></code> or <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> spells two numbers where
+three belong raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> from inside the parse. The axes it does
+give are taken and the rest defaulted, and a bare number given as
+<code class="docutils literal notranslate"><span class="pre">vti_spacing</span></code> is taken for every axis rather than subscripted. Any number
+of them but three warns rather than passing in silence, and a short one is
+the worse of the two: a dropped fourth number describes no axis, where a
+missing third is an axis of the mesh given a value the file never spelled.
+This codec writes no coordinates, so those six numbers are the whole
+geometry.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> keeps the extent of the file it was read from, the way <code class="docutils literal notranslate"><span class="pre">.vti</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vts</span></code> do. A block that did not begin at zero was slid to the origin on the
+way out, which is the one thing a <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> assembling it next to its
+neighbours reads. It is checked against the mesh rather than trusted: one a
+transform has moved the mesh out from under is re-derived from the cells.</p></li>
+<li><p>All three keep the <code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> of the file they were read from as well
+as their own <code class="docutils literal notranslate"><span class="pre">Extent</span></code>. The two differ exactly when the file is one piece
+of a parallel set, which is the case the piece indices are kept for, and
+writing the piece extent into both narrowed the grid to the piece: a block
+that went back out at the indices it stood on still claimed to be the whole
+domain, so the <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code> or <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> assembling it read one
+neighbour where it should have read several. Kept only while the piece
+extent is, since an extent re-derived from the cells is zero-based and says
+nothing about the grid the mesh used to stand in.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> that is not six whole numbers now raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming the file and the attribute. Unpacked straight into ints, it failed
+with a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about a literal instead.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vti</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> holding a bare grid is readable by the codec that
+wrote it. Neither format spells a coordinate per vertex - an ImageData
+writes an origin and a step, a RectilinearGrid three axes - but the header
+check weighed the declared point count against the bytes on disk as though
+they did, so a plain 4x4x4 grid went out as a valid 231-byte file and came
+back as <code class="docutils literal notranslate"><span class="pre">ValidationError:</span> <span class="pre">declared_n_verts=64</span> <span class="pre">implies</span> <span class="pre">1536</span> <span class="pre">bytes</span> <span class="pre">of</span> <span class="pre">vertex</span>
+<span class="pre">data</span></code>. The heuristic is asked only of a format that spells what it
+declares.</p></li>
+<li><p>A format excused that heuristic is held to a tighter cap in its place. The
+heuristic is what made the loose one safe to leave loose: a format that
+writes its points has to spend bytes on each, so a header can only ask for
+as much memory as the file it sits in is long. An ImageData spends six
+indices on any number of points, so a 250-byte file could declare a hundred
+million planes on one axis and be expanded into the 2.4 GB of vertices they
+come to. The cap clears any grid that expands into a mesh a machine can
+work with and refuses the rest by name.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.vti</span></code> spells its <code class="docutils literal notranslate"><span class="pre">Origin</span></code> and <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> at the width a double
+reads back at. These six numbers are the whole geometry of an ImageData, and
+a <code class="docutils literal notranslate"><span class="pre">.10g</span></code> field kept ten of the seventeen a double carries: an origin of
+0.12345678901234 came back 2.6e-10 away and a step of 1.0000000001234 came
+back as a flat 1, moving every plane by one step more than the last. The
+writer had just checked the vertices against that origin and step to prove
+the file describes this mesh, and then wrote one that did not.</p></li>
+<li><p>The evenness an <code class="docutils literal notranslate"><span class="pre">ImageData</span></code> demands of an axis is measured against the
+step, not against the coordinate. A relative tolerance is a fraction of
+where the axis sits rather than of how far apart its planes are, so an axis
+at x = 1e6 was allowed half a millimetre of drift per plane: a visibly
+uneven lattice passed the check and came back regularised, with every plane
+past the second moved. A drift below what a double holds at that magnitude
+is still allowed, since no file could record it either way.</p></li>
+<li><p>An extent that ends before it starts on an axis holds no points, so it holds
+no cells either. All three readers counted the other two axes’ cells anyway,
+so <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> came back as four quadrilaterals over no vertices at all,
+every corner naming point zero of an empty array. An end two or more before
+its start turned the point count negative on top of that, which <code class="docutils literal notranslate"><span class="pre">.vts</span></code> then
+handed to <code class="docutils literal notranslate"><span class="pre">reshape</span></code> as a second unknown dimension. Such an extent now reads
+as the empty mesh it describes. Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> says the same thing with
+<code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> and had the same hole: a <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> or
+<code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> of <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">3</span> <span class="pre">3</span></code> came back as four quadrilaterals over no
+vertices, built from strides that were themselves zero, and a negative
+<code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> was reported to the caller as a negative count of points.</p></li>
+<li><p>The extent a mesh carries in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> may be no extent at all. A
+bare number has no length and a string that looks like one has characters
+rather than numbers, and either reached <code class="docutils literal notranslate"><span class="pre">len</span></code> and failed with a
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code> from inside the <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> writer. So could
+a <code class="docutils literal notranslate"><span class="pre">vti_origin</span></code> or <code class="docutils literal notranslate"><span class="pre">vti_spacing</span></code> holding something no float reads. None
+of them is trusted now: what cannot be read is named in a warning and the
+writer reads the mesh’s own extent, origin and step off it instead.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> builds its vertices from the coordinate arrays and everything else
+from the extent, and nothing in the file made the two agree. An array longer
+than its axis expanded into more vertices than the extent declared, while the
+cells, the offsets and every <code class="docutils literal notranslate"><span class="pre">PointData</span></code> array stayed sized to the extent -
+a mesh whose connectivity covered part of itself and whose attributes covered
+none of it, past every check the reader made. The lengths are compared now,
+and a mismatch raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the axis. Every axis is asked,
+including one the extent gives no plane at all: the point count is a product
+and goes to zero there, but the vertices are the coordinate arrays’ own outer
+product, so an axis left unchecked expanded <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> into nine
+vertices under an extent declaring none. An axis the file leaves no array for
+takes the one plane at zero the extent gives it, which is how a
+two-dimensional grid writes its third.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vts</span></code> reads the width of its points from the extent and the <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code>
+array together, so a file whose two disagreed came back as a mesh of the
+wrong width - one point of no coordinates at all, where the extent declared a
+point the array did not carry - and only failed later, on a shape nothing in
+the file explained. Both counts are named in a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> now. An array
+wider than three components still keeps its first three.</p></li>
+<li><p>An MFEM file that opens with a byte order mark is read rather than refused.
+The sniffer decodes the mark away and the reader did not, and the mark is
+not whitespace for <code class="docutils literal notranslate"><span class="pre">strip</span></code> to take off, so a <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> the registry had
+already claimed as MFEM failed for not starting with <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">mesh</span></code>.</p></li>
+<li><p>Every spelling of an MFEM header the sniffer accepts is one the reader
+dispatches on. The registry claims a <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> file by its upper-cased
+header and the reader matched case-sensitively, so <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NC</span> <span class="pre">MESH</span> <span class="pre">v1.0</span></code> was
+claimed as MFEM and then refused for not starting with <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">mesh</span></code>. The two
+NC spellings both reach the non-conforming reader as well: <code class="docutils literal notranslate"><span class="pre">MFEM</span> <span class="pre">NC-Mesh</span></code>
+was falling through to the NURBS one, which read a refinement forest as
+B-spline control points and warned under the wrong variant’s name.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> hands back vertices with three columns. A file declaring
+<code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> was read into an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">2)</span></code> array, which is not what a
+<code class="docutils literal notranslate"><span class="pre">PolyData</span></code> holds: every consumer indexing <code class="docutils literal notranslate"><span class="pre">vertices[:,</span> <span class="pre">2]</span></code> - the
+transforms, the other writers, <code class="docutils literal notranslate"><span class="pre">faces</span></code> - raised on it. The coordinates
+are padded with <code class="docutils literal notranslate"><span class="pre">z=0</span></code> like every other codec’s, and the write side takes
+its <code class="docutils literal notranslate"><span class="pre">Dimension</span></code> from the mesh rather than from the width of the array.</p></li>
+<li><p>A tag group naming a vertex or an element that this mesh does not have no
+longer moves the label onto one that it does. <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code>,
+<code class="docutils literal notranslate"><span class="pre">merge_duplicate_vertices</span></code> and <code class="docutils literal notranslate"><span class="pre">filter_element_type</span></code> carried a group
+through their index remap after dropping only the members past the end, so
+a negative index reached the array from the far end and landed on a real
+item, and a group holding floats - which nothing stops a reader from
+building - raised <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> from inside numpy instead. All three now
+go through the same member check the writers use: a member that indexes
+nothing in this mesh is dropped, and what is left is remapped.</p></li>
+<li><p>The documented <code class="docutils literal notranslate"><span class="pre">pipeline(filter_element_type(keep=&quot;triangle&quot;),</span> <span class="pre">...)</span></code>
+raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>: <code class="docutils literal notranslate"><span class="pre">filter_element_type</span></code> takes the mesh first and does
+not curry. The example now composes it with <code class="docutils literal notranslate"><span class="pre">functools.partial</span></code>.</p></li>
+<li><p>A broken binary file now reports what is wrong with it rather than
+<code class="docutils literal notranslate"><span class="pre">BufferError:</span> <span class="pre">cannot</span> <span class="pre">close</span> <span class="pre">exported</span> <span class="pre">pointers</span> <span class="pre">exist</span></code>. The formats that
+parse over a mapping - <code class="docutils literal notranslate"><span class="pre">.ply</span></code>, legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> - build their
+arrays as views of it, and a parse that gives up half-way leaves one of
+those alive in the traceback carrying the failure; unmapping underneath it
+then raised, and that error replaced the codec’s own. The mapping is left
+to the last view of it instead, so a corrupt file says the same thing read
+from a path as it does read from a buffer, where there was never a mapping
+to unmap.</p></li>
+<li><p>A source that answers a read with less than it was asked for is now read to
+the end of the request. A bare <code class="docutils literal notranslate"><span class="pre">read</span></code> is allowed to come up short - a
+socket hands back what has arrived, not what was wanted - and the wrapper
+put in front of a duck-typed handle passed that straight through, so a
+codec asking for n bytes could silently get fewer and parse the gap as
+data. A handle from <code class="docutils literal notranslate"><span class="pre">open()</span></code> never came up short, so no codec guarded
+against it. Nothing is read past what was asked for, so a handle the caller
+shares still ends up where the codec’s reading left it.</p></li>
+<li><p>OBJ face indices are resolved the way the format defines them: a negative
+index counts back from what has been declared so far, and an index naming
+a record the file does not have raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line
+instead of wrapping around into a different vertex.</p></li>
+<li><p>OBJ <code class="docutils literal notranslate"><span class="pre">vt</span></code> records are read. They are indexed per face corner, so a file
+may hold more of them than it holds vertices; each corner assigns to its
+vertex, a vertex given two different values keeps the last and warns, and
+records nothing indexes are kept only when there is one per vertex.
+<code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code> are written back, so texture coordinates and normals
+survive a round trip.</p></li>
+<li><p>OBJ writes a bare <code class="docutils literal notranslate"><span class="pre">g</span></code> before a face that belongs to no group, so it no
+longer inherits the group of the face above it, and a bare <code class="docutils literal notranslate"><span class="pre">g</span></code> on read
+clears the active groups rather than inventing a <code class="docutils literal notranslate"><span class="pre">default</span></code> tag.</p></li>
+<li><p>An OBJ file whose <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> records cannot be lined up with its
+vertices now leaves the attribute out. The fold that gives up returned
+None, and only the <code class="docutils literal notranslate"><span class="pre">vt</span></code> path checked for it, so <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> could
+hand back a None where an array belongs and the writer raised
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code> on it.</p></li>
+<li><p>OBJ writes a number where a vertex has no record. A vertex no face names
+carries NaN out of the reader, and <code class="docutils literal notranslate"><span class="pre">vt</span> <span class="pre">nan</span> <span class="pre">nan</span></code> is not a record another
+reader takes; the row nothing indexes is written as zero. A <code class="docutils literal notranslate"><span class="pre">vt</span></code> array
+narrower than two columns is padded rather than indexed past its end.</p></li>
+<li><p>OBJ leaves out a <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> attribute that does not hold one row
+per vertex, with a warning naming its shape. Only the column count was
+checked, so an attribute with fewer rows than the mesh wrote faces
+indexing <code class="docutils literal notranslate"><span class="pre">vt</span></code> records that were not in the file - which no reader can
+take, this one included: a three-vertex mesh carrying one texture
+coordinate wrote a file that read back as <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>. A
+one-dimensional attribute is now read as one value per vertex rather
+than as a single row.</p></li>
+<li><p>Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> files now read <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> and <code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, in both
+the ASCII and the binary flavour. Both used to stop the attribute scan,
+dropping the array and everything after it without a word. A binary
+<code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> component is an unsigned char standing for the 0..1
+float an ASCII file writes, and is scaled onto that range, so the same
+colour reads back the same from either flavour.</p></li>
+<li><p>Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> reads <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code>, and steps over a
+<code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> definition rather than stopping at it. Those were the
+last two attribute keywords the format defines that the scan did not
+know, and in a binary file an unknown keyword ends the scan: a file
+carrying either lost every array after it. A palette is not a value per
+point, so a lookup table becomes no attribute - it is only counted past.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute keyword the reader does not know now warns
+that it and everything after it in that section are being dropped. Its
+payload is binary of unknown length, so the scan still cannot go on, but
+a short read is no longer a silent one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NORMALS</span></code> and <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> are read from <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> and <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> files too. Those three
+datasets scan their attributes themselves rather than through the shared
+parser, and knew only <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code>.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute that runs past the end of the file now
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array and the bytes that are missing.
+The slice came up short in silence and the reshape after it failed with
+a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming neither the array nor the file.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute section that declares more values than the
+file holds raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array and the count, rather
+than running off the end of the line list with an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> that
+names nothing. This covers <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code>.</p></li>
+<li><p>A Nastran real field is now written in whatever spelling fits it. Bulk
+data allows the exponent’s <code class="docutils literal notranslate"><span class="pre">E</span></code> to be dropped when its sign is there
+(<code class="docutils literal notranslate"><span class="pre">1.234-10</span></code>), and nothing reads <code class="docutils literal notranslate"><span class="pre">+07</span></code> differently from <code class="docutils literal notranslate"><span class="pre">+7</span></code>, so the
+writer offers both - three columns back on the explicit form, which is
+three more significant digits in an eight-column field. A value at the
+top of the double range is stepped one digit toward zero rather than
+refused, since rounding it to nearest overflows to infinity. No finite
+coordinate is refused by a field any more.</p></li>
+<li><p>A Nastran real field prefers a spelling that reads back as the value it
+was given. The search spent precision one digit at a time and took the
+first form that fit, so a mantissa stepped toward zero could win a field
+an exact form two digits shorter would also have fit: <code class="docutils literal notranslate"><span class="pre">1e7</span></code> went out as
+<code class="docutils literal notranslate"><span class="pre">9999999.</span></code> where <code class="docutils literal notranslate"><span class="pre">1.E+07</span></code> was available, and <code class="docutils literal notranslate"><span class="pre">1e15</span></code> as
+<code class="docutils literal notranslate"><span class="pre">999999999999999.</span></code> in a large field. Exact spellings are now swept for
+first, at every precision, and only a value no field can hold exactly -
+the top of the double range - falls through to the closest one.</p></li>
+<li><p>The XML writers declare <code class="docutils literal notranslate"><span class="pre">version=&quot;1.0&quot;</span></code> in the <code class="docutils literal notranslate"><span class="pre">&lt;VTKFile&gt;</span></code> header
+rather than <code class="docutils literal notranslate"><span class="pre">version=&quot;0.1&quot;</span></code>, which no VTK release ever defined.
+Reading a file that declares <code class="docutils literal notranslate"><span class="pre">0.1</span></code> is unchanged.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> polyxios cannot decode - a <code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code> label
+array, or any type it does not know - is skipped with a warning naming
+it, and the arrays around it are still read. It used to vanish without
+a word.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> file keeps its <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code>
+and <code class="docutils literal notranslate"><span class="pre">SPACING</span></code> in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> as <code class="docutils literal notranslate"><span class="pre">vtk_dimensions</span></code> /
+<code class="docutils literal notranslate"><span class="pre">vtk_origin</span></code> / <code class="docutils literal notranslate"><span class="pre">vtk_spacing</span></code>, and <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> /
+<code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> keep their <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>. Expanding the header into
+a point array used to throw the grid away.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Piece</span></code> that declares points and does not
+deliver them raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>, whether its <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code> element is
+short or missing altogether. It used to be skipped, leaving the piece’s
+cells indexing points that are not there and every later piece shifted
+by the count that never arrived.</p></li>
+<li><p>A point or cell array that covers only some of a multi-piece <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or
+<code class="docutils literal notranslate"><span class="pre">.vtp</span></code> file is dropped with a warning naming it. Joining the pieces
+that carried it gave an array shorter than the mesh, whose rows then sat
+against the wrong points from the second piece on. An array the pieces
+shape differently - one calling it scalar and the next a vector - is
+dropped the same way, with its shapes named, rather than raising a bare
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> from <code class="docutils literal notranslate"><span class="pre">numpy.concatenate</span></code>.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> section is read from <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> and <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> files. Those three walk
+their own attributes, and the chain that did it asked only about points,
+so every cell array fell past it in silence - the cell scalars in VTK’s
+own <code class="docutils literal notranslate"><span class="pre">SampleStructGrid.vtk</span></code> among them. The three now share one scanner,
+which also gives them <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code> and <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code>. An array
+whose declared length matches neither the points nor the cells is dropped
+with a warning rather than reaching <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> as a validation error
+about lengths.</p></li>
+<li><p>A structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> grid extends along whichever axes it
+declares. A <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span> <span class="pre">3</span> <span class="pre">1</span> <span class="pre">3</span></code> sheet was read as two lines over the
+first two points instead of four quads over all nine, and a column along
+<code class="docutils literal notranslate"><span class="pre">y</span></code> or <code class="docutils literal notranslate"><span class="pre">z</span></code> was read with the stride of a row along <code class="docutils literal notranslate"><span class="pre">x</span></code>. Only grids
+flat in <code class="docutils literal notranslate"><span class="pre">z</span></code> and rows along <code class="docutils literal notranslate"><span class="pre">x</span></code> came out right.</p></li>
+<li><p>An attribute keyword one of the structured readers does not handle now
+warns that its array is being dropped, the way the shared parser’s binary
+scan already did. Skipping the line does not step over the payload, so in
+a binary file the scan carries on inside it.</p></li>
+<li><p>An unknown attribute keyword in an ASCII legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file warns as
+well. Only the binary scan said anything; ASCII skipped the keyword and
+its value lines without a word.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute section whose values run into the next
+header raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array, the line and what it
+holds, rather than <code class="docutils literal notranslate"><span class="pre">float()</span></code> answering with a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> that
+names neither the array nor the file.</p></li>
+<li><p>A binary attribute in a structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file is checked
+against the end of the file before it is sliced, which the shared parser
+already did. A truncated file gave a nameless reshape <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Points</span></code> array whose size is not a whole number
+of tuples per point raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the Piece. Only a short
+array was caught, so ten values for three points reached <code class="docutils literal notranslate"><span class="pre">reshape</span></code> and
+came back as a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming neither the file nor the Piece.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">v</span></code>, <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> record in an OBJ file that does not carry the
+components its directive needs, or carries something that is not a
+number, raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line. Both used to reach the
+caller as a bare <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> or <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. A <code class="docutils literal notranslate"><span class="pre">vt</span></code> carrying a
+third component - the depth of a volumetric texture - keeps the two a
+surface uses rather than making the records ragged.</p></li>
+<li><p>Writing an OBJ <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> entry that holds no numbers - a label per
+vertex, say - drops it with a warning instead of raising out of
+<code class="docutils literal notranslate"><span class="pre">numpy.asarray</span></code>.</p></li>
+<li><p>Legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> files written by VTK 5.1 - the default since VTK 9.0 -
+are read. The two numbers on a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> line are the length of the
+<code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> array and the length of <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code>, not the cell count;
+reading the first as a cell count ran the offsets into the
+<code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code> keyword and answered with a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>. The
+offsets are now counted up to that keyword, so files spelling the line
+either way are read. <code class="docutils literal notranslate"><span class="pre">POLYDATA</span></code> gained the layout altogether: its
+<code class="docutils literal notranslate"><span class="pre">POLYGONS</span></code>, <code class="docutils literal notranslate"><span class="pre">LINES</span></code>, <code class="docutils literal notranslate"><span class="pre">VERTICES</span></code> and <code class="docutils literal notranslate"><span class="pre">TRIANGLE_STRIPS</span></code> sections
+knew only the v4.2 form, so no polydata file VTK 9 writes could be read
+at all.</p></li>
+<li><p>Writing a v5.1 legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file declares the length of its
+<code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> array on the <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> line. It declared the cell count,
+which VTK’s own reader takes literally: it stopped with “Error reading
+cell array connectivity header” and returned a mesh with no cells.
+Files polyxios wrote before this still read.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block is stepped over. Every VTK writer since 4.2 puts one
+after each array, and it is text even in a binary file. In ASCII it
+warned twice about keywords it named as dropped; in binary it ended the
+attribute scan, so a file with two arrays came back with one. Inside a
+<code class="docutils literal notranslate"><span class="pre">FIELD</span></code> block it was read as an array header, which took the array
+after it with it.</p></li>
+<li><p>A binary <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> keeps the section that follows its points.
+The line cursor was stepped past the payload and then once more over the
+newline that ended it, so whichever section came next - a <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code>
+written before <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code>, as VTK writes it - was skipped.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> follows its coordinate arrays rather than its
+<code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> header. The points are the outer product of the three
+arrays, so a header that disagreed with them generated cells indexing
+points that do not exist and dropped attributes that covered every point
+there is. The header is now checked against them, warned about when it
+differs, and the arrays win.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> honour <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code> when
+reading an attribute. A three-component array on 27 points came back as
+81 rows, which belongs to no mesh and fails <code class="docutils literal notranslate"><span class="pre">validate</span></code>; <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vtp</span></code> of the same family already cut it into tuples.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> declares the component count of the attributes it writes, so a
+vector survives a round trip, and writes each array in the type its
+<code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> declares. Everything was cast to float64 under whatever
+header the original dtype produced, so an <code class="docutils literal notranslate"><span class="pre">Int32</span></code> attribute read back
+as the bit pattern of a double.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Points</span></code> array of a type that holds no numbers -
+<code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code>, or any type this reader does not know - raises
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the type. It warned that the array was skipped and
+then blamed the point count for the zero values that left.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> attribute of a dtype no VTK type names - a boolean mask, a
+float16 - is written as the <code class="docutils literal notranslate"><span class="pre">Float64</span></code> its header declares. Only the
+header fell back; the bytes stayed the dtype’s own, so eight booleans
+went out as eight bytes under a <code class="docutils literal notranslate"><span class="pre">Float64</span></code> header and read back as one
+garbage double.</p></li>
+<li><p>Every XML writer declares the whole width of a tuple, not the second
+dimension of the array holding it. A <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3,</span> <span class="pre">3)</span></code> tensor attribute -
+what a legacy <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> section reads back as - was declared as one
+component in <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> and as three in
+<code class="docutils literal notranslate"><span class="pre">.vtr</span></code>, so nine times the rows came back and belonged to no mesh.</p></li>
+<li><p>The XML writers cast to little endian before taking the bytes, which is
+what the <code class="docutils literal notranslate"><span class="pre">byte_order</span></code> they all declare says those bytes are. On a
+big-endian machine every binary array went out reversed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> drop an attribute whose rows cannot be
+matched to the mesh, with a warning naming it, as <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>
+already did. It used to reach <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> and fail <code class="docutils literal notranslate"><span class="pre">validate</span></code> with a
+message about lengths rather than about the file.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file holds its <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> as binary. Both
+tensor branches of the writer - the 3x3 one and the Voigt 6-component
+one - spelled their numbers whatever was asked for, so a binary file
+carrying either had a run of ASCII in the middle of it and came back as
+a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> about a short block.</p></li>
+<li><p>The ASCII writers spell a value as the shortest decimal that reads back
+as it, rather than to ten significant digits. A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> file declaring <code class="docutils literal notranslate"><span class="pre">double</span></code> or
+<code class="docutils literal notranslate"><span class="pre">Float64</span></code> held seven digits fewer than that, so coordinates came back
+about 1e-10 off what was written; they are now exact.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block written without its blank terminator ends at the
+geometry keyword after it as well as at an attribute one. Left open at
+the end of a <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> section it swallowed the <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> that
+followed and every line to the end of the file - the failure the
+terminator search was added to prevent.</p></li>
+<li><p>A malformed attribute section in a structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file costs
+the section rather than the mesh. A count running past the end of the
+file raised <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> out of a read whose geometry was already
+whole, and those sections were skipped entirely before they were read at
+all, so files that used to load stopped loading.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Piece</span></code> that cannot be read is named by its
+index. A file of forty pieces gave no way to find the one at fault.</p></li>
+<li><p>An OBJ vertex named twice with different values is warned about whichever
+component they differ in. The check asked whether the first component had
+been written yet, so a record whose first component is NaN hid every
+conflict on that vertex.</p></li>
+<li><p>Writing an OBJ <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> attribute wider than the record says how
+many components are being left out, rather than truncating in silence.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> whose <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code> does not cover its
+<code class="docutils literal notranslate"><span class="pre">POINTS</span></code> array hands the points back without cells, warning about the
+two counts. The cells are strides through the layout the header
+describes, so a header naming more points than the file delivered
+generated connectivity indexing points that are not there: the read
+returned a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> that fails <code class="docutils literal notranslate"><span class="pre">validate</span></code>. <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code>
+already reconciled the two.</p></li>
+<li><p>An attribute section is read by the count its own header declares rather
+than by the count of the mesh. The two agree in a well-formed file, and
+where they do not the section’s is the only number that says where one
+array ends and the next begins - reading by the mesh’s walked an array
+straight into the header after it. An array that then covers no point or
+cell of the mesh is dropped with a warning naming it, as the structured
+readers already did.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> section without a <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code>
+line - which the format leaves optional - reads its own values. The line
+was consumed unconditionally, so the payload up to its first <code class="docutils literal notranslate"><span class="pre">0x0a</span></code>
+byte was swallowed, and a payload holding none rewound the scan to the
+top of the file.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> or <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> block is
+checked against the end of the file before it is sliced, the way the
+attribute blocks already were. The whole-file bound the header check
+applies clears a block that still runs off the end - a file with a long
+comment header, say - and the reshape after the short slice failed with a
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> naming neither the array nor the file.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> attribute header missing a field, or spelling a count
+as something that is not a number, names the file and the line it is on.
+<code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> with no array name reached the caller as <code class="docutils literal notranslate"><span class="pre">IndexError:</span> <span class="pre">list</span>
+<span class="pre">index</span> <span class="pre">out</span> <span class="pre">of</span> <span class="pre">range</span></code> and <code class="docutils literal notranslate"><span class="pre">SCALARS</span> <span class="pre">s</span> <span class="pre">float</span> <span class="pre">x</span></code> as a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>,
+in the ASCII scan, the binary scan and the structured one alike. A binary
+file has no line to name, so the byte offset stands in for one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> write each attribute in the
+type the array is held in, as <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> does. Everything was cast to a
+double under a <code class="docutils literal notranslate"><span class="pre">Float64</span></code> header, so an <code class="docutils literal notranslate"><span class="pre">int64</span></code> identifier past 2**53
+came back a different number.</p></li>
+<li><p>The ASCII body of a <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> is parsed into the type the element
+declares rather than through <code class="docutils literal notranslate"><span class="pre">float()</span></code> first. An <code class="docutils literal notranslate"><span class="pre">Int64</span></code> array was
+rounded to a double before the declared type ever saw it, which the top
+of the integer range does not survive.</p></li>
+<li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> block is read as the type its header names. A
+<code class="docutils literal notranslate"><span class="pre">POINTS</span> <span class="pre">n</span> <span class="pre">int</span></code> was read at four bytes a float, so an integer point
+array came back as coordinates the file never held, and a type name the
+reader has no numpy equivalent for - <code class="docutils literal notranslate"><span class="pre">bit</span></code>, or a misspelling - was
+guessed at rather than refused. Every binary header now resolves its type
+the same way and raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming it when it cannot; the
+names VTK writes for 64-bit and signed-char arrays were missing from the
+table and are there now. An ASCII payload is unaffected: its values are
+text whatever the header calls them.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> geometry or section header spelling a count as
+something that is not a number, or leaving it out, names the file and the
+line it is on. <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>, <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code>, <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code>, <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">ORIGIN</span></code>, <code class="docutils literal notranslate"><span class="pre">SPACING</span></code> and the coordinate
+arrays reached the caller as a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> or <code class="docutils literal notranslate"><span class="pre">IndexError</span></code>,
+which the attribute headers had already stopped doing.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> array in a legacy <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> is measured against
+the cells the mesh ends up with rather than the cells <code class="docutils literal notranslate"><span class="pre">DIMENSIONS</span></code>
+describes. A header its <code class="docutils literal notranslate"><span class="pre">POINTS</span></code> array does not cover leaves the mesh
+with no cells, and the array was kept against the header’s count, so the
+read returned a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> that fails <code class="docutils literal notranslate"><span class="pre">validate</span></code>.</p></li>
+<li><p>An OBJ face index spelled with a superscript digit raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming the line. <code class="docutils literal notranslate"><span class="pre">str.isdigit</span></code> admits <code class="docutils literal notranslate"><span class="pre">²</span></code> and <code class="docutils literal notranslate"><span class="pre">int()</span></code> then refuses
+it, so the fast path let a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> out; the test is now
+<code class="docutils literal notranslate"><span class="pre">str.isdecimal</span></code>, which still admits the non-Latin digits <code class="docutils literal notranslate"><span class="pre">int()</span></code>
+reads.</p></li>
+<li><p>A bare <code class="docutils literal notranslate"><span class="pre">mtllib</span></code> or <code class="docutils literal notranslate"><span class="pre">o</span></code> directive in an OBJ file names nothing rather
+than the empty string, which used to be written back as a directive with
+nothing after it.</p></li>
+<li><p>Writing an OBJ <code class="docutils literal notranslate"><span class="pre">element_attrs['material']</span></code> that does not cover the
+faces drops it with a warning naming its length, the way the vertex
+attributes already were. Indexed per face it ran off the end partway
+through, leaving a half-written file and an <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> naming an
+axis.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">Piece</span></code> whose <code class="docutils literal notranslate"><span class="pre">NumberOfPoints</span></code> is not a count,
+and a <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> <code class="docutils literal notranslate"><span class="pre">Extent</span></code> that is not six whole
+numbers, raise <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the file. They reached the caller as
+a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about <code class="docutils literal notranslate"><span class="pre">int()</span></code> or about unpacking.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> whose <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code> is not a count is read
+flat with a warning naming it, rather than raising a bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>
+from <code class="docutils literal notranslate"><span class="pre">int()</span></code>.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file whose header declares <code class="docutils literal notranslate"><span class="pre">DATASET</span> <span class="pre">FIELD</span></code> is read.
+The dispatch asked what the line starts with while the line still
+carried its <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> keyword, so the branch never ran and every field
+data file was refused by the one below it.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">METADATA</span></code> block inside a v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section is stepped over. VTK
+follows a cell array with one, so a block sat between the offsets and the
+connectivity of files every release since 9.0 writes; read as offsets it
+raised <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> about a line of words where numbers belong.</p></li>
+<li><p>A v5.1 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> section is found by what follows the header rather than
+by the version in the first line. Versions were compared as strings, so a
+file declaring <code class="docutils literal notranslate"><span class="pre">10.0</span></code> sorted below <code class="docutils literal notranslate"><span class="pre">5.1</span></code> and its offsets would have
+been read as a v4.2 cell stream. The binary scan already asked this way.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> or <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> extent flat along an axis - an image one
+voxel deep - is a sheet of quads, or a run of lines when it is flat along
+two. All three read it as a grid of no cells, which left every
+<code class="docutils literal notranslate"><span class="pre">CellData</span></code> array belonging to nothing.</p></li>
+<li><p>An ASCII <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> holding a value its declared type is too narrow
+for wraps with a warning naming the array, the way a C reader wraps it,
+rather than escaping as a bare <code class="docutils literal notranslate"><span class="pre">OverflowError</span></code> from numpy. A token that
+names no number at all raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array.</p></li>
+<li><p>Writing a point or cell attribute of a kind no <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> can hold -
+a label per vertex, say - raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the array and its
+dtype, rather than a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> about one element.</p></li>
+<li><p>The warnings the <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, XML and OBJ codecs raise are blamed on the code
+that asked for the file. Every one of them pointed a frame short, at
+<code class="docutils literal notranslate"><span class="pre">polyxios.read</span></code> or <code class="docutils literal notranslate"><span class="pre">polyxios.write</span></code> itself, which tells a caller
+nothing about which of their own calls found the file.</p></li>
+</ul>
+</section>
+<section id="optimizations">
+<h3>Optimizations<a class="headerlink" href="#optimizations" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> write no longer builds the whole of a mesh as one string
+or one array before writing it. Every block is written in runs, so the
+bytes are the ones a single join produced while the memory a write holds
+above the mesh is a fixed run whatever the mesh’s size. A run of cells
+that share a node count - which is every mesh of one element type - is
+laid out as rows of an array rather than a cell at a time, and both
+spellings share that layout. <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> is translated by indexing a
+table built once at import rather than by a dictionary hop per cell.
+Writing 400k triangles: spelled, 923 ms and 54 MB above the
+mesh became 431 ms and 6 MB; binary, 564 ms and 128 MB became 15 ms and
+10 MB.</p></li>
+<li><p>Reading an OBJ file resolves a face corner inline when it names a plain
+index inside what has been declared, which is what nearly every corner
+does; the rest still go the long way round, where the message naming the
+line lives. A mesh of any size has millions of corners, and the call this
+saves is most of what checking them cost. A <code class="docutils literal notranslate"><span class="pre">v</span></code>, <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> record
+carrying exactly the components its directive spells skips the padding and
+the slice that feeds it.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">float32</span></code> attribute is spelled at its own width in an ASCII
+<code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code>. Widened to a double first, <code class="docutils literal notranslate"><span class="pre">0.1</span></code> went out as
+<code class="docutils literal notranslate"><span class="pre">0.10000000149011612</span></code> - seventeen digits of a value carrying seven -
+which is nearly twice the file for the same numbers.</p></li>
+<li><p>Writing a Nastran large-field deck is roughly ten times faster. Sweeping
+for an exact spelling asked every precision from seventeen digits down,
+spelling and parsing candidates at each; rounding to fewer significant
+digits than <code class="docutils literal notranslate"><span class="pre">repr</span></code> carries cannot be exact whatever form it takes, so
+the sweep now stops there. Neither sweep spells a candidate at a
+precision the field could not hold in the first place, and the stepped
+mantissas - the expensive half - are built only when the rounded ones
+have all missed. Twenty thousand <code class="docutils literal notranslate"><span class="pre">GRID*</span></code> cards went from 10.3 s to
+1.0 s, and every value is written exactly as before.</p></li>
+<li><p>Reading an OBJ file no longer names its source once per line. The name
+costs a path walk and was only ever used to spell an error message.</p></li>
+<li><p>A Nastran real field below one drops its leading zero when the column it
+costs is a significant digit. Bulk data reads <code class="docutils literal notranslate"><span class="pre">.5</span></code> as <code class="docutils literal notranslate"><span class="pre">0.5</span></code>, so a
+third in an eight-column field goes out as <code class="docutils literal notranslate"><span class="pre">.3333333</span></code> rather than
+<code class="docutils literal notranslate"><span class="pre">0.333333</span></code>.</p></li>
+<li><p>Writing an OBJ file looks its material attribute up once rather than once
+per face.</p></li>
+<li><p>Stepping past a binary payload in a structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> file is a
+binary search over the line offsets rather than a walk. A binary payload
+carries a newline every few values, so the lines it is cut into number in
+the thousands for a grid of any size; a 5 MB <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code> file
+reads about a fifth faster.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code>, <code class="docutils literal notranslate"><span class="pre">.vts</span></code> and <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> build their hexahedra with array
+arithmetic instead of a Python loop per cell. The corners of a cell are
+strides from its own origin, so the whole connectivity is eight adds over
+the origins; a 40x40x40 grid builds about nine times faster.</p></li>
+<li><p>The structured legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> readers cut their file into lines in one
+pass rather than a <code class="docutils literal notranslate"><span class="pre">find</span></code> per line, and they all do it in the same
+place. The lines are byte-identical to what the walk produced.</p></li>
+<li><p>Folding OBJ <code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code> records onto their vertices is one pass over
+the corners rather than a numpy row assignment per corner.</p></li>
+<li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> ASCII payload is spelled and written in one pass instead
+of a formatted write per point, which was a syscall per line.</p></li>
+</ul>
+</section>
+<section id="tests">
+<h3>Tests<a class="headerlink" href="#tests" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Regression tests for the dtype a <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> header declares against the
+bytes under it, the component count of a tensor attribute in every XML
+writer, a binary legacy <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code> section, an unterminated <code class="docutils literal notranslate"><span class="pre">METADATA</span></code>
+block followed by geometry, an attribute section declaring more than its
+file holds, an OBJ conflict hiding behind a NaN first component, and the
+<code class="docutils literal notranslate"><span class="pre">Piece</span></code> index in a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> error.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_a_double_section_holds_every_digit_of_a_double</span></code> writes a
+coordinate no ten-digit spelling can hold and asks for it back unchanged.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test_a_power_of_ten_is_written_exactly</span></code> spells its powers as literals
+rather than computing them with <code class="docutils literal notranslate"><span class="pre">**</span></code>. <code class="docutils literal notranslate"><span class="pre">pow</span></code> is not correctly rounded
+everywhere - glibc and MSVC answer <code class="docutils literal notranslate"><span class="pre">10.0</span> <span class="pre">**</span> <span class="pre">23</span></code> with the double one unit
+above <code class="docutils literal notranslate"><span class="pre">1e23</span></code>, macOS with <code class="docutils literal notranslate"><span class="pre">1e23</span></code> itself - and that neighbour needs
+seventeen significant digits, which no eight or sixteen character field
+can hold. The test asked the writer for a field wider than the format has,
+and failed on Linux and Windows only.</p></li>
+<li><p>A cross-codec round-trip matrix (<code class="docutils literal notranslate"><span class="pre">tests/test_roundtrip.py</span></code>) writes and
+re-reads five canonical meshes through every writable codec, checked
+against a table declaring exactly what each format keeps. A new codec
+cannot join the registry without an entry.</p></li>
+</ul>
+<p>GitHub stats for 2026/08/18 - 2026/09/09 (tag: v0.3.0)</p>
+<p>These lists are automatically generated and may be incomplete or contain duplicates.</p>
+<p>The following 1 authors contributed 89 commits.</p>
+<ul class="simple">
+<li><p>Serge Koudoro</p></li>
+</ul>
+<p>We closed a total of 18 issues, 17 pull requests and 1 regular issues.</p>
+<p>Pull Requests (17):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/60">PR #60</a>: DOC: the README and the guides say what 0.4.0 added</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/59">PR #59</a>: NF: OBJ keeps the texture coordinates a seam gives two of</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/56">PR #56</a>: TEST: the regression guards are named for what they guard</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/57">PR #57</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/55">PR #55</a>: NF: whole-mesh metadata, tag groups and face sets across the codecs</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/54">PR #54</a>: BF: .vti, .vts and .vtr hold a grid, and say so when handed something else</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/53">PR #53</a>: NF: add a Kratos MDPA codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/51">PR #51</a>: NF: meshes keep the numbers their file gave (P2.4)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/52">PR #52</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/49">PR #49</a>: NF: one rule for two-dimensional meshes (P2.3)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/50">PR #50</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/48">PR #48</a>:  NF: topological dimension and duplicate-vertex welding</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/47">PR #47</a>: BF: P1 format correctness - Nastran, Medit, Abaqus, Gmsh, PLY/STL, Tecplot</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/46">PR #46</a>: BF: OBJ, legacy VTK, VTK XML and Nastran correctness</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/45">PR #45</a>: NF: buffer/file-handle IO and transparent gzip</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/44">PR #44</a>: NF: Handle *.dat via a sniffer to redirect to the correct codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/43">PR #43</a>: CI: publish versioned docs from the tag push</p></li>
+</ul>
+<p>Issues (1):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/58">GH#58</a>: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs</p></li>
+</ul>
+</section>
+</section>
+<section id="changes-0-3-0">
+<span id="id3"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
+<p>Fifteen new mesh formats, a real command line interface and a versioned
+documentation site.</p>
+<section id="id4">
+<h3>New features<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
+extensions:</p>
+<ul>
+<li><p>Abaqus <code class="docutils literal notranslate"><span class="pre">.inp</span></code> (C3D4 / C3D8 / S3 / S4 and friends).</p></li>
+<li><p>AVS-UCD <code class="docutils literal notranslate"><span class="pre">.avs</span></code>, preserving <code class="docutils literal notranslate"><span class="pre">mat_id</span></code>.</p></li>
+<li><p>DOLFIN / FEniCS XML <code class="docutils literal notranslate"><span class="pre">.xml</span></code>.</p></li>
+<li><p>FLAC3D <code class="docutils literal notranslate"><span class="pre">.f3grid</span></code> (zones and faces).</p></li>
+<li><p>Gmsh <code class="docutils literal notranslate"><span class="pre">.msh</span></code> - ASCII v2 read/write, v4.1 read, physical groups kept.</p></li>
+<li><p>Medit binary <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> (GmfLib v1 and v2, zero-copy mmap).</p></li>
+<li><p>Nastran <code class="docutils literal notranslate"><span class="pre">.bdf</span></code>, also registered for <code class="docutils literal notranslate"><span class="pre">.nas</span></code> and <code class="docutils literal notranslate"><span class="pre">.fem</span></code>, reading
+free, small and large field formats.</p></li>
+<li><p>Netgen <code class="docutils literal notranslate"><span class="pre">.vol</span></code> (points, edges, faces, cells, tags).</p></li>
+<li><p>OFF <code class="docutils literal notranslate"><span class="pre">.off</span></code> (ASCII and binary, colours, normals, texture coordinates).</p></li>
+<li><p>STL <code class="docutils literal notranslate"><span class="pre">.stl</span></code> (binary and ASCII, lazy loading for binary).</p></li>
+<li><p>SU2 <code class="docutils literal notranslate"><span class="pre">.su2</span></code> (VTK element codes, boundary markers).</p></li>
+<li><p>Tecplot <code class="docutils literal notranslate"><span class="pre">.tec</span></code> (ASCII FE zone, POINT and BLOCK ordering).</p></li>
+<li><p>TetGen <code class="docutils literal notranslate"><span class="pre">.node</span></code> + <code class="docutils literal notranslate"><span class="pre">.ele</span></code> pairs (markers, regions).</p></li>
+<li><p>UGRID <code class="docutils literal notranslate"><span class="pre">.ugrid</span></code> (AFLR ASCII, boundary tags).</p></li>
+<li><p>WKT <code class="docutils literal notranslate"><span class="pre">.wkt</span></code> (Well-Known Text).</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pxios</span></code> command line interface with <code class="docutils literal notranslate"><span class="pre">fetch</span></code>, <code class="docutils literal notranslate"><span class="pre">list</span></code>, <code class="docutils literal notranslate"><span class="pre">convert</span></code> and
+<code class="docutils literal notranslate"><span class="pre">viz</span></code> subcommands. Visualization requires the optional <code class="docutils literal notranslate"><span class="pre">viz</span></code> extra
+(<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">polyxios[viz]</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">polyxios.read_polydata</span></code> and <code class="docutils literal notranslate"><span class="pre">polyxios.visualize_mesh</span></code> helpers, plus
+<code class="docutils literal notranslate"><span class="pre">polyxios.supported_extensions</span></code> to introspect the codec registry.</p></li>
+<li><p>Versioned documentation at <a class="reference external" href="https://polyxios.org">https://polyxios.org</a>, with a version switcher,
+a credits page generated from the git history, and a page per format.</p></li>
+</ul>
+</section>
+<section id="id5">
+<h3>Changes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
+downloads files individually, instead of pinned per-format release zips.
+Downloads are checksum-verified and the result is cached across runs; set
+<code class="docutils literal notranslate"><span class="pre">POLYXIOS_MODELS_URL</span></code> to pin the catalog to an immutable URL.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span></code> gained <code class="docutils literal notranslate"><span class="pre">--verbose</span></code>, requires a <code class="docutils literal notranslate"><span class="pre">sha256</span></code> for every asset
+and resolves destination paths defensively.</p></li>
+<li><p>ASCII writing is vectorised, and the docs build now treats Sphinx warnings
+as errors.</p></li>
+</ul>
+</section>
+<section id="id6">
+<h3>Bug fixes<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
+added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
+from downloading the whole pack.</p></li>
+<li><p>STL: fixed a file-descriptor leak, ASCII decoding, lazy-format detection,
+trailing-data handling and zero normals on degenerate triangles.</p></li>
+<li><p>WKT: fixed ring grouping, decoding and degenerate rings, and hardened
+parsing and hole encoding.</p></li>
+<li><p>Gmsh: corrected the element type codes.</p></li>
+<li><p>Nastran: fixed marker parsing, exponent handling and write precision.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">resolve()</span></code> now accepts a dotless <code class="docutils literal notranslate"><span class="pre">fmt</span></code> override.</p></li>
+<li><p>Fixed multi-channel vertex attributes in <code class="docutils literal notranslate"><span class="pre">merge</span></code> and <code class="docutils literal notranslate"><span class="pre">vertex_colors</span></code>,
+offset validation and ASCII newlines in the VTK XML path, and restored
+multiblock partial loading and visualization colours.</p></li>
+</ul>
+<p>GitHub stats for 2026/06/25 - 2026/08/18 (tag: v0.2.0)</p>
+<p>These lists are automatically generated and may be incomplete or contain duplicates.</p>
+<p>The following 3 authors contributed 97 commits.</p>
+<ul class="simple">
+<li><p>Praneeth Shetty</p></li>
+<li><p>Serge Koudoro</p></li>
+<li><p>dependabot[bot]</p></li>
+</ul>
+<p>We closed a total of 29 issues, 29 pull requests and 0 regular issues.</p>
+<p>Pull Requests (29):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/43">PR #43</a>: CI: publish versioned docs from the tag push</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/42">PR #42</a>: NF: warnings as error</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/41">PR #41</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/40">PR #40</a>: DOC: SEO metadata, em dash removal, copy icon, mobile fixes</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/39">PR #39</a>: NF: new polyxios website</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/38">PR #38</a>: NF: add Netgen .vol codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/37">PR #37</a>: NF: add UGRID ASCII .ugrid codec (AFLR format, boundary tags)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/36">PR #36</a>: NF: add TetGen codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/35">PR #35</a>: NF: add SU2 codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/34">PR #34</a>: NF: add Tecplot ASCII .tec codec (FE zone, POINT + BLOCK)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/33">PR #33</a>: NF: add OFF codec (ASCII + binary, colours/normals/texcoords)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/32">PR #32</a>: NF: add Nastran .bdf codec (free/small/large field read)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/23">PR #23</a>: NF: Add WKT (Well-Known Text) codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/31">PR #31</a>: NF:  Adding gmsh codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/21">PR #21</a>: NF: add FLAC3D .f3grid codec (T4/P5/W6/B8 zone types)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/20">PR #20</a>: NF: Adding CLI support <cite>pxios</cite></p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/29">PR #29</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/28">PR #28</a>: MNT: Bump pypa/cibuildwheel from 4.1.1 to 4.2.0 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/26">PR #26</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/27">PR #27</a>: MNT: Bump pypa/cibuildwheel from 4.1.0 to 4.1.1 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/25">PR #25</a>: MNT: Bump actions/setup-python from 6 to 7 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/24">PR #24</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/22">PR #22</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/19">PR #19</a>: Feat/dolfin codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/18">PR #18</a>: NF: add Medit .meshb codec (GmFlib binary, v1/v2, lazy mmap support)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/17">PR #17</a>: NF: add AVS-UCD .avs codec (ASCII, mat_id preserved)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/16">PR #16</a>: NF: add Abaqus .inp codec</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/15">PR #15</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/14">PR #14</a>: NF: add STL codec with binary/ASCII read-write and lazy binary support</p></li>
+</ul>
+<p>Issues (0):</p>
+</section>
+</section>
+<section id="changes-0-2-0">
+<span id="id7"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<p>First public release of <strong>polyxios</strong>.</p>
+<section id="id8">
+<h3>New features<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Plugin-based codec registry via Python entry points - third-party packages
+can register mesh formats without patching polyxios.</p></li>
+<li><p>VTK legacy (<code class="docutils literal notranslate"><span class="pre">.vtk</span></code>) and XML (<code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>) reader/writer with
+ASCII and binary (raw + appended) encoding.</p></li>
+<li><p>VTR appended format support.</p></li>
+<li><p>MFEM mesh codec (<code class="docutils literal notranslate"><span class="pre">.mesh</span></code>).</p></li>
+<li><p>MEDIT mesh codec (<code class="docutils literal notranslate"><span class="pre">.mesh</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">polyxios</span> <span class="pre">convert</span></code> and <code class="docutils literal notranslate"><span class="pre">polyxios</span> <span class="pre">visualize-mesh</span></code> CLI commands.</p></li>
+<li><p>Lazy / memory-mapped loading for binary formats (<code class="docutils literal notranslate"><span class="pre">read(...,</span> <span class="pre">lazy=True)</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">polyxios.__version__</span></code> exposes the full version string including the git
+commit hash for development builds (e.g. <code class="docutils literal notranslate"><span class="pre">0.1.0.dev0+git20260623.101006a</span></code>).</p></li>
+</ul>
+<p>GitHub stats for 2026/05/26 - 2026/06/25 (tag: None)</p>
+<p>These lists are automatically generated and may be incomplete or contain duplicates.</p>
+<p>The following 4 authors contributed 47 commits.</p>
+<ul class="simple">
+<li><p>Maharshi Gor</p></li>
+<li><p>Praneeth Shetty</p></li>
+<li><p>Serge Koudoro</p></li>
+<li><p>skoudoro</p></li>
+</ul>
+<p>We closed a total of 12 issues, 12 pull requests and 0 regular issues.</p>
+<p>Pull Requests (12):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/12">PR #12</a>: NF: add MFEM mesh codec (.mesh)</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/9">PR #9</a>: NF: Handle the other vtk formats</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/11">PR #11</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/10">PR #10</a>: BF/NF: fix PLY binary reader + add SPLAT codec and compressed 3DGS support</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/8">PR #8</a>: BF: handling VTK files improvements</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/4">PR #4</a>: Fix: vtk codec to read ascii polydata and support v1.0</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/7">PR #7</a>: CI: Avoid cron job on fork</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/6">PR #6</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/3">PR #3</a>: NF: Adding Data Fetcher</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/5">PR #5</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/2">PR #2</a>: DOC: Replace arrow and em-dashes with dash</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/1">PR #1</a>: NF: initial framework from polyxios</p></li>
+</ul>
+<p>Issues (0):</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="development.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Development Guide</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="credits.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Credits</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-0">0.4.0 (2026-09-09)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optimizations">Optimizations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Bug fixes</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">New features</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/changelog.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, polyxios contributors.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on 2026-09-09.
+  <br/>
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
