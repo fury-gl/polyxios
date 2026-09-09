@@ -10,6 +10,12 @@
 pip install polyxios
 ```
 
+or, from conda-forge:
+
+```bash
+conda install -c conda-forge polyxios
+```
+
 ---
 
 ## Usage
