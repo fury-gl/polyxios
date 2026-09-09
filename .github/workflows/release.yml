@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
       - name: Build wheels
@@ -47,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v7
@@ -72,6 +74,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - uses: actions/download-artifact@v8
         with:
@@ -102,12 +106,13 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Through the environment, never interpolated into the script: the
+          # notes are reStructuredText and every ``literal`` in them would be
+          # command substitution inside a double-quoted shell string.
+          NOTES: ${{ steps.changelog.outputs.notes }}
         run: |
-          NOTES="${{ steps.changelog.outputs.notes }}"
           if [ -n "$NOTES" ]; then
-            echo "$NOTES" > release_notes.md
-            echo "" >> release_notes.md
-            echo "---" >> release_notes.md
+            printf '%s\n\n---\n' "$NOTES" > release_notes.md
             gh release create "${{ env.RELEASE_TAG }}" \
               dist/* \
               --title "polyxios ${{ env.RELEASE_TAG }}" \
