@@ -4,6 +4,13 @@
 Changelog
 =========
 
+.. _changes_0.5.0:
+
+0.5.0 (upcoming)
+----------------
+
+(No entries yet.)
+
 .. _changes_0.4.1:
 
 0.4.1 (2026-09-09)
