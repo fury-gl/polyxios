@@ -1,0 +1,19 @@
+polyxios.exceptions
+===================
+
+.. automodule:: polyxios.exceptions
+
+   
+   .. rubric:: Exceptions
+
+   .. autosummary::
+   
+      CodecError
+      FetcherError
+      IndexOverflowError
+      LazyReadError
+      PolyxiosError
+      UnknownElementTypeError
+      UnsupportedFormatError
+      ValidationError
+   

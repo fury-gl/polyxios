@@ -1,0 +1,6 @@
+polyxios.version
+================
+
+.. automodule:: polyxios.version
+
+   

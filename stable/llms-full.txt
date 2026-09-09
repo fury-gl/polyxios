@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 25 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 27 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all twenty-five - and raises instead of quietly corrupting
+        writes all twenty-seven - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>25</b><span>formats</span></div>
+        <div><b>27</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -90,7 +90,11 @@ px.write(mesh, <span class="s">"brain.ply"</span>)
 px.write(mesh, <span class="s">"brain.stl"</span>, binary=<span class="b">True</span>)
 
 <span class="c"># gigabytes? memory-map it</span>
-mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)<span class="px-cursor">&#9608;</span></pre>
+mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)
+
+<span class="c"># a buffer or a .gz, same call</span>
+mesh = px.read(buf, fmt=<span class="s">".ply"</span>)
+mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9608;</span></pre>
     </div>
   </section>
 
@@ -110,12 +114,13 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
       <a class="px-tr" href="formats/off.html"><span>OFF</span><span class="px-ext">.off</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/abaqus.html"><span>Abaqus</span><span class="px-ext">.inp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/avs.html"><span>AVS-UCD</span><span class="px-ext">.avs</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/meshb.html"><span>Medit binary</span><span class="px-ext">.meshb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/meshb.html"><span>Medit binary</span><span class="px-ext">.meshb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: always</span></a>
+      <a class="px-tr" href="formats/medit.html"><span>Medit ASCII</span><span class="px-ext">.mesh .medit</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/tetgen.html"><span>TetGen</span><span class="px-ext">.ele + .node</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/wkt.html"><span>Well-Known Text</span><span class="px-ext">.wkt</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -126,7 +131,8 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
       <a class="px-tr" href="formats/netgen.html"><span>Netgen</span><span class="px-ext">.vol</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 25 codecs, 34 extensions</p>
+      <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 27 codecs, the 31 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, and resolved by content</p>
     </div>
   </section>
 
@@ -179,9 +185,16 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
 <span class="c">  35947 vertices &middot; 69451 triangles &middot; 0.4s</span>
 
 <span class="p">$</span> pxios list --codecs
-<span class="c">  .avs .bdf .ele .f3grid .inp .meshb .msh
-  .obj .off .ply .stl .su2 .tec .vtk .vtp
-  .vtr .wkt .xml</span>
+<span class="c">  File formats supported by polyxios codecs:
+    abaqus (.inp)
+    ...
+    medit (.medit, .meshb)
+    medit/mesh (.mesh)
+    ...
+    tecplot (.plt, .tec)
+    tecplot/nastran (.dat)
+    ...
+    wkt (.wkt)</span>
 
 <span class="p">$</span> pxios viz bunny.vtk --points<span class="px-cursor">&#9608;</span></pre>
     </div>
@@ -190,7 +203,7 @@ mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</spa
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a nineteenth format.
+    <p class="px-sub">Any third-party package can teach polyxios a twenty-eighth format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -227,6 +240,12 @@ Installation
 pip (recommended)
 
 pip install polyxios
+
+conda
+
+polyxios is packaged on conda-forge:
+
+conda install -c conda-forge polyxios
 
 Development install
 
@@ -269,6 +288,101 @@ print(len(mesh.element_types))  # number of elements
 px.write(mesh, "brain.ply")
 px.write(mesh, "brain.vtp")
 
+Files, buffers and streams
+
+Anything with a read or a write works where a path does, so a mesh
+never has to touch disk:
+
+import io
+
+buf = io.BytesIO()
+px.write(mesh, buf, fmt=".ply")     # fmt= names the format
+
+buf.seek(0)
+same = px.read(buf, fmt=".ply")
+
+with open("brain.vtk", "rb") as fh:
+    mesh = px.read(fh)              # a named handle needs no fmt=
+
+Two rules hold everywhere:
+
+a handle polyxios is given is read or written where it stands, and is
+never closed - the caller keeps control of its own file;
+
+a buffer with no file name has no extension to infer a format from, so
+fmt= is required for one; open() gives a handle a name, and that
+is enough.
+
+A source has to offer a binary read and a destination a binary
+write; everything else a codec reaches for - readline, seek,
+seekable - is supplied for a handle that lacks it. A handle that cannot
+seek is still read, except by the formats that need to measure a file before
+parsing it and by the extensions several formats share, both of which say so
+rather than guess.
+
+Reading lazily needs a real file behind the handle wherever the arrays that
+come back view the file itself - binary PLY and binary VTK - since mmap
+maps a file descriptor: an io.BytesIO raises LazyReadError rather
+than quietly loading eagerly. It also needs the handle to stand at the start
+of that file - a mapping addresses a file from byte zero - so a handle
+part-way into one is refused for a lazy read and read eagerly without
+complaint. A format whose lazy mode only skips work, such as binary STL
+skipping vertex deduplication, copies what it reads and so takes a buffer
+like any other read. TetGen is the one format a buffer cannot carry - a mesh
+is a .node and an .ele file found beside each other by name.
+
+Text formats are written with \n line endings on every platform, so the
+bytes a path receives and the bytes a buffer receives are the same ones.
+
+Compressed files
+
+gzip is handled by the same layer, for every format at once:
+
+mesh = px.read("brain.vol.gz")      # decompressed on the way in
+px.write(mesh, "brain.vtk.gz")      # compressed on the way out
+
+Reading looks at the content: a file compressed without being renamed
+reads just as well as one ending in .gz, and a .gz name over plain
+bytes is read as the plain file it is. The whole four-byte gzip header is
+what decides, not the two magic bytes alone - those open one file in every
+65536 by chance, and inside a headerless binary format they are an ordinary
+coordinate’s low bytes. Writing looks at the name, since
+an output file has no content to inspect yet - a destination ending .gz
+is compressed, and nothing else is. A nameless buffer has no name to end in
+.gz, so fmt= says it there instead:
+
+buf = io.BytesIO()
+px.write(mesh, buf, fmt=".obj.gz")  # compressed into the buffer
+
+.gz names the compression rather than the format wherever it appears, in
+a file name and in fmt= alike, so ".obj.gz" picks the same codec
+brain.obj.gz does.
+
+A member does not have to run to the end of what it sits in. Reading stops
+where the member stops, so a mesh compressed into the middle of an archive
+is read without the archive’s own bytes after it turning into an error;
+members written back to back are still read as the one stream they spell.
+
+The compressed output carries no timestamp and no embedded file name, so the
+same mesh always produces the same bytes. Lazy reads are the one thing gzip
+takes away, in the formats that map: mmap maps a file as it is stored, so
+a format whose lazy read hands back arrays viewing the mapping raises
+LazyReadError over a compressed file rather than handing back compressed
+bytes. A lazy read that copies what it reads - binary STL’s, which skips
+vertex deduplication and nothing else - takes a compressed file like any
+other read.
+
+TetGen is outside all of this for the same reason it cannot take a buffer: it
+opens its own sibling files rather than going through the layer that unwraps
+gzip. A .node.gz is refused with a message saying so, rather than read as
+text or written uncompressed under a name promising otherwise.
+
+A compressed handle is the one exception to “left where the codec left it”:
+a decompressor reads ahead, so where it stops says nothing about how much of
+the mesh was consumed. The handle is put back at the front of the member
+instead, which is the only position over compressed bytes that means
+anything to whatever reads next.
+
 Format-specific options
 
 px.write(mesh, "brain.vtk", binary=True)
@@ -277,9 +391,141 @@ px.write(mesh, "brain.ply", binary=True, endian="little")
 Every codec’s own options are listed on its page under
 formats/index.
 
+Entity numbering
+
+A PolyData indexes its vertices and elements densely from
+zero, always. Most formats agree, but a hand-edited Abaqus deck, a Nastran bulk
+data file, a Gmsh .msh, a FLAC3D grid and a Kratos .mdpa all let their
+author number entities freely - neither dense nor zero-based, and in any order.
+Reading such a file has to renumber, and renumbering on its own is lossy: the
+ids are how the author’s other files talk about this mesh, a load case naming
+GRID 7000001 or a report keyed on element 4001.
+
+So the reader records what the file said and the writer puts it back:
+
+mesh = px.read("model.bdf")
+mesh.vertex_attrs["original_ids"]    # the GRID ids the deck spelled
+mesh.element_attrs["original_ids"]   # the element ids
+
+px.write(mesh, "model.msh")          # written back under those numbers
+
+The key is deliberately not format-prefixed: an id says something about the
+entity, not about the file it came from, so a mesh read from a .bdf and
+written as .msh keeps its numbering. Three rules hold across every codec
+that carries ids:
+
+Read renumbers. Connectivity, tags and attributes all speak dense
+zero-based indices whatever the file spelled.
+
+Read remembers only what the index does not already say. A file
+numbering 1..n in order records nothing at all - the writer’s own
+renumbering reproduces it exactly. The key’s absence means “no numbering
+worth keeping”, not “numbered from one”.
+
+Write asks. Stored ids win when they can still be written; otherwise the
+writer renumbers from one, with a warning.
+
+“Can still be written” is checked at the point of writing rather than trusted,
+because a transform moves a mesh out from under its ids without either one
+being wrong: merge concatenates two meshes that each numbered from one, so
+the ids collide, and splitting a quad leaves two triangles carrying one id.
+Either would spell a file with two entities answering to one number, which no
+solver loads, so the ids have to be positive, unique and one per entity to
+survive.
+
+A format that numbers densely by construction - Medit, OFF, STL, the VTK
+family - has no id of its own to record, and ignores the key on write. Whether
+it carries one is a separate question, and comes down to whether it has a
+general attribute channel: PLY and the VTK family write original_ids back
+out as an ordinary data array, so a mesh read from a .bdf, welded, and
+written as .vtu keeps the ids of the vertices that survived. Tecplot has
+the channel on one side only - its variables are per-vertex, so vertex ids
+travel and element ids are dropped with the rest of the element attributes.
+Medit, OFF, STL and OBJ have no such channel at all and drop the key with
+every other attribute, silently. Where the channel is float - a legacy VTK
+data array, a Tecplot variable, a PLY face property - the ids come back as
+whole float64 values rather than int64.
+
+Two-dimensional meshes
+
+A PolyData holds three coordinate columns, always. A format
+that spells two - a bamg .mesh, an NDIME= 2 SU2 case, a 2-D MFEM mesh -
+is padded with z=0 on the way in rather than kept narrow, so every consumer
+can index vertices[:, 2] without first asking what the file said.
+
+Padding alone is lossy in one direction: nothing downstream could tell a plane
+written in two dimensions from one written in three that happens to sit at
+z=0, so a round trip would widen the file. The reader records the fact
+instead:
+
+mesh = px.read("plate.su2")          # NDIME= 2
+mesh.vertices.shape                  # (n, 3), the z column all zeros
+mesh.global_attrs["was_2d"]          # True
+
+px.write(mesh, "plate.mesh")         # an MFEM mesh of two columns
+
+Three rules, and every 2-D-capable codec follows them:
+
+Read pads. Vertices are (n, 3) float64 whatever the file declared.
+
+Read remembers. A file that declared two dimensions sets
+global_attrs["was_2d"] = True. A three-dimensional file sets nothing:
+the key’s absence means “not known to be two-dimensional”, not “3-D”.
+
+Write asks. The flag decides how many columns go out - while the mesh
+is still flat. Coordinates outrank it: a third coordinate that reached the
+mesh after the read is data, so a mesh that has left the plane is written
+in three dimensions with a warning rather than flattened in silence.
+
+The key is deliberately not format-prefixed the way tecplot_title is: it
+says something about the mesh, not about the file it came from. A plane read
+from a 2-D Netgen .vol - which has no two-dimensional spelling of its own
+to write back - still lands as an NDIME= 2 SU2 case.
+
+Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
+WKT all record the flag on the way in; every one of those but Netgen restores
+it on the way out. A format with no two-dimensional spelling at all - OBJ, the
+VTK family - keeps writing three columns and ignores the flag.
+
+Two columns sometimes constrain the rest of the file, and the writer keeps it
+consistent rather than emitting one no reader loads: an Abaqus deck of
+two-column node cards is written under the planar element cards (CPS3,
+CPS4, T2D2), since Abaqus takes a node’s dimensionality from the
+element referencing it, and a flat mesh of solid cells - a tetrahedron is one
+however flat it lies - keeps its third column in every format that reads the
+node count per element from a separate number.
+
+Several meshes in one file
+
+polyxios.read() hands back one PolyData, always. A
+function that sometimes returns a sequence puts the branch in every caller, so
+a file that holds several meshes is treated as what it is - an index of
+sub-files, holding no geometry of its own - and reading one raises
+UnsupportedFormatError naming the format.
+
+The several live in polyxios.helper:
+
+from polyxios import helper
+
+whole = helper.read_multiblock("case.pvtu")   # every piece, merged
+blocks = helper.read_blocks("case.vtm")       # one PolyData per sub-file
+
+Both read .vtm, .pvtu, .pvtp, .pvtr, .pvts and .pvti,
+as well as a .vtp holding a <vtkMultiBlockDataSet>. An index naming
+another index is followed and read flat; a sub-file that is missing or
+unreadable is skipped with a line on the polyxios logger, so a partially
+downloaded companion directory still loads; and a reference resolving outside
+the index file’s own directory raises PermissionError rather than reading
+it.
+
+helper.read_blocks is the one to reach for when the blocks mean different
+things - a fluid domain and a solid one, one part per block - since
+merge() joins them into a mesh that no longer says
+which was which.
+
 Where to go next
 
-formats/index - the twenty-five supported formats, one page each
+formats/index - the twenty-seven supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -295,7 +541,8 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships twenty-five codecs across thirty-four extensions. Each is registered by
+polyxios ships twenty-seven codecs across thirty-two extensions - the thirty-one
+below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
 
@@ -303,7 +550,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The twenty-five format cards, pulled into formats/index.rst by a raw:: html
+  The twenty-seven format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -413,6 +660,16 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
+    <p class="px-fmtname">Medit ASCII <span class="px-fmtext">.mesh .medit</span></p>
+    <p class="px-fmtdesc">Named sections of entity records, each ending in the
+      reference integer that carries its surface or region label.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="medit.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
     <p class="px-fmtname">DOLFIN / FEniCS XML <span class="px-fmtext">.xml</span></p>
     <p class="px-fmtdesc">A small XML tree whose celltype names the element; every
       vertex and cell is explicitly indexed and 0-based.</p>
@@ -443,7 +700,7 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
-    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem</span></p>
+    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem .dat</span></p>
     <p class="px-fmtdesc">A deck of fixed-column cards in three coexisting field
       widths; GRID defines points, C* cards define elements.</p>
     <p class="px-fmtlinks">
@@ -453,7 +710,7 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
-    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec</span></p>
+    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec .dat</span></p>
     <p class="px-fmtdesc">A VARIABLES list then ZONE records; DATAPACKING decides
       whether values interleave per node or per column.</p>
     <p class="px-fmtlinks">
@@ -562,16 +819,37 @@ deviates from it, and links to the authoritative document.
     </p>
   </div>
 
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Kratos MDPA <span class="px-fmtext">.mdpa</span></p>
+    <p class="px-fmtdesc">Begin/End blocks with no counts: nodes, elements named
+      by Kratos element class, conditions, data and sub model parts.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="mdpa.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/KratosMultiphysics/Kratos/wiki/Input-data">full spec &#8599;</a>
+    </p>
+  </div>
+
 </div>
 
 
 Parallel and multi-block meta-files
 
 .vtm, .pvtu, .pvts, .pvti, .pvtp and .pvtr are registered too,
-but they hold no geometry - only references to sub-files. Reading one raises
-UnsupportedFormatError with a pointer to
-examples/read_parallel_vtk.py, rather than failing with a parse error further in.
-Writing them is not supported.
+but they hold no geometry - only references to sub-files. polyxios.read()
+hands back one mesh, always, so reading an index raises
+UnsupportedFormatError rather than failing with a
+parse error further in. The several live in the helper instead:
+
+from polyxios import helper, transforms
+
+whole = helper.read_multiblock("case.pvtu")   # every piece, merged
+blocks = helper.read_blocks("case.vtm")       # one PolyData per sub-file
+
+Both follow an index that names another index, skip a sub-file that is missing
+or unreadable with a line on the polyxios logger, and refuse a reference
+resolving outside the index file’s own directory.
+examples/read_parallel_vtk.py walks through what they do. Writing an index
+file is not supported.
 
 ## VTK Legacy
 
@@ -601,7 +879,7 @@ ASCII or BINARY (binary payload is big-endian)
 
 dataset types
 
-STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID
+STRUCTURED_POINTS, STRUCTURED_GRID, RECTILINEAR_GRID, POLYDATA, UNSTRUCTURED_GRID, FIELD
 
 connectivity
 
@@ -609,7 +887,7 @@ CELLS <n> <size> followed by CELL_TYPES <n> integer codes
 
 attributes
 
-POINT_DATA / CELL_DATA with SCALARS, VECTORS, NORMALS, FIELD
+POINT_DATA / CELL_DATA with SCALARS, COLOR_SCALARS, VECTORS, NORMALS, TENSORS, TEXTURE_COORDINATES, FIELD
 
 Read the full VTK Legacy specification ↗
 
@@ -651,11 +929,55 @@ Write a BINARY body instead of ASCII.
 
 Quirks worth knowing
 
+A tag group travels as one POINT_DATA or CELL_DATA column of ones and zeros named polyxios_tag_<group>, so an element in two groups is named by both columns. A legacy header names its array in a whitespace-separated field and nothing in the format escapes one, so a group whose name holds whitespace is dropped with a warning rather than written as a name and a stray token.
+
+A FIELD FieldData block between the DATASET line and the geometry belongs to the mesh rather than to its points or cells, and is read into global_attrs; write puts one back there. Unlike a point or cell array, which is written as a double, a field array keeps the type it is held in, so an integer comes home an integer. A FIELD inside a POINT_DATA or CELL_DATA section still names arrays over the points or the cells, and is read as attributes. A STRUCTURED_POINTS, RECTILINEAR_GRID or STRUCTURED_GRID file reads a dataset-level block too, which is where VTK’s own writer puts a time value.
+
+A value no numeric array holds - a string, a mapping - is dropped with a warning naming the key; the XML family’s <FieldData> holds text and this block does not. The vtk_* grid entries a structured read recorded do travel in the block: this writer spells an UNSTRUCTURED_GRID and rebuilds no grid, so holding them back would drop them without a word. A structured read takes the grid it rebuilt over anything a field block names, so carrying them costs the next read nothing.
+
+POINTS and a v4.2 CELLS block are a run of numbers the header counts, not a line apiece. One row to a vertex or a cell is what VTK’s own writer emits and what this reads first; a block wrapped some other way is read again as that run, so a file no reader of rows could take is read as the mesh it holds.
+
 Binary files can be memory-mapped with lazy=True; ASCII files must be parsed end to end before any value is available.
 
 Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
 
 Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.
+
+SCALARS, VECTORS, NORMALS, TENSORS, COLOR_SCALARS, TEXTURE_COORDINATES and FIELD sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A LOOKUP_TABLE definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. COLOR_SCALARS is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.
+
+An attribute section that declares more values than the file holds raises CodecError naming the array, rather than an IndexError naming nothing in ASCII or a reshape failure naming nothing in binary.
+
+STRUCTURED_POINTS keeps DIMENSIONS, ORIGIN and SPACING in global_attrs (vtk_dimensions, vtk_origin, vtk_spacing); STRUCTURED_GRID and RECTILINEAR_GRID keep DIMENSIONS. The points are expanded into an explicit array, so without those the grid behind them would be lost.
+
+Those vtk_* entries are read-only: write always emits an UNSTRUCTURED_GRID and does not consume them.
+
+CELL_DATA is read from the structured datasets as well as the unstructured ones. An array whose declared length matches neither the points nor the cells of the grid the header describes is dropped with a warning naming it, rather than reaching PolyData as a validation error about lengths.
+
+A structured grid extends along whichever axes its DIMENSIONS declare: 3 1 3 is a sheet of quads in the x-z plane, not a run of lines, and a column along y or z is indexed with its own stride.
+
+A DIMENSIONS of one is an axis the grid does not extend along; one of zero - or the negative a malformed header spells - is an axis with no point on it at all, and one such axis empties the grid, since the point count is a product. It holds no cells either: counting the other two axes’ cells handed back quadrilaterals whose corners named points the file never laid out.
+
+VTK 5.1 cells - the default since VTK 9.0 - are read wherever they appear: CELLS in an unstructured grid and POLYGONS, LINES, VERTICES or TRIANGLE_STRIPS in polydata. The two numbers on such a line are the length of the OFFSETS array and the length of CONNECTIVITY, so the mesh holds one cell fewer than the first of them; the offsets are counted up to the CONNECTIVITY keyword, so a file spelling that line either way is read. write(..., vtk_version="5.1") declares the offsets length, which is what VTK’s own reader expects.
+
+A METADATA block - component names and information keys, written after every array by VTK 4.2 and later - is stepped over rather than read as an array. It is text even in a binary file, and it appears between the entries of a FIELD block as well as after a section.
+
+A METADATA block also sits inside a v5.1 CELLS section, between its offsets and its connectivity, and is stepped over there too.
+
+A DATASET FIELD file carries field arrays and no geometry. It reads as an empty PolyData whose global_attrs hold the arrays, with a warning saying so.
+
+Which cell spelling a v5.1 CELLS section uses is decided by what follows the header, not by the version in the first line, so a file declaring a version this reader has never heard of is still read by what it holds.
+
+A RECTILINEAR_GRID takes its grid from its coordinate arrays: the points are their outer product, so a DIMENSIONS header that disagrees with them is warned about and ignored.
+
+A STRUCTURED_GRID carries an explicit POINTS array, which its DIMENSIONS cannot be reconciled against the way a rectilinear grid’s coordinates can. When the two disagree the points are handed back without cells, with a warning naming both counts: the cells the header describes would index points the file does not hold.
+
+An attribute section is read by the count its own header declares, which is the only thing that says where one array ends and the next begins. An array that then covers no point or cell of the mesh is dropped with a warning naming it.
+
+The LOOKUP_TABLE line after a SCALARS section is optional, and a binary file without one is read as such rather than losing the head of its payload.
+
+A header missing a field, or spelling a count as something that is not a number, raises CodecError naming the line it is on - the byte offset, in a binary file. This covers the geometry headers - POINTS, CELLS, CELL_TYPES, DIMENSIONS, ORIGIN, SPACING, the coordinate arrays - as well as the attribute ones.
+
+A binary block is read as the type its header names, POINTS included: an integer point array is not read at the width of a float. A type name with no numpy equivalent raises CodecError naming it rather than being guessed at, since a guessed width reads numbers the file never held. An ASCII payload is text whatever its header calls it, so it is read either way.
 
 index - the full format table.
 
@@ -715,9 +1037,33 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
+A tag group has no set of its own in this format, so it travels as one PointData or CellData column of ones and zeros named polyxios_tag_<group>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
+
+<FieldData> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <Piece> alike, and written back from global_attrs. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
+
+<FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
+
+The vtr_* grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other global_attrs entry does.
+
 The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
 
-Appended and base64 payloads are decoded eagerly - the XML container has no seekable layout for mmap, so lazy=True has no effect.
+Appended and base64 payloads are decoded eagerly, and lazy=True raises LazyReadError rather than pretending otherwise - the XML container has no seekable layout for mmap.
+
+Multi-component attributes declare and honour NumberOfComponents, so an (n, 3) vector survives a round trip rather than coming back as 3n rows.
+
+Binary arrays are written in the type their <DataArray> declares, so an integer attribute stays an integer one.
+
+An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every CellData array belonging to nothing.
+
+The writer holds a lattice and nothing else, and says so rather than spelling a file its own reader refuses. The extent is read off the cells, and the three coordinate arrays are then read off the vertices a stride at a time - so an axis that runs downwards keeps its direction rather than being sorted round under its own point data. A mesh whose vertices are not that lattice expanded, in the order the file reads them back, raises CodecError; so do cells that are not the grid’s own, which the file carries no connectivity for and would drop with their CellData. Write a vts for points that are not a lattice, or a vtu for an arbitrary mesh.
+
+A mesh with no vertices writes the extent VTK spells an empty grid with, 0 -1 0 -1 0 -1, and reads back as a mesh with none.
+
+An extent that ends before it starts on any axis holds no points, so it holds no cells either - 0 -1 0 2 0 2 reads as an empty mesh rather than as four quads whose corners name points the file never spelled.
+
+The extent counts the planes and the coordinate arrays spell them, and nothing in the file makes the two agree. An array of a different length raises CodecError naming its axis: the cells, the offsets and every PointData array are sized off the extent, so a longer one used to expand into a mesh whose connectivity covered part of itself and whose attributes covered none of it. Every axis is asked, including one the extent gives no plane at all - the point count is a product and goes to zero on such an axis, but the vertices are built from the coordinates, so a file spelling one anyway came back as a mesh the extent called empty. An axis the file leaves no array for at all takes its one plane at zero, which is how a 2-D grid writes its z.
+
+The extent of the file a mesh was read from travels with it, so a block that did not begin at zero is written back at the indices it stood on rather than slid to the origin - which is what a .pvtr assembling it next to its neighbours reads. It is checked against the mesh at the point of writing rather than trusted: one a transform has moved the mesh out from under is re-derived from the cells.
 
 index - the full format table.
 
@@ -777,9 +1123,25 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
+A tag group has no set of its own in this format, so it travels as one PointData or CellData column of ones and zeros named polyxios_tag_<group>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
+
+<FieldData> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <Piece> alike, and written back from global_attrs. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
+
+<FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
+
 Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
 
 Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
+
+A piece that declares points and does not deliver them raises CodecError; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
+
+A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
+
+A Points array of a type that holds no numbers - type="String", or any type this reader does not know - raises CodecError naming the type.
+
+Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+
+lazy=True raises LazyReadError; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
 
 index - the full format table.
 
@@ -831,19 +1193,66 @@ mesh = px.read("model.obj")
 mesh.vertices          # (n, 3)
 mesh.element_types     # element groups found in the file
 
+A textured mesh keeps both sides of a seam when the vertices are split:
+
+mesh = px.read("model.obj", split_seams=True)
+mesh.vertex_attrs["texcoords"]   # one uv per vertex, seams included
+
 Writing
 
 px.write(mesh, "out.obj")
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+split_seams
+
+False
+
+On read: copy a vertex once per distinct texture coordinate and normal
+its corners name, so a seam keeps both uvs and a hard edge both
+normals. Adds vertices; removes none.
 
 Quirks worth knowing
 
 Negative (relative) indices are resolved against the vertex count at the point the face appears, not the final count.
 
+An index naming a record the file has not declared raises CodecError naming the line, rather than wrapping around into another vertex.
+
 Faces with more than four vertices are kept as polygons rather than being silently triangulated.
 
 Material and group keywords are read as element tags; .mtl files are not parsed.
+
+vt and vn are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in vertex_attrs['texcoords'] and vertex_attrs['normals']: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.
+
+split_seams=True keeps what that fold drops. A vertex is copied once per distinct pairing its corners name, the first corner keeping the index it had and each later one taking a fresh index off the end, so a vertex no face names stays where it was and a file whose corners agree reads exactly as it does without the option. The faces are untouched - only the indices inside them move - so the element count, the element order, element_attrs and element_tags are the same either way. Records nothing indexes are still counted against the v records the file wrote rather than the vertices the split left, and a copy takes what the vertex it came from takes, so a split neither drops such an attribute nor invents one out of a count that happens to match.
+
+A split mesh writes back with the copied positions repeated as their own v records, since the writer emits one vt/vn per vertex in vertex order. Do not run transforms.merge_duplicate_vertices on one: it welds the copies back by position and keeps a single survivor’s uv, undoing the split.
+
+Records that cannot be lined up with the vertices leave the attribute out entirely, on write as well as on read: an attribute that does not hold one row per vertex is warned about and left out, rather than written as faces indexing records that are not in the file. A vertex no face names carries NaN in the array and is written back as zero, since vt nan nan is not a record another OBJ reader takes.
+
+A face belonging to no group is written after a bare g, so it does not inherit the group of the face above it; a bare g on read clears the active groups rather than inventing a default tag.
+
+A v, vn or vt record that does not carry the components its directive needs, or carries something that is not a number, raises CodecError naming the line. A vt may carry a third component - the depth of a volumetric texture - and texcoords keeps the two a surface uses.
+
+An f record is a flat ring of vertices and OBJ spells no other shape, so an element that is not one - a tetra, a line - keeps its vertices and loses the type it was: it comes back a triangle at three vertices, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning.
+
+l and p records name geometry this codec has no element for. They are dropped, and the read says how many of each the file held rather than leaving the loss to be found later.
+
+element_attrs['material'] is written as usemtl only when it holds one value per face; a shorter attribute is warned about and left out, the way an ill-fitting vertex attribute is.
+
+lazy=True raises LazyReadError; the records are text and a face may name a vertex by a relative index, so nothing can be located without a parse.
 
 index - the full format table.
 
@@ -941,6 +1350,20 @@ Lazy loading applies to binary bodies only; an ASCII file must be parsed in full
 
 Index widths are checked against the declared vertex count, so a mesh too large for the header’s list type raises instead of truncating.
 
+Line elements travel as element edge with vertex1 / vertex2, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, vertex_index1 / vertex_index2 and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.
+
+An element edge record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.
+
+An element index no vertex answers to is refused rather than read into a mesh nothing can draw.
+
+PLY spells no 64-bit integer, so a column of one is written at the narrowest type that holds the values it actually carries - int when they fit a signed 32-bit field, double when they do not. The header and the record are taken from the same decision, so a field’s declared width is always the width written.
+
+A face’s vertex count is declared uchar, as almost every PLY file does, and widens to ushort or uint for a mesh carrying a polygon of more than 255 vertices - a count the narrower type cannot spell.
+
+A face record is a flat ring of vertices and PLY spells no other shape, so an element that is not one - a tetra, a quadratic_triangle - keeps its vertices and loses the type it was: a reader names a record by how many vertices it holds, so it comes back a triangle at three, a quad at four and a polygon otherwise. The elements are still written, and the types they lose are named in a warning rather than dropped quietly.
+
+An integer attribute is written in full in the ASCII flavour rather than through a float format, which would turn a large one into 1.23456789e+13: not a token a reader expecting the declared integer property accepts.
+
 index - the full format table.
 
 ## STL
@@ -999,7 +1422,7 @@ Writing
 
 px.write(mesh, "out.stl")
 
-Format-specific options:
+Format-specific options
 
 
 
@@ -1017,7 +1440,14 @@ binary
 
 False
 
-Write the 50-byte-per-facet binary form instead of ASCII.
+On write: emit the 50-byte-per-facet binary form instead of ASCII.
+
+merge_vertices
+
+True
+
+On read: deduplicate the coincident vertices STL repeats per facet.
+Ignored under lazy=True, which never merges.
 
 Quirks worth knowing
 
@@ -1026,6 +1456,12 @@ Vertices are deduplicated on read so the mesh has shared topology - except in bi
 Facet normals are read but not trusted for orientation; they are kept as element attributes.
 
 The declared triangle count is validated against the real file size before memory is allocated.
+
+A binary facet’s attribute word carries its colour, five bits per channel - but the two conventions in the wild disagree on both the channel order and the top bit. VisCAM and SolidView run blue in bits 0-4 and red in bits 10-14, and set the top bit to say the word holds a colour; Materialise Magics runs red low and blue high, and clears the top bit to say the facet owns its colour. Magics writes a COLOR= record in the 80-byte header, which is the only thing in the file that tells the two apart, so a header carrying one is read the Magics way and every other header the VisCAM way. VisCAM is also what polyxios writes. A zero word is no colour under either convention: read the Magics way to the letter it claims a facet colour of black, but it is what a writer that coloured nothing leaves behind, and an untouched file is not a black one.
+
+Facets that claim a colour land in element_attrs["colors"] as RGB in 0..1; the ones that do not stay NaN, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all. On write a floating point column is taken as 0..1 and an integer one as 0..255, the way every image format counts.
+
+Colours are written back on a binary write. ASCII STL has no field for one, so an ASCII write reports that they were dropped rather than losing them quietly.
 
 index - the full format table.
 
@@ -1145,15 +1581,45 @@ Writing
 
 px.write(mesh, "out.inp")
 
-This codec takes no format-specific options.
+element_type= maps a polyxios element name to the Abaqus card written for
+it, so a deck can ask for reduced integration where the mesh only says
+hexahedron:
+
+px.write(mesh, "out.inp", element_type={"hexahedron": "C3D8R"})
 
 Quirks worth knowing
 
-Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index and the original ids are kept as vertex tags.
+A *SURFACE names a side of an element, which the deck holds no element for. polyxios has no face set of its own - a mesh is vertices and elements - so the face is read as the triangle or quadrilateral it describes, tagged with the surface’s name, the way the UGRID, SU2 and Netgen readers hand back their boundary faces. Two element attributes say what it is a face of: face_parent, the element, and face_index, which of that element’s faces, both -1 for an element that is not a face. Abaqus numbers a solid’s faces in its own order, so S1 of a C3D4 - its base - is the face polyxios numbers last.
 
-*NSET and *ELSET names become vertex and element tags, and an entity in several sets stays in all of them.
+Writing puts the *Surface back, with the *Elset of parents it needs marked internal the way Abaqus marks its own. An internal set a *Surface names is read for the surface’s sake and then dropped, so a round trip does not grow a tag group per face label; one no surface names is a group the deck’s author wrote, and is kept. A face whose vertices are no longer its parent’s - a transform dropped or reordered the solids - is written as the ordinary element it has become, and a group mixing faces with other elements stays an *Elset, since a deck cannot name one group both ways.
 
-Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors.
+SPOS and SNEG name a side of a shell, which is the element itself, so the surface’s name goes on that element rather than on a duplicate of it. A *Surface, type=NODE becomes a vertex tag, and goes back out as an *Nset of the same name: a node set and a node surface are the same members under two cards, and only the card the deck used says which.
+
+A *HEADING card is the deck’s own title, and it is read into global_attrs["abaqus_heading"] and written back from there. polyxios writes its own banner as a comment, so a deck with no heading of its own does not grow one over a round trip. A <FieldData> block holds text, so the title reaches a .vtu, .vtp, .vti, .vtr or .vts and comes home; a legacy .vtk FIELD block spells numbers only, and drops it with a warning.
+
+Node ids need not be contiguous or sorted; they are remapped to a dense 0-based index. Several *NODE blocks accumulate, and a repeated id restates that node rather than adding another.
+
+*NSET and *ELSET names become vertex and element tags, whether declared on the block itself or as a standalone card, with or without GENERATE; an entity in several sets stays in all of them. Abaqus matches a set name without regard to case, so a body naming TOP reaches the set declared as Top, and the same name in two cases is one set.
+
+Element cards are matched on their base name, so the modifier suffixes - R reduced integration, H hybrid, I, M, T, P, and the shell degree-of-freedom numbers - resolve to the same element: CPS8R reads as CPS8.
+
+*SYSTEM transforms every node block that follows it until the next *SYSTEM, which with no data lines restores the global system.
+
+*INCLUDE is resolved against the including file’s directory. A path that leaves that directory, or nesting deeper than eight files, is refused - an input deck is untrusted input. A deck read from a buffer has no directory, so it cannot use *INCLUDE.
+
+Every *PART / *INSTANCE is merged into one mesh, each read under its own node numbering and tagged by its name. An instance that only places its part carries no nodes of its own and shares the part’s numbering.
+
+A set carrying INSTANCE= is numbered by that instance rather than by whatever numbering is in force where the card sits, which is what lets an assembly keep its sets outside the instance they name. One naming an instance the deck never defines is reported.
+
+A GENERATE range wider than the deck has ids is resolved by walking the ids rather than the range: the card names two numbers and nothing bounds their distance.
+
+A *PART sets the deck’s own numbering aside rather than replacing it, so a set out past *End Part still reaches the nodes the deck defined before it.
+
+On write, a tag member that indexes no node or element of the mesh is dropped and reported: a set naming an id no card defines is a deck Abaqus refuses to load. A float column is refused whole rather than rounded, since rounding an index moves a label onto another entity.
+
+Analysis keywords (steps, materials, boundary conditions) are skipped rather than treated as errors, and an unrecognised element card is warned about and skipped rather than failing the read.
+
+A node card spells the third coordinate only in a 3-D model, so a deck where none does is a plane: the vertices are padded with a zero z and global_attrs["was_2d"] records the fact, which is what writes the cards back out two columns wide. Abaqus takes a node’s dimensionality from the element referencing it, so a two-column deck is written under the planar cards - CPS3, CPS4, T2D2 - rather than the S3/S4 shells a 3-D deck gets. A mesh holding a type with no planar card, or an element_type= override naming a 3-D one, stays three-dimensional. A mesh whose vertices have since left the plane is written in three with a warning.
 
 index - the full format table.
 
@@ -1227,7 +1693,7 @@ Source: https://polyxios.org/stable/formats/meshb.html
 
 Medit binary
 
-.meshb read + write lazy: binary only
+.meshb read + write always mmapped
 
 Summary of the specification
 
@@ -1273,9 +1739,10 @@ mesh = px.read("model.meshb")
 mesh.vertices          # (n, 3)
 mesh.element_types     # element groups found in the file
 
-Binary bodies can be memory-mapped instead of loaded:
+A path is memory-mapped rather than loaded, always - there is no eager mode
+to ask for and no lazy= to pass:
 
-mesh = px.read("big.meshb", lazy=True)
+mesh = px.read("big.meshb")
 
 Writing
 
@@ -1285,11 +1752,112 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
-The trailing reference integer on each entity becomes an element tag, which is how Medit files carry surface and region labels.
+The trailing reference integer on each entity becomes element_attrs["ref"] and one element_tags["ref_<n>"] group per distinct value, which is how Medit files carry surface and region labels. On write, references come from that attribute, failing that from the ref_<n> groups; a group named anything else has nowhere to go in a record that carries a number, so it is reported rather than numbered on the caller’s behalf.
+
+A record spells its reference in one signed 32-bit field, so a label outside that range is reported rather than written narrowed - narrowing one wraps it onto another label. vertex_attrs["ref"] is checked the same way, and a float or wrong-length column is refused rather than truncated or left to a broadcast error.
+
+A Dimension 2 file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact so the writer restores it. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three whatever the flag says, a Tetrahedra section under Dimension 2 being a file no reader loads.
+
+Edges, Prisms and Pyramids are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.
+
+The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion *Ordering section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
 
 Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.
 
-Binary bodies can be memory-mapped with lazy=True.
+A path is mapped and a file object read into memory, whichever lazy= says, so lazy=True warns and changes nothing while lazy=False is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.
+
+index - the full format table.
+
+## Medit ASCII
+
+Source: https://polyxios.org/stable/formats/medit.html
+
+Medit ASCII
+
+.mesh .medit read + write eager
+
+Summary of the specification
+
+A Medit file is a flat sequence of named sections. MeshVersionFormatted opens it and Dimension says whether the coordinates are 2-D or 3-D. Each entity section - Vertices, Edges, Triangles, Quadrilaterals, Tetrahedra, Prisms, Hexahedra, Pyramids - names a count and then that many records, each holding its node indices (1-based) followed by one integer reference. The reference is how a Medit file carries a surface or region label. End closes the file, though not every writer emits it.
+
+Specification at a glance
+
+
+
+
+
+opening keyword
+
+MeshVersionFormatted (mandatory; it is what tells this format from MFEM)
+
+vertex record
+
+x y [z] ref
+
+element record
+
+n1 n2 … ref, indices 1-based
+
+sections read
+
+Vertices, Edges, Triangles, Quadrilaterals, Tetrahedra, Prisms / Pentahedra, Hexahedra, Pyramids
+
+comments
+
+from # to end of line; keywords are case-insensitive
+
+Read the full Medit specification ↗
+
+Sharing .mesh with MFEM
+
+.mesh is MFEM’s extension too, so neither format owns it. Reading resolves by content: a file opening with MeshVersionFormatted lands here, one opening with MFEM mesh lands in mfem. An output file has no content to look at, so a bare write keeps its historical meaning and emits MFEM; name this codec to write Medit.
+
+import polyxios as px
+
+px.read("bamg.mesh")                     # Medit, by its header
+px.read("beam.mesh")                     # MFEM, by its header
+
+px.write(mesh, "out.mesh")               # MFEM, as it has always been
+px.write(mesh, "out.mesh", fmt=".medit")  # Medit
+px.write(mesh, "out.medit")              # Medit, no fmt= needed
+
+Reading
+
+mesh = px.read("model.mesh")
+mesh.element_attrs["ref"]     # per-element reference
+mesh.element_tags["ref_10"]   # the elements labelled 10
+
+Writing
+
+px.write(mesh, "out.medit", float_fmt=".17g")
+
+float_fmt overrides the coordinate format specifier.
+
+Quirks worth knowing
+
+References become both element_attrs["ref"] and one element_tags["ref_<n>"] group per distinct value, so a region label survives a conversion as a named group rather than as an anonymous column. All-zero references label nothing and are not kept.
+
+On write, references come from element_attrs["ref"], failing that from the ref_<n> groups. A group named anything else has nowhere to go - a Medit record carries a number, not a name - so it is reported rather than numbered on the caller’s behalf, as is one whose members are not element indices.
+
+vertex_attrs["ref"] goes the same way onto the vertex records. A float column is refused rather than truncated, for the reason a label is a number the file names exactly: rounding one relabels the vertex it stands for.
+
+References are held at 64 bits. The ASCII format puts no ceiling on one, and narrowing a reference either wraps it onto another label or saturates it onto the largest.
+
+A section’s count may sit on the keyword’s own line or the line after it: bamg writes Dimension 3 where Medit writes the 3 on the next line, and both read. A file need not close with End.
+
+A 2-D file’s vertices are padded with a zero z, so the mesh is 3-D like every other one polyxios holds. The fact is kept in global_attrs["was_2d"] and written back, so a 2-D file does not come out as a flat 3-D one that a reader expecting a plane refuses; a mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three whatever the flag says, a Tetrahedra section under Dimension 2 being a file no reader loads.
+
+The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are skipped with a warning naming them. The format fixes no node ordering for high-order elements - libMeshb’s own documentation says there are as many orderings as there are programmers, and defers to a companion *Ordering section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
+
+Sections carrying no geometry (Corners, Ridges, Required*, Normals, …) are stepped over without a word; an unrecognised one is named in a warning.
+
+A file declares its vertices once. A second Vertices section is refused rather than allowed to replace the block the elements already read index into - which, when the two counts agree, would move every element onto other geometry without a single index going out of range.
+
+A record carries one reference, so an element two ref_<n> groups both name keeps the later group’s and the other is reported. Which group comes later is the order the mesh holds them in, not one the caller chose.
+
+meshb - the binary flavour of the same format.
+
+mfem - the other format using .mesh.
 
 index - the full format table.
 
@@ -1355,7 +1923,7 @@ Quirks worth knowing
 
 The format holds a single cell type per file; writing a mixed mesh raises rather than dropping the elements that do not fit.
 
-2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The dim attribute follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning. An inferred dim is 3 for a mesh of solid cells however flat it lies, DOLFIN needing its geometric dimension to be at least its topological one; a dim= given by the caller is left alone.
 
 Mesh function and mesh value collection blocks are read as attributes where present.
 
@@ -1423,6 +1991,8 @@ ZGROUP and FGROUP names become element tags; a zone in several groups stays in a
 
 Gridpoint ids are sparse in practice and are remapped to a dense 0-based index on read.
 
+Coordinates and connectivity accumulate into machine-number arrays rather than Python lists while a file is read, which is what keeps a large grid’s peak memory a small multiple of the file rather than a large one.
+
 index - the full format table.
 
 ## Gmsh
@@ -1485,7 +2055,15 @@ ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer s
 
 Physical group names become element tags, so named boundaries and volumes survive the read.
 
-Node tags need not be contiguous; they are remapped to dense indices and kept as vertex tags.
+Node tags need not be contiguous; they are remapped to dense indices.
+
+$NodeData and $ElementData sections become vertex_attrs and element_attrs, at any component count the file declares, and are written back. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays NaN. A row naming an entity the mesh does not hold - an element of a type this codec skipped, say - costs that row rather than the whole field.
+
+A data section declares 1, 3 or 9 components and Gmsh refuses any other count, so a field of another width is padded out to the next of the three with zero columns and the padding is reported. The reader stays lenient and takes whatever width a file declares.
+
+Gmsh numbers the mid-edge and face nodes of the higher-order elements by its own edge and face tables, which are not VTK’s; they are permuted on the way in and back on the way out. Gmsh’s 18-node prism becomes a biquadratic_quadratic_wedge.
+
+Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped with a warning rather than reshaped into something else.
 
 index - the full format table.
 
@@ -1495,7 +2073,7 @@ Source: https://polyxios.org/stable/formats/nastran.html
 
 Nastran
 
-.bdf .nas .fem read + write eager
+.bdf .nas .fem .dat read + write eager
 
 Summary of the specification
 
@@ -1529,7 +2107,7 @@ continuation
 
 other suffixes
 
-.dat is read via fmt=”.bdf”
+.dat resolves by content (GRID / CEND / BEGIN BULK / SOL)
 
 Read the full Nastran specification ↗
 
@@ -1569,9 +2147,30 @@ Quirks worth knowing
 
 All three field widths are read; writing emits free field, with large-field GRID cards on request.
 
-.dat decks are recognised when the codec is named explicitly: px.read("model.dat", fmt=".bdf").
+.dat is shared with Tecplot, LS-DYNA and plain ASCII tables, so it is resolved by looking
+inside the file: a $ comment banner is stepped over and a GRID card, CEND,
+BEGIN BULK, NASTRAN or a SOL naming a solution number or name lands the deck
+here - a numeric table whose first row happens to read SOL 1.0 2.0 does not.
+px.read("model.dat", fmt=".bdf") still forces the issue, and writing to .dat needs
+fmt=".bdf" because an output file has no content to inspect.
+
+A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (1.234-10 for 1.234E-10, 1.2346+7 for 1.2346E+07), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads .5 as 0.5. A spelling that reads back as the value itself is always preferred to a longer one that does not, so 1e7 goes out as 1.E+07 rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.
 
 Property ids become element tags, so the deck’s grouping is preserved.
+
+A card name does not say the element’s order, so the shape comes from the grid points the card carries: CTETRA with ten grid points is a quadratic_tetra, with four a tetra. Counting stops at the first blank field, because Nastran lets a mid-side grid point be omitted and that card is a linear element.
+
+CPENTA runs the prism’s three vertical edges before its top ring where VTK runs them after, so those mid-side nodes are permuted on read and back on write. Every other card already agrees with VTK.
+
+The axisymmetric cards read as their planar counterparts: CTRAX3, CTRAX6, CTRIAX6, CQUADX, CQUADX4 and CQUADX8, alongside CSHEAR.
+
+One-dimensional cards (CBAR, CBEAM, CROD, CONROD, CTUBE, CBUSH, CGAP, CBEND, CVISC) read as lines rather than being skipped; CONROD names a material where the others name a property, so its grid points sit one field earlier.
+
+A shell’s ZOFFS becomes element_attrs["zoffs"] when any card carries one, and is written back on the shell cards that have a field for it: CTRIA3, CTRIAR, CQUAD4, CQUADR, CTRIA6 and CQUAD8.
+
+Nastran and VTK number the corner grid points alike, but not every mid-side one. CPENTA runs the prism’s vertical edges before its top ring and CHEXA does the same with the brick’s, where VTK runs the verticals last; CTRIAX6 interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in and back on the way out.
+
+CTRIAX6 names a material in the field where the shells name a property, so its second field is not read as a property id. A CBUSH grounding its second end names one grid point and no element, and is skipped with a warning of its own rather than being counted among the cards this codec has no shape for.
 
 index - the full format table.
 
@@ -1581,7 +2180,7 @@ Source: https://polyxios.org/stable/formats/tecplot.html
 
 Tecplot ASCII
 
-.tec read + write eager
+.tec .dat read + write eager
 
 Summary of the specification
 
@@ -1615,7 +2214,7 @@ connectivity
 
 other suffixes
 
-.dat is read via fmt=”.tec”
+.dat resolves by content; .plt is binary and not read
 
 Read the full Tecplot ASCII specification ↗
 
@@ -1639,7 +2238,18 @@ Both POINT and BLOCK packing are read; finite-element zones are supported, order
 
 Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
 
-.dat files are recognised when the codec is named explicitly: px.read("flow.dat", fmt=".tec").
+A zone declaring only X and Y is 2-D: the vertices are padded with a zero z and global_attrs["was_2d"] records the fact, which is what writes the zone back out with two coordinate variables rather than three. Tecplot names the coordinates by position, so a mesh carrying a variable of its own named Z keeps three: the zone would otherwise read back with that variable as its z. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of TETRAHEDRON or BRICK cells keeps three coordinate variables whatever the flag says - Tecplot takes the node count per element from ET and the coordinate count from VARIABLES, and the two have to agree.
+
+.dat is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
+inside the file: a .dat opening with TITLE = ", VARIABLES =, ZONE, FILETYPE =
+or DATASETAUXDATA lands here. An unquoted TITLE = decides nothing - Nastran case
+control spells its title the same way - so the line under it settles the question. px.read("flow.dat", fmt=".tec") still forces the issue,
+and writing to .dat needs fmt=".tec" because an output file has no content to inspect.
+
+A variable that is not finite throughout is not written. The format spells no missing value, so a NaN - which is what a field covering part of a mesh carries over the rest of it - would go out as the token nan, and a zone holding one is a zone no reader loads.
+
+Binary Tecplot (.plt) is registered so it fails with a clear message rather than not
+resolving at all; only the ASCII flavour is parsed.
 
 index - the full format table.
 
@@ -1701,7 +2311,7 @@ Quirks worth knowing
 
 Boundary marker names become element tags, so named inlets, outlets and walls survive a round trip.
 
-2D meshes are padded to z = 0 so the vertex array is always (n, 3).
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. NDIME follows it: a flagged flat mesh, or any mesh with no z extent, goes out as 2. A mesh whose vertices have since left it is written in three with a warning.
 
 The trailing per-element index is read but not trusted for ordering; elements keep file order.
 
@@ -1769,9 +2379,11 @@ Quirks worth knowing
 
 Pass either path - px.read("bar.ele") or px.read("bar.node") - and the paired file is located by basename.
 
-Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept.
+Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.
 
 Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
+
+A .node file declaring 2 dimensions is padded with a zero z, so the vertex array is always (n, 3), and global_attrs["was_2d"] records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning, and a mesh with tetrahedra to write keeps three whatever the flag says: the .ele file declares four nodes per element, and TetGen’s own 2-D mode fills the plane with triangles instead.
 
 index - the full format table.
 
@@ -1831,13 +2443,318 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
-2D geometry is padded to z = 0 so the vertex array is always (n, 3).
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The Z suffix follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning.
 
 Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
 
 An EWKT SRID= prefix is parsed and then dropped - polyxios carries no coordinate reference system.
 
+The ISO/SQL-MM surface family reads too: TRIANGLE as one triangle, TIN as a set of them, POLYHEDRALSURFACE as a set of polygons. A TIN patch that is not a triangle, or a TRIANGLE carrying an interior ring, is refused rather than read as something else.
+
+EMPTY is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.
+
+lazy=True raises LazyReadError; the geometry is spelled as text and has to be parsed before it holds numbers.
+
 index - the full format table.
+
+## VTK UnstructuredGrid
+
+Source: https://polyxios.org/stable/formats/vtu.html
+
+VTK UnstructuredGrid
+
+.vtu read + write eager
+
+Summary of the specification
+
+.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A <VTKFile type="UnstructuredGrid"> root holds an <UnstructuredGrid> with one or more <Piece> elements, each declaring NumberOfPoints and NumberOfCells. A piece carries <Points> with a three-component coordinate DataArray, and <Cells> with three named arrays - connectivity, offsets and types - where types holds one VTK cell type code per cell. <PointData> and <CellData> hold named attribute arrays. Every DataArray is inline ASCII, inline base64, or a reference into a single appended binary blob, optionally zlib-compressed.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”UnstructuredGrid”>
+
+pieces
+
+one or more <Piece NumberOfPoints= NumberOfCells=>
+
+cells
+
+connectivity, offsets and types DataArrays
+
+cell types
+
+one VTK type code per cell
+
+encodings
+
+ascii, base64, appended (raw or base64), optionally zlib-compressed
+
+indices
+
+0-based
+
+Read the full VTK XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("grid.vtu")
+mesh.element_types     # mixed cell types, mapped from the VTK codes
+
+Writing
+
+px.write(mesh, "out.vtu")                 # base64 payloads (default)
+px.write(mesh, "out.vtu", binary=False)   # inline ASCII
+
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII, which is larger but diffable.
+
+Quirks worth knowing
+
+A tag group has no set of its own in this format, so it travels as one PointData or CellData column of ones and zeros named polyxios_tag_<group>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
+
+<FieldData> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <Piece> alike, and written back from global_attrs. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
+
+<FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
+
+Multiple <Piece> elements are concatenated into one PolyData, with each piece’s connectivity shifted by the running vertex count.
+
+A piece that declares points and does not deliver them raises CodecError; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
+
+A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
+
+A Points array of a type that holds no numbers - type="String", or any type this reader does not know - raises CodecError naming the type.
+
+VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.
+
+Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+
+lazy=True raises LazyReadError; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
+
+Header counts are validated against the file size before any array is allocated.
+
+index - the full format table.
+vtp - the XML PolyData sibling.
+
+## VTK StructuredGrid
+
+Source: https://polyxios.org/stable/formats/vts.html
+
+VTK StructuredGrid
+
+.vts read + write eager
+
+Summary of the specification
+
+.vts is the XML serial form of a VTK StructuredGrid: a curvilinear grid with an explicit coordinate per node but implicit connectivity. A <VTKFile type="StructuredGrid"> root holds a <StructuredGrid> whose WholeExtent gives the index range on each axis as i0 i1 j0 j1 k0 k1. Each <Piece> restates its own Extent and carries a <Points> DataArray listing every node’s coordinates in i-fastest order. There is no connectivity array: the cells are the hexahedra implied by the extent. <PointData> and <CellData> hold named attribute arrays, encoded the same way as any other VTK XML file.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”StructuredGrid”>
+
+extent
+
+WholeExtent=”i0 i1 j0 j1 k0 k1”
+
+points
+
+explicit coordinates, i-fastest ordering
+
+connectivity
+
+implicit; cells follow from the extent
+
+encodings
+
+ascii, base64, appended (raw or base64), optionally zlib-compressed
+
+Read the full VTK XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("curvilinear.vts")
+mesh.element_types     # hexahedra expanded from the extent
+
+Writing
+
+px.write(mesh, "out.vts")                 # base64 payloads (default)
+px.write(mesh, "out.vts", binary=False)   # inline ASCII
+
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII.
+
+Quirks worth knowing
+
+A tag group has no set of its own in this format, so it travels as one PointData or CellData column of ones and zeros named polyxios_tag_<group>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
+
+<FieldData> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <Piece> alike, and written back from global_attrs. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
+
+<FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
+
+The vts_* grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other global_attrs entry does.
+
+Multi-component attributes are cut into tuples with NumberOfComponents, so an (n, 3) vector reads back with its shape rather than as 3n rows.
+
+The implicit grid is expanded to explicit connectivity on read, so the resulting PolyData carries real elements rather than an extent.
+
+That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.
+
+lazy=True raises LazyReadError.
+
+Header counts are validated against the file size before any array is allocated.
+
+Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+
+An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every CellData array belonging to nothing.
+
+The points are written out in the mesh’s own order, so they need not be a lattice: a warped block, a cylindrical shell and an aerofoil O-grid are all StructuredGrids, and holding those is what the format is for. The extent is read off the cells, which are a grid whatever the coordinates do.
+
+The cells are the one thing the file does not carry. A mesh whose elements are not the ones the extent reads back - a mix of types, tetrahedra over grid points, or hexahedra in another order - raises CodecError at the point of writing rather than being silently swapped for the grid’s own cells, taking its CellData with it. Write a vtu, which carries an arbitrary mesh and its own cells.
+
+A mesh with no vertices writes the extent VTK spells an empty grid with, 0 -1 0 -1 0 -1, and reads back as a mesh with none.
+
+An extent that ends before it starts on any axis holds no points, so it holds no cells either - 0 -1 0 2 0 2 reads as an empty mesh rather than as four quads whose corners name points the file never spelled.
+
+A StructuredGrid carries its points, so the extent and the <Points> array have to agree on how many. The column count is read off the two, so a file that disagrees used to come back as a mesh of the wrong width - a point of no coordinates at all - and fail later on a shape nothing in the file explained; it now raises CodecError naming both counts. An array wider than three components keeps its first three, as before.
+
+The extent of the file a mesh was read from travels with it, so a grid that did not begin at zero is written back where it stood - but only while it still describes the mesh. One a transform has moved the mesh out from under is re-derived from the cells rather than trusted.
+
+index - the full format table.
+vtr - the axis-aligned rectilinear sibling.
+
+## VTK ImageData
+
+Source: https://polyxios.org/stable/formats/vti.html
+
+VTK ImageData
+
+.vti read + write eager
+
+Summary of the specification
+
+.vti is the XML serial form of a VTK ImageData: a uniform grid stored entirely as metadata. A <VTKFile type="ImageData"> root holds an <ImageData> carrying WholeExtent, Origin and Spacing - the index range on each axis, the coordinate of the first node, and the constant step between nodes. There are no coordinates in the file at all; every node position follows from origin + index * spacing, and the cells are the hexahedra implied by the extent. Only <PointData> and <CellData> arrays carry actual payload, encoded like any other VTK XML file.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type=”ImageData”>
+
+extent
+
+WholeExtent=”i0 i1 j0 j1 k0 k1”
+
+geometry
+
+Origin + Spacing; no coordinate array
+
+connectivity
+
+implicit; cells follow from the extent
+
+encodings
+
+ascii, base64, appended (raw or base64), optionally zlib-compressed
+
+Read the full VTK XML specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("volume.vti")
+mesh.vertices          # materialised from origin + index * spacing
+
+Writing
+
+px.write(mesh, "out.vti")                 # base64 payloads (default)
+px.write(mesh, "out.vti", binary=False)   # inline ASCII
+
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII.
+
+Quirks worth knowing
+
+A tag group has no set of its own in this format, so it travels as one PointData or CellData column of ones and zeros named polyxios_tag_<group>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
+
+<FieldData> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <Piece> alike, and written back from global_attrs. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
+
+<FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
+
+The vti_* grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other global_attrs entry does.
+
+Multi-component attributes are cut into tuples with NumberOfComponents, so an (n, 3) vector reads back with its shape rather than as 3n rows.
+
+Both the coordinates and the connectivity are materialised on read. A file of a few hundred bytes can expand to a large in-memory mesh, because the extent is all it takes to describe one.
+
+Origin defaults to 0 0 0 and Spacing to 1 1 1 when the attributes are absent.
+
+A <Piece> may restate a sub-extent of WholeExtent; the piece’s own extent is what gets expanded.
+
+lazy=True raises LazyReadError.
+
+Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
+
+An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every CellData array belonging to nothing.
+
+The writer holds a uniform grid and nothing else, and says so rather than spelling a file its own reader refuses. The extent is read off the cells, which are a grid whatever the coordinates do; the vertices then have to be that grid expanded, in the order the file reads them back - x fastest, z slowest - since the file holds no points of its own, and every axis has to be evenly spaced, since it holds one step per axis rather than a coordinate per plane. A mesh that is none of those raises CodecError. Write a vtr for a lattice whose planes are unevenly spaced, a vts for points that are not a lattice at all, or a vtu for an arbitrary mesh.
+
+Cells that are not the grid’s own - tetrahedra over grid points, or the same hexahedra in another order - raise as well. The file carries no connectivity, so they would be dropped on the way back in and their CellData with them.
+
+A mesh with no vertices writes the extent VTK spells an empty grid with, 0 -1 0 -1 0 -1, and reads back as a mesh with none.
+
+An extent that ends before it starts on any axis holds no points, so it holds no cells either - 0 -1 0 2 0 2 reads as an empty mesh rather than as four quads whose corners name points the file never spelled.
+
+The extent, origin and step of the file a mesh was read from travel with it, so a grid that did not begin at zero - or that steps down an axis - goes back exactly where it stood. All three are checked against the vertices at the point of writing rather than trusted: pruning cells leaves the extent counting points that are not in the file, moving the mesh leaves the origin behind, and scaling it leaves the step behind. Whichever no longer describes the mesh is re-derived from it.
+
+index - the full format table.
+vts - the curvilinear structured sibling.
 
 ## MFEM mesh
 
@@ -1879,7 +2796,7 @@ indices
 
 variants
 
-INLINE (parametric recipe), NURBS (spline patches)
+INLINE (parametric recipe), NURBS (spline patches), NC-Mesh
 
 Read the full MFEM mesh specification ↗
 
@@ -1899,13 +2816,19 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
-INLINE and NURBS meshes raise UnsupportedFormatError; they store a recipe rather than an explicit mesh.
+The INLINE, NURBS and NC-Mesh variants store a recipe rather than an explicit mesh, and each is still read - what comes back differs by variant.
 
-The written dimension is inferred from the data: a mesh whose z column is entirely zero goes out as 2D, and only two coordinate components are written per vertex.
+An MFEM INLINE file is materialised into the uniform grid its type/nx/ny/nz and domain extents describe, matching MFEM’s own MakeCartesian, so it reads as an ordinary mesh.
+
+An MFEM NURBS file gives back its control points, not surface samples: the vertices are the B-spline coefficients, the connectivity is the patch topology, and the knot vectors and weights travel in global_attrs["mfem_nurbs_knotvectors"] and global_attrs["mfem_nurbs_weights"]. Evaluating the basis to get real nodes is MFEM’s job - SetCurvature(1) and re-save, then read the result here.
+
+An MFEM NC mesh file - or MFEM NC-Mesh, the other spelling of the same header, matched whatever its case - is a forest of refinement trees, and its leaves are the mesh: the refined parents are stepped over, and the vertices the leaves reference are reconstructed from the coordinates section and the midpoint rules in vertex_parents. global_attrs["mfem_nc_n_total_elements"] and global_attrs["mfem_nc_n_leaf_elements"] record both counts. The geometry is right, but hanging-node constraints are not applied, so the mesh is not FEM-conforming at a refinement boundary - re-save through PyMFEM for that.
+
+A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The written dimension follows it, and a mesh whose z column is entirely zero goes out as 2-D whether it was flagged or not. A flagged mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three columns whatever the flag says - MFEM reads exactly as many coordinates per vertex as the block declares, and a tetrahedron of two-coordinate vertices is not a cell.
 
 Coordinates are written with .10g, which does not name a float64 exactly - a round trip differs in the last few digits.
 
-An element whose type code has no polyxios equivalent falls back to triangle on write.
+MFEM names eight geometries and no higher-order one. An element it has no geometry for - a quadratic_tetra, a polygon - is skipped on write with a warning naming its type, and the declared element count drops with it. Writing one under another geometry’s code would leave its extra nodes to be read as the record that follows, which costs every element after it rather than the one that did not fit.
 
 index - the full format table.
 
@@ -1987,9 +2910,13 @@ Elements are written section by section in the order the format fixes - faces, c
 
 Node references are 1-based in the file, 0-based in the PolyData; every type whose node order differs from polyxios’s is permuted both ways.
 
+Sections polyxios carries no home for - facedescriptors, identifications, face_colours, the singular_* family - are stepped over by name, and a non-empty one says how many records it dropped rather than reading as a section nobody recognised.
+
 Index 0 means “unset” and is dropped rather than becoming a tag. A bc_<n>-style tag name keeps its number, unless that number is negative or past int64, which the format cannot spell.
 
 A tag holding elements of more than one dimension is written into each dimension’s section, and comes back split one tag per dimension, because the sections number their indices independently.
+
+A dimension 2 file’s points are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. Netgen writes mesh3d whatever it is handed, so the flag does not come back through a .vol round trip - but it does carry the plane into a format that can spell one, so a 2-D .vol written as SU2 lands as NDIME= 2.
 
 Sections polyxios has no home for - identifications, face_colours, the singular_* family - are stepped over, with a warning when one is not empty.
 
@@ -2152,17 +3079,19 @@ lazy=True is ignored; the file is a flat binary array with no seekable structure
 
 index - the full format table.
 
-## VTK UnstructuredGrid
+## Kratos MDPA
 
-Source: https://polyxios.org/stable/formats/vtu.html
+Source: https://polyxios.org/stable/formats/mdpa.html
 
-VTK UnstructuredGrid
+Kratos MDPA
 
-.vtu read + write eager
+.mdpa read + write eager
 
 Summary of the specification
 
-.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A <VTKFile type="UnstructuredGrid"> root holds an <UnstructuredGrid> with one or more <Piece> elements, each declaring NumberOfPoints and NumberOfCells. A piece carries <Points> with a three-component coordinate DataArray, and <Cells> with three named arrays - connectivity, offsets and types - where types holds one VTK cell type code per cell. <PointData> and <CellData> hold named attribute arrays. Every DataArray is inline ASCII, inline base64, or a reference into a single appended binary blob, optionally zlib-compressed.
+A Kratos .mdpa file is a flat list of Begin <Section> / End <Section> blocks, and everything the format holds lives in one of them. Nothing is counted in a header, so a block runs until its End. Nodes carries id x y z, one node per line, numbered freely. An Elements block is headed by a Kratos element class - Begin Elements Element3D4N - and each line spells id property_id <nodes>; a Conditions block has the same shape and its own numbering. Properties blocks carry material and solver settings, NodalData and ElementalData carry one variable per block keyed by entity id, ModelPartData carries whole-mesh values, and a SubModelPart names the nodes, elements and conditions of a group - and may nest other parts inside itself.
+
+The element class name is a registered Kratos class rather than a geometry. The generic spelling is Element<space dim>D<node count>N, and an application registers its own element behind the same suffix: SmallDisplacementElement3D4N, SurfaceLoadCondition3D3N, VMS3D4N. Kratos also uses explicit geometry names in its own tables - Tetrahedra3D4, Quadrilateral3D4, Prism3D6.
 
 Specification at a glance
 
@@ -2170,222 +3099,81 @@ Specification at a glance
 
 
 
-root
+structure
 
-<VTKFile type=”UnstructuredGrid”>
+Begin <Section> … End <Section>, no counts
 
-pieces
+node record
 
-one or more <Piece NumberOfPoints= NumberOfCells=>
+id x y z
 
-cells
+cell record
 
-connectivity, offsets and types DataArrays
+id property_id <nodes>
 
-cell types
+cell blocks
 
-one VTK type code per cell
-
-encodings
-
-ascii, base64, appended (raw or base64), optionally zlib-compressed
+Elements <class>, Conditions <class>
 
 indices
 
-0-based
+1-based, free numbering
 
-Read the full VTK XML specification ↗
+data blocks
 
-Reading
+NodalData, ElementalData, ModelPartData
 
-import polyxios as px
+groups
 
-mesh = px.read("grid.vtu")
-mesh.element_types     # mixed cell types, mapped from the VTK codes
+SubModelPart, nestable
 
-Writing
+comments
 
-px.write(mesh, "out.vtu")                 # base64 payloads (default)
-px.write(mesh, "out.vtu", binary=False)   # inline ASCII
+// to end of line
 
-
-
-
-
-option
-
-meaning
-
-binary
-
-True (the default) writes base64-encoded payloads; False writes inline ASCII, which is larger but diffable.
-
-Quirks worth knowing
-
-Multiple <Piece> elements are concatenated into one PolyData, with each piece’s connectivity shifted by the running vertex count.
-
-VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.
-
-lazy=True raises LazyReadError; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
-
-Header counts are validated against the file size before any array is allocated.
-
-index - the full format table.
-vtp - the XML PolyData sibling.
-
-## VTK StructuredGrid
-
-Source: https://polyxios.org/stable/formats/vts.html
-
-VTK StructuredGrid
-
-.vts read + write eager
-
-Summary of the specification
-
-.vts is the XML serial form of a VTK StructuredGrid: a curvilinear grid with an explicit coordinate per node but implicit connectivity. A <VTKFile type="StructuredGrid"> root holds a <StructuredGrid> whose WholeExtent gives the index range on each axis as i0 i1 j0 j1 k0 k1. Each <Piece> restates its own Extent and carries a <Points> DataArray listing every node’s coordinates in i-fastest order. There is no connectivity array: the cells are the hexahedra implied by the extent. <PointData> and <CellData> hold named attribute arrays, encoded the same way as any other VTK XML file.
-
-Specification at a glance
-
-
-
-
-
-root
-
-<VTKFile type=”StructuredGrid”>
-
-extent
-
-WholeExtent=”i0 i1 j0 j1 k0 k1”
-
-points
-
-explicit coordinates, i-fastest ordering
-
-connectivity
-
-implicit; cells follow from the extent
-
-encodings
-
-ascii, base64, appended (raw or base64), optionally zlib-compressed
-
-Read the full VTK XML specification ↗
+Kratos Multiphysics input data ↗
 
 Reading
 
 import polyxios as px
 
-mesh = px.read("curvilinear.vts")
-mesh.element_types     # hexahedra expanded from the extent
+mesh = px.read("model.mdpa")
+mesh.element_tags                        # one entry per SubModelPart
+mesh.vertex_attrs["original_ids"]        # the node ids the file spelled
+mesh.element_attrs["mdpa_property_id"]   # the Properties block each cell points at
+mesh.global_attrs                        # the ModelPartData entries
 
 Writing
 
-px.write(mesh, "out.vts")                 # base64 payloads (default)
-px.write(mesh, "out.vts", binary=False)   # inline ASCII
+px.write(mesh, "out.mdpa")
 
-
-
-
-
-option
-
-meaning
-
-binary
-
-True (the default) writes base64-encoded payloads; False writes inline ASCII.
+The writer recognises no options; any that are passed are warned about and ignored.
 
 Quirks worth knowing
 
-The implicit grid is expanded to explicit hexahedral connectivity on read, so the resulting PolyData carries real elements rather than an extent.
+The class name and the geometry do not identify each other: Element3D4N is a tetrahedron, and a quadrilateral sitting in space would want the same name. polyxios writes the class name with the element’s topological dimension - a quadrilateral is Element2D4N whatever plane it lies in - which makes the pair unique and keeps a round trip exact. Reading is wider than writing: the <n>D<m>N suffix is read off whatever name carries it, and the explicit geometry names are recognised too.
 
-That expansion is what makes a structured file cost the same as an unstructured one in memory; a large extent expands to a large connectivity array.
+Conditions are read as elements, after the elements, because they are cells of the same mesh. That merges two id spaces, so a file whose condition id repeats an element id comes back without original_ids - a numbering with a duplicate in it is one no writer can spell back. Conditions are written under Elements: which cells a solver should treat as boundary is a modelling choice the mesh does not carry.
 
-lazy=True raises LazyReadError.
+Node ordering follows Kratos, which numbers its higher-order nodes the way GiD does. That agrees with polyxios for every type but two: a 20-node hexahedron and a 15-node wedge list their vertical mid-edge nodes before the ones on the top face, and both are permuted on the way in and back on the way out.
 
-Header counts are validated against the file size before any array is allocated.
+An element of a type Kratos has no unambiguous class name for - a 3-node line, whose Element2D3N is how a triangle is spelled - is dropped on write with a warning, as is one whose node count does not match its type. A tag naming a dropped element leaves it out of its SubModelPart: Kratos refuses to load a file whose part names an element the file never declared.
 
-index - the full format table.
-vtr - the axis-aligned rectilinear sibling.
+A data block spells a vector two ways and both are read: a Variable<Vector> declares its length ([3] (1.0,2.0,3.0)), while an array_1d<double,3> - what DISPLACEMENT, VELOCITY and the rest are - does not. A matrix ([3,3] ((…),(…),(…))) is more than one value per entity, which no attribute column holds, so its block is passed over with a warning.
 
-## VTK ImageData
+Each SubModelPart becomes a vertex_tags and/or element_tags entry named after it, nested parts included. Kratos asks only that siblings differ, so two parts under different parents may carry one name; the second gets a _2 suffix and a warning rather than its members poured into the first. A part contributing no member of its own - one that only groups its children - claims no name and becomes no tag.
 
-Source: https://polyxios.org/stable/formats/vti.html
+element_attrs["mdpa_property_id"] appears only when some cell points at something other than property 0; a file using one property says nothing a writer could not reproduce. The contents of a Properties block do not travel - only the id.
 
-VTK ImageData
+A ModelPartData value carries no type of its own, so one spelling a number or true/false comes back as one: a mesh that wrote the string "42" reads it back as the integer 42.
 
-.vti read + write eager
+A NodalData or ElementalData block naming a variable polyxios keeps for itself - original_ids, mdpa_property_id - is read under a _2 suffix and warned about, rather than buried under the key or left posing as it. A block naming no variable at all is read as unnamed, also with a warning.
 
-Summary of the specification
+Geometries, ConditionalData and Tables blocks are not read, and each is warned about.
 
-.vti is the XML serial form of a VTK ImageData: a uniform grid stored entirely as metadata. A <VTKFile type="ImageData"> root holds an <ImageData> carrying WholeExtent, Origin and Spacing - the index range on each axis, the coordinate of the first node, and the constant step between nodes. There are no coordinates in the file at all; every node position follows from origin + index * spacing, and the cells are the hexahedra implied by the extent. Only <PointData> and <CellData> arrays carry actual payload, encoded like any other VTK XML file.
-
-Specification at a glance
-
-
-
-
-
-root
-
-<VTKFile type=”ImageData”>
-
-extent
-
-WholeExtent=”i0 i1 j0 j1 k0 k1”
-
-geometry
-
-Origin + Spacing; no coordinate array
-
-connectivity
-
-implicit; cells follow from the extent
-
-encodings
-
-ascii, base64, appended (raw or base64), optionally zlib-compressed
-
-Read the full VTK XML specification ↗
-
-Reading
-
-import polyxios as px
-
-mesh = px.read("volume.vti")
-mesh.vertices          # materialised from origin + index * spacing
-
-Writing
-
-px.write(mesh, "out.vti")                 # base64 payloads (default)
-px.write(mesh, "out.vti", binary=False)   # inline ASCII
-
-
-
-
-
-option
-
-meaning
-
-binary
-
-True (the default) writes base64-encoded payloads; False writes inline ASCII.
-
-Quirks worth knowing
-
-Both the coordinates and the connectivity are materialised on read. A file of a few hundred bytes can expand to a large in-memory mesh, because the extent is all it takes to describe one.
-
-Origin defaults to 0 0 0 and Spacing to 1 1 1 when the attributes are absent.
-
-A <Piece> may restate a sub-extent of WholeExtent; the piece’s own extent is what gets expanded.
-
-lazy=True raises LazyReadError.
+lazy=True warns and loads eagerly; the format is ASCII.
 
 index - the full format table.
-vts - the curvilinear structured sibling.
 
 ## Lazy loading
 
@@ -2405,10 +3193,12 @@ first_vertex = mesh.vertices[0]
 
 # Element connectivity is still on disk until you access it
 
-Lazy loading is supported for binary .vtk, .ply, .stl and
-.meshb files. ASCII formats load eagerly (the whole file must be parsed to
-extract values). Binary STL lazy mode skips vertex deduplication - vertices are
-returned as-is (3 per triangle), avoiding the extra pass over the data.
+lazy=True is honoured for binary .vtk, .ply and .stl files.
+ASCII formats load eagerly (the whole file must be parsed to extract values).
+Binary STL lazy mode skips vertex deduplication - vertices are returned as-is
+(3 per triangle), avoiding the extra pass over the data. .meshb needs no
+flag: a path is always memory-mapped and a file object always read into
+memory, so lazy=True there warns and changes nothing.
 
 formats/index - the per-format table records which formats support
 lazy loading.
@@ -2419,6 +3209,57 @@ Source: https://polyxios.org/stable/transforms.html
 
 Transforms
 
+Every transform takes a PolyData and returns a new one -
+nothing is modified in place - so they compose freely.
+
+
+
+
+
+Transform
+
+What it does
+
+pipeline(*fns)
+
+Compose transforms left to right into one callable.
+
+merge(*polys)
+
+Concatenate several meshes into one, offsetting the indices.
+
+filter_element_type(poly, keep=...)
+
+Keep only the named element types.
+
+remove_orphan_vertices(poly)
+
+Drop vertices no element references and remap the indices.
+
+reindex(poly)
+
+Alias of remove_orphan_vertices.
+
+merge_duplicate_vertices(poly, tol=...)
+
+Weld coincident vertices into one.
+
+triangulate(poly)
+
+Split every surface element into triangles.
+
+extract_surface(poly)
+
+Return the boundary faces of a volumetric mesh.
+
+vertex_colors(poly)
+
+Read per-vertex RGB out of the vertex attributes, or None.
+
+Composing and merging
+
+from functools import partial
+
 from polyxios.transforms import (
     pipeline,
     merge,
@@ -2428,13 +3269,59 @@ from polyxios.transforms import (
 
 # Compose transforms into a single function
 clean = pipeline(
-    filter_element_type(keep="triangle"),
+    partial(filter_element_type, keep="triangle"),
     remove_orphan_vertices,
 )
 result = clean(mesh)
 
 # Merge two meshes into one
 combined = merge(mesh_a, mesh_b)
+
+Cleaning
+
+remove_orphan_vertices drops the vertices nothing references;
+merge_duplicate_vertices welds the ones that sit on top of each other -
+the equivalent of ParaView’s “Clean to Grid”, and what turns the facet soup
+STL hands back into a surface again:
+
+from polyxios.transforms import merge_duplicate_vertices
+
+welded = merge_duplicate_vertices(mesh)             # exact matches only
+snapped = merge_duplicate_vertices(mesh, tol=1e-6)  # snap to a 1e-6 grid
+
+tol snaps each coordinate to a grid of that step before comparing, so
+two points merge when they land in the same cell. The survivor of a group is
+its lowest original index and keeps its own coordinates and attributes: the
+result does not depend on which duplicate the file listed first, and a
+tolerance never moves a point. Welding is not culling - a vertex no element
+references is kept, so compose with remove_orphan_vertices to drop those
+too.
+
+Surfaces
+
+triangulate splits quads and pixels into two triangles and fan-triangulates
+polygons and triangle strips; quadratic surface elements are linearised to
+their corner nodes first, and lines and volumes are dropped.
+
+extract_surface returns the boundary of a volumetric mesh - the faces
+shared by exactly one element. Surface elements already in the mesh are
+ignored, so a tetrahedral mesh that also carries its boundary triangles is
+not counted twice. Vertices are preserved unchanged, so follow it with
+remove_orphan_vertices to compact them:
+
+from polyxios.transforms import extract_surface, remove_orphan_vertices
+
+boundary = remove_orphan_vertices(extract_surface(volume_mesh))
+
+Colours
+
+vertex_colors returns an (n_verts, 3) float32 array in [0, 1], or
+None when no vertex attribute looks like a colour. An attribute named for
+colour wins outright; otherwise the first (n, >= 3) attribute is taken,
+skipping any carrying a negative value - a normal is the same shape as an RGB
+triple, so shape alone would hand back surface directions as colours.
+
+Full signatures and parameters are in the API reference.
 
 ## Command line interface (pxios)
 
@@ -2535,6 +3422,66 @@ mesh = px.read("model.abc")   # works out of the box
 Extensions are resolved in lower case, so register ".abc" rather than
 ".ABC" - a key the resolver cannot reach is worse than none.
 
+Extensions several formats share
+
+An extension no format owns outright - .dat belongs to Tecplot, Nastran,
+LS-DYNA and plain ASCII tables alike - is resolved by looking inside the file.
+Among the codecs polyxios ships, one competing for such an extension lists it
+under SNIFF_EXTENSIONS and supplies sniff(head: bytes) -> bool, which
+answers whether the opening bytes look like its format; SNIFF_PRIORITY
+orders the attempts, lowest first, so a narrow test runs ahead of a broad one.
+The extension then resolves to a dispatcher that delegates to the first codec
+recognising the file, and names the candidates when none does. Writing needs an
+owner, an output file having no content to inspect: the codec that owns the
+extension keeps the writes by declaring SNIFF_DEFAULT_WRITER, and without
+one a bare write raises and asks for fmt=.
+
+An entry point is a claim, not a competitor. It registers one extension, it is
+registered last, and it replaces whatever held that key - a dispatcher
+included: installing a codec for .dat is a deliberate choice by the person
+installing it, and it wins over polyxios’ own guess at the file’s content.
+
+Reading a path or a buffer
+
+path is whatever the caller passed read() or write(): a path, or
+an open file object. Opening it yourself would refuse the second, so use the
+helpers in polyxios._io, which take either:
+
+from polyxios._io import read_text, write_text
+
+def read(path, *, lazy=False) -> PolyData:
+    text = read_text(path, encoding="utf-8", errors="replace")
+    ...
+
+def write(poly: PolyData, path, **opts) -> None:
+    write_text(path, "\n".join(lines), encoding="utf-8")
+
+read_bytes / write_bytes are the binary pair, open_read /
+open_write yield a binary handle for a codec that streams, open_text
+yields one to iterate line by line, and open_block gives a binary parser
+the whole file at once - mapped for a path, read into memory for a buffer.
+source_name and source_suffix are what an error message should quote,
+since a buffer has no Path to ask.
+
+Going through the helpers is also what gives a codec gzip for free: the
+decompression happens inside them, so a codec that opened the path itself
+would be the only format in the library that cannot read a .gz.
+
+A codec that genuinely needs a file on disk - a format split across sibling
+files, say - calls require_path(path, fmt=..., reason=...), which returns
+a Path or refuses the buffer with a message naming why. It refuses a
+compressed one too: a codec opening its own files is not going through the
+layer that unwraps gzip, so a .gz there would be parsed as text.
+
+Pass reading=True on the way in, where the file already holds bytes to
+look at, so a file compressed without being renamed is caught by its content
+the way it is everywhere else. Leave it unset on the way out: a destination
+holds either nothing or the file about to be replaced, and reading that one
+would refuse a plain write for the sake of whatever happened to be sitting
+there. require_path only ever sees the path the caller named, so a codec
+that then opens siblings of its own has to check those itself - is_gzip
+takes a path and answers in four bytes.
+
 ## API Reference
 
 Source: https://polyxios.org/stable/api/index.html
@@ -2587,7 +3534,7 @@ Read a mesh file and return a PolyData.
 
 supported_extensions(*[, registry])
 
-List the file extensions the registry can read and write.
+List the file extensions the registry resolves.
 
 write(poly, path, *[, fmt, registry])
 
@@ -2732,6 +3679,10 @@ Return a new PolyData containing only elements of the specified type(s).
 merge(*polys)
 
 Merge multiple PolyData into one by concatenating vertices and elements.
+
+merge_duplicate_vertices(poly, *[, tol])
+
+Return a new PolyData with coincident vertices welded into one.
 
 pipeline(*fns)
 
@@ -2880,6 +3831,14 @@ Functions
 
 
 
+read_blocks(path)
+
+Read every mesh a VTK index file names, one PolyData per sub-file.
+
+read_multiblock(path)
+
+Read a VTK index file and merge every mesh it names into one.
+
 read_multiblock_vtp(path)
 
 Load a vtkMultiBlockDataSet .vtp index file and merge its components.
@@ -2895,6 +3854,18 @@ Resolve a filename to a local path, fetching it from the catalog if needed.
 visualize_mesh(polydata, *[, lines, points])
 
 Visualize a PolyData mesh using FURY.
+
+Exceptions
+
+
+
+
+
+
+
+Traversal
+
+A sub-file reference that points outside its own index's directory.
 
 ## Contributing
 
@@ -3201,12 +4172,1404 @@ Changelog
 
 
 
+0.4.1 (2026-09-09)
+
+0.4.0 reached PyPI only after its release workflow was repaired and re-run by
+hand, and its documentation never reached the site at all. Every one of the
+bugs was in the machinery rather than the library, so 0.4.1 is the same code,
+released the way a release is meant to run.
+
+Bug fixes
+
+The step that creates the GitHub Release no longer interpolates the
+changelog into the shell script it runs. The notes are reStructuredText and
+0.4.0’s carry 2848 backticks, so every literal in them opened a command
+substitution and the step died before gh was reached. Every release so
+far built its wheels and then failed there, which is why the tags before
+this one carry no assets. The notes travel through the environment now,
+which is never parsed as shell.
+
+A release can be re-run for a tag that already exists. The jobs check out
+the tag being released rather than the branch the run was dispatched from,
+which after a release is the next development version - so a release that
+failed halfway is finished by re-running it, rather than by moving the tag
+away from the artifacts built under it.
+
+The section a release opens for the next cycle is written above the release
+just cut, not below it. It was inserted before the second per-version
+anchor, a rule that dates from a marker matching the file’s own label, and
+cutting 0.4.0 left 0.5.0 sitting between 0.4.0 and 0.3.0.
+
+A pull request title is escaped before the release quotes it into the
+changelog. One title spelling an extension as *.dat is an unterminated
+emphasis marker to the documentation build, which treats a warning as an
+error: the 0.4.0 stats block broke the build for the tag and for every
+branch off it. The check the release runs cannot catch this on its own,
+since it builds the documentation before the stats are appended.
+
+A version’s documentation can be published from a ref that is not its own
+tag. A tag is immutable, so a tag whose documentation cannot build had no
+way to reach the site at all; a manual run now chooses the tree to build
+separately from the version directory it publishes as.
+
+GitHub stats for 2026/09/09 - 2026/09/09 (tag: v0.4.0)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 1 authors contributed 10 commits.
+
+Serge Koudoro
+
+We closed a total of 7 issues, 6 pull requests and 1 regular issues.
+
+Pull Requests (6):
+
+PR #64: DOC: the 0.4.1 notes say what the release machinery got wrong
+
+PR #63: BF: a version can be published from a ref that is not its tag
+
+PR #62: BF: the release notes reach gh through the environment
+
+PR #61: BF: the new upcoming section opens the changelog, not the middle
+
+PR #60: DOC: the README and the guides say what 0.4.0 added
+
+PR #59: NF: OBJ keeps the texture coordinates a seam gives two of
+
+Issues (1):
+
+GH#58: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
+
+
+
+0.4.0 (2026-09-09)
+
+Meshes read and written over file objects and gzip alike, one new format,
+entity numbering and whole-mesh metadata that survive a round trip, and an
+extension shared by several formats resolved by what the file holds.
+
+New features
+
+read() and write() now take an open binary file object wherever
+they take a path, so a mesh round-trips through io.BytesIO, a socket
+or a file inside an archive without touching disk. A handle polyxios was
+given is read or written where it stands and is never closed. A buffer
+with no file name cannot have its format inferred, so fmt= is
+required there; a handle from open() carries its own extension and
+does not need it. TetGen is the exception: a .node/.ele pair is
+two files and still needs a path.
+
+Lazy reads over a file object work when the handle is backed by a real
+file and stands at its start - mmap needs a descriptor and addresses a
+file from byte zero - and raise LazyReadError naming the reason for an
+in-memory buffer or a handle part-way into a file. Only the formats whose
+lazy read hands back arrays viewing the mapping ask for that. Binary STL’s
+lazy mode copies what it reads - it skips vertex deduplication and nothing
+else - so it takes a buffer like any other read rather than sending the
+caller to an eager read that would merge the vertices it was asked to keep.
+
+gzip is now transparent for every format: a file opening with the gzip
+magic is decompressed on the way in, whatever it is named, and a
+destination named .gz is compressed on the way out. .vol.gz is
+read as Netgen rather than refused, .gz names the compression rather
+than the format when a codec is chosen - in fmt= as well as in a file
+name - and the compressed output is byte-reproducible (no timestamp, no
+embedded name). fmt=".obj.gz" is how a nameless buffer asks for
+compression, since it has no name to end in .gz. A compressed member
+need not run to the end of what it sits in, so a mesh gzipped into the
+middle of an archive reads without the bytes after it becoming an error,
+and a file holding several members back to back - what cat a.gz b.gz
+leaves - is read and measured as the whole it decompresses to. A path and
+a file object go through the same reader, so one compressed file reads the
+same way and fails the same way whichever it was handed over as. A
+destination that compresses on its own, such as a handle from
+gzip.open(), is written to as it is rather than compressed a second
+time. Lazy reads still need an uncompressed file and say so, and TetGen -
+which opens its own sibling files rather than going through this layer -
+refuses a compressed file rather than parsing it as text, by its content on
+the way in and by its name on the way out, and for whichever half of the
+pair carries it rather than only for the one the caller named. Whether a
+source is compressed is decided by the whole four-byte gzip header rather
+than by the two magic bytes alone: those open one file in every 65536 by
+chance,
+and in a headerless binary format they are an ordinary coordinate’s low
+mantissa bytes - a .splat whose first x is 10.658965 opens with exactly
+them and is a mesh, not an archive.
+
+The formats that check a header against the size of the file it came from
+now take that size from the read they were already making rather than
+measuring the source separately. Measuring a compressed one cost a whole
+decompression pass that the read then repeated, and a stream that cannot
+seek could not be measured at all, so legacy VTK, the VTK XML formats and
+.splat read one pass faster and from more kinds of source than before.
+
+Extensions several unrelated formats share are now resolved by looking
+inside the file. A codec declares SNIFF_EXTENSIONS, a
+sniff(head) -> bool test and a SNIFF_PRIORITY; the contested
+extension resolves to a dispatcher that delegates to the first codec
+recognising the opening bytes, and names the candidates when none does.
+Writing to such an extension raises, an output file having no content to
+inspect.
+
+.dat is the first user of this: a Tecplot header resolves to the
+Tecplot codec, a bulk data card to the Nastran one. It no longer needs
+fmt=, which still works for the cases sniffing cannot settle.
+
+.plt is registered to the Tecplot codec so a binary Tecplot file is
+told what is wrong instead of resolving nowhere. Reading it is not
+supported.
+
+PolyData.topological_dimension reports the highest dimension the mesh
+actually holds - 0 for points, 1 for lines, 2 for surfaces, 3 for volumes -
+taking the maximum over the element types present, so a tetrahedral mesh
+that also carries its boundary triangles still reads as 3-D. It is the
+dimension of the elements, not of the space they sit in: a triangle mesh
+embedded in 3-D is 2-D. An empty mesh is 0.
+
+transforms.merge_duplicate_vertices welds coincident vertices into
+one, the equivalent of ParaView’s “Clean to Grid”. Formats that write a
+corner per element - STL above all - hand back a soup of unconnected
+vertices, and welding is what turns it back into a surface. tol=
+snaps coordinates to a grid of that step before comparing; the default
+welds only exactly equal ones, and a tol so small that snapping
+overflows to infinity is refused rather than welding every point it
+overflowed. The survivor of each group is its lowest original index and
+keeps its own coordinates and attributes, so the result does not depend
+on which duplicate the file listed first and a tolerance never moves a
+point. Welding is not culling: a vertex no
+element references is kept - compose with remove_orphan_vertices to
+drop those too.
+
+Kratos MDPA .mdpa is read and written: nodes, elements named by Kratos
+element class, conditions, Properties ids, NodalData and
+ElementalData variables, ModelPartData and nested SubModelPart
+groups. The class name and the geometry do not identify each other -
+Element3D4N is a tetrahedron, and a quadrilateral in space would want
+the same name - so the writer spells the class with the element’s
+topological dimension, which makes the pair unique and keeps a round trip
+exact. Reading is wider: the <n>D<m>N suffix is read off whatever
+application element carries it (SmallDisplacementElement3D4N,
+VMS3D4N), and the explicit geometry names (Tetrahedra3D4,
+Prism3D6) are recognised too. Conditions are read as elements,
+since they are cells of the same mesh; they are written back under
+Elements: which cells a solver should treat as boundary is a modelling
+choice the mesh does not carry.
+
+The numbers a file gave its nodes and elements now survive a round trip.
+An Abaqus deck, a Nastran bulk data file, a Gmsh .msh, a FLAC3D grid
+and an MDPA file all number entities freely, and renumbering them 1..n
+leaves the author’s other files - a load case naming GRID 7000001, a
+report keyed on element 4001 - pointing at the wrong thing. The reader
+records what the file said in vertex_attrs["original_ids"] /
+element_attrs["original_ids"] and the writer puts it back. The key is
+not format-prefixed, so a mesh read from a .bdf and written as .msh
+keeps its numbering. Only a numbering the index does not already say is
+stored: a file numbering 1..n in order records nothing, since the
+writer’s own renumbering reproduces it. Ids that a transform has since
+invalidated - merge collides two meshes that each numbered from one,
+splitting a cell leaves two entities carrying one id - are checked at the
+point of writing rather than trusted, and a mesh that lost its numbering
+gets dense ids and a warning rather than a file no solver loads. A format
+that numbers densely by construction has no id of its own to record and
+ignores the key on write; whether it carries one comes down to whether it
+has a general attribute channel, so a mesh read from a .bdf, welded and
+written as .vtu keeps the ids of the vertices that survived, while OFF
+or STL drop the key with every other attribute.
+
+Two-dimensional files now follow one rule across every format that can
+spell one. A mesh always carries three coordinate columns, a file that
+declared two is padded with z=0, and the fact is recorded in
+global_attrs["was_2d"] so a writer can drop the column again. It says
+something about the mesh rather than about the file it came from, so a
+plane read as a 2-D Netgen .vol - which has no two-dimensional
+spelling of its own to write back - still lands as an NDIME= 2 SU2
+case. Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot,
+Abaqus and WKT all record it on the way in, and every one of those but
+Netgen restores it on the way out. Coordinates outrank the flag: a mesh
+flagged two-dimensional whose vertices have since left the plane is
+written in three, with a warning, rather than being flattened in silence.
+
+Whole-mesh metadata now travels through the VTK family. .vtu, .vtp,
+.vti, .vtr and .vts read and write a <FieldData> block, and
+legacy .vtk reads and writes a FIELD FieldData block between the
+DATASET line and the geometry - so a time value, a material constant or
+a solver tolerance in global_attrs survives a write instead of being
+dropped. A legacy STRUCTURED_POINTS, RECTILINEAR_GRID or
+STRUCTURED_GRID file reads the block too, which is where VTK’s own
+writer puts a time value. The block holds arrays: a scalar comes back as a one-element array,
+a field array keeps the type it was held in, and a value no numeric array
+holds is dropped with a warning naming the key. A structured codec spells
+its own grid entries - vti_extent, vtr_extents, vts_extent and
+their neighbours - from the mesh on the way out, so those never travel as
+field data in the format that records them; every other key does, and a
+structured read takes its own grid over anything a field block names.
+
+Text in global_attrs travels through the VTK XML family. A
+<FieldData> block holds a String array beside its numeric ones, so a
+name, a title or a solver’s own label - an Abaqus *HEADING among them -
+reaches a .vtu, .vtp, .vti, .vtr or .vts and comes home
+a string. One VTK itself wrote is read the same way, where such an array
+used to be skipped with a warning about holding no numbers. A list of
+strings is one array of several tuples and comes back the list it was. The
+legacy FIELD block spells no text at all, so a string handed to a
+.vtk is still dropped with a warning naming the key.
+
+Abaqus .inp reads a *HEADING card into
+global_attrs["abaqus_heading"] and writes it back, so the deck’s own
+title survives a round trip. polyxios’s own banner stays a comment, so a
+deck that never had a heading does not gain one.
+
+helper.read_blocks and helper.read_multiblock read every VTK index
+file - .vtm, .pvtu, .pvtp, .pvtr, .pvts, .pvti, and
+a .vtp holding a <vtkMultiBlockDataSet> - where
+read_multiblock_vtp read only the last of those. The first hands back
+one PolyData per sub-file and the second merges them, so blocks that
+mean different things can stay apart. An index naming another index is
+followed and read flat, a pair naming each other is read once, a missing or
+unreadable sub-file is skipped with a warning - the one the operating
+system refuses among them - and a reference resolving outside the index
+file’s directory still raises PermissionError, now
+helper.Traversal, which is one.
+read() itself keeps handing back exactly one mesh, and the meta-file
+refusals now name these two functions.
+
+Tag groups travel through the VTK family. .vtk, .vtu, .vtp,
+.vti, .vtr and .vts write one point or cell column of ones and
+zeros per group, named polyxios_tag_<group>, and read it back as the
+group. None of those formats has a set of its own, and one column per group
+is what keeps an element in two groups in both - which the single reference
+a Medit or Netgen record carries cannot say. A column of that name holding
+anything but whole numbers stays an attribute, since a member rounded into
+place names the wrong element.
+
+An Abaqus *SURFACE is read and written. A surface names a side of an
+element, which the deck holds no element for, so polyxios reads it as the
+triangle or quadrilateral that side describes, tagged with the surface’s
+name - the way the UGRID, SU2 and Netgen readers already hand back their
+boundary faces. Two element attributes carry the link back:
+face_parent, the element it is a face of, and face_index, which of
+that element’s faces. Writing puts the *Surface card back, with its
+parent *Elset marked internal the way Abaqus marks its own, and an
+internal set a surface named is dropped on the way in, so a round trip is
+stable; one no surface names is a group the deck’s author wrote and is kept.
+A *Surface, type=NODE becomes a vertex tag - one member per data line,
+since the field after it is a weight factor and a whole number is as good a
+weight as a node id - and goes back out as the *Nset it now is, a node
+set and a node surface being the same members under two cards. SPOS or
+SNEG on a shell tags the element itself rather than duplicating it. The two columns are read back wherever
+they hold whole numbers, so a deck that went out through a format carrying
+every attribute as a double, legacy .vtk among them, still writes its
+surfaces back. transforms.merge shifts face_parent onto the mesh it
+is building, the way it already shifted the tag groups, so the surfaces of
+two meshes joined into one - the blocks of an index file among them -
+survive the join instead of naming the first mesh’s elements.
+
+read() now forwards the options it does not recognise to the codec it
+chose, the way write() already did, and so does the dispatcher a
+contested extension resolves through. An option a reader does not take
+raises TypeError naming it. STL’s merge_vertices was written as a
+read option and had never been reachable without importing the codec
+itself; it is now read(path, merge_vertices=False).
+
+OBJ reads split_seams=True, which keeps the texture coordinates and
+normals a per-vertex array otherwise drops. OBJ indexes vt and vn
+per face corner, so a vertex on a seam is given two texture coordinates and
+one on a hard edge two normals, and folding them one per vertex kept the
+last. Splitting copies the vertex once per distinct pairing its corners
+name: the first corner keeps the index it had and each later one takes a
+fresh index off the end, so a vertex no face names stays where it was, the
+faces keep their count and their order, and a file whose corners agree
+reads exactly as it does without the option. Records nothing indexes are
+counted against the v records the file wrote rather than the vertices
+the split left, and a copy takes what the vertex it came from takes. The
+warning about the values it drops now names the option that keeps them.
+
+Behaviour changes
+
+Medit .mesh records a two-dimensional file in
+global_attrs["was_2d"] rather than keeping the file’s own number in
+global_attrs["medit_dimension"], which is now the shared spelling
+every format uses. A three-dimensional file sets nothing, where it used to
+set medit_dimension: 3.
+
+Formats that had always written three coordinate columns now write two for
+a mesh that came from a two-dimensional file and has stayed flat: TetGen’s
+.node header declares 2, a Tecplot zone declares X and Y
+alone, an Abaqus node card carries two coordinates, and a .meshb
+header declares Dimension 2. Two of those constrain the rest of the
+file, and the writer keeps them consistent rather than emitting one no
+reader loads: an Abaqus deck of two-column node cards is written under the
+planar element cards - CPS3, CPS4, T2D2 - since Abaqus takes a
+node’s dimensionality from the element referencing it, and a Tecplot zone
+keeps its third coordinate variable when the mesh carries a variable of its
+own named Z, which the positional naming would otherwise read back as
+the z column. A mesh holding an element type with no planar Abaqus card - a
+solid, a biquadratic quad - or an element_type= override naming a
+three-dimensional card stays three-dimensional too. A flat mesh of solid
+cells - a tetrahedron is one however flat it lies - keeps its third column
+everywhere the node count per element is declared separately from the
+coordinate count: an MFEM vertices block, a Tecplot ET=TETRAHEDRON
+zone, a TetGen .ele file, a Medit Tetrahedra section in either
+spelling and a DOLFIN celltype="tetrahedron" each need three, whatever
+the flag says. A dim= given to the DOLFIN writer by name is the
+caller’s own word and is left alone.
+
+Text formats are written with \n line endings on every platform.
+Writing used to go through Path.write_text, which turned them into
+\r\n on Windows; every write now goes through the same binary path a
+buffer does, so the bytes a path receives and the bytes a BytesIO
+receives are the same ones. Every reader already accepted either ending.
+
+Bug fixes
+
+../CHANGES.rst:342: (INFO/1) Duplicate implicit target name: “bug fixes”.
+
+A legacy .vtk SCALARS header names between one and four components
+and no more. The writer spelled every tuple it had no VECTORS or
+TENSORS branch for as SCALARS whatever its width, so a nine-component
+per-element array went out as SCALARS name double 9 - a count outside
+the range the format gives that field, which leaves what the file means to
+how forgiving each reader happens to be. Such a tuple now travels as a
+FIELD array, whose
+own header carries the component count and so has no ceiling; four
+components and under keep the SCALARS spelling and its lookup table. An
+array of no components at all is outside the same range from the other end,
+and is dropped with a warning before its section header is written rather
+than spelled SCALARS name double 0.
+
+A binary block in a legacy .vtk file is closed by a newline, and the
+keyword line after it is found by reading to the next one. Only the
+dataset’s FIELD block wrote that newline: the points, the cells, the
+cell types and every attribute array ran straight into the keyword after
+them, so the terminator a reader found was the first 0x0a inside the
+following payload and the keyword line it read began in the middle of the
+numbers - a file whose sections a reader could only find by hunting for
+the keyword, as polyxios itself did. Every binary block now closes the way
+the format says, and a file written before this still reads: the newline
+is stepped over where it is there rather than required.
+
+A symmetric tensor’s six components are XX, YY, ZZ, XY,
+YZ, XZ - the order VTK itself hands back for the cell at
+(i, j). The writer mirrored a six-component array into the full 3x3 a
+TENSORS section holds using the classical Voigt order instead, whose
+last three run the other way, so XZ and YZ came out in each other’s
+places. Nothing downstream can tell that from a tensor that was always that
+way, which is why it went unseen.
+
+The two numbers on a legacy .vtk v4.2 CELLS line count the cells
+and the values that follow them. The second was taken from the length of
+the whole connectivity array rather than from the run the offsets name.
+The two are the same for a mesh built here, but a mesh holding a
+connectivity its last offset stops short of - a slice kept at its original
+length - declared values the section never went on to write, which leaves
+the next reader inside the numbers. Both spellings now declare what they
+write, and the spelled one no longer says one thing where the binary one
+says another.
+
+The first number on a legacy .vtk v5.1 CELLS line counts the
+offsets that follow it, and every offset past the first names a cell.
+The whole offsets array was written whatever the mesh’s cell count, so a
+mesh holding one kept at a buffer’s original length declared cells the
+CELL_TYPES after it never named - and a reader that believes the
+offsets builds them anyway, taking each one’s type from past the end of
+the array that holds it. Both sections now stop at the cells the types
+name. An offsets array that begins partway into the connectivity is
+rebased onto the run written after it, so the two versions answer such a
+mesh with the same cells rather than only v4.2 doing so.
+
+An attribute array whose row count is not the one its section covers is
+dropped, with a warning, before that section is declared. Only the section
+header says where one of its arrays ends, so an array of more rows ran past
+that end and one of fewer stopped short of it, and either way the reader
+took the values on the wrong side of the boundary for the keyword line that
+should have been there - costing every array after it in the section as
+well. VTK’s own reader stopped on such a file with Unsupported cell
+attribute type.
+
+A legacy .vtk TENSORS6 section is read as the six components it
+holds. VTK 9 writes a symmetric tensor with that keyword, and every reader
+here matched it as a TENSORS and took its tuples for nine: an ASCII file
+failed with a CodecError about a row that is not numbers, and a binary
+one read six values plus whatever followed them, then went on from the
+middle of the next array and dropped every array after it. The six are
+mirrored into the full 3x3, so a mesh holds one tensor shape whichever
+spelling the file used.
+
+An array whose name holds XML markup - an ampersand, a quote, an angle
+bracket, as a group named in another format may - is written escaped by the
+VTK XML formats. It used to close the Name attribute early and leave a
+file no reader could parse, polyxios’s own included. A name holding a
+newline, a carriage return or a tab is escaped as a numeric reference for
+the same reason: written as it stands, an XML parser normalises it to a
+space and the array comes back under a name it never had. Legacy .vtk
+has no escaping to fall back on, so an array whose name holds whitespace is
+dropped with a warning there rather than written as a name and a stray
+token. A name holding a character XML has no spelling for at all - a
+control character, which no numeric reference reaches either - is dropped
+with a warning by the XML formats for the same reason.
+
+A legacy .vtk FIELD header that leaves its type field out is read as
+the float the ASCII scan has always defaulted it to, where the binary
+scan skipped the array and carried on framing the block from the wrong
+offset. The format makes the field mandatory, so this only ever answers a
+malformed header - but the two scans have to answer it the same way, or one
+file reads back as two different meshes depending on how it was written. A
+header short of the name, component count and tuple count that frame its
+payload is refused by both for the same reason, as is a block that declares
+more arrays than the file holds, and as is one whose component or tuple
+count is negative - the two are multiplied into the length of a payload,
+and a negative one walked the binary scan backwards off the front of the
+file and reshaped to a dimension numpy infers rather than the one the
+header claimed.
+
+Every legacy .vtk reader looks for its keywords below the DATASET
+line. The second line of the file is a free-text title, and the two readers
+that scanned from the top of the file read one beginning with a keyword as
+that keyword’s header: a POLYDATA mesh titled Vertices of a cow or
+Points of interest was refused, and the FIELD block this release
+adds widened that to any title beginning Field. The line is found
+rather than counted, so a header carrying a blank line between its four is
+read too, where an UNSTRUCTURED_GRID reader counting to four missed the
+first keyword after it.
+
+A legacy .vtk cell array is read against what its block actually holds.
+A CELLS row, or a POLYGONS cell, declaring more vertices than it
+goes on to list used to be trusted twice over: the row kept the indices it
+had while the offsets advanced by the width it claimed, so every cell after
+it was cut out of the wrong place - and the binary spelling of the same
+fault reached numpy as a bare IndexError naming neither the file nor
+the cell. Both are now a CodecError that names them.
+
+Every remaining legacy .vtk section that reads numbers off ASCII lines
+says which file and which section a malformed one came out of. POINTS,
+CELL_TYPES, a X_COORDINATES array and a STRUCTURED_GRID
+POINTS block used to hand a bare ValueError about one token, or a
+reshape, to a caller that had asked to read a file; a section that runs
+into the keyword after it, or that the file ends inside, is refused by
+name. A DATASET FIELD array the file runs out inside is dropped with a
+warning instead of being reshaped into a shape it cannot fill. Thirty
+thousand mutations of six corrupt files now leave the codec raising only
+CodecError.
+
+transforms.merge keeps the surfaces of a mesh whose face_parent
+and face_index columns are doubles - which is every mesh that went out
+through legacy .vtk, where a cell array is a double whatever it held.
+Merging one with a mesh carrying no such column fills that mesh’s rows with
+the blank a float dtype spells, NaN, and a NaN was read as a column that
+could not be trusted at all rather than as the -1 that says “not a
+face” - so every surface the first mesh did carry was dropped without a
+word, which is the loss shifting the column exists to prevent.
+
+A <FieldData> name that more than one Piece of a .vtu or
+.vtp spells keeps the first piece’s value and is reported. The mesh’s
+metadata is one mapping over the joined mesh, so folding the pieces with a
+plain update kept the last - a value a reader of a single-piece file would
+never have seen, and a loss no warning named. The dataset’s own block still
+wins over every piece.
+
+A legacy .vtk POINT_DATA or CELL_DATA header is written only
+once its arrays are known to be nameable. A section whose names all hold
+whitespace - which the format’s whitespace-separated header field cannot
+spell - used to declare itself over nothing, the way the FIELD block
+already refused to. The names are now checked once per section rather than
+once per array, so the warning names them together.
+
+A legacy .vtk ASCII POINTS or CELLS block wrapped over several
+lines is read. Both are a run of numbers the header counts, and VTK’s own
+reader takes them as one however they are broken up; read a row at a time,
+a wrapped POINTS block silently kept three numbers of each line and
+dropped the rest, and a wrapped CELLS block was refused for a row that
+was never short. One row to a cell is still the path every file VTK writes
+takes, and the run is gathered only once a row turns out not to hold its
+own cell whole - so a well-formed file pays nothing for it, and a file that
+is malformed either way is still named by its row.
+
+The Cython fast paths for those two blocks are bounds-checked. They are
+compiled with boundscheck=False, which takes the check off their list
+indexing as well as off their arrays, so a header declaring more rows than
+the file holds, or a CELLS row holding no tokens at all - a blank line
+inside the block, which the wrapped-block reader above takes in its stride -
+read past the end of a list: a segmentation fault on a file the reader was
+handed, not a diagnosis. The counts are numbers out of the file and are now
+checked once per block, the row is checked before its first token is
+indexed, and its own width against the tokens it lists. A width is held in
+a machine word rather than a C int besides, since one past two billion
+raised out of the conversion itself, before the check that names the row -
+so both paths refuse the same files with the same sentence whether or not
+the extension was built.
+
+A tag group of a shape numpy builds no array of - a ragged list of lists, a
+mapping, a column of names - is reported by every writer rather than raising
+out of the middle of one. vertex_tags and element_tags are not
+checked on the way in, and such a group used to reach a bare ValueError
+about an inhomogeneous shape in whichever codec looked at it first. It names
+no entity, which is the loss the .inp, .msh, .su2, .vol,
+.ugrid, .f3grid, .mdpa, .node, .obj and VTK writers
+already report for a group whose members index nothing.
+
+A <FieldData> block naming one array twice keeps the first and says so,
+the way one whose name two Piece elements spell already did. A mesh’s
+metadata holds one value per key, and taking the last meant one file read
+back two ways depending on the order its blocks were walked in. A legacy
+.vtk FIELD block answers a repeated name the same way, where all
+three of its parsers took the last without a word: one mesh has to read
+back the same whichever spelling of the format it was written in.
+
+A DATASET FIELD file holding a string array is read rather than
+hung on. Its lines were counted from the array’s own header, so one
+declaring no strings never reached a line to step over and the reader
+looped on the header for ever - a file of five lines that never returned.
+Counting them after the header ends that, and ends an off-by-one with it:
+an array of one string used to leave its text behind to be read as the
+header of an array of its own. A component or tuple count that is negative
+is skipped there too, the way the FIELD block inside a mesh already
+refuses one: the two are multiplied into a length, and a negative one
+sliced the values read from the wrong end and stored an empty array under
+a name the file never spelled.
+
+Every face in the table of a volume element’s sides is wound so its normal
+points out of the element. One face of each - a hexahedron’s and a
+pyramid’s base, a wedge’s and either prism’s bottom, and three of a
+voxel’s six - was wound the other way, so transforms.extract_surface
+handed back a skin lit from inside along those faces, which is the shape
+that reads as a hole in the mesh. The numbering is unchanged, so an Abaqus
+S<n> and a face_index still name the face they always did.
+
+A chain of VTK index files each naming the next is followed to a fixed
+depth rather than as far as it is long. An index naming a parent of its
+own was already refused, but a chain is no cycle: a deep enough one
+recursed past the interpreter’s own limit, and the RecursionError
+surfaced as a block that could not be read rather than as the file it was.
+
+An abaqus_heading whose text would end the *Heading card is dropped
+with a warning rather than written into the deck. A heading is free text
+and travels through every format with a metadata slot, so it comes back
+holding whatever was put in it; written unchanged, a line beginning *
+is the next card, and a title of *Node followed by a row spelled the
+deck a vertex it never had. A line holding ** goes for the same reason:
+the marker opens a comment anywhere on a line, so such a title came back
+truncated at it, or as nothing at all.
+
+An Abaqus *Heading line ending in a comma keeps the line below it. A
+trailing comma continues a data line onto the next one everywhere else in a
+deck, and a heading holds no data: the rule glued a title of turbine
+blade, to the rev 3 under it, and the deck came back one line where
+its author had written two.
+
+An Abaqus *Surface, type=NODE row that a trailing comma joined onto the
+next reads a whole number after a set name as that set’s weight factor
+rather than as a node of the surface. The join takes the line break with
+it, and the line break is what told the one from the other; a row opening
+with a node number is still a row of node numbers, which is the spelling
+the join exists to read.
+
+An element is written back as a *Surface row only when its own type is
+the one a face of that width names. A tetrahedron’s four nodes can be
+exactly a hexahedron’s face, and columns saying so passed the vertex check:
+the solid was written as a side of the hexahedron instead of as an element
+card, so the deck lost a volume element and handed back a quadrilateral.
+
+A *Surface row that would take the mesh past the connectivity safety cap
+is refused before its face is built rather than after, where a check that
+only counted what was already there let the mesh past the cap by a face’s
+width.
+
+A binary PLY face declaring more vertices than the file holds - 2**31-1 of
+them - is refused with a CodecError naming the truncation, where the
+whole-block read used to build a record dtype for it first and hand back
+numpy’s ValueError about a tuple shape, which named neither the file
+nor the face. Every other format’s declared counts were swept for the same
+fault and are guarded; tests/test_declared_counts.py now holds one
+corrupt header per format as a matrix.
+
+.vti, .vts and .vtr hold a grid, and each now says so when
+handed something else. All three inferred their extent from the distinct
+coordinate on each axis, and none of them checked that those multiply back
+out to the mesh: a scattered mesh of seven vertices was written as a seven by
+seven by seven grid of 343 points, with seven rows of point data under a
+header claiming 343. The file was unreadable - its own reader refused it -
+but nothing said so at the point of writing. A mesh whose vertices are a
+grid in some other order was worse, since the count agreed: the file was
+read back happily with every point attribute sitting on the point mirrored
+through the diagonal. The extent is now read off the cells instead, which
+are a grid whatever the coordinates do, and a mesh whose cells are not one
+raises CodecError naming the shape that was found and pointing at
+.vtu, which holds an arbitrary mesh.
+
+None of the three writes its connectivity - the reader rebuilds it from the
+extent - and none of them checked that the cells it was handed were the ones
+it would rebuild. Two tetrahedra over the points of a grid were written as
+the grid’s eight hexahedra, their CellData dropped on the way out for
+covering the wrong number of cells, and the mesh that came back was not the
+one that went in. Cells the extent does not read back now raise
+CodecError at the point of writing.
+
+.vts holds a curvilinear grid: it writes its points, so they need not
+lie on a lattice at all, and a warped block, a cylindrical shell and an
+aerofoil O-grid are all StructuredGrids. Taking the extent from the distinct
+coordinate on each axis meant none of them could be written - a warped 3x3x3
+grid counted 27 distinct values on every axis and went out declaring a
+27x27x27 one - and reading the extent off the cells is what lets the format
+hold what it is for.
+
+.vtr writes its three coordinate arrays out in full, so nothing says an
+axis has to ascend. They were taken as the sorted distinct value on each
+column, which turned a descending axis round underneath its own point data;
+they are read off the vertices a stride at a time now, and an axis keeps the
+direction it was given.
+
+.vti and .vts keep the extent of the file they were read from, and
+.vti the origin and step as well, so a grid that did not begin at zero -
+or that steps down an axis - goes back exactly where it stood. All three
+were trusted after a transform had moved the mesh out from under them, and
+each fails differently: a grid pruned to one of its cells was written under
+the extent of the grid it used to be and read back as twenty-seven vertices
+and eight cells it no longer held, a mesh moved five units went out under
+the origin it had left, and one scaled by ten went out under the step. What
+no longer describes the mesh is re-derived from it, the way the entity ids
+are re-checked at the point of writing rather than trusted.
+
+Writing .vti took the step on the x axis for the step on all three. A
+lattice whose planes are unevenly spaced is a RectilinearGrid, not an
+ImageData, and one written as the latter came back with every plane past the
+second moved - x coordinates of 0, 1 and 5 read back as 0, 1 and 2, in a
+well-formed file of the right size. An axis that is not evenly spaced now
+raises CodecError pointing at .vtr, which spells its coordinates
+out.
+
+Reading back the empty .vts this codec writes raised ValueError:
+cannot reshape array of size 0 into shape (0,newaxis). An empty extent
+gives no column count to infer one from; a file with no points now reads
+as a mesh with none.
+
+Writing .vti measures the grid step on each axis separately. Only the
+x axis was asked whether it had a second plane to measure against, and y
+and z were then indexed regardless, so any mesh flat in one of them - a
+sheet of quads, an image one voxel deep - raised IndexError from inside
+the writer instead of being written, and a mesh flat in x quietly took the
+default spacing on all three axes rather than the steps it did have. A
+degenerate axis now keeps the default spacing, which is what VTK reads back
+for an extent of zero anyway, and a mesh with no vertices at all writes the
+0 -1 extent VTK spells an empty image with - the one the .vts and
+.vtr writers here already spell - rather than the 0 0 that reads
+back as a point the mesh never held.
+
+Reading a .vti whose Origin or Spacing spells two numbers where
+three belong raised IndexError from inside the parse. The axes it does
+give are taken and the rest defaulted, and a bare number given as
+vti_spacing is taken for every axis rather than subscripted. Any number
+of them but three warns rather than passing in silence, and a short one is
+the worse of the two: a dropped fourth number describes no axis, where a
+missing third is an axis of the mesh given a value the file never spelled.
+This codec writes no coordinates, so those six numbers are the whole
+geometry.
+
+.vtr keeps the extent of the file it was read from, the way .vti and
+.vts do. A block that did not begin at zero was slid to the origin on the
+way out, which is the one thing a .pvtr assembling it next to its
+neighbours reads. It is checked against the mesh rather than trusted: one a
+transform has moved the mesh out from under is re-derived from the cells.
+
+All three keep the WholeExtent of the file they were read from as well
+as their own Extent. The two differ exactly when the file is one piece
+of a parallel set, which is the case the piece indices are kept for, and
+writing the piece extent into both narrowed the grid to the piece: a block
+that went back out at the indices it stood on still claimed to be the whole
+domain, so the .pvti, .pvts or .pvtr assembling it read one
+neighbour where it should have read several. Kept only while the piece
+extent is, since an extent re-derived from the cells is zero-based and says
+nothing about the grid the mesh used to stand in.
+
+A WholeExtent that is not six whole numbers now raises CodecError
+naming the file and the attribute. Unpacked straight into ints, it failed
+with a bare ValueError about a literal instead.
+
+A .vti or .vtr holding a bare grid is readable by the codec that
+wrote it. Neither format spells a coordinate per vertex - an ImageData
+writes an origin and a step, a RectilinearGrid three axes - but the header
+check weighed the declared point count against the bytes on disk as though
+they did, so a plain 4x4x4 grid went out as a valid 231-byte file and came
+back as ValidationError: declared_n_verts=64 implies 1536 bytes of vertex
+data. The heuristic is asked only of a format that spells what it
+declares.
+
+A format excused that heuristic is held to a tighter cap in its place. The
+heuristic is what made the loose one safe to leave loose: a format that
+writes its points has to spend bytes on each, so a header can only ask for
+as much memory as the file it sits in is long. An ImageData spends six
+indices on any number of points, so a 250-byte file could declare a hundred
+million planes on one axis and be expanded into the 2.4 GB of vertices they
+come to. The cap clears any grid that expands into a mesh a machine can
+work with and refuses the rest by name.
+
+Writing .vti spells its Origin and Spacing at the width a double
+reads back at. These six numbers are the whole geometry of an ImageData, and
+a .10g field kept ten of the seventeen a double carries: an origin of
+0.12345678901234 came back 2.6e-10 away and a step of 1.0000000001234 came
+back as a flat 1, moving every plane by one step more than the last. The
+writer had just checked the vertices against that origin and step to prove
+the file describes this mesh, and then wrote one that did not.
+
+The evenness an ImageData demands of an axis is measured against the
+step, not against the coordinate. A relative tolerance is a fraction of
+where the axis sits rather than of how far apart its planes are, so an axis
+at x = 1e6 was allowed half a millimetre of drift per plane: a visibly
+uneven lattice passed the check and came back regularised, with every plane
+past the second moved. A drift below what a double holds at that magnitude
+is still allowed, since no file could record it either way.
+
+An extent that ends before it starts on an axis holds no points, so it holds
+no cells either. All three readers counted the other two axes’ cells anyway,
+so 0 -1 0 2 0 2 came back as four quadrilaterals over no vertices at all,
+every corner naming point zero of an empty array. An end two or more before
+its start turned the point count negative on top of that, which .vts then
+handed to reshape as a second unknown dimension. Such an extent now reads
+as the empty mesh it describes. Legacy .vtk says the same thing with
+DIMENSIONS and had the same hole: a STRUCTURED_POINTS or
+RECTILINEAR_GRID of 0 3 3 came back as four quadrilaterals over no
+vertices, built from strides that were themselves zero, and a negative
+DIMENSIONS was reported to the caller as a negative count of points.
+
+The extent a mesh carries in global_attrs may be no extent at all. A
+bare number has no length and a string that looks like one has characters
+rather than numbers, and either reached len and failed with a
+TypeError from inside the .vti, .vts or .vtr writer. So could
+a vti_origin or vti_spacing holding something no float reads. None
+of them is trusted now: what cannot be read is named in a warning and the
+writer reads the mesh’s own extent, origin and step off it instead.
+
+.vtr builds its vertices from the coordinate arrays and everything else
+from the extent, and nothing in the file made the two agree. An array longer
+than its axis expanded into more vertices than the extent declared, while the
+cells, the offsets and every PointData array stayed sized to the extent -
+a mesh whose connectivity covered part of itself and whose attributes covered
+none of it, past every check the reader made. The lengths are compared now,
+and a mismatch raises CodecError naming the axis. Every axis is asked,
+including one the extent gives no plane at all: the point count is a product
+and goes to zero there, but the vertices are the coordinate arrays’ own outer
+product, so an axis left unchecked expanded 0 -1 0 2 0 2 into nine
+vertices under an extent declaring none. An axis the file leaves no array for
+takes the one plane at zero the extent gives it, which is how a
+two-dimensional grid writes its third.
+
+.vts reads the width of its points from the extent and the <Points>
+array together, so a file whose two disagreed came back as a mesh of the
+wrong width - one point of no coordinates at all, where the extent declared a
+point the array did not carry - and only failed later, on a shape nothing in
+the file explained. Both counts are named in a CodecError now. An array
+wider than three components still keeps its first three.
+
+An MFEM file that opens with a byte order mark is read rather than refused.
+The sniffer decodes the mark away and the reader did not, and the mark is
+not whitespace for strip to take off, so a .mesh the registry had
+already claimed as MFEM failed for not starting with MFEM mesh.
+
+Every spelling of an MFEM header the sniffer accepts is one the reader
+dispatches on. The registry claims a .mesh file by its upper-cased
+header and the reader matched case-sensitively, so MFEM NC MESH v1.0 was
+claimed as MFEM and then refused for not starting with MFEM mesh. The two
+NC spellings both reach the non-conforming reader as well: MFEM NC-Mesh
+was falling through to the NURBS one, which read a refinement forest as
+B-spline control points and warned under the wrong variant’s name.
+
+.meshb hands back vertices with three columns. A file declaring
+Dimension 2 was read into an (n, 2) array, which is not what a
+PolyData holds: every consumer indexing vertices[:, 2] - the
+transforms, the other writers, faces - raised on it. The coordinates
+are padded with z=0 like every other codec’s, and the write side takes
+its Dimension from the mesh rather than from the width of the array.
+
+A tag group naming a vertex or an element that this mesh does not have no
+longer moves the label onto one that it does. remove_orphan_vertices,
+merge_duplicate_vertices and filter_element_type carried a group
+through their index remap after dropping only the members past the end, so
+a negative index reached the array from the far end and landed on a real
+item, and a group holding floats - which nothing stops a reader from
+building - raised IndexError from inside numpy instead. All three now
+go through the same member check the writers use: a member that indexes
+nothing in this mesh is dropped, and what is left is remapped.
+
+The documented pipeline(filter_element_type(keep="triangle"), ...)
+raised TypeError: filter_element_type takes the mesh first and does
+not curry. The example now composes it with functools.partial.
+
+A broken binary file now reports what is wrong with it rather than
+BufferError: cannot close exported pointers exist. The formats that
+parse over a mapping - .ply, legacy .vtk, .meshb - build their
+arrays as views of it, and a parse that gives up half-way leaves one of
+those alive in the traceback carrying the failure; unmapping underneath it
+then raised, and that error replaced the codec’s own. The mapping is left
+to the last view of it instead, so a corrupt file says the same thing read
+from a path as it does read from a buffer, where there was never a mapping
+to unmap.
+
+A source that answers a read with less than it was asked for is now read to
+the end of the request. A bare read is allowed to come up short - a
+socket hands back what has arrived, not what was wanted - and the wrapper
+put in front of a duck-typed handle passed that straight through, so a
+codec asking for n bytes could silently get fewer and parse the gap as
+data. A handle from open() never came up short, so no codec guarded
+against it. Nothing is read past what was asked for, so a handle the caller
+shares still ends up where the codec’s reading left it.
+
+OBJ face indices are resolved the way the format defines them: a negative
+index counts back from what has been declared so far, and an index naming
+a record the file does not have raises CodecError naming the line
+instead of wrapping around into a different vertex.
+
+OBJ vt records are read. They are indexed per face corner, so a file
+may hold more of them than it holds vertices; each corner assigns to its
+vertex, a vertex given two different values keeps the last and warns, and
+records nothing indexes are kept only when there is one per vertex.
+vt and vn are written back, so texture coordinates and normals
+survive a round trip.
+
+OBJ writes a bare g before a face that belongs to no group, so it no
+longer inherits the group of the face above it, and a bare g on read
+clears the active groups rather than inventing a default tag.
+
+An OBJ file whose vn or vt records cannot be lined up with its
+vertices now leaves the attribute out. The fold that gives up returned
+None, and only the vt path checked for it, so vertex_attrs could
+hand back a None where an array belongs and the writer raised
+TypeError on it.
+
+OBJ writes a number where a vertex has no record. A vertex no face names
+carries NaN out of the reader, and vt nan nan is not a record another
+reader takes; the row nothing indexes is written as zero. A vt array
+narrower than two columns is padded rather than indexed past its end.
+
+OBJ leaves out a vn or vt attribute that does not hold one row
+per vertex, with a warning naming its shape. Only the column count was
+checked, so an attribute with fewer rows than the mesh wrote faces
+indexing vt records that were not in the file - which no reader can
+take, this one included: a three-vertex mesh carrying one texture
+coordinate wrote a file that read back as CodecError. A
+one-dimensional attribute is now read as one value per vertex rather
+than as a single row.
+
+Legacy .vtk files now read COLOR_SCALARS and NORMALS, in both
+the ASCII and the binary flavour. Both used to stop the attribute scan,
+dropping the array and everything after it without a word. A binary
+COLOR_SCALARS component is an unsigned char standing for the 0..1
+float an ASCII file writes, and is scaled onto that range, so the same
+colour reads back the same from either flavour.
+
+Legacy .vtk reads TEXTURE_COORDINATES, and steps over a
+LOOKUP_TABLE definition rather than stopping at it. Those were the
+last two attribute keywords the format defines that the scan did not
+know, and in a binary file an unknown keyword ends the scan: a file
+carrying either lost every array after it. A palette is not a value per
+point, so a lookup table becomes no attribute - it is only counted past.
+
+A legacy .vtk attribute keyword the reader does not know now warns
+that it and everything after it in that section are being dropped. Its
+payload is binary of unknown length, so the scan still cannot go on, but
+a short read is no longer a silent one.
+
+NORMALS and COLOR_SCALARS are read from STRUCTURED_POINTS,
+STRUCTURED_GRID and RECTILINEAR_GRID files too. Those three
+datasets scan their attributes themselves rather than through the shared
+parser, and knew only SCALARS, VECTORS and FIELD.
+
+A binary legacy .vtk attribute that runs past the end of the file now
+raises CodecError naming the array and the bytes that are missing.
+The slice came up short in silence and the reshape after it failed with
+a ValueError naming neither the array nor the file.
+
+A legacy .vtk attribute section that declares more values than the
+file holds raises CodecError naming the array and the count, rather
+than running off the end of the line list with an IndexError that
+names nothing. This covers SCALARS, COLOR_SCALARS, VECTORS,
+NORMALS, TENSORS and FIELD.
+
+A Nastran real field is now written in whatever spelling fits it. Bulk
+data allows the exponent’s E to be dropped when its sign is there
+(1.234-10), and nothing reads +07 differently from +7, so the
+writer offers both - three columns back on the explicit form, which is
+three more significant digits in an eight-column field. A value at the
+top of the double range is stepped one digit toward zero rather than
+refused, since rounding it to nearest overflows to infinity. No finite
+coordinate is refused by a field any more.
+
+A Nastran real field prefers a spelling that reads back as the value it
+was given. The search spent precision one digit at a time and took the
+first form that fit, so a mantissa stepped toward zero could win a field
+an exact form two digits shorter would also have fit: 1e7 went out as
+9999999. where 1.E+07 was available, and 1e15 as
+999999999999999. in a large field. Exact spellings are now swept for
+first, at every precision, and only a value no field can hold exactly -
+the top of the double range - falls through to the closest one.
+
+The XML writers declare version="1.0" in the <VTKFile> header
+rather than version="0.1", which no VTK release ever defined.
+Reading a file that declares 0.1 is unchanged.
+
+A <DataArray> polyxios cannot decode - a type="String" label
+array, or any type it does not know - is skipped with a warning naming
+it, and the arrays around it are still read. It used to vanish without
+a word.
+
+A legacy STRUCTURED_POINTS file keeps its DIMENSIONS, ORIGIN
+and SPACING in global_attrs as vtk_dimensions /
+vtk_origin / vtk_spacing, and STRUCTURED_GRID /
+RECTILINEAR_GRID keep their DIMENSIONS. Expanding the header into
+a point array used to throw the grid away.
+
+A .vtu or .vtp Piece that declares points and does not
+deliver them raises CodecError, whether its <Points> element is
+short or missing altogether. It used to be skipped, leaving the piece’s
+cells indexing points that are not there and every later piece shifted
+by the count that never arrived.
+
+A point or cell array that covers only some of a multi-piece .vtu or
+.vtp file is dropped with a warning naming it. Joining the pieces
+that carried it gave an array shorter than the mesh, whose rows then sat
+against the wrong points from the second piece on. An array the pieces
+shape differently - one calling it scalar and the next a vector - is
+dropped the same way, with its shapes named, rather than raising a bare
+ValueError from numpy.concatenate.
+
+A CELL_DATA section is read from STRUCTURED_POINTS,
+STRUCTURED_GRID and RECTILINEAR_GRID files. Those three walk
+their own attributes, and the chain that did it asked only about points,
+so every cell array fell past it in silence - the cell scalars in VTK’s
+own SampleStructGrid.vtk among them. The three now share one scanner,
+which also gives them TEXTURE_COORDINATES and TENSORS. An array
+whose declared length matches neither the points nor the cells is dropped
+with a warning rather than reaching PolyData as a validation error
+about lengths.
+
+A structured legacy .vtk grid extends along whichever axes it
+declares. A DIMENSIONS 3 1 3 sheet was read as two lines over the
+first two points instead of four quads over all nine, and a column along
+y or z was read with the stride of a row along x. Only grids
+flat in z and rows along x came out right.
+
+An attribute keyword one of the structured readers does not handle now
+warns that its array is being dropped, the way the shared parser’s binary
+scan already did. Skipping the line does not step over the payload, so in
+a binary file the scan carries on inside it.
+
+An unknown attribute keyword in an ASCII legacy .vtk file warns as
+well. Only the binary scan said anything; ASCII skipped the keyword and
+its value lines without a word.
+
+A legacy .vtk attribute section whose values run into the next
+header raises CodecError naming the array, the line and what it
+holds, rather than float() answering with a bare ValueError that
+names neither the array nor the file.
+
+A binary attribute in a structured legacy .vtk file is checked
+against the end of the file before it is sliced, which the shared parser
+already did. A truncated file gave a nameless reshape ValueError.
+
+A .vtu or .vtp Points array whose size is not a whole number
+of tuples per point raises CodecError naming the Piece. Only a short
+array was caught, so ten values for three points reached reshape and
+came back as a ValueError naming neither the file nor the Piece.
+
+A v, vn or vt record in an OBJ file that does not carry the
+components its directive needs, or carries something that is not a
+number, raises CodecError naming the line. Both used to reach the
+caller as a bare IndexError or ValueError. A vt carrying a
+third component - the depth of a volumetric texture - keeps the two a
+surface uses rather than making the records ragged.
+
+Writing an OBJ vertex_attrs entry that holds no numbers - a label per
+vertex, say - drops it with a warning instead of raising out of
+numpy.asarray.
+
+Legacy .vtk files written by VTK 5.1 - the default since VTK 9.0 -
+are read. The two numbers on a v5.1 CELLS line are the length of the
+OFFSETS array and the length of CONNECTIVITY, not the cell count;
+reading the first as a cell count ran the offsets into the
+CONNECTIVITY keyword and answered with a bare ValueError. The
+offsets are now counted up to that keyword, so files spelling the line
+either way are read. POLYDATA gained the layout altogether: its
+POLYGONS, LINES, VERTICES and TRIANGLE_STRIPS sections
+knew only the v4.2 form, so no polydata file VTK 9 writes could be read
+at all.
+
+Writing a v5.1 legacy .vtk file declares the length of its
+OFFSETS array on the CELLS line. It declared the cell count,
+which VTK’s own reader takes literally: it stopped with “Error reading
+cell array connectivity header” and returned a mesh with no cells.
+Files polyxios wrote before this still read.
+
+A METADATA block is stepped over. Every VTK writer since 4.2 puts one
+after each array, and it is text even in a binary file. In ASCII it
+warned twice about keywords it named as dropped; in binary it ended the
+attribute scan, so a file with two arrays came back with one. Inside a
+FIELD block it was read as an array header, which took the array
+after it with it.
+
+A binary STRUCTURED_GRID keeps the section that follows its points.
+The line cursor was stepped past the payload and then once more over the
+newline that ended it, so whichever section came next - a CELL_DATA
+written before POINT_DATA, as VTK writes it - was skipped.
+
+A RECTILINEAR_GRID follows its coordinate arrays rather than its
+DIMENSIONS header. The points are the outer product of the three
+arrays, so a header that disagreed with them generated cells indexing
+points that do not exist and dropped attributes that covered every point
+there is. The header is now checked against them, warned about when it
+differs, and the arrays win.
+
+.vti, .vts and .vtr honour NumberOfComponents when
+reading an attribute. A three-component array on 27 points came back as
+81 rows, which belongs to no mesh and fails validate; .vtu and
+.vtp of the same family already cut it into tuples.
+
+.vtr declares the component count of the attributes it writes, so a
+vector survives a round trip, and writes each array in the type its
+<DataArray> declares. Everything was cast to float64 under whatever
+header the original dtype produced, so an Int32 attribute read back
+as the bit pattern of a double.
+
+A .vtu or .vtp Points array of a type that holds no numbers -
+type="String", or any type this reader does not know - raises
+CodecError naming the type. It warned that the array was skipped and
+then blamed the point count for the zero values that left.
+
+A .vtr attribute of a dtype no VTK type names - a boolean mask, a
+float16 - is written as the Float64 its header declares. Only the
+header fell back; the bytes stayed the dtype’s own, so eight booleans
+went out as eight bytes under a Float64 header and read back as one
+garbage double.
+
+Every XML writer declares the whole width of a tuple, not the second
+dimension of the array holding it. A (n, 3, 3) tensor attribute -
+what a legacy TENSORS section reads back as - was declared as one
+component in .vti, .vts, .vtp and .vtu and as three in
+.vtr, so nine times the rows came back and belonged to no mesh.
+
+The XML writers cast to little endian before taking the bytes, which is
+what the byte_order they all declare says those bytes are. On a
+big-endian machine every binary array went out reversed.
+
+.vti, .vts and .vtr drop an attribute whose rows cannot be
+matched to the mesh, with a warning naming it, as .vtu and .vtp
+already did. It used to reach PolyData and fail validate with a
+message about lengths rather than about the file.
+
+A binary legacy .vtk file holds its TENSORS as binary. Both
+tensor branches of the writer - the 3x3 one and the Voigt 6-component
+one - spelled their numbers whatever was asked for, so a binary file
+carrying either had a run of ASCII in the middle of it and came back as
+a CodecError about a short block.
+
+The ASCII writers spell a value as the shortest decimal that reads back
+as it, rather than to ten significant digits. A legacy .vtk,
+.vti, .vts, .vtp or .vtr file declaring double or
+Float64 held seven digits fewer than that, so coordinates came back
+about 1e-10 off what was written; they are now exact.
+
+A METADATA block written without its blank terminator ends at the
+geometry keyword after it as well as at an attribute one. Left open at
+the end of a POINT_DATA section it swallowed the CELLS that
+followed and every line to the end of the file - the failure the
+terminator search was added to prevent.
+
+A malformed attribute section in a structured legacy .vtk file costs
+the section rather than the mesh. A count running past the end of the
+file raised CodecError out of a read whose geometry was already
+whole, and those sections were skipped entirely before they were read at
+all, so files that used to load stopped loading.
+
+A .vtu or .vtp Piece that cannot be read is named by its
+index. A file of forty pieces gave no way to find the one at fault.
+
+An OBJ vertex named twice with different values is warned about whichever
+component they differ in. The check asked whether the first component had
+been written yet, so a record whose first component is NaN hid every
+conflict on that vertex.
+
+Writing an OBJ vn or vt attribute wider than the record says how
+many components are being left out, rather than truncating in silence.
+
+A legacy STRUCTURED_GRID whose DIMENSIONS does not cover its
+POINTS array hands the points back without cells, warning about the
+two counts. The cells are strides through the layout the header
+describes, so a header naming more points than the file delivered
+generated connectivity indexing points that are not there: the read
+returned a PolyData that fails validate. RECTILINEAR_GRID
+already reconciled the two.
+
+An attribute section is read by the count its own header declares rather
+than by the count of the mesh. The two agree in a well-formed file, and
+where they do not the section’s is the only number that says where one
+array ends and the next begins - reading by the mesh’s walked an array
+straight into the header after it. An array that then covers no point or
+cell of the mesh is dropped with a warning naming it, as the structured
+readers already did.
+
+A binary legacy .vtk SCALARS section without a LOOKUP_TABLE
+line - which the format leaves optional - reads its own values. The line
+was consumed unconditionally, so the payload up to its first 0x0a
+byte was swallowed, and a payload holding none rewound the scan to the
+top of the file.
+
+A binary legacy .vtk POINTS, CELLS or CELL_TYPES block is
+checked against the end of the file before it is sliced, the way the
+attribute blocks already were. The whole-file bound the header check
+applies clears a block that still runs off the end - a file with a long
+comment header, say - and the reshape after the short slice failed with a
+ValueError naming neither the array nor the file.
+
+A legacy .vtk attribute header missing a field, or spelling a count
+as something that is not a number, names the file and the line it is on.
+SCALARS with no array name reached the caller as IndexError: list
+index out of range and SCALARS s float x as a bare ValueError,
+in the ASCII scan, the binary scan and the structured one alike. A binary
+file has no line to name, so the byte offset stands in for one.
+
+.vti, .vts, .vtp and .vtu write each attribute in the
+type the array is held in, as .vtr does. Everything was cast to a
+double under a Float64 header, so an int64 identifier past 2**53
+came back a different number.
+
+The ASCII body of a <DataArray> is parsed into the type the element
+declares rather than through float() first. An Int64 array was
+rounded to a double before the declared type ever saw it, which the top
+of the integer range does not survive.
+
+A binary legacy .vtk block is read as the type its header names. A
+POINTS n int was read at four bytes a float, so an integer point
+array came back as coordinates the file never held, and a type name the
+reader has no numpy equivalent for - bit, or a misspelling - was
+guessed at rather than refused. Every binary header now resolves its type
+the same way and raises CodecError naming it when it cannot; the
+names VTK writes for 64-bit and signed-char arrays were missing from the
+table and are there now. An ASCII payload is unaffected: its values are
+text whatever the header calls them.
+
+A legacy .vtk geometry or section header spelling a count as
+something that is not a number, or leaving it out, names the file and the
+line it is on. POINTS, CELLS, CELL_TYPES, POINT_DATA,
+CELL_DATA, DIMENSIONS, ORIGIN, SPACING and the coordinate
+arrays reached the caller as a bare ValueError or IndexError,
+which the attribute headers had already stopped doing.
+
+A CELL_DATA array in a legacy STRUCTURED_GRID is measured against
+the cells the mesh ends up with rather than the cells DIMENSIONS
+describes. A header its POINTS array does not cover leaves the mesh
+with no cells, and the array was kept against the header’s count, so the
+read returned a PolyData that fails validate.
+
+An OBJ face index spelled with a superscript digit raises CodecError
+naming the line. str.isdigit admits ² and int() then refuses
+it, so the fast path let a bare ValueError out; the test is now
+str.isdecimal, which still admits the non-Latin digits int()
+reads.
+
+A bare mtllib or o directive in an OBJ file names nothing rather
+than the empty string, which used to be written back as a directive with
+nothing after it.
+
+Writing an OBJ element_attrs['material'] that does not cover the
+faces drops it with a warning naming its length, the way the vertex
+attributes already were. Indexed per face it ran off the end partway
+through, leaving a half-written file and an IndexError naming an
+axis.
+
+A .vtu or .vtp Piece whose NumberOfPoints is not a count,
+and a .vti, .vts or .vtr Extent that is not six whole
+numbers, raise CodecError naming the file. They reached the caller as
+a bare ValueError about int() or about unpacking.
+
+A <DataArray> whose NumberOfComponents is not a count is read
+flat with a warning naming it, rather than raising a bare ValueError
+from int().
+
+A legacy .vtk file whose header declares DATASET FIELD is read.
+The dispatch asked what the line starts with while the line still
+carried its DATASET keyword, so the branch never ran and every field
+data file was refused by the one below it.
+
+A METADATA block inside a v5.1 CELLS section is stepped over. VTK
+follows a cell array with one, so a block sat between the offsets and the
+connectivity of files every release since 9.0 writes; read as offsets it
+raised CodecError about a line of words where numbers belong.
+
+A v5.1 CELLS section is found by what follows the header rather than
+by the version in the first line. Versions were compared as strings, so a
+file declaring 10.0 sorted below 5.1 and its offsets would have
+been read as a v4.2 cell stream. The binary scan already asked this way.
+
+A .vti, .vts or .vtr extent flat along an axis - an image one
+voxel deep - is a sheet of quads, or a run of lines when it is flat along
+two. All three read it as a grid of no cells, which left every
+CellData array belonging to nothing.
+
+An ASCII <DataArray> holding a value its declared type is too narrow
+for wraps with a warning naming the array, the way a C reader wraps it,
+rather than escaping as a bare OverflowError from numpy. A token that
+names no number at all raises CodecError naming the array.
+
+Writing a point or cell attribute of a kind no <DataArray> can hold -
+a label per vertex, say - raises CodecError naming the array and its
+dtype, rather than a ValueError about one element.
+
+The warnings the .vtk, XML and OBJ codecs raise are blamed on the code
+that asked for the file. Every one of them pointed a frame short, at
+polyxios.read or polyxios.write itself, which tells a caller
+nothing about which of their own calls found the file.
+
+Optimizations
+
+A legacy .vtk write no longer builds the whole of a mesh as one string
+or one array before writing it. Every block is written in runs, so the
+bytes are the ones a single join produced while the memory a write holds
+above the mesh is a fixed run whatever the mesh’s size. A run of cells
+that share a node count - which is every mesh of one element type - is
+laid out as rows of an array rather than a cell at a time, and both
+spellings share that layout. CELL_TYPES is translated by indexing a
+table built once at import rather than by a dictionary hop per cell.
+Writing 400k triangles: spelled, 923 ms and 54 MB above the
+mesh became 431 ms and 6 MB; binary, 564 ms and 128 MB became 15 ms and
+10 MB.
+
+Reading an OBJ file resolves a face corner inline when it names a plain
+index inside what has been declared, which is what nearly every corner
+does; the rest still go the long way round, where the message naming the
+line lives. A mesh of any size has millions of corners, and the call this
+saves is most of what checking them cost. A v, vn or vt record
+carrying exactly the components its directive spells skips the padding and
+the slice that feeds it.
+
+A float32 attribute is spelled at its own width in an ASCII
+<DataArray>. Widened to a double first, 0.1 went out as
+0.10000000149011612 - seventeen digits of a value carrying seven -
+which is nearly twice the file for the same numbers.
+
+Writing a Nastran large-field deck is roughly ten times faster. Sweeping
+for an exact spelling asked every precision from seventeen digits down,
+spelling and parsing candidates at each; rounding to fewer significant
+digits than repr carries cannot be exact whatever form it takes, so
+the sweep now stops there. Neither sweep spells a candidate at a
+precision the field could not hold in the first place, and the stepped
+mantissas - the expensive half - are built only when the rounded ones
+have all missed. Twenty thousand GRID* cards went from 10.3 s to
+1.0 s, and every value is written exactly as before.
+
+Reading an OBJ file no longer names its source once per line. The name
+costs a path walk and was only ever used to spell an error message.
+
+A Nastran real field below one drops its leading zero when the column it
+costs is a significant digit. Bulk data reads .5 as 0.5, so a
+third in an eight-column field goes out as .3333333 rather than
+0.333333.
+
+Writing an OBJ file looks its material attribute up once rather than once
+per face.
+
+Stepping past a binary payload in a structured legacy .vtk file is a
+binary search over the line offsets rather than a walk. A binary payload
+carries a newline every few values, so the lines it is cut into number in
+the thousands for a grid of any size; a 5 MB STRUCTURED_POINTS file
+reads about a fifth faster.
+
+.vti, .vts and .vtr build their hexahedra with array
+arithmetic instead of a Python loop per cell. The corners of a cell are
+strides from its own origin, so the whole connectivity is eight adds over
+the origins; a 40x40x40 grid builds about nine times faster.
+
+The structured legacy .vtk readers cut their file into lines in one
+pass rather than a find per line, and they all do it in the same
+place. The lines are byte-identical to what the walk produced.
+
+Folding OBJ vt and vn records onto their vertices is one pass over
+the corners rather than a numpy row assignment per corner.
+
+A legacy .vtk ASCII payload is spelled and written in one pass instead
+of a formatted write per point, which was a syscall per line.
+
+Tests
+
+Regression tests for the dtype a .vtr header declares against the
+bytes under it, the component count of a tensor attribute in every XML
+writer, a binary legacy TENSORS section, an unterminated METADATA
+block followed by geometry, an attribute section declaring more than its
+file holds, an OBJ conflict hiding behind a NaN first component, and the
+Piece index in a .vtu error.
+
+test_a_double_section_holds_every_digit_of_a_double writes a
+coordinate no ten-digit spelling can hold and asks for it back unchanged.
+
+test_a_power_of_ten_is_written_exactly spells its powers as literals
+rather than computing them with **. pow is not correctly rounded
+everywhere - glibc and MSVC answer 10.0 ** 23 with the double one unit
+above 1e23, macOS with 1e23 itself - and that neighbour needs
+seventeen significant digits, which no eight or sixteen character field
+can hold. The test asked the writer for a field wider than the format has,
+and failed on Linux and Windows only.
+
+A cross-codec round-trip matrix (tests/test_roundtrip.py) writes and
+re-reads five canonical meshes through every writable codec, checked
+against a table declaring exactly what each format keeps. A new codec
+cannot join the registry without an entry.
+
+GitHub stats for 2026/08/18 - 2026/09/09 (tag: v0.3.0)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 1 authors contributed 89 commits.
+
+Serge Koudoro
+
+We closed a total of 18 issues, 17 pull requests and 1 regular issues.
+
+Pull Requests (17):
+
+PR #60: DOC: the README and the guides say what 0.4.0 added
+
+PR #59: NF: OBJ keeps the texture coordinates a seam gives two of
+
+PR #56: TEST: the regression guards are named for what they guard
+
+PR #57: MNT: update pre-commit hooks
+
+PR #55: NF: whole-mesh metadata, tag groups and face sets across the codecs
+
+PR #54: BF: .vti, .vts and .vtr hold a grid, and say so when handed something else
+
+PR #53: NF: add a Kratos MDPA codec
+
+PR #51: NF: meshes keep the numbers their file gave (P2.4)
+
+PR #52: MNT: update pre-commit hooks
+
+PR #49: NF: one rule for two-dimensional meshes (P2.3)
+
+PR #50: MNT: update pre-commit hooks
+
+PR #48:  NF: topological dimension and duplicate-vertex welding
+
+PR #47: BF: P1 format correctness - Nastran, Medit, Abaqus, Gmsh, PLY/STL, Tecplot
+
+PR #46: BF: OBJ, legacy VTK, VTK XML and Nastran correctness
+
+PR #45: NF: buffer/file-handle IO and transparent gzip
+
+PR #44: NF: Handle *.dat via a sniffer to redirect to the correct codec
+
+PR #43: CI: publish versioned docs from the tag push
+
+Issues (1):
+
+GH#58: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
+
+
+
 0.3.0 (2026-08-18)
 
 Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.
 
 New features
+
+../CHANGES.rst:1270: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -3254,7 +5617,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:47: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1301: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -3268,6 +5631,8 @@ ASCII writing is vectorised, and the docs build now treats Sphinx warnings
 as errors.
 
 Bug fixes
+
+../CHANGES.rst:1313: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -3373,7 +5738,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:132: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1386: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
