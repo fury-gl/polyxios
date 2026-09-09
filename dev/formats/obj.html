@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=25a97446"></script>
+    <script src="../_static/documentation_options.js?v=70520a59"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-08"/>
+    <meta name="docbuild:last-update" content="2026-09-09"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -581,13 +581,42 @@
 <span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
 </pre></div>
 </div>
+<p>A textured mesh keeps both sides of a seam when the vertices are split:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.obj"</span><span class="p">,</span> <span class="n">split_seams</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"texcoords"</span><span class="p">]</span>   <span class="c1"># one uv per vertex, seams included</span>
+</pre></div>
+</div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.obj"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 20.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">split_seams</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>On read: copy a vertex once per distinct texture coordinate and normal
+its corners name, so a seam keeps both uvs and a hard edge both
+normals. Adds vertices; removes none.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
@@ -597,6 +626,8 @@
 <li><p>Faces with more than four vertices are kept as polygons rather than being silently triangulated.</p></li>
 <li><p>Material and group keywords are read as element tags; <code class="docutils literal notranslate"><span class="pre">.mtl</span></code> files are not parsed.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code> are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in <code class="docutils literal notranslate"><span class="pre">vertex_attrs['texcoords']</span></code> and <code class="docutils literal notranslate"><span class="pre">vertex_attrs['normals']</span></code>: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">split_seams=True</span></code> keeps what that fold drops. A vertex is copied once per distinct pairing its corners name, the first corner keeping the index it had and each later one taking a fresh index off the end, so a vertex no face names stays where it was and a file whose corners agree reads exactly as it does without the option. The faces are untouched - only the indices inside them move - so the element count, the element order, <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code> and <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> are the same either way. Records nothing indexes are still counted against the <code class="docutils literal notranslate"><span class="pre">v</span></code> records the file wrote rather than the vertices the split left, and a copy takes what the vertex it came from takes, so a split neither drops such an attribute nor invents one out of a count that happens to match.</p></li>
+<li><p>A split mesh writes back with the copied positions repeated as their own <code class="docutils literal notranslate"><span class="pre">v</span></code> records, since the writer emits one <code class="docutils literal notranslate"><span class="pre">vt</span></code>/<code class="docutils literal notranslate"><span class="pre">vn</span></code> per vertex in vertex order. Do not run <code class="docutils literal notranslate"><span class="pre">transforms.merge_duplicate_vertices</span></code> on one: it welds the copies back by position and keeps a single survivor’s uv, undoing the split.</p></li>
 <li><p>Records that cannot be lined up with the vertices leave the attribute out entirely, on write as well as on read: an attribute that does not hold one row per vertex is warned about and left out, rather than written as faces indexing records that are not in the file. A vertex no face names carries NaN in the array and is written back as zero, since <code class="docutils literal notranslate"><span class="pre">vt</span> <span class="pre">nan</span> <span class="pre">nan</span></code> is not a record another OBJ reader takes.</p></li>
 <li><p>A face belonging to no group is written after a bare <code class="docutils literal notranslate"><span class="pre">g</span></code>, so it does not inherit the group of the face above it; a bare <code class="docutils literal notranslate"><span class="pre">g</span></code> on read clears the active groups rather than inventing a <code class="docutils literal notranslate"><span class="pre">default</span></code> tag.</p></li>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">v</span></code>, <code class="docutils literal notranslate"><span class="pre">vn</span></code> or <code class="docutils literal notranslate"><span class="pre">vt</span></code> record that does not carry the components its directive needs, or carries something that is not a number, raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the line. A <code class="docutils literal notranslate"><span class="pre">vt</span></code> may carry a third component - the depth of a volumetric texture - and <code class="docutils literal notranslate"><span class="pre">texcoords</span></code> keeps the two a surface uses.</p></li>
@@ -663,6 +694,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>
@@ -721,7 +753,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-08.
+  Last updated on 2026-09-09.
   <br/>
 </p></div>
       

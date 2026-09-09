@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=25a97446"></script>
+    <script src="_static/documentation_options.js?v=70520a59"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-08"/>
+    <meta name="docbuild:last-update" content="2026-09-09"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -737,6 +737,24 @@ surfaces back. <code class="docutils literal notranslate"><span class="pre">tran
 is building, the way it already shifted the tag groups, so the surfaces of
 two meshes joined into one - the blocks of an index file among them -
 survive the join instead of naming the first mesh’s elements.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">read()</span></code> now forwards the options it does not recognise to the codec it
+chose, the way <code class="docutils literal notranslate"><span class="pre">write()</span></code> already did, and so does the dispatcher a
+contested extension resolves through. An option a reader does not take
+raises <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> naming it. STL’s <code class="docutils literal notranslate"><span class="pre">merge_vertices</span></code> was written as a
+read option and had never been reachable without importing the codec
+itself; it is now <code class="docutils literal notranslate"><span class="pre">read(path,</span> <span class="pre">merge_vertices=False)</span></code>.</p></li>
+<li><p>OBJ reads <code class="docutils literal notranslate"><span class="pre">split_seams=True</span></code>, which keeps the texture coordinates and
+normals a per-vertex array otherwise drops. OBJ indexes <code class="docutils literal notranslate"><span class="pre">vt</span></code> and <code class="docutils literal notranslate"><span class="pre">vn</span></code>
+per face corner, so a vertex on a seam is given two texture coordinates and
+one on a hard edge two normals, and folding them one per vertex kept the
+last. Splitting copies the vertex once per distinct pairing its corners
+name: the first corner keeps the index it had and each later one takes a
+fresh index off the end, so a vertex no face names stays where it was, the
+faces keep their count and their order, and a file whose corners agree
+reads exactly as it does without the option. Records nothing indexes are
+counted against the <code class="docutils literal notranslate"><span class="pre">v</span></code> records the file wrote rather than the vertices
+the split left, and a copy takes what the vertex it came from takes. The
+warning about the values it drops now names the option that keeps them.</p></li>
 </ul>
 </section>
 <section id="behaviour-changes">
@@ -1914,7 +1932,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-08.
+  Last updated on 2026-09-09.
   <br/>
 </p></div>
       

@@ -1183,11 +1183,36 @@ mesh = px.read("model.obj")
 mesh.vertices          # (n, 3)
 mesh.element_types     # element groups found in the file
 
+A textured mesh keeps both sides of a seam when the vertices are split:
+
+mesh = px.read("model.obj", split_seams=True)
+mesh.vertex_attrs["texcoords"]   # one uv per vertex, seams included
+
 Writing
 
 px.write(mesh, "out.obj")
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+split_seams
+
+False
+
+On read: copy a vertex once per distinct texture coordinate and normal
+its corners name, so a seam keeps both uvs and a hard edge both
+normals. Adds vertices; removes none.
 
 Quirks worth knowing
 
@@ -1200,6 +1225,10 @@ Faces with more than four vertices are kept as polygons rather than being silent
 Material and group keywords are read as element tags; .mtl files are not parsed.
 
 vt and vn are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in vertex_attrs['texcoords'] and vertex_attrs['normals']: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.
+
+split_seams=True keeps what that fold drops. A vertex is copied once per distinct pairing its corners name, the first corner keeping the index it had and each later one taking a fresh index off the end, so a vertex no face names stays where it was and a file whose corners agree reads exactly as it does without the option. The faces are untouched - only the indices inside them move - so the element count, the element order, element_attrs and element_tags are the same either way. Records nothing indexes are still counted against the v records the file wrote rather than the vertices the split left, and a copy takes what the vertex it came from takes, so a split neither drops such an attribute nor invents one out of a count that happens to match.
+
+A split mesh writes back with the copied positions repeated as their own v records, since the writer emits one vt/vn per vertex in vertex order. Do not run transforms.merge_duplicate_vertices on one: it welds the copies back by position and keeps a single survivor’s uv, undoing the split.
 
 Records that cannot be lined up with the vertices leave the attribute out entirely, on write as well as on read: an attribute that does not hold one row per vertex is warned about and left out, rather than written as faces indexing records that are not in the file. A vertex no face names carries NaN in the array and is written back as zero, since vt nan nan is not a record another OBJ reader takes.
 
@@ -1383,7 +1412,7 @@ Writing
 
 px.write(mesh, "out.stl")
 
-Format-specific options:
+Format-specific options
 
 
 
@@ -1401,7 +1430,14 @@ binary
 
 False
 
-Write the 50-byte-per-facet binary form instead of ASCII.
+On write: emit the 50-byte-per-facet binary form instead of ASCII.
+
+merge_vertices
+
+True
+
+On read: deduplicate the coincident vertices STL repeats per facet.
+Ignored under lazy=True, which never merges.
 
 Quirks worth knowing
 
@@ -4235,6 +4271,26 @@ is building, the way it already shifted the tag groups, so the surfaces of
 two meshes joined into one - the blocks of an index file among them -
 survive the join instead of naming the first mesh’s elements.
 
+read() now forwards the options it does not recognise to the codec it
+chose, the way write() already did, and so does the dispatcher a
+contested extension resolves through. An option a reader does not take
+raises TypeError naming it. STL’s merge_vertices was written as a
+read option and had never been reachable without importing the codec
+itself; it is now read(path, merge_vertices=False).
+
+OBJ reads split_seams=True, which keeps the texture coordinates and
+normals a per-vertex array otherwise drops. OBJ indexes vt and vn
+per face corner, so a vertex on a seam is given two texture coordinates and
+one on a hard edge two normals, and folding them one per vertex kept the
+last. Splitting copies the vertex once per distinct pairing its corners
+name: the first corner keeps the index it had and each later one takes a
+fresh index off the end, so a vertex no face names stays where it was, the
+faces keep their count and their order, and a file whose corners agree
+reads exactly as it does without the option. Records nothing indexes are
+counted against the v records the file wrote rather than the vertices
+the split left, and a copy takes what the vertex it came from takes. The
+warning about the values it drops now names the option that keeps them.
+
 Behaviour changes
 
 Medit .mesh records a two-dimensional file in
@@ -5268,7 +5324,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1147: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1165: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5316,7 +5372,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1178: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1196: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5331,7 +5387,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1190: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1208: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5437,7 +5493,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1263: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1281: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

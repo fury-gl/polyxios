@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=25a97446"></script>
+    <script src="../_static/documentation_options.js?v=70520a59"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-08"/>
+    <meta name="docbuild:last-update" content="2026-09-09"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -591,7 +591,9 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.stl"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Format-specific options:</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="px-spec-table table">
 <colgroup>
 <col style="width: 24.0%" />
@@ -607,7 +609,12 @@
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
-<td><p>Write the 50-byte-per-facet binary form instead of ASCII.</p></td>
+<td><p>On write: emit the 50-byte-per-facet binary form instead of ASCII.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">merge_vertices</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p></td>
+<td><p>On read: deduplicate the coincident vertices STL repeats per facet.
+Ignored under <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>, which never merges.</p></td>
 </tr>
 </tbody>
 </table>
@@ -681,6 +688,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>
@@ -739,7 +747,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-08.
+  Last updated on 2026-09-09.
   <br/>
 </p></div>
       
