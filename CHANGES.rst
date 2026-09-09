@@ -6,8 +6,8 @@ Changelog
 
 .. _changes_0.4.0:
 
-0.4.0 (upcoming)
-----------------
+0.4.0 (2026-09-09)
+------------------
 
 Meshes read and written over file objects and gzip alike, one new format,
 entity numbering and whole-mesh metadata that survive a round trip, and an
@@ -1156,6 +1156,42 @@ Tests
   re-reads five canonical meshes through every writable codec, checked
   against a table declaring exactly what each format keeps. A new codec
   cannot join the registry without an entry.
+
+
+GitHub stats for 2026/08/18 - 2026/09/09 (tag: v0.3.0)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 1 authors contributed 89 commits.
+
+* Serge Koudoro
+
+
+We closed a total of 18 issues, 17 pull requests and 1 regular issues.
+
+Pull Requests (17):
+
+* :ghpull:`60`: DOC: the README and the guides say what 0.4.0 added
+* :ghpull:`59`: NF: OBJ keeps the texture coordinates a seam gives two of
+* :ghpull:`56`: TEST: the regression guards are named for what they guard
+* :ghpull:`57`: MNT: update pre-commit hooks
+* :ghpull:`55`: NF: whole-mesh metadata, tag groups and face sets across the codecs
+* :ghpull:`54`: BF: .vti, .vts and .vtr hold a grid, and say so when handed something else
+* :ghpull:`53`: NF: add a Kratos MDPA codec
+* :ghpull:`51`: NF: meshes keep the numbers their file gave (P2.4)
+* :ghpull:`52`: MNT: update pre-commit hooks
+* :ghpull:`49`: NF: one rule for two-dimensional meshes (P2.3)
+* :ghpull:`50`: MNT: update pre-commit hooks
+* :ghpull:`48`:  NF: topological dimension and duplicate-vertex welding
+* :ghpull:`47`: BF: P1 format correctness - Nastran, Medit, Abaqus, Gmsh, PLY/STL, Tecplot
+* :ghpull:`46`: BF: OBJ, legacy VTK, VTK XML and Nastran correctness
+* :ghpull:`45`: NF: buffer/file-handle IO and transparent gzip
+* :ghpull:`44`: NF: Handle *.dat via a sniffer to redirect to the correct codec
+* :ghpull:`43`: CI: publish versioned docs from the tag push
+
+Issues (1):
+
+* :ghissue:`58`: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
 
 .. _changes_0.3.0:
 
