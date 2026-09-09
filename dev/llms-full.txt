@@ -4172,7 +4172,13 @@ Changelog
 
 
 
-0.4.1 (upcoming)
+0.5.0 (upcoming)
+
+(No entries yet.)
+
+
+
+0.4.1 (2026-09-09)
 
 0.4.0 reached PyPI only after its release workflow was repaired and re-run by
 hand, and its documentation never reached the site at all. Every one of the
@@ -4211,6 +4217,34 @@ A version’s documentation can be published from a ref that is not its own
 tag. A tag is immutable, so a tag whose documentation cannot build had no
 way to reach the site at all; a manual run now chooses the tree to build
 separately from the version directory it publishes as.
+
+GitHub stats for 2026/09/09 - 2026/09/09 (tag: v0.4.0)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 1 authors contributed 10 commits.
+
+Serge Koudoro
+
+We closed a total of 7 issues, 6 pull requests and 1 regular issues.
+
+Pull Requests (6):
+
+PR #64: DOC: the 0.4.1 notes say what the release machinery got wrong
+
+PR #63: BF: a version can be published from a ref that is not its tag
+
+PR #62: BF: the release notes reach gh through the environment
+
+PR #61: BF: the new upcoming section opens the changelog, not the middle
+
+PR #60: DOC: the README and the guides say what 0.4.0 added
+
+PR #59: NF: OBJ keeps the texture coordinates a seam gives two of
+
+Issues (1):
+
+GH#58: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
 
 
 
@@ -4494,7 +4528,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:317: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:349: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -5541,7 +5575,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1245: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1277: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5589,7 +5623,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1276: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1308: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5604,7 +5638,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1288: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1320: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5710,7 +5744,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1361: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1393: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
