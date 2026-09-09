@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=70520a59"></script>
+    <script src="_static/documentation_options.js?v=c5a7bc78"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -516,7 +516,11 @@ px.write(mesh, <span class="s">"brain.ply"</span>)
 px.write(mesh, <span class="s">"brain.stl"</span>, binary=<span class="b">True</span>)
 
 <span class="c"># gigabytes? memory-map it</span>
-mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)<span class="px-cursor">&#9608;</span></pre>
+mesh = px.read(<span class="s">"huge.vtk"</span>, lazy=<span class="b">True</span>)
+
+<span class="c"># a buffer or a .gz, same call</span>
+mesh = px.read(buf, fmt=<span class="s">".ply"</span>)
+mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9608;</span></pre>
     </div>
   </section>
 

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=70520a59"></script>
+    <script src="_static/documentation_options.js?v=c5a7bc78"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -574,6 +574,24 @@ configuration, no restart needed:</p>
 <code class="docutils literal notranslate"><span class="pre">&quot;.ABC&quot;</span></code> - a key the resolver cannot reach is worse than none.</p>
 </div>
 </section>
+<section id="extensions-several-formats-share">
+<h2>Extensions several formats share<a class="headerlink" href="#extensions-several-formats-share" title="Link to this heading">#</a></h2>
+<p>An extension no format owns outright - <code class="docutils literal notranslate"><span class="pre">.dat</span></code> belongs to Tecplot, Nastran,
+LS-DYNA and plain ASCII tables alike - is resolved by looking inside the file.
+Among the codecs polyxios ships, one competing for such an extension lists it
+under <code class="docutils literal notranslate"><span class="pre">SNIFF_EXTENSIONS</span></code> and supplies <code class="docutils literal notranslate"><span class="pre">sniff(head:</span> <span class="pre">bytes)</span> <span class="pre">-&gt;</span> <span class="pre">bool</span></code>, which
+answers whether the opening bytes look like its format; <code class="docutils literal notranslate"><span class="pre">SNIFF_PRIORITY</span></code>
+orders the attempts, lowest first, so a narrow test runs ahead of a broad one.
+The extension then resolves to a dispatcher that delegates to the first codec
+recognising the file, and names the candidates when none does. Writing needs an
+owner, an output file having no content to inspect: the codec that owns the
+extension keeps the writes by declaring <code class="docutils literal notranslate"><span class="pre">SNIFF_DEFAULT_WRITER</span></code>, and without
+one a bare write raises and asks for <code class="docutils literal notranslate"><span class="pre">fmt=</span></code>.</p>
+<p>An entry point is a claim, not a competitor. It registers one extension, it is
+registered last, and it replaces whatever held that key - a dispatcher
+included: installing a codec for <code class="docutils literal notranslate"><span class="pre">.dat</span></code> is a deliberate choice by the person
+installing it, and it wins over polyxios’ own guess at the file’s content.</p>
+</section>
 <section id="reading-a-path-or-a-buffer">
 <h2>Reading a path or a buffer<a class="headerlink" href="#reading-a-path-or-a-buffer" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">path</span></code> is whatever the caller passed <code class="docutils literal notranslate"><span class="pre">read()</span></code> or <code class="docutils literal notranslate"><span class="pre">write()</span></code>: a path, or
@@ -663,6 +681,7 @@ takes a path and answers in four bytes.</p>
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-1-write-a-codec">Step 1 - write a codec</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#step-2-declare-an-entry-point">Step 2 - declare an entry point</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#extensions-several-formats-share">Extensions several formats share</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading-a-path-or-a-buffer">Reading a path or a buffer</a></li>
 </ul>
   </nav></div>

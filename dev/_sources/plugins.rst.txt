@@ -50,6 +50,26 @@ configuration, no restart needed:
    Extensions are resolved in lower case, so register ``".abc"`` rather than
    ``".ABC"`` - a key the resolver cannot reach is worse than none.
 
+Extensions several formats share
+--------------------------------
+
+An extension no format owns outright - ``.dat`` belongs to Tecplot, Nastran,
+LS-DYNA and plain ASCII tables alike - is resolved by looking inside the file.
+Among the codecs polyxios ships, one competing for such an extension lists it
+under ``SNIFF_EXTENSIONS`` and supplies ``sniff(head: bytes) -> bool``, which
+answers whether the opening bytes look like its format; ``SNIFF_PRIORITY``
+orders the attempts, lowest first, so a narrow test runs ahead of a broad one.
+The extension then resolves to a dispatcher that delegates to the first codec
+recognising the file, and names the candidates when none does. Writing needs an
+owner, an output file having no content to inspect: the codec that owns the
+extension keeps the writes by declaring ``SNIFF_DEFAULT_WRITER``, and without
+one a bare write raises and asks for ``fmt=``.
+
+An entry point is a claim, not a competitor. It registers one extension, it is
+registered last, and it replaces whatever held that key - a dispatcher
+included: installing a codec for ``.dat`` is a deliberate choice by the person
+installing it, and it wins over polyxios' own guess at the file's content.
+
 Reading a path or a buffer
 --------------------------
 

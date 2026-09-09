@@ -7,18 +7,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="Filter, clean and merge meshes in polyxios: drop degenerate elements, weld duplicate vertices, extract surfaces and combine datasets." name="description" />
+<meta content="Filter, clean and merge meshes in polyxios: drop orphan vertices, weld coincident ones, triangulate surfaces, extract the boundary of a volume and combine datasets." name="description" />
 <meta property="og:title" content="Transforms" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/transforms.html" />
 <meta property="og:site_name" content="polyxios" />
+<meta property="og:description" content="Every transform takes a PolyData and returns a new one - nothing is modified in place - so they compose freely.,, Transform, What it does,,, pipeline(*fns), Compose transforms left to right into on..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_transforms_41315d6a.png" />
-<meta property="og:image:alt" content="" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_transforms_b114cb18.png" />
+<meta property="og:image:alt" content="Every transform takes a PolyData and returns a new one - nothing is modified in place - so they compose freely.,, Transform, What it does,,, pipeline(*fns), Compose transforms left to right into on..." />
 <meta name="twitter:card" content="summary_large_image" />
 
-    <meta property="og:description" content="Filter, clean and merge meshes in polyxios: drop degenerate elements, weld duplicate vertices, extract surfaces and combine datasets." />
     <meta name="robots" content="noindex, follow" />
     <title>Transforms &#8212; polyxios</title>
   
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=70520a59"></script>
+    <script src="_static/documentation_options.js?v=c5a7bc78"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -536,12 +536,56 @@
                   
   <section id="transforms">
 <h1>Transforms<a class="headerlink" href="#transforms" title="Link to this heading">#</a></h1>
+<p>Every transform takes a <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code> and returns a new one -
+nothing is modified in place - so they compose freely.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 34.0%" />
+<col style="width: 66.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Transform</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline(*fns)</span></code></p></td>
+<td><p>Compose transforms left to right into one callable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">merge(*polys)</span></code></p></td>
+<td><p>Concatenate several meshes into one, offsetting the indices.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">filter_element_type(poly,</span> <span class="pre">keep=...)</span></code></p></td>
+<td><p>Keep only the named element types.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices(poly)</span></code></p></td>
+<td><p>Drop vertices no element references and remap the indices.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reindex(poly)</span></code></p></td>
+<td><p>Alias of <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">merge_duplicate_vertices(poly,</span> <span class="pre">tol=...)</span></code></p></td>
+<td><p>Weld coincident vertices into one.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">triangulate(poly)</span></code></p></td>
+<td><p>Split every surface element into triangles.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">extract_surface(poly)</span></code></p></td>
+<td><p>Return the boundary faces of a volumetric mesh.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertex_colors(poly)</span></code></p></td>
+<td><p>Read per-vertex RGB out of the vertex attributes, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="composing-and-merging">
+<h2>Composing and merging<a class="headerlink" href="#composing-and-merging" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">pipeline</span><span class="p">,</span>
     <span class="n">merge</span><span class="p">,</span>
-    <span class="n">merge_duplicate_vertices</span><span class="p">,</span>
     <span class="n">filter_element_type</span><span class="p">,</span>
     <span class="n">remove_orphan_vertices</span><span class="p">,</span>
 <span class="p">)</span>
@@ -553,14 +597,56 @@
 <span class="p">)</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">clean</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
 
-<span class="c1"># Weld coincident vertices - the STL facet soup back into a surface</span>
-<span class="n">welded</span> <span class="o">=</span> <span class="n">merge_duplicate_vertices</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
-<span class="n">snapped</span> <span class="o">=</span> <span class="n">merge_duplicate_vertices</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span>
-
 <span class="c1"># Merge two meshes into one</span>
 <span class="n">combined</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">mesh_a</span><span class="p">,</span> <span class="n">mesh_b</span><span class="p">)</span>
 </pre></div>
 </div>
+</section>
+<section id="cleaning">
+<h2>Cleaning<a class="headerlink" href="#cleaning" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> drops the vertices nothing references;
+<code class="docutils literal notranslate"><span class="pre">merge_duplicate_vertices</span></code> welds the ones that sit on top of each other -
+the equivalent of ParaView’s “Clean to Grid”, and what turns the facet soup
+STL hands back into a surface again:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge_duplicate_vertices</span>
+
+<span class="n">welded</span> <span class="o">=</span> <span class="n">merge_duplicate_vertices</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>             <span class="c1"># exact matches only</span>
+<span class="n">snapped</span> <span class="o">=</span> <span class="n">merge_duplicate_vertices</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span>  <span class="c1"># snap to a 1e-6 grid</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">tol</span></code> snaps each coordinate to a grid of that step before comparing, so
+two points merge when they land in the same cell. The survivor of a group is
+its lowest original index and keeps its own coordinates and attributes: the
+result does not depend on which duplicate the file listed first, and a
+tolerance never moves a point. Welding is not culling - a vertex no element
+references is kept, so compose with <code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> to drop those
+too.</p>
+</section>
+<section id="surfaces">
+<h2>Surfaces<a class="headerlink" href="#surfaces" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">triangulate</span></code> splits quads and pixels into two triangles and fan-triangulates
+polygons and triangle strips; quadratic surface elements are linearised to
+their corner nodes first, and lines and volumes are dropped.</p>
+<p><code class="docutils literal notranslate"><span class="pre">extract_surface</span></code> returns the boundary of a volumetric mesh - the faces
+shared by exactly one element. Surface elements already in the mesh are
+ignored, so a tetrahedral mesh that also carries its boundary triangles is
+not counted twice. Vertices are preserved unchanged, so follow it with
+<code class="docutils literal notranslate"><span class="pre">remove_orphan_vertices</span></code> to compact them:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.transforms</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_surface</span><span class="p">,</span> <span class="n">remove_orphan_vertices</span>
+
+<span class="n">boundary</span> <span class="o">=</span> <span class="n">remove_orphan_vertices</span><span class="p">(</span><span class="n">extract_surface</span><span class="p">(</span><span class="n">volume_mesh</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="colours">
+<h2>Colours<a class="headerlink" href="#colours" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">vertex_colors</span></code> returns an <code class="docutils literal notranslate"><span class="pre">(n_verts,</span> <span class="pre">3)</span></code> float32 array in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">None</span></code> when no vertex attribute looks like a colour. An attribute named for
+colour wins outright; otherwise the first <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">&gt;=</span> <span class="pre">3)</span></code> attribute is taken,
+skipping any carrying a negative value - a normal is the same shape as an RGB
+triple, so shape alone would hand back surface directions as colours.</p>
+<p>Full signatures and parameters are in the <a class="reference internal" href="api/index.html"><span class="doc">API reference</span></a>.</p>
+</section>
 </section>
 
 
@@ -601,6 +687,21 @@
                 <dialog id="pst-secondary-sidebar-modal"></dialog>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#composing-and-merging">Composing and merging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cleaning">Cleaning</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#surfaces">Surfaces</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#colours">Colours</a></li>
+</ul>
+  </nav></div>
 
   <div class="sidebar-secondary-item">
 

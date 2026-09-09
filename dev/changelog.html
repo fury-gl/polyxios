@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.4.0 (upcoming): New features: read() and write() now take an open binary file object wherever they take a path, so a mesh round-trips through io.BytesIO, a socket or a file inside an archive with..." />
+<meta property="og:description" content="0.4.0 (upcoming): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several fo..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_400ff6f2.png" />
-<meta property="og:image:alt" content="0.4.0 (upcoming): New features: read() and write() now take an open binary file object wherever they take a path, so a mesh round-trips through io.BytesIO, a socket or a file inside an archive with..." />
-<meta name="description" content="0.4.0 (upcoming): New features: read() and write() now take an open binary file object wherever they take a path, so a mesh round-trips through io.BytesIO, a socket or a file inside an archive with..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_c53c1a04.png" />
+<meta property="og:image:alt" content="0.4.0 (upcoming): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several fo..." />
+<meta name="description" content="0.4.0 (upcoming): Meshes read and written over file objects and gzip alike, one new format, entity numbering and whole-mesh metadata that survive a round trip, and an extension shared by several fo..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=70520a59"></script>
+    <script src="_static/documentation_options.js?v=c5a7bc78"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -538,6 +538,9 @@
 <span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
 <section id="upcoming">
 <span id="changes-0-4-0"></span><h2>0.4.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<p>Meshes read and written over file objects and gzip alike, one new format,
+entity numbering and whole-mesh metadata that survive a round trip, and an
+extension shared by several formats resolved by what the file holds.</p>
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
