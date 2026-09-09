@@ -6,8 +6,8 @@ Changelog
 
 .. _changes_0.4.1:
 
-0.4.1 (upcoming)
-----------------
+0.4.1 (2026-09-09)
+------------------
 
 0.4.0 reached PyPI only after its release workflow was repaired and re-run by
 hand, and its documentation never reached the site at all. Every one of the
@@ -43,6 +43,31 @@ Bug fixes
   tag. A tag is immutable, so a tag whose documentation cannot build had no
   way to reach the site at all; a manual run now chooses the tree to build
   separately from the version directory it publishes as.
+
+
+GitHub stats for 2026/09/09 - 2026/09/09 (tag: v0.4.0)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 1 authors contributed 10 commits.
+
+* Serge Koudoro
+
+
+We closed a total of 7 issues, 6 pull requests and 1 regular issues.
+
+Pull Requests (6):
+
+* :ghpull:`64`: DOC: the 0.4.1 notes say what the release machinery got wrong
+* :ghpull:`63`: BF: a version can be published from a ref that is not its tag
+* :ghpull:`62`: BF: the release notes reach gh through the environment
+* :ghpull:`61`: BF: the new upcoming section opens the changelog, not the middle
+* :ghpull:`60`: DOC: the README and the guides say what 0.4.0 added
+* :ghpull:`59`: NF: OBJ keeps the texture coordinates a seam gives two of
+
+Issues (1):
+
+* :ghissue:`58`: OBJ codec: texture coordinates (vt) parsed but not stored in vertex\_attrs
 
 .. _changes_0.4.0:
 
