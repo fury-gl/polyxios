@@ -98,7 +98,7 @@ python_version = "3.11"
 ignore_missing_imports = true
 
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-*"
+build = "cp311-* cp312-* cp313-* cp314-*"
 skip = ["*-musllinux_*", "*-win32"]
 
 [tool.cibuildwheel.macos]

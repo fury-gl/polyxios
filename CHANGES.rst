@@ -9,7 +9,24 @@ Changelog
 0.5.0 (upcoming)
 ----------------
 
-(No entries yet.)
+Bug fixes
+~~~~~~~~~
+
+- A TetGen pair in a directory the process cannot search is reported as the
+  permission error it is on Python 3.14 too. The codec asked
+  ``Path.exists``, which answered False there rather than propagating the
+  refusal - 3.14 changed it to - so a file that was on disk was reported
+  missing and the caller was sent looking for a path already there. The
+  question is asked with ``stat`` now, which refuses on every version and
+  says by errno which case it is.
+
+Tests
+~~~~~
+
+- Python 3.14 is in the test matrix and among the wheels built for a
+  release. It was the one supported version nothing exercised, and the
+  ``Path.exists`` change above reached a packaged build before any test saw
+  it.
 
 .. _changes_0.4.1:
 
