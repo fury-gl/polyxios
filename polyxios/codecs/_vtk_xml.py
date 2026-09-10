@@ -12,7 +12,7 @@ import base64
 from collections.abc import Callable, Sequence
 import math
 import re
-from typing import Any, TypeVar
+from typing import Any
 import warnings
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
@@ -64,12 +64,6 @@ _GRID_AXES: dict[int, int] = {
 
 # The widest point index an int32 connectivity array can name.
 _INT32_MAX: int = int(np.iinfo(np.int32).max)
-
-# What one entry of a block of arrays holds. Only the names are looked at
-# where this is used, so the numeric arrays and the text ones go through the
-# same check without either losing its type on the way out.
-_Held = TypeVar("_Held")
-
 
 # What an array name has to be spelled as to survive the attribute it is
 # written into. The markup characters close the attribute early and leave a
@@ -251,15 +245,17 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
         ) from exc
 
 
-def spellable_arrays(
-    arrays: dict[str, _Held], *, fmt: str, kind: str, stacklevel: int = 3
-) -> dict[str, _Held]:
+def spellable_arrays[Held](
+    arrays: dict[str, Held], *, fmt: str, kind: str, stacklevel: int = 3
+) -> dict[str, Held]:
     """Drop the arrays whose names no XML attribute can hold.
 
     Parameters
     ----------
     arrays
-        The arrays a data section is about to write.
+        The arrays a data section is about to write. Only the names are
+        looked at, so numeric arrays and text ones go through the same check
+        without either losing the type it was held as on the way out.
     fmt
         The format's extension, for the warning naming what was dropped.
     kind

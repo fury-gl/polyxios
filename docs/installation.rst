@@ -2,7 +2,7 @@ Installation
 ============
 
 .. meta::
-   :description: Install polyxios with pip or conda, or build it from source with spin. Requires Python 3.11+ and NumPy; the Cython accelerators are optional and pure-Python fallbacks ship with the package.
+   :description: Install polyxios with pip or conda, or build it from source with spin. Requires Python 3.12+ and NumPy; the Cython accelerators are optional and pure-Python fallbacks ship with the package.
 
 
 pip (recommended)
@@ -37,7 +37,7 @@ to manage the build:
 Dependencies
 ------------
 
-- Python >= 3.11
+- Python >= 3.12
 - NumPy >= 1.24
 
 Optional:
