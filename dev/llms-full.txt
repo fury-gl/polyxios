@@ -4174,7 +4174,22 @@ Changelog
 
 0.5.0 (upcoming)
 
-(No entries yet.)
+Bug fixes
+
+A TetGen pair in a directory the process cannot search is reported as the
+permission error it is on Python 3.14 too. The codec asked
+Path.exists, which answered False there rather than propagating the
+refusal - 3.14 changed it to - so a file that was on disk was reported
+missing and the caller was sent looking for a path already there. The
+question is asked with stat now, which refuses on every version and
+says by errno which case it is.
+
+Tests
+
+Python 3.14 is in the test matrix and among the wheels built for a
+release. It was the one supported version nothing exercised, and the
+Path.exists change above reached a packaged build before any test saw
+it.
 
 
 
@@ -4186,6 +4201,8 @@ bugs was in the machinery rather than the library, so 0.4.1 is the same code,
 released the way a release is meant to run.
 
 Bug fixes
+
+../CHANGES.rst:42: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -4528,7 +4545,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:349: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:366: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -5493,6 +5510,8 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
+../CHANGES.rst:1226: (INFO/1) Duplicate implicit target name: “tests”.
+
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
 writer, a binary legacy TENSORS section, an unterminated METADATA
@@ -5575,7 +5594,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1277: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1294: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5623,7 +5642,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1308: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1325: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5638,7 +5657,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1320: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1337: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5744,7 +5763,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1393: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1410: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
