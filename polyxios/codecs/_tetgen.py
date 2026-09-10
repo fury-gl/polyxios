@@ -119,17 +119,25 @@ def _pair_paths(path: Path) -> tuple[Path, Path]:
 def _exists(path: Path) -> bool:
     """Return whether ``path`` is on disk, as a CodecError when that is unknown.
 
-    ``Path.exists`` answers False for a name that is absent but propagates the
-    OSError for one it is not allowed to look at, so a directory the process
-    cannot search would otherwise raise a bare ``PermissionError`` out of a
-    codec whose contract is ``CodecError``. Answering False instead would be
-    worse than either: a file that is on disk would be reported missing, and
-    the caller would go looking for a path that is already there.
+    A name that is absent answers False, and one the process is not allowed to
+    look at raises ``CodecError``: a bare ``PermissionError`` would escape a
+    codec whose contract is ``CodecError``, and answering False would be worse
+    than either, since a file that is on disk would be reported missing and the
+    caller would go looking for a path that is already there.
+
+    The question is asked with ``stat`` rather than ``Path.exists``. Python
+    3.14 made ``exists`` answer False for a path it cannot reach instead of
+    propagating the error, which is precisely the answer this must not give;
+    ``stat`` still refuses, on every version, and its errno says which case it
+    is.
     """
     try:
-        return path.exists()
+        path.stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return False
     except OSError as exc:
         raise CodecError(f".tetgen: cannot check for '{path}': {exc}") from exc
+    return True
 
 
 def _find_half(path: Path, suffix: str) -> Path:
