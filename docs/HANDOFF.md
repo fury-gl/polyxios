@@ -18,7 +18,7 @@ sphinx-docs/
   _ext/contributors.py        credits page contributor list, from git
   _ext/seo.py                 canonical/noindex tags + llms.txt generation
   credits.rst                 core team + generated contributor list
-  _templates/py-version.html  the "py>=3.11" navbar chip
+  _templates/py-version.html  the "py>=3.12" navbar chip
   _templates/sidebar-nav-bs.html  full-tree section navigation (see below)
   _templates/navbar-nav.html      the four fixed header links
   usage.rst                   quickstart, now pointing at the split-out pages

@@ -9,6 +9,16 @@ Changelog
 0.5.0 (upcoming)
 ----------------
 
+Behaviour changes
+~~~~~~~~~~~~~~~~~
+
+- Python 3.12 is the lowest version supported. 3.11 is dropped from the test
+  matrix, from the wheels a release builds, and from ``requires-python``, so
+  pip resolves an older polyxios for a 3.11 interpreter rather than
+  installing a package that will not run. The floor is what the language
+  level is now written against: the type-parameter syntax 3.12 introduced is
+  in use where a generic helper needed a type variable declared beside it.
+
 Bug fixes
 ~~~~~~~~~
 
