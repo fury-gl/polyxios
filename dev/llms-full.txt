@@ -20,7 +20,7 @@ Source: https://polyxios.org/stable/index.html
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
-  "runtimePlatform": "Python 3.11+",
+  "runtimePlatform": "Python 3.12+",
   "license": "https://github.com/fury-gl/polyxios/blob/master/LICENSE",
   "applicationCategory": "DeveloperApplication",
   "keywords": [
@@ -259,7 +259,7 @@ spin install -e  # editable install - source changes reflected immediately
 
 Dependencies
 
-Python >= 3.11
+Python >= 3.12
 
 NumPy >= 1.24
 
@@ -4174,6 +4174,15 @@ Changelog
 
 0.5.0 (upcoming)
 
+Behaviour changes
+
+Python 3.12 is the lowest version supported. 3.11 is dropped from the test
+matrix, from the wheels a release builds, and from requires-python, so
+pip resolves an older polyxios for a 3.11 interpreter rather than
+installing a package that will not run. The floor is what the language
+level is now written against: the type-parameter syntax 3.12 introduced is
+in use where a generic helper needed a type variable declared beside it.
+
 Bug fixes
 
 A TetGen pair in a directory the process cannot search is reported as the
@@ -4202,7 +4211,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:42: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:52: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -4509,6 +4518,8 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
+../CHANGES.rst:340: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
 global_attrs["medit_dimension"], which is now the shared spelling
@@ -4545,7 +4556,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:366: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:376: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -5510,7 +5521,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1226: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1236: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -5594,7 +5605,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1294: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1304: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5642,7 +5653,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1325: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1335: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5657,7 +5668,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1337: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1347: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5763,7 +5774,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1410: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1420: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

@@ -234,7 +234,7 @@ body::after {
 }
 .version-switcher__menu a.list-group-item::before { content: "> "; color: var(--px-dim); }
 
-/* the "py>=3.11" chip that rides beside the switcher */
+/* the "py>=3.12" chip that rides beside the switcher */
 .px-pyversion {
   color: var(--px-dim);
   font-size: 0.74rem;

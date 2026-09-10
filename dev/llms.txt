@@ -44,5 +44,5 @@ polyxios reads and writes 27 3D mesh and geometry file formats through one API, 
 - [API Reference](https://polyxios.org/stable/api/index.html): Complete reference for all public functions, types, and exceptions.
 - [Contributing](https://polyxios.org/stable/contributing.html): Every commit subject line must start with one of these prefixes followed by a space:
 - [Development Guide](https://polyxios.org/stable/development.html): polyxios uses spin to manage the development workflow. All common tasks - building, testing, linting, and documentation - are available as spin sub-commands.
-- [Changelog](https://polyxios.org/stable/changelog.html): A TetGen pair in a directory the process cannot search is reported as the permission error it is on Python 3.14 too. The codec asked Path.exists, which…
+- [Changelog](https://polyxios.org/stable/changelog.html): Python 3.12 is the lowest version supported. 3.11 is dropped from the test matrix, from the wheels a release builds, and from requires-python, so pip resolves…
 - [Credits](https://polyxios.org/stable/credits.html): polyxios is developed in the open under the FURY umbrella. Every codec, test and page in these docs came from someone’s spare evening.

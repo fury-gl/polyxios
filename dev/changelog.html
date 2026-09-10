@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): Bug fixes: A TetGen pair in a directory the process cannot search is reported as the permission error it is on Python 3.14 too. The codec asked Path.exists, which answered False t..." />
+<meta property="og:description" content="0.5.0 (upcoming): Behaviour changes: Python 3.12 is the lowest version supported. 3.11 is dropped from the test matrix, from the wheels a release builds, and from requires-python, so pip resolves a..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_a3390f5c.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): Bug fixes: A TetGen pair in a directory the process cannot search is reported as the permission error it is on Python 3.14 too. The codec asked Path.exists, which answered False t..." />
-<meta name="description" content="0.5.0 (upcoming): Bug fixes: A TetGen pair in a directory the process cannot search is reported as the permission error it is on Python 3.14 too. The codec asked Path.exists, which answered False t..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_331215c7.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): Behaviour changes: Python 3.12 is the lowest version supported. 3.11 is dropped from the test matrix, from the wheels a release builds, and from requires-python, so pip resolves a..." />
+<meta name="description" content="0.5.0 (upcoming): Behaviour changes: Python 3.12 is the lowest version supported. 3.11 is dropped from the test matrix, from the wheels a release builds, and from requires-python, so pip resolves a..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -44,7 +44,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=afa9f044" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=2bcd6e12"></script>
+    <script src="_static/documentation_options.js?v=bb8530a4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -209,7 +209,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -349,7 +349,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -538,6 +538,17 @@
 <span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
 <section id="upcoming">
 <span id="changes-0-5-0"></span><h2>0.5.0 (upcoming)<a class="headerlink" href="#upcoming" title="Link to this heading">#</a></h2>
+<section id="behaviour-changes">
+<h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Python 3.12 is the lowest version supported. 3.11 is dropped from the test
+matrix, from the wheels a release builds, and from <code class="docutils literal notranslate"><span class="pre">requires-python</span></code>, so
+pip resolves an older polyxios for a 3.11 interpreter rather than
+installing a package that will not run. The floor is what the language
+level is now written against: the type-parameter syntax 3.12 introduced is
+in use where a generic helper needed a type variable declared beside it.</p></li>
+</ul>
+</section>
 <section id="bug-fixes">
 <h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
@@ -842,8 +853,8 @@ the split left, and a copy takes what the vertex it came from takes. The
 warning about the values it drops now names the option that keeps them.</p></li>
 </ul>
 </section>
-<section id="behaviour-changes">
-<h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
+<section id="id5">
+<h3>Behaviour changes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Medit <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> records a two-dimensional file in
 <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> rather than keeping the file’s own number in
@@ -878,8 +889,8 @@ buffer does, so the bytes a path receives and the bytes a <code class="docutils 
 receives are the same ones. Every reader already accepted either ending.</p></li>
 </ul>
 </section>
-<section id="id5">
-<h3>Bug fixes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
+<section id="id6">
+<h3>Bug fixes<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> header names between one and four components
 and no more. The writer spelled every tuple it had no <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or
@@ -1711,8 +1722,8 @@ the corners rather than a numpy row assignment per corner.</p></li>
 of a formatted write per point, which was a syscall per line.</p></li>
 </ul>
 </section>
-<section id="id6">
-<h3>Tests<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<section id="id7">
+<h3>Tests<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Regression tests for the dtype a <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -1768,11 +1779,11 @@ cannot join the registry without an entry.</p></li>
 </section>
 </section>
 <section id="changes-0-3-0">
-<span id="id7"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
+<span id="id8"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
 <p>Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.</p>
-<section id="id8">
-<h3>New features<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
+<section id="id9">
+<h3>New features<a class="headerlink" href="#id9" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:</p>
@@ -1804,8 +1815,8 @@ free, small and large field formats.</p></li>
 a credits page generated from the git history, and a page per format.</p></li>
 </ul>
 </section>
-<section id="id9">
-<h3>Changes<a class="headerlink" href="#id9" title="Link to this heading">#</a></h3>
+<section id="id10">
+<h3>Changes<a class="headerlink" href="#id10" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -1817,8 +1828,8 @@ and resolves destination paths defensively.</p></li>
 as errors.</p></li>
 </ul>
 </section>
-<section id="id10">
-<h3>Bug fixes<a class="headerlink" href="#id10" title="Link to this heading">#</a></h3>
+<section id="id11">
+<h3>Bug fixes<a class="headerlink" href="#id11" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
@@ -1879,10 +1890,10 @@ multiblock partial loading and visualization colours.</p></li>
 </section>
 </section>
 <section id="changes-0-2-0">
-<span id="id11"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id12"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id12">
-<h3>New features<a class="headerlink" href="#id12" title="Link to this heading">#</a></h3>
+<section id="id13">
+<h3>New features<a class="headerlink" href="#id13" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -1974,6 +1985,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.5.0 (upcoming)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
 </ul>
@@ -1984,20 +1996,20 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-0">0.4.0 (2026-09-09)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Behaviour changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optimizations">Optimizations</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Tests</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Tests</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">New features</a></li>
 </ul>
 </li>
 </ul>
