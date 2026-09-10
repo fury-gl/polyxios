@@ -9,6 +9,33 @@ Changelog
 0.5.0 (upcoming)
 ----------------
 
+New features
+~~~~~~~~~~~~
+
+- PERMAS decks are read and written: ``.dato``, ``.post``, and ``.dat`` when
+  the file opens with a PERMAS record, gzip included. ``$COOR`` nodes and
+  ``$ELEMENT`` cells come back renumbered from zero with the deck's own
+  numbering kept under ``original_ids``; every ``$NSET`` and ``$ESET`` is a
+  tag, as is the ``NSET =`` a ``$COOR`` record names and the ``ESET =`` an
+  ``$ELEMENT`` record names; a ``&`` continuation line joins the record
+  before it; and the component name is kept under
+  ``global_attrs["permas_component"]`` when it is not the default. The
+  solver element class is read as its geometry - ``SHELL4``, ``LOADA4`` and
+  ``QUAD4`` are all a quad - and written as the plain structural class of
+  that geometry unless ``element_type=`` names another, the way the Abaqus
+  writer takes it. A block of a class with no geometry here is skipped with
+  a warning, an id spelled twice, not positive or wider than 64 bits, a node
+  the deck never declares or a file with no ``$`` record is refused, as is a ``$COOR`` block flagged ``CYL``
+  or ``SPH``, a coordinate may carry a Fortran ``D`` exponent, and the
+  writer keeps the mesh's element order by opening a new ``$ELEMENT TYPE =``
+  block wherever the geometry changes; a planar mesh is lifted with a zero
+  z. Nothing in a structure section carries per-entity data, so attributes
+  are dropped on write. ``.dat`` now has three candidates, and the PERMAS
+  test - an ``$ENTER`` section or one of a handful of ``$`` keywords spelled
+  the way the format spells them, so a bulk data banner sitting flush
+  against its ``$`` is not claimed - is tried ahead of Tecplot's and
+  Nastran's.
+
 Behaviour changes
 ~~~~~~~~~~~~~~~~~
 

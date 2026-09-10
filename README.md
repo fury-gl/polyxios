@@ -185,19 +185,21 @@ file like any other read.
 | UGRID (AFLR) | `.ugrid` | ✓ | ✓ | ASCII, tri/quad surface + tet/pyramid/prism/hex volume, boundary tags → element tags |
 | Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only |
 | Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
+| PERMAS | `.dato` `.post` `.dat`* | ✓ | ✓ | ASCII, `$NSET`/`$ESET` → tags, free numbering → `original_ids`, `element_type=` picks the solver class |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
-in the Tecplot codec, a bulk data card in the Nastran one, and anything else reports both
-candidates. Writing to `.dat` needs an explicit `fmt=`. `.mesh` is MFEM's own extension and
-Medit ASCII shares it: a file opening with `MeshVersionFormatted` reads as Medit, one opening
-with `MFEM mesh` reads as MFEM, and a bare write goes to MFEM.
+in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
+one, and anything else reports the candidates. Writing to `.dat` needs an explicit `fmt=`.
+`.mesh` is MFEM's own extension and Medit ASCII shares it: a file opening with
+`MeshVersionFormatted` reads as Medit, one opening with `MFEM mesh` reads as MFEM, and a bare
+write goes to MFEM.
 
 `.vtm`, `.pvtu`, `.pvts`, `.pvti`, `.pvtp` and `.pvtr` are registered too, but they hold no
 geometry - only references to sub-files. Reading one raises `UnsupportedFormatError` pointing
 at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
 them is not supported.
 
-**27 formats supported** across the 31 extensions in the table, plus `.plt`, which
+**28 formats supported** across the 33 extensions in the table, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

@@ -15,6 +15,7 @@ py.install_sources(
     '_nastran.py',
     '_netgen.py',
     '_off.py',
+    '_permas.py',
     '_splat.py',
     '_stl.py',
     '_su2.py',
