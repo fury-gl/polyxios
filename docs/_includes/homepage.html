@@ -41,7 +41,7 @@
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all twenty-eight - and raises instead of quietly corrupting
+        writes all twenty-nine - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -110,7 +110,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/medit.html"><span>Medit ASCII</span><span class="px-ext">.mesh .medit</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh*</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -125,7 +125,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 28 codecs, the 33 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, and resolved by content</p>
+      <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 29 codecs, the 34 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -196,7 +197,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a twenty-ninth format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirtieth format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">

@@ -1,5 +1,6 @@
 """Gmsh .msh ASCII codec - read (v2.2 and v4.1) + write (v2.2)."""
 
+import re
 from typing import Any
 import warnings
 
@@ -19,6 +20,13 @@ from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".msh"
+# '.msh' is ANSYS Fluent's extension as well, so it is shared rather than
+# owned: the two are told apart by what the file opens with. Gmsh keeps the
+# writes, since an output file has no content to sniff and '.msh' has meant
+# Gmsh here since before Fluent was read at all.
+SNIFF_EXTENSIONS: tuple[str, ...] = (".msh",)
+SNIFF_DEFAULT_WRITER: bool = True
+SNIFF_PRIORITY: int = 0
 
 # Gmsh element type code → (polyxios name, n_nodes). Numbering is fixed by the
 # MSH specification and is shared by every format version.
@@ -167,6 +175,31 @@ _WRITE_ENCODING: str = "utf-8"
 
 # Default coordinate format: 17 significant digits round-trip a float64 exactly.
 _DEFAULT_FLOAT_FMT: str = ".17g"
+_BOM = b"\xef\xbb\xbf"
+# The first non-blank line, whole: ``$MeshFormat`` and nothing after it.
+_SNIFF_RE = re.compile(rb"\$MeshFormat[ \t]*(?:\r?\n|$)")
+
+
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like a Gmsh mesh.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes, as handed over by the registry.
+
+    Returns
+    -------
+    bool
+        True when the first non-blank line is ``$MeshFormat``, which every
+        MSH revision opens with.
+
+    Notes
+    -----
+    Used to resolve ``.msh``, which Fluent shares. A byte-order mark does
+    not hide the first section.
+    """
+    return _SNIFF_RE.match(head.removeprefix(_BOM).lstrip()) is not None
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:

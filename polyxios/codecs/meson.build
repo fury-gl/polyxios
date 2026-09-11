@@ -8,6 +8,7 @@ py.install_sources(
     '_avs.py',
     '_dolfin.py',
     '_flac3d.py',
+    '_fluent.py',
     '_gmsh.py',
     '_mdpa.py',
     '_medit.py',

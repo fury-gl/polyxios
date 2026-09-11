@@ -194,7 +194,7 @@ describing what is read, what is written and what is dropped.
 | Medit ASCII | `.mesh`* `.medit` | ✓ | ✓ | reference integers → tags; write with `fmt=".medit"` |
 | DOLFIN / FEniCS XML | `.xml` | ✓ | ✓ | interval/triangle/tetrahedron meshes |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
-| Gmsh | `.msh` | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
+| Gmsh | `.msh`* | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
 | Nastran | `.bdf` `.nas` `.fem` `.dat`* | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request |
 | Tecplot ASCII | `.tec` `.dat`* | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; binary `.plt` is recognised but not read |
 | SU2 | `.su2` | ✓ | ✓ | ASCII, VTK element codes, boundary markers → element tags |
@@ -209,20 +209,22 @@ describing what is read, what is written and what is dropped.
 | Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only |
 | Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
 | PERMAS | `.dato` `.post` `.dat`* | ✓ | ✓ | ASCII, `$NSET`/`$ESET` → tags, free numbering → `original_ids`, `element_type=` picks the solver class |
+| ANSYS Fluent | `.msh`* `.fluent` | ✓ | ✓ | ASCII + binary sections, cells assembled from faces, zones → element tags, boundary faces read as elements; write with `fmt="fluent"` |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
 one, and anything else reports the candidates. Writing to `.dat` needs an explicit `fmt=`.
 `.mesh` is MFEM's own extension and Medit ASCII shares it: a file opening with
 `MeshVersionFormatted` reads as Medit, one opening with `MFEM mesh` reads as MFEM, and a bare
-write goes to MFEM.
+write goes to MFEM. `.msh` is Gmsh's and ANSYS Fluent shares it the same way: `$MeshFormat`
+reads as Gmsh, a parenthesised section reads as Fluent, and a bare write goes to Gmsh.
 
 `.vtm`, `.pvtu`, `.pvts`, `.pvti`, `.pvtp` and `.pvtr` are registered too, but they hold no
 geometry - only references to sub-files. Reading one raises `UnsupportedFormatError` pointing
 at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
 them is not supported.
 
-**28 formats supported** across the 33 extensions in the table, plus `.plt`, which
+**29 formats supported** across the 34 extensions in the table, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

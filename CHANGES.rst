@@ -12,6 +12,35 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- ANSYS Fluent meshes are read and written: ``.msh`` when the file opens with
+  a parenthesised section, and ``.fluent`` to name the codec on a write,
+  gzip included. A Fluent mesh is its faces, each naming the cell on either
+  side, so a cell comes back assembled from them as the tetrahedron,
+  hexahedron, wedge or pyramid - in the plane the triangle, quadrilateral or
+  polygon - they close, right-handed whatever the faces' own orientation;
+  one whose faces close none of those, a polyhedron or a hanging-node
+  refinement among them, is dropped with a warning. Every face of a zone
+  that is not interior comes back as an element of its own, tagged with the
+  zone's name and linked to its cell through ``face_parent`` /
+  ``face_index``, a non-conformal interface's faces by the type under
+  their 1000 offset; each zone is a tag, named by its ``(45 ...)`` record or
+  ``<type>-<id>`` without one, and the zone types travel under
+  ``global_attrs["fluent_zone_types"]``. The ASCII and binary flavours of
+  the node, cell and face sections are both read - a double-precision
+  section's integers in either width - as are the explicit node lists
+  another reader writes under a typed cell zone; a binary section of
+  another kind is stepped over by its end marker. The writer spells the
+  standard face-based ASCII file: one cell zone per element tag group, the
+  faces of every cell with the cell on either side, outward of the cell
+  whatever its handedness in the mesh, and the boundary in a
+  zone per group naming the matching face elements, ``wall`` for the rest.
+  A mesh of triangles and quadrilaterals is a two-dimensional file, which
+  Fluent holds in the plane only, so a surface off the plane is refused. A
+  face element that is no side of a written cell, an element of any other
+  type and a member of a second group are each dropped with a warning.
+  ``.msh`` is now shared by Gmsh and Fluent and resolved by content; a bare
+  write there is still Gmsh.
+
 - PERMAS decks are read and written: ``.dato``, ``.post``, and ``.dat`` when
   the file opens with a PERMAS record, gzip included. ``$COOR`` nodes and
   ``$ELEMENT`` cells come back renumbered from zero with the deck's own

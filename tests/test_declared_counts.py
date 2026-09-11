@@ -40,6 +40,7 @@ CORRUPT: dict[str, str] = {
         "MeshVersionFormatted 1\nDimension\n3\nVertices\n3\n"
         f"0 0 0 0\n1 0 0 0\n0 1 0 0\nTriangles\n{BIG}\n1 2 3 0\nEnd\n"
     ),
+    ".fluent": f"(2 3)\n(10 (0 1 {BIG:x} 0))\n(10 (1 1 1 1 3)(\n0 0 0\n))\n",
     ".msh": (
         "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"
         f"$Nodes\n{BIG}\n1 0 0 0\n$EndNodes\n"
