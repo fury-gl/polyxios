@@ -9,7 +9,47 @@ description = "Fast 3D file format I/O and processing library"
 readme = "README.md"
 requires-python = ">=3.12"
 license.file = "LICENSE"
+authors = [{ name = "Serge Koudoro", email = "skab12@gmail.com" }]
+maintainers = [{ name = "FURY developers", email = "skab12@gmail.com" }]
+keywords = [
+    "mesh",
+    "3d",
+    "io",
+    "vtk",
+    "ply",
+    "stl",
+    "obj",
+    "gmsh",
+    "abaqus",
+    "nastran",
+    "finite-element",
+    "scientific-computing",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: File Formats",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
 dependencies = ["numpy>=1.24"]
+
+[project.urls]
+Homepage = "https://polyxios.org"
+Documentation = "https://polyxios.org/stable/"
+Changelog = "https://polyxios.org/stable/changelog.html"
+Issues = "https://github.com/fury-gl/polyxios/issues"
+Source = "https://github.com/fury-gl/polyxios"
 
 [project.optional-dependencies]
 dev = [
