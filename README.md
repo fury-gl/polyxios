@@ -2,6 +2,21 @@
 
 **Fast, clean mesh I/O for Python.** Read and write 3D mesh files in one line - no hidden surprises, no silent data corruption.
 
+[![PyPI](https://img.shields.io/pypi/v/polyxios.svg)](https://pypi.org/project/polyxios/)
+[![conda-forge](https://img.shields.io/conda/vn/conda-forge/polyxios.svg)](https://anaconda.org/conda-forge/polyxios)
+[![Python](https://img.shields.io/pypi/pyversions/polyxios.svg)](https://pypi.org/project/polyxios/)
+[![License](https://img.shields.io/pypi/l/polyxios.svg)](https://github.com/fury-gl/polyxios/blob/master/LICENSE)
+[![Tests](https://github.com/fury-gl/polyxios/actions/workflows/test.yml/badge.svg)](https://github.com/fury-gl/polyxios/actions/workflows/test.yml)
+
+**Documentation: [polyxios.org](https://polyxios.org)**
+
+- [Installation](https://polyxios.org/stable/installation.html)
+- [User guide](https://polyxios.org/stable/usage.html)
+- [Supported formats](https://polyxios.org/stable/formats/index.html)
+- [API reference](https://polyxios.org/stable/api/index.html)
+- [Changelog](https://polyxios.org/stable/changelog.html)
+- [Issue tracker](https://github.com/fury-gl/polyxios/issues)
+
 ---
 
 ## Install
@@ -47,6 +62,8 @@ px.write(mesh, "brain.ply", binary=True, endian="little")
 
 ## Files, buffers and streams
 
+Full details in the [user guide](https://polyxios.org/stable/usage.html).
+
 Anything with a `read` or a `write` works where a path does, so a mesh never
 has to touch disk:
 
@@ -89,6 +106,7 @@ and no embedded name, so the same mesh always produces the same bytes.
 ## Command Line Interface (pxios)
 
 polyxios comes with a command-line interface `pxios` to quickly fetch, list, convert, and visualize 3D models.
+The [CLI reference](https://polyxios.org/stable/cli.html) documents every flag.
 
 ### Subcommands
 
@@ -125,6 +143,8 @@ pxios viz bunny.obj
 
 ## Lazy loading - work with large files without filling RAM
 
+See the [lazy loading guide](https://polyxios.org/stable/lazy_loading.html) for the full picture.
+
 For large meshes (gigabytes of binary data), pass `lazy=True`. polyxios
 memory-maps the file and only loads the pages you actually touch - the rest
 stays on disk until needed.
@@ -155,6 +175,9 @@ file like any other read.
 ---
 
 ## Supported formats
+
+Each format has its own page at [polyxios.org/stable/formats](https://polyxios.org/stable/formats/index.html)
+describing what is read, what is written and what is dropped.
 
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
@@ -204,6 +227,8 @@ is recognised but not read - more coming via the plugin system.
 
 ## Transforms
 
+The [transforms reference](https://polyxios.org/stable/transforms.html) lists every transform and its options.
+
 Every transform takes a `PolyData` and returns a new one - nothing is modified
 in place - so they compose freely.
 
@@ -250,7 +275,8 @@ combined = merge(mesh_a, mesh_b)
 ## Add your own format
 
 Any third-party package can teach polyxios to read and write a new format -
-no fork required, no pull request needed.
+no fork required, no pull request needed. The [plugin guide](https://polyxios.org/stable/plugins.html)
+walks through the whole process.
 
 **Step 1 - write a codec** (two functions, nothing more):
 
@@ -314,9 +340,9 @@ spin install -e  # editable install (source changes reflected immediately)
 | `spin clean` | Remove build artifacts and `__pycache__` |
 | `spin release <version>` | Cut a release: bump version, tag, push, start next dev cycle |
 
-See [`docs/contributing.rst`](docs/contributing.rst) for commit message
-conventions and the full contributor guide.
-For the full release workflow see [`docs/development.rst`](docs/development.rst).
+See the [contributor guide](https://polyxios.org/stable/contributing.html) for commit message
+conventions and the review process.
+For the full release workflow see the [development guide](https://polyxios.org/stable/development.html).
 
 ---
 
@@ -328,6 +354,16 @@ For the full release workflow see [`docs/development.rst`](docs/development.rst)
 - **Memory-efficient** - lazy mmap loading for large binary files
 - **Paths, buffers and gzip alike** - one API over files, streams and `.gz`
 - **Works without a compiler** - pure Python fallbacks included; Cython hot-paths optional
+
+---
+
+## Links
+
+- Website and documentation: [polyxios.org](https://polyxios.org)
+- Source code: [github.com/fury-gl/polyxios](https://github.com/fury-gl/polyxios)
+- Bug reports and feature requests: [issue tracker](https://github.com/fury-gl/polyxios/issues)
+- Releases: [PyPI](https://pypi.org/project/polyxios/) and [conda-forge](https://anaconda.org/conda-forge/polyxios)
+- Changelog: [polyxios.org/stable/changelog.html](https://polyxios.org/stable/changelog.html)
 
 ---
 

@@ -38,6 +38,16 @@ Tests
   ``Path.exists`` change above reached a packaged build before any test saw
   it.
 
+Packaging
+~~~~~~~~~
+
+- The PyPI page now carries the project links (homepage, documentation,
+  changelog, issue tracker, source), trove classifiers, keywords and an
+  author, none of which the distribution declared before. The README links
+  to polyxios.org from its head and from each section that has a fuller
+  page on the site, and the two links that pointed at ``docs/*.rst`` by
+  relative path, which rendered broken on PyPI, now point at the site.
+
 .. _changes_0.4.1:
 
 0.4.1 (2026-09-09)
