@@ -267,6 +267,13 @@ CAPABILITIES: dict[str, Cap] = {
         element_tags=("pid_1",),
         note="A bulk deck carries property ids, not named groups or fields.",
     ),
+    ".dato": Cap(
+        "mixed",
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        note="A PERMAS structure section carries node and element sets and"
+        " nothing per entity, so attributes have no record to land in.",
+    ),
     ".ele": Cap(
         "volume",
         vertex_attrs=("attr_0",),
@@ -485,7 +492,7 @@ CAPABILITIES: dict[str, Cap] = {
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
-_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node"})
+_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node", ".post"})
 
 # Registered so the error names the format, never to be written. Each is
 # asserted below, so an entry cannot be parked here to escape the matrix.

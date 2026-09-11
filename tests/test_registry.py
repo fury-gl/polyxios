@@ -89,7 +89,7 @@ def test_dat_matching_no_codec_names_the_candidates(tmp_path) -> None:
     """The ambiguity is reported, never guessed at."""
     path = tmp_path / "table.dat"
     path.write_text(_TABLE_DAT)
-    with pytest.raises(UnsupportedFormatError, match="tecplot, nastran"):
+    with pytest.raises(UnsupportedFormatError, match="permas, tecplot, nastran"):
         polyxios.read(path)
 
 
@@ -102,7 +102,7 @@ def test_dat_write_refuses_to_guess(tmp_path) -> None:
 def test_the_dispatcher_names_its_candidates() -> None:
     """The candidate list is readable, so no caller has to hard-code it."""
     registry = build_default_registry()
-    assert registry[".dat"].candidates == ("tecplot", "nastran")
+    assert registry[".dat"].candidates == ("permas", "tecplot", "nastran")
     # A codec that is one format competes with nobody and says so.
     assert registry[".tec"].candidates == ()
 
@@ -141,19 +141,21 @@ def test_every_sniffer_raising_leaves_the_ambiguity_reported(
 ) -> None:
     """A broken sniffer must not turn the ambiguity into a crash."""
     import polyxios.codecs._nastran as nastran
+    import polyxios.codecs._permas as permas
     import polyxios.codecs._tecplot as tecplot
 
     def _boom(head: bytes) -> bool:
         raise RuntimeError("sniffer is broken")
 
     monkeypatch.setattr(nastran, "sniff", _boom, raising=True)
+    monkeypatch.setattr(permas, "sniff", _boom, raising=True)
     monkeypatch.setattr(tecplot, "sniff", _boom, raising=True)
     registry = build_default_registry()
 
     path = tmp_path / "mesh.dat"
     path.write_text(_TECPLOT_DAT)
     with pytest.warns(UserWarning, match="sniffer raised"):
-        with pytest.raises(UnsupportedFormatError, match="tecplot, nastran"):
+        with pytest.raises(UnsupportedFormatError, match="permas, tecplot, nastran"):
             polyxios.read(path, registry=registry)
 
 
@@ -182,12 +184,14 @@ def test_every_sniffer_raising_is_not_reported_as_a_verdict(
 ) -> None:
     """No sniffer answered, so the error must not claim the content matched none."""
     import polyxios.codecs._nastran as nastran
+    import polyxios.codecs._permas as permas
     import polyxios.codecs._tecplot as tecplot
 
     def _boom(head: bytes) -> bool:
         raise RuntimeError("sniffer is broken")
 
     monkeypatch.setattr(nastran, "sniff", _boom, raising=True)
+    monkeypatch.setattr(permas, "sniff", _boom, raising=True)
     monkeypatch.setattr(tecplot, "sniff", _boom, raising=True)
     registry = build_default_registry()
 
@@ -268,19 +272,26 @@ def test_a_window_that_did_not_fill_keeps_its_last_line(tmp_path) -> None:
 
 
 def test_a_narrow_sniffer_is_tried_before_a_broad_one() -> None:
-    """SNIFF_PRIORITY orders the attempts; Tecplot's test is the narrow one."""
+    """SNIFF_PRIORITY orders the attempts, the narrowest test first.
+
+    PERMAS opens with one of a handful of ``$`` keywords, Tecplot with a
+    header record, and a Nastran deck with any of hundreds of cards.
+    """
     import polyxios.codecs._nastran as nastran
+    import polyxios.codecs._permas as permas
     import polyxios.codecs._tecplot as tecplot
 
-    assert tecplot.SNIFF_PRIORITY < nastran.SNIFF_PRIORITY
+    assert permas.SNIFF_PRIORITY < tecplot.SNIFF_PRIORITY < nastran.SNIFF_PRIORITY
 
 
 def test_a_malformed_sniff_extensions_contests_nothing(monkeypatch) -> None:
     """Same shape guard as EXTENSIONS: a bare string is not a sequence."""
     import polyxios.codecs._nastran as nastran
+    import polyxios.codecs._permas as permas
     import polyxios.codecs._tecplot as tecplot
 
     monkeypatch.setattr(nastran, "SNIFF_EXTENSIONS", ".dat", raising=True)
+    monkeypatch.setattr(permas, "SNIFF_EXTENSIONS", ".dat", raising=True)
     monkeypatch.setattr(tecplot, "SNIFF_EXTENSIONS", ".dat", raising=True)
     registry = build_default_registry()
     assert ".dat" not in registry
@@ -290,9 +301,11 @@ def test_a_malformed_sniff_extensions_contests_nothing(monkeypatch) -> None:
 def test_a_codec_without_a_sniffer_cannot_contest(monkeypatch) -> None:
     """Declaring a contested extension without a test claims nothing."""
     import polyxios.codecs._nastran as nastran
+    import polyxios.codecs._permas as permas
     import polyxios.codecs._tecplot as tecplot
 
     monkeypatch.delattr(nastran, "sniff", raising=True)
+    monkeypatch.delattr(permas, "sniff", raising=True)
     monkeypatch.delattr(tecplot, "sniff", raising=True)
     assert ".dat" not in build_default_registry()
 

@@ -10,7 +10,7 @@ neither the file nor the array.
 This file is the matrix of that: one absurd count per format, and the promise
 that what comes back is a polyxios error naming the file. It is exhaustive by
 declaration rather than by construction - a format whose counts are implied by
-its data (Abaqus, Nastran, OBJ, WKT, FLAC3D, MDPA) has no such header to
+its data (Abaqus, Nastran, OBJ, WKT, FLAC3D, MDPA, PERMAS) has no such header to
 corrupt, and is listed in ``_NO_DECLARED_COUNT`` so the omission is on purpose.
 """
 
@@ -113,7 +113,19 @@ CORRUPT: dict[str, str] = {
 # so there is no count to corrupt. Listed rather than left out, so a reader
 # that grows a header of its own is noticed.
 _NO_DECLARED_COUNT: frozenset[str] = frozenset(
-    {".inp", ".bdf", ".obj", ".wkt", ".f3grid", ".mdpa", ".stl", ".splat", ".vtm"}
+    {
+        ".inp",
+        ".bdf",
+        ".obj",
+        ".wkt",
+        ".f3grid",
+        ".mdpa",
+        ".dato",
+        ".post",
+        ".stl",
+        ".splat",
+        ".vtm",
+    }
 )
 
 
