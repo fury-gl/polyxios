@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="The twenty-seven 3D mesh and geometry formats polyxios reads and writes, across thirty-two extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, Kratos MDPA and more, one reference page each." name="description" />
+<meta content="The twenty-eight 3D mesh and geometry formats polyxios reads and writes, across thirty-four extensions - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS and more, one reference page each." name="description" />
 <meta property="og:title" content="Supported formats" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios ships twenty-seven codecs across thirty-two extensions - the thirty-one below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the righ..." />
+<meta property="og:description" content="polyxios ships twenty-eight codecs across thirty-four extensions - the thirty-three below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the r..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_7ea3747a.png" />
-<meta property="og:image:alt" content="polyxios ships twenty-seven codecs across thirty-two extensions - the thirty-one below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the righ..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_10440f9c.png" />
+<meta property="og:image:alt" content="polyxios ships twenty-eight codecs across thirty-four extensions - the thirty-three below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the r..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=10dc7f7c"></script>
+    <script src="../_static/documentation_options.js?v=0cdbde9e"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -450,6 +450,7 @@
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -536,14 +537,14 @@
                   
   <section id="supported-formats">
 <span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
-<p>polyxios ships twenty-seven codecs across thirty-two extensions - the thirty-one
+<p>polyxios ships twenty-eight codecs across thirty-four extensions - the thirty-three
 below plus <code class="docutils literal notranslate"><span class="pre">.plt</span></code>, which is recognised but not read. Each is registered by
 extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
 <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
 <p>Every page below summarises the format’s specification, notes where polyxios extends or
 deviates from it, and links to the authoritative document.</p>
 <!--
-  The twenty-seven format cards, pulled into formats/index.rst by a raw:: html
+  The twenty-eight format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -819,6 +820,16 @@ deviates from it, and links to the authoritative document.</p>
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="mdpa.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://github.com/KratosMultiphysics/Kratos/wiki/Input-data">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">PERMAS <span class="px-fmtext">.dato .post</span></p>
+    <p class="px-fmtdesc">$KEYWORD records running to the next $: $COOR nodes,
+      $ELEMENT blocks named by solver class, $NSET and $ESET groups.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="permas.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.intes.de/">full spec &#8599;</a>
     </p>
   </div>
 

@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="TetGen" />
+<meta property="og:title" content="PERMAS" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/tetgen.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/permas.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta property="og:description" content=".dato.post.dat read + write eager Summary of the specification: A PERMAS deck is plain ASCII made of$KEYWORD records, each followed by the data lines it governs until the next$. A! opens a comment,..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_tetgen_df6de378.png" />
-<meta property="og:image:alt" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
-<meta name="description" content=".ele + .node read + write eager Summary of the specification: TetGen splits a mesh across sidecar files that share a basename..node starts with a counts line - number of points, dimension, number o..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_permas_005dec72.png" />
+<meta property="og:image:alt" content=".dato.post.dat read + write eager Summary of the specification: A PERMAS deck is plain ASCII made of$KEYWORD records, each followed by the data lines it governs until the next$. A! opens a comment,..." />
+<meta name="description" content=".dato.post.dat read + write eager Summary of the specification: A PERMAS deck is plain ASCII made of$KEYWORD records, each followed by the data lines it governs until the next$. A! opens a comment,..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>TetGen &#8212; polyxios</title>
+    <title>PERMAS &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/tetgen';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/permas';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/tetgen.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/permas.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Well-Known Text" href="wkt.html" />
-    <link rel="prev" title="SU2" href="su2.html" />
+    <link rel="next" title="Lazy loading" href="../lazy_loading.html" />
+    <link rel="prev" title="Kratos MDPA" href="mdpa.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -440,7 +440,7 @@
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">TetGen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
@@ -450,7 +450,7 @@
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
-<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">PERMAS</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -521,7 +521,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">TetGen</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">PERMAS</span></li>
   </ul>
 </nav>
 </div>
@@ -538,12 +538,13 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="tetgen">
-<span id="format-tetgen"></span><h1>TetGen<a class="headerlink" href="#tetgen" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.ele</span> <span class="pre">+</span> <span class="pre">.node</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+  <section id="permas">
+<span id="format-permas"></span><h1>PERMAS<a class="headerlink" href="#permas" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.dato</span></code> <code class="docutils literal notranslate"><span class="pre">.post</span></code> <code class="docutils literal notranslate"><span class="pre">.dat</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>TetGen splits a mesh across sidecar files that share a basename. <code class="docutils literal notranslate"><span class="pre">.node</span></code> starts with a counts line - number of points, dimension, number of attributes, boundary-marker flag - then one line per point: an index, its coordinates, its attributes, and its marker if the flag is set. <code class="docutils literal notranslate"><span class="pre">.ele</span></code> starts with its own counts line - number of tetrahedra, nodes per tetrahedron, region-attribute flag - then one line per element: an index and its node indices, with an optional trailing region attribute. Indices may be 0- or 1-based; the first index in the file decides.</p>
+<p>A PERMAS deck is plain ASCII made of <code class="docutils literal notranslate"><span class="pre">$KEYWORD</span></code> records, each followed by the data lines it governs until the next <code class="docutils literal notranslate"><span class="pre">$</span></code>. A <code class="docutils literal notranslate"><span class="pre">!</span></code> opens a comment, and a line whose first column is <code class="docutils literal notranslate"><span class="pre">&amp;</span></code> continues the line before it, a data line or a <code class="docutils literal notranslate"><span class="pre">$</span></code> record alike. The model lives inside <code class="docutils literal notranslate"><span class="pre">$ENTER</span> <span class="pre">COMPONENT</span></code> … <code class="docutils literal notranslate"><span class="pre">$EXIT</span> <span class="pre">COMPONENT</span></code>, whose <code class="docutils literal notranslate"><span class="pre">$STRUCTURE</span></code> section carries the mesh: <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> lists nodes as <code class="docutils literal notranslate"><span class="pre">id</span> <span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span></code>, <code class="docutils literal notranslate"><span class="pre">$ELEMENT</span> <span class="pre">TYPE</span> <span class="pre">=</span> <span class="pre">&lt;class&gt;</span></code> lists cells as <code class="docutils literal notranslate"><span class="pre">id</span> <span class="pre">&lt;nodes&gt;</span></code>, and <code class="docutils literal notranslate"><span class="pre">$NSET</span> <span class="pre">NAME</span> <span class="pre">=</span> <span class="pre">&lt;name&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">$ESET</span> <span class="pre">NAME</span> <span class="pre">=</span> <span class="pre">&lt;name&gt;</span></code> name groups of node and element ids. A <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> record may carry <code class="docutils literal notranslate"><span class="pre">NSET</span> <span class="pre">=</span></code> and an <code class="docutils literal notranslate"><span class="pre">$ELEMENT</span></code> record <code class="docutils literal notranslate"><span class="pre">ESET</span> <span class="pre">=</span></code>, which put the entities they list into that set. Nodes and elements are numbered freely. <code class="docutils literal notranslate"><span class="pre">$FIN</span></code> closes the deck.</p>
+<p>The element class is a solver element rather than a geometry: <code class="docutils literal notranslate"><span class="pre">QUAD4</span></code>, <code class="docutils literal notranslate"><span class="pre">SHELL4</span></code>, <code class="docutils literal notranslate"><span class="pre">LOADA4</span></code> and <code class="docutils literal notranslate"><span class="pre">PLOTA4</span></code> are all four-node quadrilaterals that differ in what the solver does with them. <code class="docutils literal notranslate"><span class="pre">.dato</span></code> is the model a run is fed, <code class="docutils literal notranslate"><span class="pre">.post</span></code> is what a run writes back with the structure section repeated, and <code class="docutils literal notranslate"><span class="pre">.dat</span></code> is used for the same deck.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -553,53 +554,65 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>.node header</p></td>
-<td><p>npoints dim nattrs boundary_marker_flag</p></td>
+<tr class="row-odd"><td><p>structure</p></td>
+<td><p>$KEYWORD records, each running to the next $</p></td>
 </tr>
-<tr class="row-even"><td><p>.node line</p></td>
-<td><p>index x y z [attrs…] [marker]</p></td>
+<tr class="row-even"><td><p>node record</p></td>
+<td><p>$COOR [NSET = name], then id x y z</p></td>
 </tr>
-<tr class="row-odd"><td><p>.ele header</p></td>
-<td><p>ntetrahedra nodes_per_tet region_attr_flag</p></td>
+<tr class="row-odd"><td><p>cell record</p></td>
+<td><p>$ELEMENT TYPE = class [ESET = name], then id &lt;nodes&gt;</p></td>
 </tr>
-<tr class="row-even"><td><p>.ele line</p></td>
-<td><p>index n1 n2 n3 n4 [region]</p></td>
+<tr class="row-even"><td><p>indices</p></td>
+<td><p>free numbering, 1-based by convention</p></td>
 </tr>
-<tr class="row-odd"><td><p>index base</p></td>
-<td><p>0 or 1, inferred from the first index</p></td>
+<tr class="row-odd"><td><p>groups</p></td>
+<td><p>$NSET NAME = …, $ESET NAME = …</p></td>
 </tr>
-<tr class="row-even"><td><p>companions</p></td>
-<td><p>.face, .edge, .neigh use the same convention</p></td>
+<tr class="row-even"><td><p>comments</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">!</span></code> to end of line</p></td>
+</tr>
+<tr class="row-odd"><td><p>continuation</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&amp;</span></code> in the first column</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://wias-berlin.de/software/tetgen/fformats.html">Read the full TetGen specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://www.intes.de/">PERMAS by INTES ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.ele"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.dato"</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_tags</span>                         <span class="c1"># one entry per $NSET, plus a $COOR NSET =</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span>                        <span class="c1"># one entry per $ESET, plus an $ELEMENT ESET =</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"original_ids"</span><span class="p">]</span>        <span class="c1"># the node ids the deck spelled, when not 1..n</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"permas_component"</span><span class="p">]</span>    <span class="c1"># the component name, when not DFLT_COMP</span>
 </pre></div>
 </div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.ele"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.dato"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.dato"</span><span class="p">,</span> <span class="n">element_type</span><span class="o">=</span><span class="p">{</span><span class="s2">"quad"</span><span class="p">:</span> <span class="s2">"SHELL4"</span><span class="p">,</span> <span class="s2">"tetra"</span><span class="p">:</span> <span class="s2">"TET4"</span><span class="p">})</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+<p><code class="docutils literal notranslate"><span class="pre">element_type</span></code> maps a polyxios element name to the PERMAS class to spell it with. Without it every geometry goes out as its plain structural class: <code class="docutils literal notranslate"><span class="pre">TRIA3</span></code>, <code class="docutils literal notranslate"><span class="pre">QUAD4</span></code>, <code class="docutils literal notranslate"><span class="pre">TET4</span></code>, <code class="docutils literal notranslate"><span class="pre">HEXE8</span></code>, <code class="docutils literal notranslate"><span class="pre">PENTA6</span></code>, <code class="docutils literal notranslate"><span class="pre">PYRA5</span></code> and their higher-order counterparts. A class the codec knows to hold a different geometry is refused. Any other option is warned about and ignored.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>Pass either path - <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.ele&quot;)</span></code> or <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.node&quot;)</span></code> - and the paired file is located by basename.</p></li>
-<li><p>Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.</p></li>
-<li><p>Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">.node</span></code> file declaring 2 dimensions is padded with a zero z, so the vertex array is always <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code>, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning, and a mesh with tetrahedra to write keeps three whatever the flag says: the <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file declares four nodes per element, and TetGen’s own 2-D mode fills the plane with triangles instead.</p></li>
+<li><p>Every class in the table reads as its geometry, so <code class="docutils literal notranslate"><span class="pre">SHELL4</span></code> and <code class="docutils literal notranslate"><span class="pre">LOADA4</span></code> both come back as a quad and, written again, both land as <code class="docutils literal notranslate"><span class="pre">QUAD4</span></code>. The solver class is not remembered; pass <code class="docutils literal notranslate"><span class="pre">element_type=</span></code> to choose one on the way out. A block of a class outside the table - a spring, a mass, a rigid body - is skipped with a warning, and a set naming one of its elements drops that member.</p></li>
+<li><p>Node order for the higher-order classes follows a reference implementation, which agrees with polyxios’s own for every type; no permutation is applied.</p></li>
+<li><p>Elements keep their file order, and the writer keeps the mesh’s: it opens a new <code class="docutils literal notranslate"><span class="pre">$ELEMENT</span> <span class="pre">TYPE</span> <span class="pre">=</span></code> block wherever the geometry changes rather than sorting the mesh by type.</p></li>
+<li><p>Nodes and elements are renumbered from zero on the way in, and the deck’s own ids are kept under <code class="docutils literal notranslate"><span class="pre">original_ids</span></code> when they say something the index does not - a file numbering <code class="docutils literal notranslate"><span class="pre">1..n</span></code> in order records nothing. The writer spells them back when it still can, and numbers from one otherwise. An id spelled twice, not positive or wider than 64 bits, or an element naming a node the deck never declares, is refused; an integer is digits only, so <code class="docutils literal notranslate"><span class="pre">1_0</span></code> is not one. A coordinate may carry a Fortran <code class="docutils literal notranslate"><span class="pre">D</span></code> exponent (<code class="docutils literal notranslate"><span class="pre">1.0D+00</span></code>). Only Cartesian coordinates are read: a <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> block flagged <code class="docutils literal notranslate"><span class="pre">CYL</span></code> or <code class="docutils literal notranslate"><span class="pre">SPH</span></code> holds radii and angles in the solver’s own convention and is refused rather than read as x y z. A mesh whose vertices carry two columns is written with a zero z; any other width is refused.</p></li>
+<li><p>A set may be spelled over several records, which add to it, and a member it repeats names its entity once. Members are written in the order the tag holds them, a repeat at its first spelling, so a set reads back as it was. A set with no <code class="docutils literal notranslate"><span class="pre">NAME</span> <span class="pre">=</span></code> is called <code class="docutils literal notranslate"><span class="pre">nset_&lt;n&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">eset_&lt;n&gt;</span></code> with a warning. Node and element sets are separate namespaces, so a tag name used for both is written under both.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">$ENTER</span> <span class="pre">COMPONENT</span> <span class="pre">NAME</span> <span class="pre">=</span></code> is kept under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;permas_component&quot;]</span></code> unless it is <code class="docutils literal notranslate"><span class="pre">DFLT_COMP</span></code>, the name a writer spells on its own. A deck holding a second component is read down to the end of the first, with a warning.</p></li>
+<li><p>Nothing in the structure section carries per-entity data, so <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code>, <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code> and the rest of <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> are not written. Every other record of a solver deck - <code class="docutils literal notranslate"><span class="pre">$SYSTEM</span></code>, <code class="docutils literal notranslate"><span class="pre">$MATERIAL</span></code>, <code class="docutils literal notranslate"><span class="pre">$LOADING</span></code>, <code class="docutils literal notranslate"><span class="pre">$SITUATION</span></code> and the like - is passed over on read, as is a bare flag word on a record this codec does read. A file holding no <code class="docutils literal notranslate"><span class="pre">$</span></code> record at all is refused.</p></li>
+<li><p>A name that cannot sit on a record - one carrying whitespace, <code class="docutils literal notranslate"><span class="pre">=</span></code>, <code class="docutils literal notranslate"><span class="pre">!</span></code>, <code class="docutils literal notranslate"><span class="pre">$</span></code> or <code class="docutils literal notranslate"><span class="pre">&amp;</span></code> - has those replaced by <code class="docutils literal notranslate"><span class="pre">_</span></code>, and a repeat after that gets a <code class="docutils literal notranslate"><span class="pre">_&lt;n&gt;</span></code> suffix, each with a warning. An element of a geometry PERMAS has no class for, or whose node count does not match its type, is dropped with a warning.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> is shared with Nastran and Tecplot and resolved by content: a file whose first record is an <code class="docutils literal notranslate"><span class="pre">$ENTER</span></code> section or a PERMAS structure keyword reads here. Writing to <code class="docutils literal notranslate"><span class="pre">.dat</span></code> needs <code class="docutils literal notranslate"><span class="pre">fmt=&quot;dato&quot;</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly; the format is ASCII.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -619,20 +632,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="su2.html"
+       href="mdpa.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">SU2</p>
+        <p class="prev-next-title">Kratos MDPA</p>
       </div>
     </a>
     <a class="right-next"
-       href="wkt.html"
+       href="../lazy_loading.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Well-Known Text</p>
+        <p class="prev-next-title">Lazy loading</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -667,7 +680,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/tetgen.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/permas.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

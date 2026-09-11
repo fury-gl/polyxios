@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all twenty-seven - and raises instead of quietly corrupting
+        writes all twenty-eight - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -132,7 +132,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 27 codecs, the 31 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, and resolved by content</p>
+      <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 28 codecs, the 33 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, and resolved by content</p>
     </div>
   </section>
 
@@ -203,7 +204,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a twenty-eighth format.
+    <p class="px-sub">Any third-party package can teach polyxios a twenty-ninth format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -525,7 +526,7 @@ which was which.
 
 Where to go next
 
-formats/index - the twenty-seven supported formats, one page each
+formats/index - the twenty-eight supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -541,7 +542,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships twenty-seven codecs across thirty-two extensions - the thirty-one
+polyxios ships twenty-eight codecs across thirty-four extensions - the thirty-three
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -550,7 +551,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The twenty-seven format cards, pulled into formats/index.rst by a raw:: html
+  The twenty-eight format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -826,6 +827,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="mdpa.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://github.com/KratosMultiphysics/Kratos/wiki/Input-data">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">PERMAS <span class="px-fmtext">.dato .post</span></p>
+    <p class="px-fmtdesc">$KEYWORD records running to the next $: $COOR nodes,
+      $ELEMENT blocks named by solver class, $NSET and $ESET groups.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="permas.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.intes.de/">full spec &#8599;</a>
     </p>
   </div>
 
@@ -3175,6 +3186,97 @@ lazy=True warns and loads eagerly; the format is ASCII.
 
 index - the full format table.
 
+## PERMAS
+
+Source: https://polyxios.org/stable/formats/permas.html
+
+PERMAS
+
+.dato .post .dat read + write eager
+
+Summary of the specification
+
+A PERMAS deck is plain ASCII made of $KEYWORD records, each followed by the data lines it governs until the next $. A ! opens a comment, and a line whose first column is & continues the line before it, a data line or a $ record alike. The model lives inside $ENTER COMPONENT … $EXIT COMPONENT, whose $STRUCTURE section carries the mesh: $COOR lists nodes as id x y z, $ELEMENT TYPE = <class> lists cells as id <nodes>, and $NSET NAME = <name> / $ESET NAME = <name> name groups of node and element ids. A $COOR record may carry NSET = and an $ELEMENT record ESET =, which put the entities they list into that set. Nodes and elements are numbered freely. $FIN closes the deck.
+
+The element class is a solver element rather than a geometry: QUAD4, SHELL4, LOADA4 and PLOTA4 are all four-node quadrilaterals that differ in what the solver does with them. .dato is the model a run is fed, .post is what a run writes back with the structure section repeated, and .dat is used for the same deck.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+$KEYWORD records, each running to the next $
+
+node record
+
+$COOR [NSET = name], then id x y z
+
+cell record
+
+$ELEMENT TYPE = class [ESET = name], then id <nodes>
+
+indices
+
+free numbering, 1-based by convention
+
+groups
+
+$NSET NAME = …, $ESET NAME = …
+
+comments
+
+! to end of line
+
+continuation
+
+& in the first column
+
+PERMAS by INTES ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.dato")
+mesh.vertex_tags                         # one entry per $NSET, plus a $COOR NSET =
+mesh.element_tags                        # one entry per $ESET, plus an $ELEMENT ESET =
+mesh.vertex_attrs["original_ids"]        # the node ids the deck spelled, when not 1..n
+mesh.global_attrs["permas_component"]    # the component name, when not DFLT_COMP
+
+Writing
+
+px.write(mesh, "out.dato")
+px.write(mesh, "out.dato", element_type={"quad": "SHELL4", "tetra": "TET4"})
+
+element_type maps a polyxios element name to the PERMAS class to spell it with. Without it every geometry goes out as its plain structural class: TRIA3, QUAD4, TET4, HEXE8, PENTA6, PYRA5 and their higher-order counterparts. A class the codec knows to hold a different geometry is refused. Any other option is warned about and ignored.
+
+Quirks worth knowing
+
+Every class in the table reads as its geometry, so SHELL4 and LOADA4 both come back as a quad and, written again, both land as QUAD4. The solver class is not remembered; pass element_type= to choose one on the way out. A block of a class outside the table - a spring, a mass, a rigid body - is skipped with a warning, and a set naming one of its elements drops that member.
+
+Node order for the higher-order classes follows a reference implementation, which agrees with polyxios’s own for every type; no permutation is applied.
+
+Elements keep their file order, and the writer keeps the mesh’s: it opens a new $ELEMENT TYPE = block wherever the geometry changes rather than sorting the mesh by type.
+
+Nodes and elements are renumbered from zero on the way in, and the deck’s own ids are kept under original_ids when they say something the index does not - a file numbering 1..n in order records nothing. The writer spells them back when it still can, and numbers from one otherwise. An id spelled twice, not positive or wider than 64 bits, or an element naming a node the deck never declares, is refused; an integer is digits only, so 1_0 is not one. A coordinate may carry a Fortran D exponent (1.0D+00). Only Cartesian coordinates are read: a $COOR block flagged CYL or SPH holds radii and angles in the solver’s own convention and is refused rather than read as x y z. A mesh whose vertices carry two columns is written with a zero z; any other width is refused.
+
+A set may be spelled over several records, which add to it, and a member it repeats names its entity once. Members are written in the order the tag holds them, a repeat at its first spelling, so a set reads back as it was. A set with no NAME = is called nset_<n> / eset_<n> with a warning. Node and element sets are separate namespaces, so a tag name used for both is written under both.
+
+The $ENTER COMPONENT NAME = is kept under global_attrs["permas_component"] unless it is DFLT_COMP, the name a writer spells on its own. A deck holding a second component is read down to the end of the first, with a warning.
+
+Nothing in the structure section carries per-entity data, so vertex_attrs, element_attrs and the rest of global_attrs are not written. Every other record of a solver deck - $SYSTEM, $MATERIAL, $LOADING, $SITUATION and the like - is passed over on read, as is a bare flag word on a record this codec does read. A file holding no $ record at all is refused.
+
+A name that cannot sit on a record - one carrying whitespace, =, !, $ or & - has those replaced by _, and a repeat after that gets a _<n> suffix, each with a warning. An element of a geometry PERMAS has no class for, or whose node count does not match its type, is dropped with a warning.
+
+.dat is shared with Nastran and Tecplot and resolved by content: a file whose first record is an $ENTER section or a PERMAS structure keyword reads here. Writing to .dat needs fmt="dato".
+
+lazy=True warns and loads eagerly; the format is ASCII.
+
+index - the full format table.
+
 ## Lazy loading
 
 Source: https://polyxios.org/stable/lazy_loading.html
@@ -4174,6 +4276,32 @@ Changelog
 
 0.5.0 (upcoming)
 
+New features
+
+PERMAS decks are read and written: .dato, .post, and .dat when
+the file opens with a PERMAS record, gzip included. $COOR nodes and
+$ELEMENT cells come back renumbered from zero with the deck’s own
+numbering kept under original_ids; every $NSET and $ESET is a
+tag, as is the NSET = a $COOR record names and the ESET = an
+$ELEMENT record names; a & continuation line joins the record
+before it; and the component name is kept under
+global_attrs["permas_component"] when it is not the default. The
+solver element class is read as its geometry - SHELL4, LOADA4 and
+QUAD4 are all a quad - and written as the plain structural class of
+that geometry unless element_type= names another, the way the Abaqus
+writer takes it. A block of a class with no geometry here is skipped with
+a warning, an id spelled twice, not positive or wider than 64 bits, a node
+the deck never declares or a file with no $ record is refused, as is a $COOR block flagged CYL
+or SPH, a coordinate may carry a Fortran D exponent, and the
+writer keeps the mesh’s element order by opening a new $ELEMENT TYPE =
+block wherever the geometry changes; a planar mesh is lifted with a zero
+z. Nothing in a structure section carries per-entity data, so attributes
+are dropped on write. .dat now has three candidates, and the PERMAS
+test - an $ENTER section or one of a handful of $ keywords spelled
+the way the format spells them, so a bulk data banner sitting flush
+against its $ is not claimed - is tried ahead of Tecplot’s and
+Nastran’s.
+
 Behaviour changes
 
 Python 3.12 is the lowest version supported. 3.11 is dropped from the test
@@ -4220,7 +4348,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:62: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:89: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -4290,6 +4418,8 @@ entity numbering and whole-mesh metadata that survive a round trip, and an
 extension shared by several formats resolved by what the file holds.
 
 New features
+
+../CHANGES.rst:153: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -4527,7 +4657,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:350: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:377: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -4565,7 +4695,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:386: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:413: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -5530,7 +5660,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1246: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1273: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -5614,7 +5744,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1314: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1341: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5662,7 +5792,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1345: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1372: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5677,7 +5807,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1357: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1384: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5783,7 +5913,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1430: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1457: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
