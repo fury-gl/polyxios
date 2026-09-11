@@ -9,8 +9,8 @@ description = "Fast 3D file format I/O and processing library"
 readme = "README.md"
 requires-python = ">=3.12"
 license.file = "LICENSE"
-authors = [{ name = "Serge Koudoro", email = "skab12@gmail.com" }]
-maintainers = [{ name = "FURY developers", email = "skab12@gmail.com" }]
+authors = [{ name = "Serge Koudoro" }]
+maintainers = [{ name = "FURY developers" }]
 keywords = [
     "mesh",
     "3d",
