@@ -11,7 +11,6 @@ For appended data:
 import base64
 from collections.abc import Callable, Sequence
 import math
-import re
 from typing import Any
 import warnings
 import xml.etree.ElementTree as ET
@@ -84,9 +83,34 @@ _NAME_ESCAPES: dict[str, str] = {
 # so a numeric reference is no way round them either - a document holding one
 # is not XML, and every parser refuses it, this one included. An array named
 # with one is dropped rather than written into a file nothing can open.
-_UNSPELLABLE_NAME: re.Pattern[str] = re.compile(
-    "[^\u0009\u000a\u000d\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]"
+_XML_CHAR_RANGES: tuple[tuple[int, int], ...] = (
+    (0x9, 0x9),
+    (0xA, 0xA),
+    (0xD, 0xD),
+    (0x20, 0xD7FF),
+    (0xE000, 0xFFFD),
+    (0x10000, 0x10FFFF),
 )
+
+
+def _is_unspellable(name: str) -> bool:
+    """Tell whether a name holds a character outside the XML Char production.
+
+    Parameters
+    ----------
+    name : str
+        Candidate attribute value.
+
+    Returns
+    -------
+    bool
+        ``True`` when at least one character has no spelling in XML 1.0.
+    """
+    return any(
+        not any(lo <= code <= hi for lo, hi in _XML_CHAR_RANGES)
+        for code in map(ord, name)
+    )
+
 
 # What a ``<FieldData>`` array of text declares itself as. VTK spells one for
 # a label the way it spells a numeric array for a value, and its payload is
@@ -281,7 +305,7 @@ def spellable_arrays[Held](
     # ``str`` rather than the name itself: nothing stops a caller keying an
     # attribute by something that is not text, and it goes into the attribute
     # as whatever it prints as, the way it did before there was a rule here.
-    dropped = {name for name in arrays if _UNSPELLABLE_NAME.search(str(name))}
+    dropped = {name for name in arrays if _is_unspellable(str(name))}
     if not dropped:
         return arrays
     warnings.warn(
