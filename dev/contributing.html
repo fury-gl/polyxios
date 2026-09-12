@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=0d267ec6"></script>
+    <script src="_static/documentation_options.js?v=a0b49f15"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -611,6 +611,27 @@ once with:</p>
 </pre></div>
 </div>
 </section>
+<section id="bot-authored-commits">
+<h2>Bot-authored commits<a class="headerlink" href="#bot-authored-commits" title="Link to this heading">#</a></h2>
+<p>The convention applies to every commit on a pull request, whoever wrote it:
+the <code class="docutils literal notranslate"><span class="pre">commit-messages</span></code> job checks each one against <code class="docutils literal notranslate"><span class="pre">origin/master</span></code>.
+Dependabot (<code class="docutils literal notranslate"><span class="pre">.github/dependabot.yml</span></code>) and the pre-commit update workflow
+are configured to write <code class="docutils literal notranslate"><span class="pre">MNT:</span></code> subjects and need no attention.</p>
+<p>Copilot Autofix is not configurable. A branch it opens for a code scanning
+alert carries a subject such as <code class="docutils literal notranslate"><span class="pre">Potential</span> <span class="pre">fix</span> <span class="pre">for</span> <span class="pre">code</span> <span class="pre">scanning</span> <span class="pre">alert</span>
+<span class="pre">no.</span> <span class="pre">3:</span> <span class="pre">...</span></code> with no prefix and more than 78 characters, so the check fails
+until the commit is reworded. Before merging:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">fetch</span> <span class="n">upstream</span> <span class="n">alert</span><span class="o">-</span><span class="n">autofix</span><span class="o">-</span><span class="n">N</span>
+<span class="n">git</span> <span class="n">checkout</span> <span class="n">alert</span><span class="o">-</span><span class="n">autofix</span><span class="o">-</span><span class="n">N</span>
+<span class="n">git</span> <span class="n">commit</span> <span class="o">--</span><span class="n">amend</span>
+<span class="n">git</span> <span class="n">push</span> <span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="k">with</span><span class="o">-</span><span class="n">lease</span> <span class="n">upstream</span> <span class="n">alert</span><span class="o">-</span><span class="n">autofix</span><span class="o">-</span><span class="n">N</span>
+</pre></div>
+</div>
+<p>Write the subject as if the change were yours: <code class="docutils literal notranslate"><span class="pre">CI:</span></code> for a workflow
+hardening, <code class="docutils literal notranslate"><span class="pre">BF:</span></code> for a fix to library code, <code class="docutils literal notranslate"><span class="pre">MNT:</span></code> for a dependency
+bump. Put the alert link in the PR description, not in the subject, and
+drop the bot’s <code class="docutils literal notranslate"><span class="pre">Co-authored-by</span></code> trailer so the message stands on its own.</p>
+</section>
 </section>
 
 
@@ -661,6 +682,7 @@ once with:</p>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-message-convention">Commit message convention</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bot-authored-commits">Bot-authored commits</a></li>
 </ul>
   </nav></div>
 

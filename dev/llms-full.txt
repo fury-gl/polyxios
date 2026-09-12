@@ -4161,6 +4161,28 @@ once with:
 pip install pre-commit
 pre-commit install --hook-type commit-msg
 
+Bot-authored commits
+
+The convention applies to every commit on a pull request, whoever wrote it:
+the commit-messages job checks each one against origin/master.
+Dependabot (.github/dependabot.yml) and the pre-commit update workflow
+are configured to write MNT: subjects and need no attention.
+
+Copilot Autofix is not configurable. A branch it opens for a code scanning
+alert carries a subject such as Potential fix for code scanning alert
+no. 3: ... with no prefix and more than 78 characters, so the check fails
+until the commit is reworded. Before merging:
+
+git fetch upstream alert-autofix-N
+git checkout alert-autofix-N
+git commit --amend
+git push --force-with-lease upstream alert-autofix-N
+
+Write the subject as if the change were yours: CI: for a workflow
+hardening, BF: for a fix to library code, MNT: for a dependency
+bump. Put the alert link in the PR description, not in the subject, and
+drop the bot’s Co-authored-by trailer so the message stands on its own.
+
 ## Development Guide
 
 Source: https://polyxios.org/stable/development.html
