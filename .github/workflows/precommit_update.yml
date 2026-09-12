@@ -9,6 +9,9 @@ jobs:
   auto-update:
     if: github.repository_owner == 'fury-gl'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
 
