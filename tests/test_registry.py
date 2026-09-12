@@ -103,6 +103,7 @@ def test_the_dispatcher_names_its_candidates() -> None:
     """The candidate list is readable, so no caller has to hard-code it."""
     registry = build_default_registry()
     assert registry[".dat"].candidates == ("permas", "tecplot", "nastran")
+    assert registry[".msh"].candidates == ("gmsh", "fluent")
     # A codec that is one format competes with nobody and says so.
     assert registry[".tec"].candidates == ()
 
@@ -479,6 +480,35 @@ def test_the_owner_of_a_shared_extension_reads_what_no_sniffer_claims(
     path.write_text("hello world\n")
     with pytest.raises(CodecError, match="MFEM mesh"):
         polyxios.read(path)
+
+
+def test_msh_is_gmsh_or_fluent_by_content(tmp_path) -> None:
+    """'.msh' is Gmsh's, Fluent uses it too, and the opening bytes settle it."""
+    gmsh = tmp_path / "a.msh"
+    gmsh.write_text(
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n$Nodes\n1\n1 0 0 0\n$EndNodes\n"
+        "$Elements\n1\n1 15 2 0 0 1\n$EndElements\n"
+    )
+    assert polyxios.read(gmsh).element_types.tolist() == [1]
+    fluent = tmp_path / "b.msh"
+    fluent.write_text(
+        '(0 "hand-written")\n(2 3)\n(10 (0 1 1 0))\n(10 (1 1 1 1 3)(\n0 0 0\n))\n'
+    )
+    assert polyxios.read(fluent).vertices.shape == (1, 3)
+    # A file neither recognises still lands in the owner's own error.
+    junk = tmp_path / "c.msh"
+    junk.write_text("hello world\n")
+    with pytest.raises(CodecError, match=r"\$MeshFormat"):
+        polyxios.read(junk)
+
+
+def test_a_bare_msh_write_is_gmsh_and_fmt_fluent_is_not(tmp_path) -> None:
+    """An output file has no content to sniff, so the owner keeps the writes."""
+    path = tmp_path / "out.msh"
+    polyxios.write(_tri_mesh(), path)
+    assert path.read_text().startswith("$MeshFormat")
+    polyxios.write(_tri_mesh(), path, fmt="fluent")
+    assert path.read_text().startswith("(0 ")
 
 
 def test_an_unowned_shared_extension_still_stops_at_the_dispatcher(

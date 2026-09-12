@@ -286,6 +286,21 @@ CAPABILITIES: dict[str, Cap] = {
         ),
         note="TetGen holds one region attribute per element and one per node.",
     ),
+    ".fluent": Cap(
+        "volume",
+        n_elements=8,
+        geometry=False,
+        element_attrs=("face_index", "face_parent"),
+        element_tags=("a", "b", "wall"),
+        global_attrs=("fluent_zone_types",),
+        warns=(r"element tag group\(s\) \['b'\] name elements an earlier group",),
+        note="A Fluent mesh is its faces: a cell comes back assembled from"
+        " them, so its node order is the assembler's, and every boundary"
+        " face comes back as an element of its own under the zone it was"
+        " written in. A cell belongs to one zone, so an element in two"
+        " groups stays with the first. Nothing in the format carries"
+        " per-entity data or node sets.",
+    ),
     ".f3grid": Cap(
         "mixed",
         geometry=False,

@@ -66,6 +66,7 @@ Quirks worth knowing
 - A data section declares 1, 3 or 9 components and Gmsh refuses any other count, so a field of another width is padded out to the next of the three with zero columns and the padding is reported. The reader stays lenient and takes whatever width a file declares.
 - Gmsh numbers the mid-edge and face nodes of the higher-order elements by its own edge and face tables, which are not VTK's; they are permuted on the way in and back on the way out. Gmsh's 18-node prism becomes a ``biquadratic_quadratic_wedge``.
 - Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped with a warning rather than reshaped into something else.
+- ``.msh`` is ANSYS Fluent's extension as well, and the two are told apart by content: a file opening with ``$MeshFormat`` reads here, one opening with a parenthesised section reads as :doc:`fluent`. A bare write to ``.msh`` is Gmsh; pass ``fmt="fluent"`` for the other.
 
 .. seealso::
 
