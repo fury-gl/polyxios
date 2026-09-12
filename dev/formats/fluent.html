@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="The twenty-nine 3D mesh and geometry formats polyxios reads and writes, across thirty-five extensions - VTK, OBJ, PLY, STL, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS and more, one reference page each." name="description" />
-<meta property="og:title" content="Supported formats" />
+<meta property="og:title" content="ANSYS Fluent" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/fluent.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the rig..." />
+<meta property="og:description" content=".msh.fluent read + write eager Summary of the specification: A Fluent mesh is a run of parenthesised sections, each opening with an index that says what it holds:(0 &quot;...&quot;) a comment,(1 &q..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_61d843dd.png" />
-<meta property="og:image:alt" content="polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the rig..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_fluent_a4c3af8b.png" />
+<meta property="og:image:alt" content=".msh.fluent read + write eager Summary of the specification: A Fluent mesh is a run of parenthesised sections, each opening with an index that says what it holds:(0 &quot;...&quot;) a comment,(1 &q..." />
+<meta name="description" content=".msh.fluent read + write eager Summary of the specification: A Fluent mesh is a run of parenthesised sections, each opening with an index that says what it holds:(0 &quot;...&quot;) a comment,(1 &q..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>Supported formats &#8212; polyxios</title>
+    <title>ANSYS Fluent &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/index';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/fluent';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/index.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/fluent.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="VTK Legacy" href="vtk.html" />
-    <link rel="prev" title="Usage" href="../usage.html" />
+    <link rel="next" title="Lazy loading" href="../lazy_loading.html" />
+    <link rel="prev" title="PERMAS" href="permas.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -163,7 +163,7 @@
       <a class="nav-link nav-internal" href="../usage.html">docs</a>
     </li>
     <li class="nav-item current active">
-      <a class="nav-link nav-internal" href="#">formats</a>
+      <a class="nav-link nav-internal" href="index.html">formats</a>
     </li>
     <li class="nav-item">
       <a class="nav-link nav-internal" href="../cli.html">cli</a>
@@ -310,7 +310,7 @@
       <a class="nav-link nav-internal" href="../usage.html">docs</a>
     </li>
     <li class="nav-item current active">
-      <a class="nav-link nav-internal" href="#">formats</a>
+      <a class="nav-link nav-internal" href="index.html">formats</a>
     </li>
     <li class="nav-item">
       <a class="nav-link nav-internal" href="../cli.html">cli</a>
@@ -422,7 +422,7 @@
   <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">installation.rst</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../usage.html">usage.rst</a></li>
-<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="vtk.html">VTK Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtr.html">VTK RectilinearGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
@@ -451,7 +451,7 @@
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">ANSYS Fluent</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -519,7 +519,10 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Supported formats</span></li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">ANSYS Fluent</span></li>
   </ul>
 </nav>
 </div>
@@ -536,334 +539,85 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="supported-formats">
-<span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
-<p>polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four
-below plus <code class="docutils literal notranslate"><span class="pre">.plt</span></code>, which is recognised but not read. Each is registered by
-extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
-<code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
-<p>Every page below summarises the format’s specification, notes where polyxios extends or
-deviates from it, and links to the authoritative document.</p>
-<!--
-  The twenty-nine format cards, pulled into formats/index.rst by a raw:: html
-  directive. Hrefs are relative to formats/, i.e. sibling pages.
-  Every class is styled in _static/css/retro.css.
-
-  Adding a format: add a card here, a page under formats/, a line in the hidden
-  toctree in formats/index.rst, and a row in _includes/homepage.html.
--->
-<div class="px-fmtgrid">
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">VTK Legacy <span class="px-fmtext">.vtk</span></p>
-    <p class="px-fmtdesc">Serial single-dataset format with an ASCII header naming
-      POINTS, CELLS and CELL_TYPES; ASCII or binary body.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="vtk.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">VTK RectilinearGrid <span class="px-fmtext">.vtr</span></p>
-    <p class="px-fmtdesc">XML VTK file for grids with independent per-axis
-      coordinate arrays; appended or inline base64 data.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="vtr.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">VTK PolyData <span class="px-fmtext">.vtp</span></p>
-    <p class="px-fmtdesc">XML VTK file for points, lines, polygons and strips,
-      with named point and cell data arrays.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="vtp.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Wavefront OBJ <span class="px-fmtext">.obj</span></p>
-    <p class="px-fmtdesc">Line-oriented ASCII geometry: v/vn/vt records and f faces
-      with 1-based, optionally negative indices.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="obj.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/obj/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Stanford PLY <span class="px-fmtext">.ply</span></p>
-    <p class="px-fmtdesc">Self-describing element lists declared in an ASCII header,
-      followed by ASCII or packed binary property data.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="ply.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://paulbourke.net/dataformats/ply/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">STL <span class="px-fmtext">.stl</span></p>
-    <p class="px-fmtdesc">Unstructured triangle soup with a normal per facet and no
-      vertex sharing; ASCII or 80-byte-header binary.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="stl.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://www.fabbers.com/tech/STL_Format">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">OFF <span class="px-fmtext">.off</span></p>
-    <p class="px-fmtdesc">An OFF magic line, a counts line, then vertices and faces;
-      ST/C/N/4 prefixes add texture, colour and normals.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="off.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://segeval.cs.princeton.edu/public/off_format.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Abaqus <span class="px-fmtext">.inp</span></p>
-    <p class="px-fmtdesc">Keyword-driven input deck: *NODE and *ELEMENT carry the
-      mesh, *NSET and *ELSET the named collections.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="abaqus.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://help.3ds.com/2023/english/dssimulia_established/SIMACAEKEYRefMap/simakey-c-gen.htm">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">AVS-UCD <span class="px-fmtext">.avs</span></p>
-    <p class="px-fmtdesc">A five-integer counts line, then node records and cells
-      keyed by a shape word, then optional data sections.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="avs.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://lanl.github.io/LaGriT/pages/docs/read_avs.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Medit binary <span class="px-fmtext">.meshb</span></p>
-    <p class="px-fmtdesc">A stream of keyword-indexed fields; typed entity blocks
-      carry node indices plus a trailing reference tag.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="meshb.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Medit ASCII <span class="px-fmtext">.mesh .medit</span></p>
-    <p class="px-fmtdesc">Named sections of entity records, each ending in the
-      reference integer that carries its surface or region label.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="medit.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/medit/medit.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">DOLFIN / FEniCS XML <span class="px-fmtext">.xml</span></p>
-    <p class="px-fmtdesc">A small XML tree whose celltype names the element; every
-      vertex and cell is explicitly indexed and 0-based.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="dolfin.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://people.sc.fsu.edu/~jburkardt/data/dolfin_xml/dolfin_xml.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">FLAC3D <span class="px-fmtext">.f3grid</span></p>
-    <p class="px-fmtdesc">Keyword-led ASCII records: G gridpoints, Z zones, F faces,
-      with ZGROUP and FGROUP naming the regions.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="flac3d.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Gmsh <span class="px-fmtext">.msh</span></p>
-    <p class="px-fmtdesc">$Section blocks for format, nodes, elements and physical
-      names; v4.1 regroups them per entity, so parsing forks.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="gmsh.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://gmsh.info/doc/texinfo/gmsh.html#MSH-file-format">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Nastran <span class="px-fmtext">.bdf .nas .fem .dat</span></p>
-    <p class="px-fmtdesc">A deck of fixed-column cards in three coexisting field
-      widths; GRID defines points, C* cards define elements.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="nastran.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://pynastran-git.readthedocs.io/en/latest/quick_start/bdf_overview.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Tecplot ASCII <span class="px-fmtext">.tec .dat</span></p>
-    <p class="px-fmtdesc">A VARIABLES list then ZONE records; DATAPACKING decides
-      whether values interleave per node or per column.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="tecplot.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://tecplot.azureedge.net/products/360/current/360-data-format.pdf">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">SU2 <span class="px-fmtext">.su2</span></p>
-    <p class="px-fmtdesc">Plain ASCII keyed by uppercase tokens; elements carry a VTK
-      type code, and boundaries are declared per marker.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="su2.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://su2code.github.io/docs_v7/Mesh-File/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">TetGen <span class="px-fmtext">.ele + .node</span></p>
-    <p class="px-fmtdesc">Sidecar files sharing a basename; the first index in the
-      file decides whether numbering is 0- or 1-based.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="tetgen.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://wias-berlin.de/software/tetgen/fformats.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Well-Known Text <span class="px-fmtext">.wkt</span></p>
-    <p class="px-fmtdesc">The OGC text encoding: a type keyword and parenthesised
-      coordinate lists, with EWKT adding an SRID prefix.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="wkt.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://libgeos.org/specifications/wkt/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">VTK UnstructuredGrid <span class="px-fmtext">.vtu</span></p>
-    <p class="px-fmtdesc">XML VTK file for an arbitrary mix of cell types, with
-      connectivity, offsets and per-cell type codes.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="vtu.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">VTK StructuredGrid <span class="px-fmtext">.vts</span></p>
-    <p class="px-fmtdesc">Curvilinear grid: explicit coordinates, implicit
-      connectivity, expanded to hexahedra on read.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="vts.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">VTK ImageData <span class="px-fmtext">.vti</span></p>
-    <p class="px-fmtdesc">A uniform grid stored entirely as metadata: origin,
-      spacing and extent, with no coordinate array at all.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="vti.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://examples.vtk.org/site/VTKFileFormats/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">MFEM mesh <span class="px-fmtext">.mesh</span></p>
-    <p class="px-fmtdesc">Named sections keyed by a geometry type code; INLINE and
-      NURBS variants carry a recipe, not a mesh.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="mfem.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://mfem.org/mesh-format-v1.0/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Netgen <span class="px-fmtext">.vol</span></p>
-    <p class="px-fmtdesc">Counted sections whose leading fields differ per section;
-      bcnr / matnr indices come back as named tags.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="netgen.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://github.com/NGSolve/netgen">project &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">UGRID (AFLR) <span class="px-fmtext">.ugrid</span></p>
-    <p class="px-fmtdesc">Seven header counts and nothing else separating the
-      sections; surface IDs sit between faces and cells.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="ugrid.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://www.simcenter.msstate.edu/software/documentation/ugrid/ugrid.html">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Gaussian splat <span class="px-fmtext">.splat</span></p>
-    <p class="px-fmtdesc">Headerless 32-byte records: position, scale, colour and a
-      packed rotation quaternion. Points only, no elements.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="splat.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://github.com/antimatter15/splat">reference &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">Kratos MDPA <span class="px-fmtext">.mdpa</span></p>
-    <p class="px-fmtdesc">Begin/End blocks with no counts: nodes, elements named
-      by Kratos element class, conditions, data and sub model parts.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="mdpa.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://github.com/KratosMultiphysics/Kratos/wiki/Input-data">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">PERMAS <span class="px-fmtext">.dato .post</span></p>
-    <p class="px-fmtdesc">$KEYWORD records running to the next $: $COOR nodes,
-      $ELEMENT blocks named by solver class, $NSET and $ESET groups.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="permas.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://www.intes.de/">full spec &#8599;</a>
-    </p>
-  </div>
-
-  <div class="px-fmtcard">
-    <p class="px-fmtname">ANSYS Fluent <span class="px-fmtext">.msh</span></p>
-    <p class="px-fmtdesc">Parenthesised sections in hex: nodes, faces naming the cell on
-      either side, zones by name; cells are assembled from their faces.</p>
-    <p class="px-fmtlinks">
-      <a class="px-fmtread" href="fluent.html">read() &#8594;</a>
-      <a class="px-fmtspec" href="https://www.afs.enea.it/project/neptunius/docs/fluent/html/ug/node1490.htm">full spec &#8599;</a>
-    </p>
-  </div>
-
+  <section id="ansys-fluent">
+<span id="format-fluent"></span><h1>ANSYS Fluent<a class="headerlink" href="#ansys-fluent" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.msh</span></code> <code class="docutils literal notranslate"><span class="pre">.fluent</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+<section id="summary-of-the-specification">
+<h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
+<p>A Fluent mesh is a run of parenthesised sections, each opening with an index that says what it holds: <code class="docutils literal notranslate"><span class="pre">(0</span> <span class="pre">&quot;...&quot;)</span></code> a comment, <code class="docutils literal notranslate"><span class="pre">(1</span> <span class="pre">&quot;...&quot;)</span></code> the header, <code class="docutils literal notranslate"><span class="pre">(2</span> <span class="pre">3)</span></code> the dimension, <code class="docutils literal notranslate"><span class="pre">(10</span> <span class="pre">...)</span></code> nodes, <code class="docutils literal notranslate"><span class="pre">(12</span> <span class="pre">...)</span></code> cells, <code class="docutils literal notranslate"><span class="pre">(13</span> <span class="pre">...)</span></code> faces and <code class="docutils literal notranslate"><span class="pre">(45</span> <span class="pre">...)</span></code> the type and name of a zone. The index is decimal, as is the zone id a <code class="docutils literal notranslate"><span class="pre">(45</span> <span class="pre">...)</span></code> record names; every field of a section header - zone id, range, type - and every value of a cell or face body is hexadecimal. A node, cell or face section carries a <code class="docutils literal notranslate"><span class="pre">(zone-id</span> <span class="pre">first-index</span> <span class="pre">last-index</span> <span class="pre">type</span> <span class="pre">...)</span></code> header and, unless it is the zone-0 declaration of the total, a body: coordinates for a node zone, one type per cell for a mixed cell zone, and for a face zone one record per face naming its nodes and the cell on either side, <code class="docutils literal notranslate"><span class="pre">0</span></code> where there is none. A cell has no node list of its own - the mesh is described by its faces - so a reader assembles each cell from the faces that bound it. Adding <code class="docutils literal notranslate"><span class="pre">2000</span></code> or <code class="docutils literal notranslate"><span class="pre">3000</span></code> to a section index names the single- or double-precision binary flavour of the same section, whose body is raw bytes closed by an <code class="docutils literal notranslate"><span class="pre">End</span> <span class="pre">of</span> <span class="pre">Binary</span> <span class="pre">Section</span></code> marker.</p>
+</section>
+<section id="specification-at-a-glance">
+<h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>structure</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(index</span> <span class="pre">...)</span></code> sections; comments, header, dimension, nodes, cells, faces, zones</p></td>
+</tr>
+<tr class="row-even"><td><p>numbers</p></td>
+<td><p>decimal section indices; hexadecimal header fields, counts and connectivity; decimal coordinates</p></td>
+</tr>
+<tr class="row-odd"><td><p>nodes</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(10</span> <span class="pre">(zone</span> <span class="pre">first</span> <span class="pre">last</span> <span class="pre">type</span> <span class="pre">dimension)(</span> <span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">...</span> <span class="pre">))</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>cells</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(12</span> <span class="pre">(zone</span> <span class="pre">first</span> <span class="pre">last</span> <span class="pre">type</span> <span class="pre">element-type))</span></code>; a body lists one type per cell when mixed</p></td>
+</tr>
+<tr class="row-odd"><td><p>faces</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(13</span> <span class="pre">(zone</span> <span class="pre">first</span> <span class="pre">last</span> <span class="pre">bc-type</span> <span class="pre">face-type)(</span> <span class="pre">n0</span> <span class="pre">n1</span> <span class="pre">...</span> <span class="pre">c0</span> <span class="pre">c1</span> <span class="pre">))</span></code>; count-prefixed when mixed or polygonal</p></td>
+</tr>
+<tr class="row-even"><td><p>zones</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(45</span> <span class="pre">(id</span> <span class="pre">type</span> <span class="pre">name)())</span></code>, the id in decimal</p></td>
+</tr>
+<tr class="row-odd"><td><p>binary</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">2010</span></code> / <code class="docutils literal notranslate"><span class="pre">3010</span></code>, <code class="docutils literal notranslate"><span class="pre">2012</span></code> / <code class="docutils literal notranslate"><span class="pre">3012</span></code>, <code class="docutils literal notranslate"><span class="pre">2013</span></code> / <code class="docutils literal notranslate"><span class="pre">3013</span></code>, raw little-endian bodies; a double-precision section’s integers 32-bit or 64-bit</p></td>
+</tr>
+</tbody>
+</table>
 </div>
-<section id="parallel-and-multi-block-meta-files">
-<h2>Parallel and multi-block meta-files<a class="headerlink" href="#parallel-and-multi-block-meta-files" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">.vtm</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> are registered too,
-but they hold no geometry - only references to sub-files. <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code>
-hands back one mesh, always, so reading an index raises
-<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> rather than failing with a
-parse error further in. The several live in the helper instead:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span><span class="p">,</span> <span class="n">transforms</span>
+<p class="px-speclink"><a class="reference external" href="https://www.afs.enea.it/project/neptunius/docs/fluent/html/ug/node1464.htm">Fluent mesh file format ↗</a></p>
+</section>
+<section id="reading">
+<h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">whole</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_multiblock</span><span class="p">(</span><span class="s2">"case.pvtu"</span><span class="p">)</span>   <span class="c1"># every piece, merged</span>
-<span class="n">blocks</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_blocks</span><span class="p">(</span><span class="s2">"case.vtm"</span><span class="p">)</span>       <span class="c1"># one PolyData per sub-file</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"grid.msh"</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span>                          <span class="c1"># one entry per zone: fluid, wall, inlet, ...</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"fluent_zone_types"</span><span class="p">]</span>     <span class="c1"># each tag's zone type word</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_attrs</span><span class="p">[</span><span class="s2">"face_parent"</span><span class="p">]</span>          <span class="c1"># the cell each boundary face bounds</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_attrs</span><span class="p">[</span><span class="s2">"face_index"</span><span class="p">]</span>           <span class="c1"># which of that cell's faces it is</span>
 </pre></div>
 </div>
-<p>Both follow an index that names another index, skip a sub-file that is missing
-or unreadable with a line on the <code class="docutils literal notranslate"><span class="pre">polyxios</span></code> logger, and refuse a reference
-resolving outside the index file’s own directory.
-<code class="docutils literal notranslate"><span class="pre">examples/read_parallel_vtk.py</span></code> walks through what they do. Writing an index
-file is not supported.</p>
-<div class="toctree-wrapper compound">
+</section>
+<section id="writing">
+<h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.msh"</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">"fluent"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.fluent"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">.msh</span></code> on its own is written as Gmsh; <code class="docutils literal notranslate"><span class="pre">fmt=&quot;fluent&quot;</span></code> or the <code class="docutils literal notranslate"><span class="pre">.fluent</span></code> spelling names this codec. It takes no format-specific options; any given is warned about and ignored.</p>
+</section>
+<section id="quirks-worth-knowing">
+<h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
+<ul class="px-quirks simple">
+<li><p>A cell is assembled from its faces as the tetrahedron, hexahedron, wedge or pyramid - in the plane the triangle, quadrilateral or polygon - they close, so its node order is the assembler’s rather than anything the file spelled. The cell comes back right-handed whatever the faces’ own orientation, since the handedness is read off the coordinates. A cell whose faces close none of those - a polyhedron, a hanging-node refinement, a face list with a hole - is dropped with a warning, and a zone naming only dropped cells leaves no tag.</p></li>
+<li><p>Every face of a zone that is not interior - a boundary, a periodic pair, a fan, an interface - comes back as an element of its own; a face born of a non-conformal interface, whose type is spelled with 1000 added, is read by the type under it. It is: a triangle, quadrilateral, polygon or, in the plane, a line, after the cells. It carries <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;face_parent&quot;]</span></code> and <code class="docutils literal notranslate"><span class="pre">[&quot;face_index&quot;]</span></code> naming the cell it bounds and which of that cell’s faces it is, the way an Abaqus surface does; in the plane, where an edge has no such numbering, the columns are left out. Interior faces are implied by the cells and are not elements.</p></li>
+<li><p>Each zone is an <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> entry, named by its <code class="docutils literal notranslate"><span class="pre">(45</span> <span class="pre">...)</span></code> record or <code class="docutils literal notranslate"><span class="pre">&lt;type&gt;-&lt;id&gt;</span></code> without one - <code class="docutils literal notranslate"><span class="pre">wall-5</span></code>, <code class="docutils literal notranslate"><span class="pre">fluid-2</span></code> - and the zone type word travels under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;fluent_zone_types&quot;]</span></code>. The record spells the zone id in decimal where the section headers spell it in hex; an id that names no zone in decimal is retried as hex, for files from other writers.</p></li>
+<li><p>The writer spells the standard face-based ASCII file, its faces outward of each cell - a left-handed cell is mirrored on the way out, since a face record’s node order says which side its normal points to: one cell zone per element tag group holding cells, <code class="docutils literal notranslate"><span class="pre">fluid</span></code> for the rest, each declaring its element type - or listing one type per cell when the group mixes them - then the faces of every cell, interior faces in one zone with the cell on either side, and the boundary in a zone per group naming the matching face elements, <code class="docutils literal notranslate"><span class="pre">wall</span></code> for the rest. The zone type is taken from <code class="docutils literal notranslate"><span class="pre">fluent_zone_types</span></code> when the mesh remembers one, and otherwise from a tag named the way Fluent names its zones - <code class="docutils literal notranslate"><span class="pre">pressure-outlet-7</span></code> opens with a boundary word. Nodes are numbered as the mesh holds them; cells are renumbered by zone, in order of each zone’s first cell, so a mesh whose groups are contiguous keeps its order.</p></li>
+<li><p>A face element - a triangle or quadrilateral beside solids, a line beside planar cells - is written only as the side of a cell it matches by node set, under the zone its group names; one matching an interior face is a named interior zone, the way a baffle is. One that is no side of a written cell, or repeats one, is dropped with a warning, since the format holds a face only between cells. An element of any other type - a line among solids, a quadratic element, a vertex - is dropped with a warning too.</p></li>
+<li><p>A Fluent zone holds each cell or face once, so an element in two groups stays with the first, with a warning; a group naming both cells and faces becomes two zones, the face zone with a <code class="docutils literal notranslate"><span class="pre">-faces</span></code> suffix. A face shared by three cells is refused, since no Fluent file holds one.</p></li>
+<li><p>A mesh with a solid is a three-dimensional file. One of triangles, quadrilaterals and polygons is two-dimensional, which Fluent holds in the plane only, so a surface whose vertices carry a third coordinate is refused rather than flattened; a two-dimensional file reads back with a zero third coordinate and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code>.</p></li>
+<li><p>Both flavours of the node, cell and face sections are read - ASCII, and binary in single or double precision, count-prefixed face records included, the payload beginning on the line after the opening parenthesis the way Fluent writes it or on the same byte. A double-precision cell or face section holds 32-bit integers when Fluent wrote it and 64-bit ones from a writer that widened them with the floats, and nothing in the header says which, so the width under which the block closes on its marker is the one read. The explicit node lists another reader writes under a typed cell zone are read as those lists. A binary section of another kind, a cell tree or a periodic-shadow list, is stepped over by its end marker; a polyhedral cell zone carrying a body is refused. The writer spells ASCII only.</p></li>
+<li><p>Nothing in the format carries per-entity data or node sets, so <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code>, <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code>, <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> and the rest of <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> are not written. A zone name that cannot sit on a record - whitespace, parentheses, quotes - has those replaced by <code class="docutils literal notranslate"><span class="pre">_</span></code>, with a warning.</p></li>
+<li><p>A declared count past the file’s own size or the safety caps is refused before any array is sized; a face naming a node or cell the file does not hold, two zones claiming one range, a node never given coordinates and a malformed number are each refused with the line named.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.msh</span></code> is shared with Gmsh and resolved by content: a file opening with a parenthesised section reads here, one opening with <code class="docutils literal notranslate"><span class="pre">$MeshFormat</span></code> reads as <a class="reference internal" href="gmsh.html"><span class="doc">Gmsh</span></a>. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly.</p></li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
 </section>
@@ -879,20 +633,20 @@ file is not supported.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../usage.html"
+       href="permas.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Usage</p>
+        <p class="prev-next-title">PERMAS</p>
       </div>
     </a>
     <a class="right-next"
-       href="vtk.html"
+       href="../lazy_loading.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">VTK Legacy</p>
+        <p class="prev-next-title">Lazy loading</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -915,7 +669,11 @@ file is not supported.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parallel-and-multi-block-meta-files">Parallel and multi-block meta-files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-of-the-specification">Summary of the specification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>
 
@@ -923,7 +681,7 @@ file is not supported.</p>
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/index.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/fluent.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

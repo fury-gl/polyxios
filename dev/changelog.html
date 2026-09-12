@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): New features: PERMAS decks are read and written:.dato,.post, and.dat when the file opens with a PERMAS record, gzip included.$COOR nodes and$ELEMENT cells come back renumbered fro..." />
+<meta property="og:description" content="0.5.0 (upcoming): New features: ANSYS Fluent meshes are read and written:.msh when the file opens with a parenthesised section, and.fluent to name the codec on a write, gzip included. A Fluent mesh..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_e38e6854.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): New features: PERMAS decks are read and written:.dato,.post, and.dat when the file opens with a PERMAS record, gzip included.$COOR nodes and$ELEMENT cells come back renumbered fro..." />
-<meta name="description" content="0.5.0 (upcoming): New features: PERMAS decks are read and written:.dato,.post, and.dat when the file opens with a PERMAS record, gzip included.$COOR nodes and$ELEMENT cells come back renumbered fro..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_2360098f.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): New features: ANSYS Fluent meshes are read and written:.msh when the file opens with a parenthesised section, and.fluent to name the codec on a write, gzip included. A Fluent mesh..." />
+<meta name="description" content="0.5.0 (upcoming): New features: ANSYS Fluent meshes are read and written:.msh when the file opens with a parenthesised section, and.fluent to name the codec on a write, gzip included. A Fluent mesh..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=a8d88b0d"></script>
+    <script src="_static/documentation_options.js?v=aff626b7"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-11"/>
+    <meta name="docbuild:last-update" content="2026-09-12"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -451,6 +451,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -542,6 +543,34 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>ANSYS Fluent meshes are read and written: <code class="docutils literal notranslate"><span class="pre">.msh</span></code> when the file opens with
+a parenthesised section, and <code class="docutils literal notranslate"><span class="pre">.fluent</span></code> to name the codec on a write,
+gzip included. A Fluent mesh is its faces, each naming the cell on either
+side, so a cell comes back assembled from them as the tetrahedron,
+hexahedron, wedge or pyramid - in the plane the triangle, quadrilateral or
+polygon - they close, right-handed whatever the faces’ own orientation;
+one whose faces close none of those, a polyhedron or a hanging-node
+refinement among them, is dropped with a warning. Every face of a zone
+that is not interior comes back as an element of its own, tagged with the
+zone’s name and linked to its cell through <code class="docutils literal notranslate"><span class="pre">face_parent</span></code> /
+<code class="docutils literal notranslate"><span class="pre">face_index</span></code>, a non-conformal interface’s faces by the type under
+their 1000 offset; each zone is a tag, named by its <code class="docutils literal notranslate"><span class="pre">(45</span> <span class="pre">...)</span></code> record or
+<code class="docutils literal notranslate"><span class="pre">&lt;type&gt;-&lt;id&gt;</span></code> without one, and the zone types travel under
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;fluent_zone_types&quot;]</span></code>. The ASCII and binary flavours of
+the node, cell and face sections are both read - a double-precision
+section’s integers in either width - as are the explicit node lists
+another reader writes under a typed cell zone; a binary section of
+another kind is stepped over by its end marker. The writer spells the
+standard face-based ASCII file: one cell zone per element tag group, the
+faces of every cell with the cell on either side, outward of the cell
+whatever its handedness in the mesh, and the boundary in a
+zone per group naming the matching face elements, <code class="docutils literal notranslate"><span class="pre">wall</span></code> for the rest.
+A mesh of triangles and quadrilaterals is a two-dimensional file, which
+Fluent holds in the plane only, so a surface off the plane is refused. A
+face element that is no side of a written cell, an element of any other
+type and a member of a second group are each dropped with a warning.
+<code class="docutils literal notranslate"><span class="pre">.msh</span></code> is now shared by Gmsh and Fluent and resolved by content; a bare
+write there is still Gmsh.</p></li>
 <li><p>PERMAS decks are read and written: <code class="docutils literal notranslate"><span class="pre">.dato</span></code>, <code class="docutils literal notranslate"><span class="pre">.post</span></code>, and <code class="docutils literal notranslate"><span class="pre">.dat</span></code> when
 the file opens with a PERMAS record, gzip included. <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> nodes and
 <code class="docutils literal notranslate"><span class="pre">$ELEMENT</span></code> cells come back renumbered from zero with the deck’s own
@@ -2111,7 +2140,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-11.
+  Last updated on 2026-09-12.
   <br/>
 </p></div>
       

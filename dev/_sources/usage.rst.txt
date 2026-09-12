@@ -276,7 +276,7 @@ which was which.
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the twenty-eight supported formats, one page each
+* :doc:`formats/index` - the twenty-nine supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all twenty-eight - and raises instead of quietly corrupting
+        writes all twenty-nine - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -118,7 +118,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/medit.html"><span>Medit ASCII</span><span class="px-ext">.mesh .medit</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh*</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -133,7 +133,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 28 codecs, the 33 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, and resolved by content</p>
+      <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 29 codecs, the 34 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -204,7 +205,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a twenty-ninth format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirtieth format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -526,7 +527,7 @@ which was which.
 
 Where to go next
 
-formats/index - the twenty-eight supported formats, one page each
+formats/index - the twenty-nine supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -542,7 +543,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships twenty-eight codecs across thirty-four extensions - the thirty-three
+polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -551,7 +552,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The twenty-eight format cards, pulled into formats/index.rst by a raw:: html
+  The twenty-nine format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -837,6 +838,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="permas.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://www.intes.de/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">ANSYS Fluent <span class="px-fmtext">.msh</span></p>
+    <p class="px-fmtdesc">Parenthesised sections in hex: nodes, faces naming the cell on
+      either side, zones by name; cells are assembled from their faces.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="fluent.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.afs.enea.it/project/neptunius/docs/fluent/html/ug/node1490.htm">full spec &#8599;</a>
     </p>
   </div>
 
@@ -2076,6 +2087,8 @@ Gmsh numbers the mid-edge and face nodes of the higher-order elements by its own
 
 Gmsh type 14, the 14-node pyramid, has no VTK equivalent and is skipped with a warning rather than reshaped into something else.
 
+.msh is ANSYS Fluent’s extension as well, and the two are told apart by content: a file opening with $MeshFormat reads here, one opening with a parenthesised section reads as fluent. A bare write to .msh is Gmsh; pass fmt="fluent" for the other.
+
 index - the full format table.
 
 ## Nastran
@@ -3277,6 +3290,97 @@ lazy=True warns and loads eagerly; the format is ASCII.
 
 index - the full format table.
 
+## ANSYS Fluent
+
+Source: https://polyxios.org/stable/formats/fluent.html
+
+ANSYS Fluent
+
+.msh .fluent read + write eager
+
+Summary of the specification
+
+A Fluent mesh is a run of parenthesised sections, each opening with an index that says what it holds: (0 "...") a comment, (1 "...") the header, (2 3) the dimension, (10 ...) nodes, (12 ...) cells, (13 ...) faces and (45 ...) the type and name of a zone. The index is decimal, as is the zone id a (45 ...) record names; every field of a section header - zone id, range, type - and every value of a cell or face body is hexadecimal. A node, cell or face section carries a (zone-id first-index last-index type ...) header and, unless it is the zone-0 declaration of the total, a body: coordinates for a node zone, one type per cell for a mixed cell zone, and for a face zone one record per face naming its nodes and the cell on either side, 0 where there is none. A cell has no node list of its own - the mesh is described by its faces - so a reader assembles each cell from the faces that bound it. Adding 2000 or 3000 to a section index names the single- or double-precision binary flavour of the same section, whose body is raw bytes closed by an End of Binary Section marker.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+(index ...) sections; comments, header, dimension, nodes, cells, faces, zones
+
+numbers
+
+decimal section indices; hexadecimal header fields, counts and connectivity; decimal coordinates
+
+nodes
+
+(10 (zone first last type dimension)( x y z ... ))
+
+cells
+
+(12 (zone first last type element-type)); a body lists one type per cell when mixed
+
+faces
+
+(13 (zone first last bc-type face-type)( n0 n1 ... c0 c1 )); count-prefixed when mixed or polygonal
+
+zones
+
+(45 (id type name)()), the id in decimal
+
+binary
+
+2010 / 3010, 2012 / 3012, 2013 / 3013, raw little-endian bodies; a double-precision section’s integers 32-bit or 64-bit
+
+Fluent mesh file format ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("grid.msh")
+mesh.element_tags                          # one entry per zone: fluid, wall, inlet, ...
+mesh.global_attrs["fluent_zone_types"]     # each tag's zone type word
+mesh.element_attrs["face_parent"]          # the cell each boundary face bounds
+mesh.element_attrs["face_index"]           # which of that cell's faces it is
+
+Writing
+
+px.write(mesh, "out.msh", fmt="fluent")
+px.write(mesh, "out.fluent")
+
+.msh on its own is written as Gmsh; fmt="fluent" or the .fluent spelling names this codec. It takes no format-specific options; any given is warned about and ignored.
+
+Quirks worth knowing
+
+A cell is assembled from its faces as the tetrahedron, hexahedron, wedge or pyramid - in the plane the triangle, quadrilateral or polygon - they close, so its node order is the assembler’s rather than anything the file spelled. The cell comes back right-handed whatever the faces’ own orientation, since the handedness is read off the coordinates. A cell whose faces close none of those - a polyhedron, a hanging-node refinement, a face list with a hole - is dropped with a warning, and a zone naming only dropped cells leaves no tag.
+
+Every face of a zone that is not interior - a boundary, a periodic pair, a fan, an interface - comes back as an element of its own; a face born of a non-conformal interface, whose type is spelled with 1000 added, is read by the type under it. It is: a triangle, quadrilateral, polygon or, in the plane, a line, after the cells. It carries element_attrs["face_parent"] and ["face_index"] naming the cell it bounds and which of that cell’s faces it is, the way an Abaqus surface does; in the plane, where an edge has no such numbering, the columns are left out. Interior faces are implied by the cells and are not elements.
+
+Each zone is an element_tags entry, named by its (45 ...) record or <type>-<id> without one - wall-5, fluid-2 - and the zone type word travels under global_attrs["fluent_zone_types"]. The record spells the zone id in decimal where the section headers spell it in hex; an id that names no zone in decimal is retried as hex, for files from other writers.
+
+The writer spells the standard face-based ASCII file, its faces outward of each cell - a left-handed cell is mirrored on the way out, since a face record’s node order says which side its normal points to: one cell zone per element tag group holding cells, fluid for the rest, each declaring its element type - or listing one type per cell when the group mixes them - then the faces of every cell, interior faces in one zone with the cell on either side, and the boundary in a zone per group naming the matching face elements, wall for the rest. The zone type is taken from fluent_zone_types when the mesh remembers one, and otherwise from a tag named the way Fluent names its zones - pressure-outlet-7 opens with a boundary word. Nodes are numbered as the mesh holds them; cells are renumbered by zone, in order of each zone’s first cell, so a mesh whose groups are contiguous keeps its order.
+
+A face element - a triangle or quadrilateral beside solids, a line beside planar cells - is written only as the side of a cell it matches by node set, under the zone its group names; one matching an interior face is a named interior zone, the way a baffle is. One that is no side of a written cell, or repeats one, is dropped with a warning, since the format holds a face only between cells. An element of any other type - a line among solids, a quadratic element, a vertex - is dropped with a warning too.
+
+A Fluent zone holds each cell or face once, so an element in two groups stays with the first, with a warning; a group naming both cells and faces becomes two zones, the face zone with a -faces suffix. A face shared by three cells is refused, since no Fluent file holds one.
+
+A mesh with a solid is a three-dimensional file. One of triangles, quadrilaterals and polygons is two-dimensional, which Fluent holds in the plane only, so a surface whose vertices carry a third coordinate is refused rather than flattened; a two-dimensional file reads back with a zero third coordinate and global_attrs["was_2d"].
+
+Both flavours of the node, cell and face sections are read - ASCII, and binary in single or double precision, count-prefixed face records included, the payload beginning on the line after the opening parenthesis the way Fluent writes it or on the same byte. A double-precision cell or face section holds 32-bit integers when Fluent wrote it and 64-bit ones from a writer that widened them with the floats, and nothing in the header says which, so the width under which the block closes on its marker is the one read. The explicit node lists another reader writes under a typed cell zone are read as those lists. A binary section of another kind, a cell tree or a periodic-shadow list, is stepped over by its end marker; a polyhedral cell zone carrying a body is refused. The writer spells ASCII only.
+
+Nothing in the format carries per-entity data or node sets, so vertex_attrs, element_attrs, vertex_tags and the rest of global_attrs are not written. A zone name that cannot sit on a record - whitespace, parentheses, quotes - has those replaced by _, with a warning.
+
+A declared count past the file’s own size or the safety caps is refused before any array is sized; a face naming a node or cell the file does not hold, two zones claiming one range, a node never given coordinates and a malformed number are each refused with the line named.
+
+.msh is shared with Gmsh and resolved by content: a file opening with a parenthesised section reads here, one opening with $MeshFormat reads as gmsh. lazy=True warns and loads eagerly.
+
+index - the full format table.
+
 ## Lazy loading
 
 Source: https://polyxios.org/stable/lazy_loading.html
@@ -4278,6 +4382,35 @@ Changelog
 
 New features
 
+ANSYS Fluent meshes are read and written: .msh when the file opens with
+a parenthesised section, and .fluent to name the codec on a write,
+gzip included. A Fluent mesh is its faces, each naming the cell on either
+side, so a cell comes back assembled from them as the tetrahedron,
+hexahedron, wedge or pyramid - in the plane the triangle, quadrilateral or
+polygon - they close, right-handed whatever the faces’ own orientation;
+one whose faces close none of those, a polyhedron or a hanging-node
+refinement among them, is dropped with a warning. Every face of a zone
+that is not interior comes back as an element of its own, tagged with the
+zone’s name and linked to its cell through face_parent /
+face_index, a non-conformal interface’s faces by the type under
+their 1000 offset; each zone is a tag, named by its (45 ...) record or
+<type>-<id> without one, and the zone types travel under
+global_attrs["fluent_zone_types"]. The ASCII and binary flavours of
+the node, cell and face sections are both read - a double-precision
+section’s integers in either width - as are the explicit node lists
+another reader writes under a typed cell zone; a binary section of
+another kind is stepped over by its end marker. The writer spells the
+standard face-based ASCII file: one cell zone per element tag group, the
+faces of every cell with the cell on either side, outward of the cell
+whatever its handedness in the mesh, and the boundary in a
+zone per group naming the matching face elements, wall for the rest.
+A mesh of triangles and quadrilaterals is a two-dimensional file, which
+Fluent holds in the plane only, so a surface off the plane is refused. A
+face element that is no side of a written cell, an element of any other
+type and a member of a second group are each dropped with a warning.
+.msh is now shared by Gmsh and Fluent and resolved by content; a bare
+write there is still Gmsh.
+
 PERMAS decks are read and written: .dato, .post, and .dat when
 the file opens with a PERMAS record, gzip included. $COOR nodes and
 $ELEMENT cells come back renumbered from zero with the deck’s own
@@ -4348,7 +4481,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:89: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:118: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -4419,7 +4552,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:153: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:182: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -4657,7 +4790,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:377: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:406: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -4695,7 +4828,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:413: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:442: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -5660,7 +5793,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1273: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1302: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -5744,7 +5877,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1341: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1370: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5792,7 +5925,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1372: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1401: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5807,7 +5940,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1384: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1413: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -5913,7 +6046,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1457: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1486: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
