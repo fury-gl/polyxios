@@ -366,6 +366,9 @@ def _download_to(url: str, temp_path: str, filename: str) -> None:
             sys.stdout.flush()
             return
         except urllib.error.HTTPError as e:
+            # The error wraps the response body, a socket or a temporary
+            # file; only its code and reason are read from here on.
+            e.close()
             if last_attempt or e.code not in _RETRIABLE_STATUS:
                 raise
             error: Exception = e
