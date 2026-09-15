@@ -108,6 +108,15 @@ CORRUPT: dict[str, str] = {
         '<cells size="1"><tetrahedron index="0" v0="0" v1="0" v2="0" v3="0"/>'
         "</cells></mesh></dolfin>"
     ),
+    ".gltf": (
+        '{"asset":{"version":"2.0"},'
+        '"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],'
+        '"meshes":[{"primitives":[{"attributes":{"POSITION":0},"mode":4}]}],'
+        f'"accessors":[{{"bufferView":0,"componentType":5126,"count":{BIG},"type":"VEC3"}}],'
+        '"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36}],'
+        '"buffers":[{"uri":"data:application/octet-stream;base64,'
+        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","byteLength":36}]}'
+    ),
 }
 
 # Formats whose sizes are implied by the data rather than declared in a header,
@@ -162,6 +171,7 @@ def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
         ".pvtr": ".vtr",
         ".pvts": ".vts",
         ".pvtu": ".vtu",
+        ".glb": ".gltf",
     }
     outstanding = {
         ext

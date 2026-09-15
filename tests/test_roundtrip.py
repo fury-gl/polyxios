@@ -504,10 +504,18 @@ CAPABILITIES: dict[str, Cap] = {
         " reads back flagged two-dimensional.",
     ),
     ".xml": Cap("volume", note="DOLFIN XML stores a single-type mesh only."),
+    ".gltf": Cap(
+        "surface",
+        geometry=False,
+        n_elements=3,
+        warns=(r"scene format.*read_scene",),
+        note="glTF fan-triangulates quads into triangles on write (mode 4 "
+        "only); read() warns that flattening loses scene hierarchy.",
+    ),
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
-_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node", ".post"})
+_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node", ".post", ".glb"})
 
 # Registered so the error names the format, never to be written. Each is
 # asserted below, so an entry cannot be parked here to escape the matrix.
