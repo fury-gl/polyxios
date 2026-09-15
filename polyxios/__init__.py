@@ -1,7 +1,15 @@
 from polyxios import transforms
 from polyxios._io import Source, open_target
 from polyxios._registry import Codec, build_default_registry, resolve
+from polyxios._scene import (
+    SceneData,
+    SceneImage,
+    SceneMaterial,
+    SceneNode,
+    SceneTexture,
+)
 from polyxios._types import PolyData, make_polydata
+from polyxios.exceptions import UnsupportedFormatError
 from polyxios.fetcher import fetch
 from polyxios.helper import read_polydata, visualize_mesh
 from polyxios.validate import validate
@@ -135,18 +143,105 @@ def write(
         codec.write(poly=poly, path=target, **opts)
 
 
+def read_scene(
+    path: Source,
+    *,
+    fmt: str | None = None,
+    registry: dict | None = None,
+    **opts: object,
+) -> SceneData:
+    """Read a scene-graph file and return a SceneData.
+
+    Parameters
+    ----------
+    path
+        Path to the scene file (e.g. ``.gltf`` or ``.glb``).
+    fmt
+        Format override (e.g. ``'.glb'``).  Inferred from the file
+        extension when ``None``.
+    registry
+        Custom codec registry.  Uses the built-in registry if ``None``.
+    **opts
+        Format-specific options passed to the codec's ``read_scene`` function.
+
+    Returns
+    -------
+    SceneData
+        Full scene graph with meshes, nodes, materials, textures, and images.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the format does not carry scene data.  Use :func:`read` for
+        flat single-mesh formats.
+    """
+    codec = resolve(path, fmt, registry or _REGISTRY)
+    if codec.read_scene is None:
+        raise UnsupportedFormatError(
+            "Format does not carry scene data; use polyxios.read()."
+        )
+    return codec.read_scene(path=path, **opts)
+
+
+def write_scene(
+    scene: SceneData,
+    path: Source,
+    *,
+    fmt: str | None = None,
+    registry: dict | None = None,
+    **opts: object,
+) -> None:
+    """Write a SceneData to a scene-graph file.
+
+    Parameters
+    ----------
+    scene
+        SceneData to serialize.
+    path
+        Output file path.
+    fmt
+        Format override (e.g. ``'.glb'``).  Inferred from the file
+        extension when ``None``.
+    registry
+        Custom codec registry.  Uses the built-in registry if ``None``.
+    **opts
+        Format-specific options passed to the codec's ``write_scene``
+        function (e.g. ``binary=False`` for ``.gltf`` + ``.bin``).
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the format does not support scene writing.  Use :func:`write`
+        to write a flat PolyData instead.
+    """
+    codec = resolve(path, fmt, registry or _REGISTRY)
+    if codec.write_scene is None:
+        raise UnsupportedFormatError(
+            "Format does not support scene writing; use polyxios.write()."
+        )
+    with open_target(path, fmt=fmt) as target:
+        codec.write_scene(scene=scene, path=target, **opts)
+
+
 __all__ = [
     "Codec",
     "PolyData",
+    "SceneData",
+    "SceneImage",
+    "SceneMaterial",
+    "SceneNode",
+    "SceneTexture",
     "Source",
     "__version__",
     "fetch",
     "make_polydata",
     "read",
     "read_polydata",
+    "read_scene",
     "supported_extensions",
     "transforms",
     "validate",
     "visualize_mesh",
     "write",
+    "write_scene",
 ]

@@ -34,12 +34,22 @@ class Codec(NamedTuple):
         dispatcher a contested extension resolves to, naming the formats
         competing for it in the order their ``sniff`` is tried, so a caller
         can report the ambiguity without hard-coding the candidate list.
+    read_scene
+        Optional scene reader, invoked as ``read_scene(path=..., **opts)``
+        and returning a ``SceneData``.  ``None`` for formats that hold only
+        a single flat mesh.
+    write_scene
+        Optional scene writer, invoked as
+        ``write_scene(scene=..., path=..., **opts)``.  ``None`` for formats
+        that cannot represent a full scene graph.
     """
 
     read: Callable
     write: Callable
     sniff: Callable | None = None
     candidates: tuple[str, ...] = ()
+    read_scene: Callable | None = None
+    write_scene: Callable | None = None
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
@@ -182,7 +192,57 @@ def _make_dispatcher(
             f"alone. Pass fmt= to choose one explicitly."
         )
 
-    return Codec(read, write, None, labels)
+    scene_entries = [
+        (label, codec) for label, codec in entries if codec.read_scene is not None
+    ]
+
+    def _dispatcher_read_scene(path: Source, **opts: object) -> object:
+        """Delegate read_scene to the first sniffer-matched scene codec."""
+        if is_buffer(path) and not can_seek(path):
+            raise CodecError(
+                f"'{source_name(path)}': {shared}, so the file's opening "
+                f"has to be read to choose one - and this stream cannot "
+                f"seek back. Pass fmt= to choose one explicitly, or buffer "
+                f"the stream first."
+            )
+        with open_read(path) as fh:
+            start = fh.tell() if is_buffer(path) and can_seek(fh) else None
+            head = fh.read(_SNIFF_BYTES)
+            if start is not None:
+                fh.seek(start)
+        if len(head) == _SNIFF_BYTES and b"\n" in head:
+            head = head.rsplit(b"\n", 1)[0]
+        for _label, codec in scene_entries:
+            try:
+                matched = bool(codec.sniff(head))
+            except Exception:
+                continue
+            if matched:
+                return codec.read_scene(path=path, **opts)
+        if default_writer is not None and default_writer[1].read_scene is not None:
+            return default_writer[1].read_scene(path=path, **opts)
+        raise UnsupportedFormatError(
+            f"'{source_name(path)}': {shared} and none support scene reading. "
+            f"Pass fmt= to choose one explicitly."
+        )
+
+    def _dispatcher_write_scene(scene: object, path: Source, **opts: object) -> None:
+        """Delegate write_scene to the default-writer scene codec."""
+        if default_writer is not None and default_writer[1].write_scene is not None:
+            return default_writer[1].write_scene(scene=scene, path=path, **opts)
+        raise UnsupportedFormatError(
+            f"{shared}, so a scene writer cannot be chosen from the extension "
+            f"alone. Pass fmt= to choose one explicitly."
+        )
+
+    dispatcher_read_scene = _dispatcher_read_scene if scene_entries else None
+    dispatcher_write_scene: object = None
+    if default_writer is not None and default_writer[1].write_scene is not None:
+        dispatcher_write_scene = _dispatcher_write_scene
+
+    return Codec(
+        read, write, None, labels, dispatcher_read_scene, dispatcher_write_scene
+    )
 
 
 def build_default_registry() -> dict[str, Codec]:
@@ -290,7 +350,21 @@ def build_default_registry() -> dict[str, Codec]:
             if not callable(sniff_fn):
                 sniff_fn = None
 
-            codec = Codec(read_fn, write_fn, sniff_fn)
+            read_scene_fn = getattr(mod, "read_scene", None)
+            if not callable(read_scene_fn):
+                read_scene_fn = None
+
+            write_scene_fn = getattr(mod, "write_scene", None)
+            if not callable(write_scene_fn):
+                write_scene_fn = None
+
+            codec = Codec(
+                read_fn,
+                write_fn,
+                sniff_fn,
+                read_scene=read_scene_fn,
+                write_scene=write_scene_fn,
+            )
             # EXTENSION leads, so a module whose EXTENSIONS forgets its own
             # canonical spelling still answers to it; dict.fromkeys drops the
             # repeat the usual case produces. resolve() looks a key up in

@@ -64,6 +64,10 @@ _EXT_TO_PACKAGE: dict[str, str] = {
     "meshb": "medit",
     "xml": "dolfin",
     "msh": "gmsh",
+    # Both .gltf (JSON + external files) and .glb (self-contained binary
+    # container) belong to the same glTF release tag.
+    "gltf": "glTF",
+    "glb": "glTF",
 }
 
 
