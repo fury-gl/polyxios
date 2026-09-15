@@ -1056,7 +1056,9 @@ def _polydata_to_primitives(
 # =============================================================================
 
 
-def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> None:
+def write(
+    poly: PolyData, path: Source, *, binary: bool | None = None, **opts: Any
+) -> None:
     """Write a PolyData to a glTF or GLB file.
 
     Parameters
@@ -1067,9 +1069,11 @@ def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> 
     path
         Output file path.
     binary
-        ``True`` (default) writes a single ``.glb`` binary container.
+        ``True`` writes a self-contained ``.glb`` binary container.
         ``False`` writes a ``.gltf`` JSON file plus a companion ``.bin``
         file; *path* must be a filesystem path, not a stream.
+        Defaults to ``False`` when *path* ends in ``.gltf``, ``True``
+        otherwise.
 
     Raises
     ------
@@ -1078,6 +1082,8 @@ def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> 
         ``binary=False`` and *path* is a stream rather than a filesystem
         path.
     """
+    if binary is None:
+        binary = source_suffix(path).lower() != ".gltf"
     bb = _BinBuilder()
     primitives = _polydata_to_primitives(poly, bb)
 
@@ -1133,7 +1139,7 @@ def write_scene(
     scene: SceneData,
     path: Source,
     *,
-    binary: bool = True,
+    binary: bool | None = None,
     **opts: Any,
 ) -> None:
     """Write a SceneData to a glTF or GLB file preserving the scene graph.
@@ -1146,8 +1152,10 @@ def write_scene(
     path
         Output file path.
     binary
-        ``True`` (default) writes a ``.glb`` container.  ``False`` writes
+        ``True`` writes a ``.glb`` container.  ``False`` writes
         ``.gltf`` + ``.bin``; *path* must be a filesystem path.
+        Defaults to ``False`` when *path* ends in ``.gltf``, ``True``
+        otherwise.
 
     Raises
     ------
@@ -1155,6 +1163,8 @@ def write_scene(
         If ``binary=False`` and *path* is a stream, or if any mesh produces
         no writable primitives.
     """
+    if binary is None:
+        binary = source_suffix(path).lower() != ".gltf"
     bb = _BinBuilder()
 
     # Meshes.
