@@ -33,6 +33,7 @@ py.install_sources(
     '_registry.py',
     '_tags.py',
     '_types.py',
+    '_scene.py',
     'exceptions.py',
     'transforms.py',
     'validate.py',
