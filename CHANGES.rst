@@ -12,6 +12,12 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- glTF 2.0 (``.gltf``, ``.glb``) is read and written.  ``read_scene`` returns
+  a ``SceneData`` with the full node hierarchy, PBR materials, textures, and
+  animations; ``read`` flattens to a single ``PolyData`` with a warning.
+  ``write_scene`` round-trips from ``SceneData``; ``write`` serialises a flat
+  mesh as a single-node scene.
+
 - ANSYS Fluent meshes are read and written: ``.msh`` when the file opens with
   a parenthesised section, and ``.fluent`` to name the codec on a write,
   gzip included. A Fluent mesh is its faces, each naming the cell on either

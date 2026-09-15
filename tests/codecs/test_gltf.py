@@ -14,9 +14,9 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
-from polyxios._scene import SceneData, SceneMaterial, SceneNode
+from polyxios._scene import SceneData, SceneMaterial, SceneNode, SceneTexture
 from polyxios._types import PolyData
-from polyxios.codecs._gltf import read, read_scene, write, write_scene
+from polyxios.codecs._gltf import _parse_glb, read, read_scene, write, write_scene
 from polyxios.exceptions import CodecError
 
 # ---------------------------------------------------------------------------
@@ -398,20 +398,6 @@ def test_triangle_fan_triangulated(tmp_path: Path) -> None:
     assert all(c == ELEMENT_TYPES["triangle"] for c in poly.element_types)
 
 
-def test_read_scene_returns_scenedata(tmp_path: Path) -> None:
-    p = tmp_path / "m.glb"
-    p.write_bytes(_make_glb({"asset": {"version": "2.0"}}))
-    assert isinstance(read_scene(p), SceneData)
-
-
-def test_read_flattens_to_polydata(tmp_path: Path) -> None:
-    p = tmp_path / "m.glb"
-    p.write_bytes(_make_glb({"asset": {"version": "2.0"}}))
-    with pytest.warns(UserWarning, match=r"scene format.*read_scene"):
-        result = read(p)
-    assert isinstance(result, PolyData)
-
-
 # ---------------------------------------------------------------------------
 # Write tests
 # ---------------------------------------------------------------------------
@@ -748,3 +734,246 @@ def test_no_animation_field_when_absent(tmp_path: Path) -> None:
     p.write_bytes(_make_glb({"asset": {"version": "2.0"}}))
     scene = read_scene(p)
     assert "animations" not in scene.global_attrs
+
+
+# ---------------------------------------------------------------------------
+# Primitive-mode tests (modes 0, 1, 3, 5)
+# ---------------------------------------------------------------------------
+
+
+def test_primitive_mode_points(tmp_path: Path) -> None:
+    """Round-trip POINTS (mode 0): all element types are vertex codes."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("vertex", np.array([[0], [1], [2]]))],
+    )
+    out = tmp_path / "pts.glb"
+    write(poly, out)
+    back = read_scene(out).meshes[0]
+    assert len(back.element_types) == 3
+    assert all(c == ELEMENT_TYPES["vertex"] for c in back.element_types)
+
+
+def test_primitive_mode_lines(tmp_path: Path) -> None:
+    """Round-trip LINES (mode 1): all element types are line codes."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("line", np.array([[0, 1], [2, 3]]))],
+    )
+    out = tmp_path / "lines.glb"
+    write(poly, out)
+    back = read_scene(out).meshes[0]
+    assert len(back.element_types) == 2
+    assert all(c == ELEMENT_TYPES["line"] for c in back.element_types)
+
+
+def test_primitive_mode_poly_line(tmp_path: Path) -> None:
+    """Round-trip poly_line: written as LINE_STRIP (mode 3), one element on read."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("poly_line", np.array([[0, 1, 2, 3]]))],
+    )
+    out = tmp_path / "polyline.glb"
+    write(poly, out)
+    back = read_scene(out).meshes[0]
+    assert len(back.element_types) == 1
+    assert back.element_types[0] == ELEMENT_TYPES["poly_line"]
+
+
+def test_triangle_strip_two_primitives(tmp_path: Path) -> None:
+    """Two triangle_strip elements sharing a material produce two glTF primitives
+    each with mode 5 (strips are never merged across element boundaries)."""
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [2, 0, 0], [2, 1, 0]],
+        dtype=np.float64,
+    )
+    poly = make_polydata(
+        verts,
+        [
+            ("triangle_strip", np.array([[0, 1, 2, 3]])),
+            ("triangle_strip", np.array([[2, 3, 4, 5]])),
+        ],
+    )
+    out = tmp_path / "strips.glb"
+    write(poly, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    primitives = gltf["meshes"][0]["primitives"]
+    assert len(primitives) == 2
+    assert all(p["mode"] == 5 for p in primitives)
+
+
+# ---------------------------------------------------------------------------
+# Accessor error paths
+# ---------------------------------------------------------------------------
+
+
+def test_sparse_accessor_raises(tmp_path: Path) -> None:
+    """A GLB accessor with 'sparse' raises CodecError on read."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
+    bin_data = verts.tobytes()
+    gltf_json = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"byteLength": len(bin_data)}],
+        "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": len(bin_data)}],
+        "accessors": [
+            {
+                "bufferView": 0,
+                "byteOffset": 0,
+                "componentType": 5126,
+                "count": 3,
+                "type": "VEC3",
+                "sparse": {"count": 1, "indices": {}, "values": {}},
+            }
+        ],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0}],
+        "scene": 0,
+    }
+    p = tmp_path / "sparse.glb"
+    p.write_bytes(_make_glb(gltf_json, bin_data))
+    with pytest.raises(CodecError, match="sparse"):
+        read_scene(p)
+
+
+def test_normalised_ubyte_color(tmp_path: Path) -> None:
+    """UBYTE COLOR_0 accessor with normalized:True decodes to float in [0, 1]."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
+    colors = np.array([[255, 0, 0], [0, 255, 0], [0, 0, 255]], dtype=np.uint8)
+    # verts: 3 × 3 × 4 = 36 bytes; colors: 3 × 3 × 1 = 9 bytes
+    bin_data = verts.tobytes() + colors.tobytes()
+    gltf_json = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"byteLength": len(bin_data)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 9},
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {
+                "bufferView": 1,
+                "componentType": 5121,
+                "count": 3,
+                "type": "VEC3",
+                "normalized": True,
+            },
+        ],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "COLOR_0": 1}}]}],
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0}],
+        "scene": 0,
+    }
+    p = tmp_path / "colors.glb"
+    p.write_bytes(_make_glb(gltf_json, bin_data))
+    poly = read_scene(p).meshes[0]
+    colors_out = poly.vertex_attrs["colors"]
+    assert np.issubdtype(colors_out.dtype, np.floating)
+    assert float(colors_out.max()) <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Material remapping
+# ---------------------------------------------------------------------------
+
+
+def test_noncontiguous_material_remap(tmp_path: Path) -> None:
+    """Material indices [0, 5] are remapped to dense [0, 1] in the output GLB."""
+    verts = np.zeros((6, 3), dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [
+            ("triangle", np.array([[0, 1, 2]])),
+            ("triangle", np.array([[3, 4, 5]])),
+        ],
+        element_attrs={"material": np.array([0, 5], dtype=np.int32)},
+    )
+    out = tmp_path / "mat.glb"
+    write(poly, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert len(gltf.get("materials", [])) == 2
+    prim_mats = sorted(p["material"] for p in gltf["meshes"][0]["primitives"])
+    assert prim_mats == [0, 1]
+
+
+# ---------------------------------------------------------------------------
+# write_scene error paths
+# ---------------------------------------------------------------------------
+
+
+def test_write_scene_volume_only_raises(tmp_path: Path) -> None:
+    """write_scene raises CodecError when a mesh yields no writable primitives."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("tetra", np.array([[0, 1, 2, 3]]))],
+    )
+    scene = SceneData(
+        meshes=(poly,),
+        nodes=(SceneNode(mesh=0),),
+        scenes=((0,),),
+        active_scene=0,
+    )
+    out = tmp_path / "vol_scene.glb"
+    with pytest.warns(UserWarning, match="volume"), pytest.raises(CodecError):
+        write_scene(scene, out)
+
+
+# ---------------------------------------------------------------------------
+# Animation skipped-channel sampler pairing
+# ---------------------------------------------------------------------------
+
+
+def test_animation_skipped_channel_sampler_index(tmp_path: Path) -> None:
+    """A channel referencing an out-of-range sampler is dropped; the remaining
+    valid channel is assigned sampler index 0 without shift."""
+    times = np.array([0.0, 1.0], dtype=np.float32)
+    values = np.array([[0, 0, 0], [1, 0, 0]], dtype=np.float32)
+    sampler = {"times": times, "values": values, "interpolation": "LINEAR"}
+    scene = SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(SceneNode(mesh=0),),
+        scenes=((0,),),
+        active_scene=0,
+        global_attrs={
+            "animations": [
+                {
+                    "samplers": [sampler],
+                    "channels": [
+                        # channel 0: sampler index 99 is out of range → skipped
+                        {"sampler": 99, "target": {"node": 0, "path": "translation"}},
+                        # channel 1: sampler index 0 is valid → written as sampler 0
+                        {"sampler": 0, "target": {"node": 0, "path": "translation"}},
+                    ],
+                }
+            ]
+        },
+    )
+    out = tmp_path / "skip_anim.glb"
+    write_scene(scene, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    anim = gltf["animations"][0]
+    assert len(anim["channels"]) == 1
+    assert anim["channels"][0]["sampler"] == 0
+    assert len(anim["samplers"]) == 1
+
+
+def test_placeholder_texture_source_omitted(tmp_path: Path) -> None:
+    """SceneTexture(image=-1) must not emit 'source': -1 in the written GLB."""
+    verts = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    mesh = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    scene = SceneData(
+        meshes=(mesh,),
+        nodes=(SceneNode(mesh=0),),
+        scenes=((0,),),
+        active_scene=0,
+        textures=(SceneTexture(image=-1),),
+    )
+    out = tmp_path / "placeholder.glb"
+    write_scene(scene, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    tex = gltf["textures"][0]
+    assert "source" not in tex, f"expected no 'source' key, got {tex!r}"

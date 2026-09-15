@@ -38,7 +38,7 @@ import warnings
 import numpy as np
 
 import polyxios
-from polyxios._scene import SceneData, SceneImage
+from polyxios import SceneData, SceneImage
 from polyxios.fetcher import fetch, get_cached_files
 
 _DEFAULT_FILE = "Fox.glb"
@@ -100,7 +100,7 @@ def _resolve_colors(
     if "colors" in poly.vertex_attrs:
         raw = poly.vertex_attrs["colors"].astype(np.float32)
         rgb = raw[:, :3]
-        return rgb / 255.0 if rgb.max() > 1.0 else rgb
+        return rgb / 255.0 if rgb.size > 0 and rgb.max() > 1.0 else rgb
 
     if not scene.materials:
         return None
@@ -109,7 +109,7 @@ def _resolve_colors(
     if mat_col is None:
         return None
 
-    base_dir = Path(source_path).parent if not source_path.startswith("data:") else None
+    base_dir = Path(source_path).parent
     vert_colors = np.full((n_verts, 3), 0.7, dtype=np.float32)
     image_cache: dict[int, np.ndarray | None] = {}
     uvs = poly.vertex_attrs.get("texcoords")
@@ -136,13 +136,11 @@ def _resolve_colors(
             if img_rgba is not None:
                 factor = np.array(mat.base_color[:3], dtype=np.float32)
                 sampled = _sample_texture(img_rgba, uvs[vis]) * factor
-                for local_i, vi in enumerate(vis):
-                    vert_colors[vi] = sampled[local_i]
+                vert_colors[vis] = sampled
                 continue
 
         r, g, b, _ = mat.base_color
-        for vi in vis:
-            vert_colors[vi] = (r, g, b)
+        vert_colors[vis] = (r, g, b)
 
     return vert_colors
 

@@ -65,7 +65,10 @@ _EXT_TO_PACKAGE: dict[str, str] = {
     "xml": "dolfin",
     "msh": "gmsh",
     # Both .gltf (JSON + external files) and .glb (self-contained binary
-    # container) belong to the same glTF release tag.
+    # container) belong to the same package. The mixed-case "glTF" matches
+    # the exact key the catalog uses under "formats" and the GitHub
+    # release-tag name; all other entries are lowercase because their
+    # package names are.
     "gltf": "glTF",
     "glb": "glTF",
 }

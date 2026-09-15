@@ -34,6 +34,15 @@ _BUFFERABLE: tuple[str, ...] = tuple(
     ext for ext in sorted(CAPABILITIES) if ext not in _NEEDS_A_PATH
 )
 
+# Formats where a buffer write produces different bytes than a path write
+# (.gltf: path writes JSON + external .bin, buffer produces self-contained GLB)
+# or where reading a path-written file from a buffer fails (JSON cannot resolve
+# the companion .bin).  These are excluded only from the byte-equality tests
+# below; round-trip-through-memory tests still exercise them.
+_BUFFER_EQUAL: tuple[str, ...] = tuple(
+    ext for ext in _BUFFERABLE if ext not in {".gltf"}
+)
+
 
 def _quietly(fn, *args, **kwargs):
     """Run a codec call whose warnings the round-trip matrix already asserts."""
@@ -65,7 +74,7 @@ def _same_mesh(a, b) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("ext", _BUFFERABLE)
+@pytest.mark.parametrize("ext", _BUFFER_EQUAL)
 def test_writing_to_a_buffer_matches_writing_to_a_path(tmp_path, ext: str) -> None:
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
@@ -78,7 +87,7 @@ def test_writing_to_a_buffer_matches_writing_to_a_path(tmp_path, ext: str) -> No
     assert buf.getvalue() == on_disk.read_bytes()
 
 
-@pytest.mark.parametrize("ext", _BUFFERABLE)
+@pytest.mark.parametrize("ext", _BUFFER_EQUAL)
 def test_reading_from_a_buffer_matches_reading_from_a_path(tmp_path, ext: str) -> None:
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 

@@ -12,18 +12,18 @@ import json
 from pathlib import Path
 import struct
 from typing import Any
+import urllib.parse
 import warnings
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES
+from polyxios._element_types import ELEMENT_TYPES, QUADRATIC_SURFACE_CORNERS
 from polyxios._io import (
     Source,
+    format_suffix,
     is_buffer,
-    open_text,
     read_bytes,
     source_name,
-    source_suffix,
     write_bytes,
     write_text,
 )
@@ -81,6 +81,8 @@ _POLY_CODE = ELEMENT_TYPES["polygon"]
 _LINE_CODE = ELEMENT_TYPES["line"]
 _VERTEX_CODE = ELEMENT_TYPES["vertex"]
 _TRI_STRIP_CODE = ELEMENT_TYPES["triangle_strip"]
+_POLY_LINE_CODE = ELEMENT_TYPES["poly_line"]
+_PIXEL_CODE = ELEMENT_TYPES["pixel"]
 
 # Volume element codes — skipped with a warning on write.
 _VOLUME_CODES: frozenset[int] = frozenset(
@@ -94,6 +96,39 @@ _VOLUME_CODES: frozenset[int] = frozenset(
         ELEMENT_TYPES["hexagonal_prism"],
     }
 )
+
+# Pixel and quadratic surface codes — no glTF mode; skipped with a warning.
+_SKIP_WARN_CODES: frozenset[int] = frozenset({_PIXEL_CODE, *QUADRATIC_SURFACE_CORNERS})
+
+
+def _safe_resolve(base_dir: Path, uri: str) -> Path:
+    """Resolve *uri* relative to *base_dir*, rejecting path traversal.
+
+    Parameters
+    ----------
+    base_dir
+        Directory that owns the ``.gltf`` file.
+    uri
+        Percent-encoded relative URI from the glTF JSON (not a data: URI).
+
+    Raises
+    ------
+    CodecError
+        If the decoded URI is absolute or would escape *base_dir*.
+    """
+    decoded = urllib.parse.unquote(uri)
+    p = Path(decoded)
+    if p.is_absolute():
+        raise CodecError(
+            f"glTF: external URI {uri!r} is absolute; rejected for security."
+        )
+    resolved = (base_dir.resolve() / decoded).resolve()
+    if not resolved.is_relative_to(base_dir.resolve()):
+        raise CodecError(
+            f"glTF: external URI {uri!r} escapes the base directory "
+            f"({base_dir}); rejected for security."
+        )
+    return resolved
 
 
 # =============================================================================
@@ -144,26 +179,6 @@ def _parse_glb(data: bytes) -> tuple[dict, bytes | None]:
     return gltf_json, bin_data
 
 
-def _parse_gltf(path: Source) -> tuple[dict, list[bytes]]:
-    """Parse a .gltf JSON file and load all referenced buffers."""
-    with open_text(path, encoding="utf-8") as fh:
-        gltf: dict = json.load(fh)
-
-    base_dir = Path(path).parent if not is_buffer(path) else Path(".")
-
-    buffers: list[bytes] = []
-    for buf in gltf.get("buffers", []):
-        uri: str = buf.get("uri", "")
-        if uri.startswith("data:"):
-            # data:application/octet-stream;base64,<data>
-            _, payload = uri.split(",", 1)
-            buffers.append(base64.b64decode(payload))
-        else:
-            buffers.append(read_bytes(base_dir / uri))
-
-    return gltf, buffers
-
-
 # =============================================================================
 # Accessor reading
 # =============================================================================
@@ -206,12 +221,19 @@ def _read_accessor(
     if acc_type not in _TYPE_COMPONENTS:
         raise CodecError(f"glTF: unknown accessor type '{acc_type}'.")
 
+    # Reject sparse accessors — silent zero geometry is worse than an error.
+    if acc.get("sparse"):
+        raise CodecError(
+            f"glTF: accessor {accessor_index} uses sparse encoding which is not "
+            "supported; re-export with dense accessors."
+        )
+
     dtype = np.dtype(_COMPONENT_DTYPE[comp_type])
     n_comp = _TYPE_COMPONENTS[acc_type]
     byte_offset_acc: int = acc.get("byteOffset", 0)
 
     if "bufferView" not in acc:
-        # Sparse accessor with no bufferView: return zeros (simplified).
+        # No data (no bufferView, no sparse): return zeros.
         shape = (count,) if n_comp == 1 else (count, n_comp)
         return np.zeros(shape, dtype=dtype)
 
@@ -225,33 +247,49 @@ def _read_accessor(
     elem_size = dtype.itemsize * n_comp
 
     if byte_stride is not None and byte_stride != elem_size:
-        # Interleaved data: extract each element with stride.
-        out = np.empty((count, n_comp) if n_comp > 1 else (count,), dtype=dtype)
-        for i in range(count):
-            elem_start = start + i * byte_stride
-            if elem_start + elem_size > len(buf):
-                raise CodecError(
-                    f"glTF: accessor {accessor_index} declares {count} elements "
-                    f"but buffer read at offset {elem_start} exceeds buffer length {len(buf)}."
-                )
-            row = np.frombuffer(buf, dtype=dtype, count=n_comp, offset=elem_start)
-            if n_comp == 1:
-                out[i] = row[0]
-            else:
-                out[i] = row
-        return out
-
-    end = start + count * elem_size
-    if end > len(buf):
-        raise CodecError(
-            f"glTF: accessor {accessor_index} declares {count} elements "
-            f"({end} bytes needed) but buffer only has {len(buf)} bytes."
+        # Vectorized interleaved read using stride_tricks.
+        buf_u8 = np.frombuffer(buf, dtype=np.uint8)
+        total = start + (count - 1) * byte_stride + elem_size
+        if total > len(buf):
+            raise CodecError(
+                f"glTF: accessor {accessor_index} declares {count} elements "
+                f"but buffer read at offset {total} exceeds buffer length {len(buf)}."
+            )
+        raw_u8 = (
+            np.lib.stride_tricks.as_strided(
+                buf_u8[start:],
+                shape=(count, elem_size),
+                strides=(byte_stride, 1),
+            )
+            .copy()
+            .ravel()
         )
+        raw = raw_u8.view(dtype).reshape((count, n_comp) if n_comp > 1 else (count,))
+    else:
+        end = start + count * elem_size
+        if end > len(buf):
+            raise CodecError(
+                f"glTF: accessor {accessor_index} declares {count} elements "
+                f"({end} bytes needed) but buffer only has {len(buf)} bytes."
+            )
+        raw = np.frombuffer(buf, dtype=dtype, count=count * n_comp, offset=start)
+        if n_comp == 1:
+            raw = raw.copy()
+        else:
+            raw = raw.reshape(count, n_comp).copy()
 
-    raw = np.frombuffer(buf, dtype=dtype, count=count * n_comp, offset=start)
-    if n_comp == 1:
-        return raw.copy()
-    return raw.reshape(count, n_comp).copy()
+    # Honor the normalized flag — integer types scale to [-1, 1] or [0, 1].
+    if acc.get("normalized"):
+        if comp_type == 5121:  # UBYTE → [0, 1]
+            return raw.astype(np.float64) / 255.0
+        if comp_type == 5123:  # USHORT → [0, 1]
+            return raw.astype(np.float64) / 65535.0
+        if comp_type == 5120:  # BYTE → [-1, 1]
+            return np.maximum(raw.astype(np.float64) / 127.0, -1.0)
+        if comp_type == 5122:  # SHORT → [-1, 1]
+            return np.maximum(raw.astype(np.float64) / 32767.0, -1.0)
+
+    return raw
 
 
 # =============================================================================
@@ -299,74 +337,66 @@ def _primitive_to_polydata(
     else:
         indices = np.arange(n_verts, dtype=np.int32)
 
-    # Build CSR directly — same pattern as _obj.py lines 187-208.
-    conn_list: list[int] = []
-    offsets_list: list[int] = [0]
-    type_codes: list[int] = []
+    if indices.size > 0 and indices.max() >= n_verts:
+        raise CodecError(
+            f"glTF: primitive has index {indices.max()} but only {n_verts} vertices."
+        )
 
-    tri_code = ELEMENT_TYPES["triangle"]
-    line_code = ELEMENT_TYPES["line"]
-    vertex_code = ELEMENT_TYPES["vertex"]
-    tri_strip_code = ELEMENT_TYPES["triangle_strip"]
-    poly_line_code = ELEMENT_TYPES["poly_line"]
-
-    if mode == 4:  # TRIANGLES
-        for i in range(0, len(indices) - 2, 3):
-            tri = indices[i : i + 3].tolist()
-            conn_list.extend(tri)
-            offsets_list.append(offsets_list[-1] + 3)
-            type_codes.append(tri_code)
-    elif mode == 0:  # POINTS
-        for idx in indices:
-            conn_list.append(int(idx))
-            offsets_list.append(offsets_list[-1] + 1)
-            type_codes.append(vertex_code)
-    elif mode == 1:  # LINES
-        for i in range(0, len(indices) - 1, 2):
-            conn_list.extend(indices[i : i + 2].tolist())
-            offsets_list.append(offsets_list[-1] + 2)
-            type_codes.append(line_code)
-    elif mode == 2:  # LINE_LOOP: strip + close
-        loop = indices.tolist() + [int(indices[0])]
-        conn_list.extend(loop)
-        offsets_list.append(offsets_list[-1] + len(loop))
-        type_codes.append(poly_line_code)
-    elif mode == 3:  # LINE_STRIP
-        conn_list.extend(indices.tolist())
-        offsets_list.append(offsets_list[-1] + len(indices))
-        type_codes.append(poly_line_code)
-    elif mode == 5:  # TRIANGLE_STRIP
-        conn_list.extend(indices.tolist())
-        offsets_list.append(offsets_list[-1] + len(indices))
-        type_codes.append(tri_strip_code)
-    elif mode == 6:  # TRIANGLE_FAN: fan-triangulate
-        for i in range(1, len(indices) - 1):
-            conn_list.extend([int(indices[0]), int(indices[i]), int(indices[i + 1])])
-            offsets_list.append(offsets_list[-1] + 3)
-            type_codes.append(tri_code)
+    if mode == 4:  # TRIANGLES — vectorized
+        n_tris = len(indices) // 3
+        connectivity = indices[: n_tris * 3].astype(np.int32)
+        offsets = np.arange(0, n_tris * 3 + 1, 3, dtype=np.int32)
+        element_types = np.full(n_tris, _TRI_CODE, dtype=np.uint8)
+        n_elements = n_tris
+        conn_size = n_tris * 3
     else:
-        raise CodecError(f"glTF: unsupported primitive mode {mode}.")
+        conn_list: list[int] = []
+        offsets_list: list[int] = [0]
+        type_codes: list[int] = []
 
-    n_elements = len(type_codes)
-    conn_size = len(conn_list)
+        if mode == 0:  # POINTS
+            conn_list = indices.tolist()
+            offsets_list = list(range(len(conn_list) + 1))
+            type_codes = [_VERTEX_CODE] * len(conn_list)
+        elif mode == 1:  # LINES
+            n_pairs = len(indices) // 2
+            pairs = indices[: n_pairs * 2].reshape(-1, 2)
+            conn_list = pairs.ravel().tolist()
+            offsets_list = list(range(0, len(conn_list) + 1, 2))
+            type_codes = [_LINE_CODE] * n_pairs
+        elif mode == 2:  # LINE_LOOP: strip + close
+            if len(indices) > 0:
+                loop = indices.tolist() + [int(indices[0])]
+                conn_list.extend(loop)
+                offsets_list.append(offsets_list[-1] + len(loop))
+                type_codes.append(_POLY_LINE_CODE)
+        elif mode == 3:  # LINE_STRIP
+            conn_list.extend(indices.tolist())
+            offsets_list.append(offsets_list[-1] + len(indices))
+            type_codes.append(_POLY_LINE_CODE)
+        elif mode == 5:  # TRIANGLE_STRIP
+            conn_list.extend(indices.tolist())
+            offsets_list.append(offsets_list[-1] + len(indices))
+            type_codes.append(_TRI_STRIP_CODE)
+        elif mode == 6:  # TRIANGLE_FAN: fan-triangulate
+            for i in range(1, len(indices) - 1):
+                conn_list.extend(
+                    [int(indices[0]), int(indices[i]), int(indices[i + 1])]
+                )
+                offsets_list.append(offsets_list[-1] + 3)
+                type_codes.append(_TRI_CODE)
+        else:
+            raise CodecError(f"glTF: unsupported primitive mode {mode}.")
 
+        n_elements = len(type_codes)
+        conn_size = len(conn_list)
+        connectivity = np.array(conn_list, dtype=np.int32)
+        offsets = np.array(offsets_list, dtype=np.int32)
+        element_types = np.array(type_codes, dtype=np.uint8)
     validate_header(n_verts, n_elements, conn_size, file_size)
-
-    connectivity = np.array(conn_list, dtype=np.int32)
-    offsets = np.array(offsets_list, dtype=np.int32)
-    element_types = np.array(type_codes, dtype=np.uint8)
 
     # Vertex attributes.
     vertex_attrs: dict[str, np.ndarray] = {}
-
-    _ATTR_MAP: dict[str, str] = {
-        "NORMAL": "normals",
-        "TEXCOORD_0": "texcoords",
-        "TEXCOORD_1": "texcoords_1",
-        "TANGENT": "tangents",
-        "JOINTS_0": "joints",
-        "WEIGHTS_0": "weights",
-    }
 
     for gltf_name, poly_name in _ATTR_MAP.items():
         if gltf_name not in attrs:
@@ -379,15 +409,7 @@ def _primitive_to_polydata(
 
     if "COLOR_0" in attrs:
         raw = _read_accessor(gltf, attrs["COLOR_0"], buffers)
-        acc = gltf["accessors"][attrs["COLOR_0"]]
-        comp_type = acc["componentType"]
-        if comp_type == 5121:  # UBYTE normalized
-            colors = raw.astype(np.float64) / 255.0
-        elif comp_type == 5123:  # USHORT normalized
-            colors = raw.astype(np.float64) / 65535.0
-        else:
-            colors = raw.astype(np.float64)
-        vertex_attrs["colors"] = colors
+        vertex_attrs["colors"] = raw.astype(np.float64)
 
     for gltf_name in attrs:
         if (
@@ -396,7 +418,12 @@ def _primitive_to_polydata(
             and gltf_name != "POSITION"
         ):
             raw = _read_accessor(gltf, attrs[gltf_name], buffers)
-            vertex_attrs[gltf_name.lower()] = raw
+            if gltf_name.startswith("TEXCOORD_"):
+                n = gltf_name[len("TEXCOORD_") :]
+                key = f"texcoords_{n}" if n != "0" else "texcoords"
+            else:
+                key = gltf_name.lower()
+            vertex_attrs[key] = raw
 
     mat_idx: int = primitive.get("material", -1)
     element_attrs: dict[str, np.ndarray] = {}
@@ -582,12 +609,69 @@ def read_scene(path: Source) -> SceneData:
     """
     raw = read_bytes(path)
     file_size = len(raw)
-    suffix = source_suffix(path).lower()
+    suffix = format_suffix(path).lower()
     if suffix == ".glb" or raw[:4] == b"glTF":
         gltf, bin_chunk = _parse_glb(raw)
-        buffers: list[bytes] = [bin_chunk] if bin_chunk is not None else []
+        buffers: list[bytes] = []
+        # Iterate ALL buffers in order; for entry 0 without a uri the BIN
+        # chunk (if any) is authoritative, otherwise resolve the uri normally.
+        base_dir_glb = Path(str(path)).parent if not is_buffer(path) else None
+        for _buf_idx, _buf_entry in enumerate(gltf.get("buffers", [])):
+            _uri = _buf_entry.get("uri", "")
+            if _buf_idx == 0 and bin_chunk is not None and not _uri:
+                buffers.append(bin_chunk)
+            elif _uri.startswith("data:"):
+                _parts = _uri.split(",", 1)
+                if len(_parts) != 2:
+                    raise CodecError(
+                        f"glTF: malformed data URI (no comma): {_uri[:80]!r}"
+                    )
+                _, _payload = _parts
+                buffers.append(base64.b64decode(_payload))
+            elif _uri:
+                if base_dir_glb is None:
+                    raise CodecError(
+                        "glTF: cannot resolve external buffer URIs from a stream; "
+                        "provide a filesystem path."
+                    )
+                buffers.append(read_bytes(_safe_resolve(base_dir_glb, _uri)))
+            else:
+                # No uri and no applicable BIN chunk — placeholder keeps index alignment.
+                buffers.append(b"")
     else:
-        gltf, buffers = _parse_gltf(path)
+        try:
+            gltf = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise CodecError(f"glTF: invalid JSON — {exc}") from exc
+        # Raise early when a stream has non-data URI buffers to resolve.
+        raw_bufs = gltf.get("buffers", [])
+        has_external = any(
+            b.get("uri", "").strip() and not b.get("uri", "").startswith("data:")
+            for b in raw_bufs
+        )
+        if has_external and is_buffer(path):
+            raise CodecError(
+                "glTF: cannot resolve external buffer URIs from a stream; "
+                "provide a filesystem path."
+            )
+        base_dir = Path(str(path)).parent if not is_buffer(path) else Path(".")
+        buffers = []
+        for buf_entry in raw_bufs:
+            uri: str = buf_entry.get("uri", "")
+            if uri.startswith("data:"):
+                parts = uri.split(",", 1)
+                if len(parts) != 2:
+                    raise CodecError(
+                        f"glTF: malformed data URI (no comma): {uri[:80]!r}"
+                    )
+                _, payload = parts
+                buffers.append(base64.b64decode(payload))
+            elif uri:
+                # Percent-decode and validate before resolving.
+                buffers.append(read_bytes(_safe_resolve(base_dir, uri)))
+            else:
+                # Missing/empty uri — append placeholder to keep index alignment.
+                buffers.append(b"")
         file_size = sum(len(b) for b in buffers) + len(raw)
 
     asset = gltf.get("asset", {})
@@ -610,13 +694,26 @@ def read_scene(path: Source) -> SceneData:
     samplers = gltf.get("samplers", [])
 
     # Textures.
-    textures = tuple(
-        SceneTexture(
-            image=t["source"],
-            **_sampler_fields(samplers[t["sampler"]] if "sampler" in t else {}),
+    _tex_list: list[SceneTexture] = []
+    for t in gltf.get("textures", []):
+        src = t.get("source")
+        if src is None:
+            for ext_val in t.get("extensions", {}).values():
+                if isinstance(ext_val, dict) and "source" in ext_val:
+                    src = ext_val["source"]
+                    break
+        if src is None:
+            # Placeholder preserves index alignment — dropping the entry would
+            # shift every subsequent texture index by one.
+            _tex_list.append(SceneTexture(image=-1))
+            continue
+        _tex_list.append(
+            SceneTexture(
+                image=src,
+                **_sampler_fields(samplers[t["sampler"]] if "sampler" in t else {}),
+            )
         )
-        for t in gltf.get("textures", [])
-    )
+    textures = tuple(_tex_list)
 
     # Images.
     images = tuple(_build_image(img, buffers, gltf) for img in gltf.get("images", []))
@@ -649,7 +746,11 @@ def read_scene(path: Source) -> SceneData:
             tuple(s.get("nodes", ())) for s in raw_scenes
         )
     elif nodes:
-        scenes = (tuple(range(len(nodes))),)
+        all_children: set[int] = set()
+        for n in nodes:
+            all_children.update(n.children)
+        roots = tuple(i for i in range(len(nodes)) if i not in all_children)
+        scenes = (roots,)
     else:
         scenes = ()
 
@@ -732,7 +833,10 @@ def _build_image(img: dict, buffers: list[bytes], gltf: dict) -> SceneImage:
         )
     uri: str = img.get("uri", "")
     if uri.startswith("data:"):
-        mime, payload = uri.split(",", 1)
+        _img_parts = uri.split(",", 1)
+        if len(_img_parts) != 2:
+            raise CodecError(f"glTF: malformed data URI (no comma): {uri[:80]!r}")
+        mime, payload = _img_parts
         media_type = mime.split(";")[0].split(":", 1)[1] if ":" in mime else None
         return SceneImage(
             data=base64.b64decode(payload),
@@ -782,7 +886,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         f"'{source_name(path)}' is a scene format (glTF): read() flattens "
         "the scene graph, materials, textures and hierarchy into a single "
         "PolyData. Use polyxios.read_scene() to preserve the full scene.",
-        stacklevel=3,
+        stacklevel=3,  # user → read → here
     )
     return read_scene(path).to_polydata()
 
@@ -802,7 +906,7 @@ def sniff(head: bytes) -> bool:
 # =============================================================================
 
 
-def _pad4(data: bytes, pad_byte: bytes = b"\x00") -> bytes:
+def _pad4(data: bytes, *, pad_byte: bytes = b"\x00") -> bytes:
     """Return *data* padded to the next 4-byte boundary."""
     rem = len(data) % 4
     return data + pad_byte * (4 - rem) if rem else data
@@ -810,10 +914,15 @@ def _pad4(data: bytes, pad_byte: bytes = b"\x00") -> bytes:
 
 def _make_glb(gltf_dict: dict, bin_data: bytes) -> bytes:
     """Assemble a GLB binary from a JSON dict and binary buffer."""
-    json_bytes = _pad4(
-        json.dumps(gltf_dict, separators=(",", ":")).encode("utf-8"),
-        pad_byte=b" ",
-    )
+    try:
+        json_bytes = _pad4(
+            json.dumps(gltf_dict, separators=(",", ":"), allow_nan=False).encode(
+                "utf-8"
+            ),
+            pad_byte=b" ",
+        )
+    except ValueError as exc:
+        raise CodecError("glTF: mesh data contains NaN or Inf values") from exc
     chunks: list[bytes] = []
     chunks.append(struct.pack("<II", len(json_bytes), _CHUNK_JSON) + json_bytes)
     if bin_data:
@@ -841,18 +950,19 @@ class _BinBuilder:
         acc_type: str,
         component_type: int,
         normalized: bool = False,
+        target: int | None = 34962,
     ) -> int:
         """Append *data* and register a bufferView + accessor; return accessor index."""
         raw = _pad4(data.tobytes())
         bv_idx = len(self.buffer_views)
-        self.buffer_views.append(
-            {
-                "buffer": 0,
-                "byteOffset": self._offset,
-                "byteLength": len(raw),
-                "target": 34962,  # ARRAY_BUFFER
-            }
-        )
+        bv: dict = {
+            "buffer": 0,
+            "byteOffset": self._offset,
+            "byteLength": len(raw),
+        }
+        if target is not None:
+            bv["target"] = target
+        self.buffer_views.append(bv)
         self._chunks.append(raw)
         self._offset += len(raw)
 
@@ -866,6 +976,10 @@ class _BinBuilder:
         }
         if normalized:
             entry["normalized"] = True
+        # glTF spec requires min/max on POSITION (VEC3) accessors.
+        if acc_type == "VEC3" and data.ndim == 2 and data.shape[0] > 0:
+            entry["min"] = data.min(axis=0).tolist()
+            entry["max"] = data.max(axis=0).tolist()
         self.accessors.append(entry)
         return acc_idx
 
@@ -943,11 +1057,20 @@ _GLTF_ACC_TYPE: dict[str, str] = {
     "weights": "VEC4",
 }
 
+_ATTR_MAP: dict[str, str] = {
+    "NORMAL": "normals",
+    "TEXCOORD_0": "texcoords",
+    "TEXCOORD_1": "texcoords_1",
+    "TANGENT": "tangents",
+    "JOINTS_0": "joints",
+    "WEIGHTS_0": "weights",
+}
+
 
 def _polydata_to_primitives(
     poly: PolyData,
     bb: _BinBuilder,
-    mat_offset: int = 0,
+    mat_remap: dict[int, int] | None = None,
 ) -> list[dict]:
     """Convert a PolyData into a list of glTF primitive dicts.
 
@@ -957,10 +1080,11 @@ def _polydata_to_primitives(
         Source mesh.
     bb
         Binary buffer builder to append vertex/index data into.
-    mat_offset
-        Index offset added to ``element_attrs["material"]`` values so that
-        material indices remain valid after merging multiple meshes into a
-        single scene.
+    mat_remap
+        Mapping from raw ``element_attrs["material"]`` values to the
+        sequential indices used in the output ``materials`` array.  ``None``
+        passes raw values through unchanged (valid when material indices are
+        already dense and zero-based).
 
     Returns
     -------
@@ -977,15 +1101,36 @@ def _polydata_to_primitives(
         if key not in poly.vertex_attrs:
             continue
         arr = poly.vertex_attrs[key]
+
         if key == "joints":
-            data = arr.astype(np.uint8)
+            # Joints with index > 255 require UNSIGNED_SHORT.
+            if arr.size > 0 and arr.max() > 255:
+                data = arr.astype(np.uint16)
+                comp_type = 5123  # UNSIGNED_SHORT
+            else:
+                data = arr.astype(np.uint8)
+        elif key == "colors":
+            # Integer color arrays must be divided by 255 before writing as float32.
+            if np.issubdtype(arr.dtype, np.integer):
+                data = (arr / 255.0).astype(np.float32)
+            else:
+                data = arr.astype(np.float32)
         else:
             data = arr.astype(np.float32)
 
-        if key == "colors":
-            acc_type = "VEC4" if arr.shape[1] == 4 else "VEC3"
+        # Derive acc_type from array shape, not attribute name.
+        if arr.ndim == 1:
+            acc_type = "SCALAR"
+        elif arr.shape[1] == 2:
+            acc_type = "VEC2"
+        elif arr.shape[1] == 3:
+            acc_type = "VEC3"
+        elif arr.shape[1] == 4:
+            acc_type = "VEC4"
         else:
-            acc_type = _GLTF_ACC_TYPE.get(key, "VEC3")
+            raise CodecError(
+                f"glTF: attribute '{key}' has unsupported shape {arr.shape}"
+            )
 
         va_accessors[semantic] = bb.add(
             data, acc_type=acc_type, component_type=comp_type
@@ -995,13 +1140,20 @@ def _polydata_to_primitives(
     mat_col: np.ndarray | None = poly.element_attrs.get("material")
     primitives: list[dict] = []
 
-    # Collect writable element codes — warn once for volume elements.
+    # Warn once for each unsupported category.
     has_volume = bool(np.any(np.isin(poly.element_types, list(_VOLUME_CODES))))
     if has_volume:
         warnings.warn(
             "glTF: volume elements (tetra, hexahedron, etc.) have no glTF "
             "primitive mode and were skipped.",
-            stacklevel=5,
+            stacklevel=5,  # user → write/write_scene → _polydata_to_primitives → here
+        )
+    has_skip = bool(np.any(np.isin(poly.element_types, list(_SKIP_WARN_CODES))))
+    if has_skip:
+        warnings.warn(
+            "glTF: pixel and quadratic surface elements have no glTF "
+            "primitive mode and were skipped.",
+            stacklevel=5,  # user → write/write_scene → _polydata_to_primitives → here
         )
 
     _WRITABLE_MODES: dict[int, int] = {
@@ -1010,13 +1162,19 @@ def _polydata_to_primitives(
         _POLY_CODE: 4,  # fan-triangulate below
         _LINE_CODE: 1,
         _VERTEX_CODE: 0,
-        _TRI_STRIP_CODE: 5,
+        # _TRI_STRIP_CODE excluded — strips must never be merged across
+        # element boundaries (bridging triangles appear at seams); handled
+        # individually in the per-element loop below, like poly_line.
     }
 
+    _SKIP_ALL: frozenset[int] = _VOLUME_CODES | _SKIP_WARN_CODES
+
+    # Group mergeable element types by (glTF mode, material index).
+    # poly_line and triangle_strip are excluded — each must be its own primitive.
     groups: dict[tuple[int, int], list[tuple[int, int]]] = {}
     for elem_i in range(len(poly.element_types)):
         code = int(poly.element_types[elem_i])
-        if code in _VOLUME_CODES:
+        if code in _SKIP_ALL or code == _POLY_LINE_CODE or code == _TRI_STRIP_CODE:
             continue
         mode = _WRITABLE_MODES.get(code)
         if mode is None:
@@ -1045,7 +1203,34 @@ def _polydata_to_primitives(
             "mode": mode,
         }
         if mat >= 0:
-            prim["material"] = mat + mat_offset
+            prim["material"] = mat_remap[mat] if mat_remap else mat
+        primitives.append(prim)
+
+    # poly_line → LINE_STRIP (mode 3): one primitive per element, each strip
+    # must remain independent — merging would falsely connect their endpoints.
+    # triangle_strip → TRIANGLE_STRIP (mode 5): same reason — merged strips
+    # produce bridging triangles across seams.
+    for elem_i in range(len(poly.element_types)):
+        code = int(poly.element_types[elem_i])
+        if code == _POLY_LINE_CODE:
+            strip_mode = 3  # LINE_STRIP
+        elif code == _TRI_STRIP_CODE:
+            strip_mode = 5  # TRIANGLE_STRIP
+        else:
+            continue
+        seg = poly.connectivity[poly.offsets[elem_i] : poly.offsets[elem_i + 1]]
+        indices_arr = seg.astype(np.uint32)
+        if indices_arr.size > 0 and indices_arr.max() < 65536:
+            indices_arr = indices_arr.astype(np.uint16)
+        idx_accessor = bb.add_indices(indices_arr)
+        mat = int(mat_col[elem_i]) if mat_col is not None else -1
+        prim = {
+            "attributes": {"POSITION": pos_idx, **va_accessors},
+            "indices": idx_accessor,
+            "mode": strip_mode,
+        }
+        if mat >= 0:
+            prim["material"] = mat_remap[mat] if mat_remap else mat
         primitives.append(prim)
 
     return primitives
@@ -1056,7 +1241,9 @@ def _polydata_to_primitives(
 # =============================================================================
 
 
-def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> None:
+def write(
+    poly: PolyData, path: Source, *, binary: bool | None = None, **opts: Any
+) -> None:
     """Write a PolyData to a glTF or GLB file.
 
     Parameters
@@ -1067,9 +1254,11 @@ def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> 
     path
         Output file path.
     binary
-        ``True`` (default) writes a single ``.glb`` binary container.
+        ``True`` writes a self-contained ``.glb`` binary container.
         ``False`` writes a ``.gltf`` JSON file plus a companion ``.bin``
         file; *path* must be a filesystem path, not a stream.
+        Defaults to ``False`` when *path* ends in ``.gltf``, ``True``
+        otherwise.
 
     Raises
     ------
@@ -1078,19 +1267,15 @@ def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> 
         ``binary=False`` and *path* is a stream rather than a filesystem
         path.
     """
-    bb = _BinBuilder()
-    primitives = _polydata_to_primitives(poly, bb)
-
-    if not primitives:
-        raise CodecError(
-            "glTF: no writable elements in PolyData after filtering out "
-            "volume elements.  At least one triangle, line, or point is needed."
-        )
+    if binary is None:
+        binary = format_suffix(path).lower() != ".gltf"
 
     mat_col = poly.element_attrs.get("material")
+    mat_remap: dict[int, int] = {}
     gltf_materials: list[dict] = []
     if mat_col is not None:
         unique_mats = sorted({int(m) for m in mat_col if m >= 0})
+        mat_remap = {m: i for i, m in enumerate(unique_mats)}
         gltf_materials = [
             {
                 "name": f"material_{m}",
@@ -1102,6 +1287,15 @@ def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> 
             }
             for m in unique_mats
         ]
+
+    bb = _BinBuilder()
+    primitives = _polydata_to_primitives(poly, bb, mat_remap=mat_remap or None)
+
+    if not primitives:
+        raise CodecError(
+            "glTF: no writable elements in PolyData after filtering out "
+            "volume elements.  At least one triangle, line, or point is needed."
+        )
 
     asset_meta: dict = {"version": "2.0", "generator": f"polyxios {__version__}"}
     ga = poly.global_attrs.get("asset", {})
@@ -1129,11 +1323,133 @@ def write(poly: PolyData, path: Source, *, binary: bool = True, **opts: Any) -> 
 # =============================================================================
 
 
+def _matrix_to_trs(matrix: np.ndarray) -> dict:
+    """Decompose a 4×4 transform into glTF translation/rotation/scale.
+
+    Parameters
+    ----------
+    matrix
+        4×4 float64 row-major transform matrix.
+
+    Returns
+    -------
+    dict
+        Dict with ``"translation"``, ``"rotation"`` (x, y, z, w), and
+        ``"scale"`` keys.  Identity components are omitted.
+    """
+    t = matrix[:3, 3].tolist()
+    col0 = matrix[:3, 0]
+    col1 = matrix[:3, 1]
+    col2 = matrix[:3, 2]
+    sx = float(np.linalg.norm(col0))
+    sy = float(np.linalg.norm(col1))
+    sz = float(np.linalg.norm(col2))
+
+    # Detect degenerate (zero) scale components.
+    if sx <= 0 or sy <= 0 or sz <= 0:
+        warnings.warn(
+            "glTF: matrix has a zero-scale component "
+            f"(sx={sx:.6g}, sy={sy:.6g}, sz={sz:.6g}); TRS decomposition may be inaccurate.",
+            stacklevel=4,  # user → write_scene → _matrix_to_trs → here
+        )
+
+    # Detect negative determinant (reflection); TRS cannot represent it.
+    det = float(np.linalg.det(matrix[:3, :3]))
+    if det < 0:
+        warnings.warn(
+            "glTF: matrix has a negative determinant (reflection); "
+            "glTF TRS cannot represent reflections — absolute-value scale will be used.",
+            stacklevel=4,  # user → write_scene → _matrix_to_trs → here
+        )
+        sx, sy, sz = abs(sx), abs(sy), abs(sz)
+
+    # Rotation sub-matrix (columns normalised).
+    r = np.column_stack(
+        [
+            col0 / sx if sx > 0 else col0,
+            col1 / sy if sy > 0 else col1,
+            col2 / sz if sz > 0 else col2,
+        ]
+    )
+
+    try:
+        from scipy.spatial.transform import Rotation as _Rot
+
+        q = _Rot.from_matrix(r).as_quat()  # [x, y, z, w]
+    except (ImportError, ModuleNotFoundError):
+        # Pure-numpy Shepherd method fallback.
+        trace = r[0, 0] + r[1, 1] + r[2, 2]
+        if trace > 0:
+            s = 0.5 / np.sqrt(trace + 1.0)
+            q = np.array(
+                [
+                    (r[2, 1] - r[1, 2]) * s,
+                    (r[0, 2] - r[2, 0]) * s,
+                    (r[1, 0] - r[0, 1]) * s,
+                    0.25 / s,
+                ]
+            )
+        elif r[0, 0] > r[1, 1] and r[0, 0] > r[2, 2]:
+            s = 2.0 * np.sqrt(1.0 + r[0, 0] - r[1, 1] - r[2, 2])
+            q = np.array(
+                [
+                    0.25 * s,
+                    (r[0, 1] + r[1, 0]) / s,
+                    (r[0, 2] + r[2, 0]) / s,
+                    (r[2, 1] - r[1, 2]) / s,
+                ]
+            )
+        elif r[1, 1] > r[2, 2]:
+            s = 2.0 * np.sqrt(1.0 + r[1, 1] - r[0, 0] - r[2, 2])
+            q = np.array(
+                [
+                    (r[0, 1] + r[1, 0]) / s,
+                    0.25 * s,
+                    (r[1, 2] + r[2, 1]) / s,
+                    (r[0, 2] - r[2, 0]) / s,
+                ]
+            )
+        else:
+            s = 2.0 * np.sqrt(1.0 + r[2, 2] - r[0, 0] - r[1, 1])
+            q = np.array(
+                [
+                    (r[0, 2] + r[2, 0]) / s,
+                    (r[1, 2] + r[2, 1]) / s,
+                    0.25 * s,
+                    (r[1, 0] - r[0, 1]) / s,
+                ]
+            )
+
+    # Normalise quaternion; fall back to identity if it is degenerate.
+    q_norm = float(np.linalg.norm(q))
+    if q_norm > 0:
+        q = q / q_norm
+    else:
+        warnings.warn(
+            "glTF: quaternion extracted from matrix has zero norm; "
+            "falling back to identity rotation.",
+            stacklevel=4,  # user → write_scene → _matrix_to_trs → here
+        )
+        q = np.array([0.0, 0.0, 0.0, 1.0])
+
+    out: dict = {}
+    _identity_t = [0.0, 0.0, 0.0]
+    _identity_r = [0.0, 0.0, 0.0, 1.0]
+    _identity_s = [1.0, 1.0, 1.0]
+    if not np.allclose(t, _identity_t):
+        out["translation"] = t
+    if not np.allclose(q.tolist(), _identity_r, atol=1e-6):
+        out["rotation"] = q.tolist()
+    if not np.allclose([sx, sy, sz], _identity_s, atol=1e-6):
+        out["scale"] = [sx, sy, sz]
+    return out
+
+
 def write_scene(
     scene: SceneData,
     path: Source,
     *,
-    binary: bool = True,
+    binary: bool | None = None,
     **opts: Any,
 ) -> None:
     """Write a SceneData to a glTF or GLB file preserving the scene graph.
@@ -1146,21 +1462,38 @@ def write_scene(
     path
         Output file path.
     binary
-        ``True`` (default) writes a ``.glb`` container.  ``False`` writes
+        ``True`` writes a ``.glb`` container.  ``False`` writes
         ``.gltf`` + ``.bin``; *path* must be a filesystem path.
+        Defaults to ``False`` when *path* ends in ``.gltf``, ``True``
+        otherwise.
 
     Raises
     ------
     CodecError
         If ``binary=False`` and *path* is a stream, or if any mesh produces
         no writable primitives.
+
+    Notes
+    -----
+    ``write_scene`` is lossy for skinned meshes: skin definitions
+    (``global_attrs["skins"]``), ``JOINTS_0`` / ``WEIGHTS_0`` vertex
+    attributes, and per-node ``skin`` / ``camera`` extras are not written.
+    Use the round-tripped ``SceneData`` only for static geometry and
+    material inspection.
     """
+    if binary is None:
+        binary = format_suffix(path).lower() != ".gltf"
     bb = _BinBuilder()
 
     # Meshes.
     gltf_meshes: list[dict] = []
-    for mesh_poly in scene.meshes:
+    for mesh_idx, mesh_poly in enumerate(scene.meshes):
         prims = _polydata_to_primitives(mesh_poly, bb)
+        if not prims:
+            raise CodecError(
+                f"glTF: mesh {mesh_idx} produced no writable primitives; "
+                "remove it or filter out unsupported element types first."
+            )
         gltf_meshes.append({"primitives": prims})
 
     # Materials.
@@ -1187,7 +1520,9 @@ def write_scene(
     gltf_textures: list[dict] = []
     gltf_samplers: list[dict] = []
     for tex in scene.textures:
-        tex_entry: dict = {"source": tex.image}
+        tex_entry: dict = {}
+        if tex.image >= 0:
+            tex_entry["source"] = tex.image
         sampler: dict = {}
         if tex.mag_filter is not None:
             sampler["magFilter"] = tex.mag_filter
@@ -1203,9 +1538,17 @@ def write_scene(
         gltf_textures.append(tex_entry)
 
     # Nodes.
+    # Nodes targeted by animation channels MUST use T/R/S, not matrix.
     identity = np.eye(4, dtype=np.float64)
+    animated_node_indices: set[int] = set()
+    for anim in scene.global_attrs.get("animations", []):
+        for ch in anim.get("channels", []):
+            node_idx = ch.get("target", {}).get("node")
+            if node_idx is not None:
+                animated_node_indices.add(node_idx)
+
     gltf_nodes: list[dict] = []
-    for node in scene.nodes:
+    for node_i, node in enumerate(scene.nodes):
         n_entry: dict = {}
         if node.name:
             n_entry["name"] = node.name
@@ -1213,7 +1556,14 @@ def write_scene(
             n_entry["mesh"] = node.mesh
         if node.children:
             n_entry["children"] = list(node.children)
-        if not np.allclose(node.matrix, identity):
+        if node_i in animated_node_indices:
+            # glTF spec: animated nodes MUST NOT carry matrix; always use
+            # explicit T/R/S even when the rest-pose transform is identity.
+            trs = _matrix_to_trs(node.matrix)
+            n_entry["translation"] = trs.get("translation", [0.0, 0.0, 0.0])
+            n_entry["rotation"] = trs.get("rotation", [0.0, 0.0, 0.0, 1.0])
+            n_entry["scale"] = trs.get("scale", [1.0, 1.0, 1.0])
+        elif not np.allclose(node.matrix, identity):
             # glTF column-major = transpose of numpy row-major.
             n_entry["matrix"] = node.matrix.T.ravel().tolist()
         gltf_nodes.append(n_entry)
@@ -1222,7 +1572,11 @@ def write_scene(
     if scene.scenes:
         gltf_scenes = [{"nodes": list(s)} for s in scene.scenes]
     else:
-        gltf_scenes = [{"nodes": list(range(len(gltf_nodes)))}]
+        all_children: set[int] = set()
+        for node in scene.nodes:
+            all_children.update(node.children)
+        roots = [i for i in range(len(gltf_nodes)) if i not in all_children]
+        gltf_scenes = [{"nodes": roots}]
 
     asset_meta: dict = {"version": "2.0", "generator": f"polyxios {__version__}"}
     ga = scene.global_attrs.get("asset", {})
@@ -1276,8 +1630,10 @@ def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
 
     Appends accessor and bufferView entries to *bb* for each sampler's
     time and value arrays and returns a list of glTF animation objects
-    ready to embed in the JSON.  CUBICSPLINE is written as LINEAR since
-    tangent data is not retained in the decoded format.
+    ready to embed in the JSON.  All interpolation modes (LINEAR, STEP,
+    CUBICSPLINE) are preserved; for CUBICSPLINE the values array already
+    holds 3 × n_keyframes rows (in-tangent, value, out-tangent) as decoded
+    by :func:`_decode_animations`.
 
     Parameters
     ----------
@@ -1299,7 +1655,10 @@ def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
         if not channels or not samplers:
             continue
 
+        # Build both lists in a single loop so a skipped channel never
+        # shifts the sampler index relative to the channel list.
         gltf_samplers: list[dict] = []
+        gltf_channels: list[dict] = []
         for ch in channels:
             sampler_idx = ch.get("sampler", 0)
             if sampler_idx >= len(samplers):
@@ -1308,14 +1667,28 @@ def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
             times: np.ndarray = np.asarray(s["times"], dtype=np.float32)
             values: np.ndarray = np.asarray(s["values"], dtype=np.float32)
             path = ch.get("target", {}).get("path", "")
-            acc_type, _ = _PATH_ACCESSOR.get(path, ("VEC3", 3))
 
-            t_idx = bb.add(times, acc_type="SCALAR", component_type=5126)
-            v_idx = bb.add(values, acc_type=acc_type, component_type=5126)
+            # Derive acc_type from values shape; "weights" is SCALAR.
+            if (
+                path == "weights"
+                or values.ndim == 1
+                or (values.ndim == 2 and values.shape[1] == 1)
+            ):
+                acc_type = "SCALAR"
+            elif values.ndim == 2 and values.shape[1] == 2:
+                acc_type = "VEC2"
+            elif values.ndim == 2 and values.shape[1] == 4:
+                acc_type = "VEC4"
+            else:
+                acc_type, _ = _PATH_ACCESSOR.get(path, ("VEC3", 3))
 
+            t_idx = bb.add(times, acc_type="SCALAR", component_type=5126, target=None)
+            # glTF spec requires min/max on animation sampler input (time) accessors.
+            if len(times) > 0:
+                bb.accessors[t_idx]["min"] = [float(times.min())]
+                bb.accessors[t_idx]["max"] = [float(times.max())]
+            v_idx = bb.add(values, acc_type=acc_type, component_type=5126, target=None)
             interp = s.get("interpolation", "LINEAR")
-            if interp == "CUBICSPLINE":
-                interp = "LINEAR"
 
             gltf_samplers.append(
                 {
@@ -1324,14 +1697,9 @@ def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
                     "interpolation": interp,
                 }
             )
-
-        gltf_channels: list[dict] = []
-        for i, ch in enumerate(channels):
-            if i >= len(gltf_samplers):
-                break
             gltf_channels.append(
                 {
-                    "sampler": i,
+                    "sampler": len(gltf_samplers) - 1,
                     "target": ch.get("target", {}),
                 }
             )
@@ -1403,5 +1771,8 @@ def _write_output(
     else:
         gltf_dict = {k: v for k, v in gltf_dict.items() if k != "buffers"}
 
-    json_str = json.dumps(gltf_dict, indent=2)
+    try:
+        json_str = json.dumps(gltf_dict, indent=2, allow_nan=False)
+    except ValueError as exc:
+        raise CodecError("glTF: mesh data contains NaN or Inf values") from exc
     write_text(path, json_str, encoding="utf-8")

@@ -11,8 +11,8 @@ from typing import Any
 
 import numpy as np
 
+from polyxios import transforms
 from polyxios._types import PolyData
-import polyxios.transforms as transforms
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +114,7 @@ class SceneMaterial:
     extras: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class SceneNode:
     """One node in the scene graph.
 
@@ -128,7 +128,7 @@ class SceneNode:
     children
         Indices of child nodes into :attr:`SceneData.nodes`.
     matrix
-        Local 4×4 transform matrix (float64, column-major convention).
+        Local 4×4 transform matrix (float64, row-major / C-order).
         Defaults to the identity transform.
     extras
         Format-specific extra data (cameras, lights, skins) preserved for
@@ -141,8 +141,21 @@ class SceneNode:
     matrix: np.ndarray = field(default_factory=lambda: np.eye(4, dtype=np.float64))
     extras: dict[str, Any] = field(default_factory=dict)
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.mesh == other.mesh
+            and self.children == other.children
+            and np.array_equal(self.matrix, other.matrix)
+            and self.extras == other.extras
+        )
 
-@dataclass(frozen=True, slots=True)
+    __hash__ = None
+
+
+@dataclass(frozen=True, slots=True, eq=False)
 class SceneData:
     """Multi-mesh scene with hierarchy, materials, and texture images.
 
@@ -185,6 +198,31 @@ class SceneData:
     name: str = ""
     global_attrs: dict[str, Any] = field(default_factory=dict)
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return (
+            self.meshes == other.meshes
+            and self.nodes == other.nodes
+            and self.materials == other.materials
+            and self.textures == other.textures
+            and self.images == other.images
+            and self.scenes == other.scenes
+            and self.active_scene == other.active_scene
+            and self.name == other.name
+            and self.global_attrs == other.global_attrs
+        )
+
+    __hash__ = None
+
+    def _parent_map(self) -> dict[int, int]:
+        """Return {child_index: parent_index} for all nodes."""
+        parent: dict[int, int] = {}
+        for i, node in enumerate(self.nodes):
+            for child in node.children:
+                parent[child] = i
+        return parent
+
     def world_transform(self, node_index: int) -> np.ndarray:
         """Return the world-space 4×4 transform for the given node.
 
@@ -198,15 +236,22 @@ class SceneData:
         numpy.ndarray
             Shape (4, 4), dtype float64.  Product of all ancestor local
             matrices from the root down to this node.
+
+        Notes
+        -----
+        Rebuilds the parent map on every call (O(N) in node count).
+        Avoid calling per-node in a tight loop over the full scene;
+        :meth:`to_polydata` already walks all nodes without this overhead.
         """
-        parent: dict[int, int] = {}
-        for i, node in enumerate(self.nodes):
-            for child in node.children:
-                parent[child] = i
+        parent = self._parent_map()
 
         chain: list[int] = []
+        visited: set[int] = set()
         idx: int | None = node_index
         while idx is not None:
+            if idx in visited:
+                raise ValueError(f"cycle detected in scene graph at node {idx}")
+            visited.add(idx)
             chain.append(idx)
             idx = parent.get(idx)
         chain.reverse()
@@ -250,6 +295,11 @@ class SceneData:
 
         scene_idx = scene if scene is not None else self.active_scene
         if self.scenes:
+            if not (0 <= scene_idx < len(self.scenes)):
+                raise ValueError(
+                    f"scene index {scene_idx!r} is out of range; "
+                    f"this SceneData has {len(self.scenes)} scene(s)."
+                )
             root_indices = list(self.scenes[scene_idx])
         else:
             all_children: set[int] = set()
@@ -258,11 +308,15 @@ class SceneData:
             root_indices = [i for i in range(len(self.nodes)) if i not in all_children]
 
         collected: list[PolyData] = []
+        visited_nodes: set[int] = set()
         stack: list[tuple[int, np.ndarray]] = [
             (r, np.eye(4, dtype=np.float64)) for r in reversed(root_indices)
         ]
         while stack:
             node_idx, parent_world = stack.pop()
+            if node_idx in visited_nodes:
+                raise ValueError(f"cycle detected in scene graph at node {node_idx}")
+            visited_nodes.add(node_idx)
             node = self.nodes[node_idx]
             world = parent_world @ node.matrix
             if node.mesh is not None:
@@ -271,10 +325,29 @@ class SceneData:
                     n = mesh.vertices.shape[0]
                     ones = np.ones((n, 1), dtype=np.float64)
                     homo = np.hstack([mesh.vertices, ones])
-                    transformed = (homo @ world.T)[:, :3]
-                    mesh = dataclasses.replace(mesh, vertices=transformed)
+                    new_vertices = (homo @ world.T)[:, :3]
+                    R = world[:3, :3]
+                    vertex_attrs = dict(mesh.vertex_attrs)
+                    if "normals" in vertex_attrs:
+                        normals = vertex_attrs["normals"] @ np.linalg.pinv(R)
+                        norms = np.linalg.norm(normals, axis=1, keepdims=True)
+                        norms = np.where(norms == 0, 1.0, norms)
+                        vertex_attrs["normals"] = normals / norms
+                    if "tangents" in vertex_attrs:
+                        tgts = vertex_attrs["tangents"].copy()
+                        tgts[:, :3] = tgts[:, :3] @ R.T
+                        t_norms = np.linalg.norm(tgts[:, :3], axis=1, keepdims=True)
+                        t_norms = np.where(t_norms == 0, 1.0, t_norms)
+                        tgts[:, :3] /= t_norms
+                        vertex_attrs["tangents"] = tgts
+                    mesh = dataclasses.replace(
+                        mesh, vertices=new_vertices, vertex_attrs=vertex_attrs
+                    )
                 collected.append(mesh)
-            stack.extend((child, world) for child in reversed(node.children))
+            for child in reversed(node.children):
+                if child in visited_nodes:
+                    raise ValueError(f"cycle detected in scene graph at node {child}")
+                stack.append((child, world))
 
         if not collected:
             return PolyData(
