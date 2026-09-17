@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 27 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 30 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -25,7 +25,7 @@ Source: https://polyxios.org/stable/index.html
   "applicationCategory": "DeveloperApplication",
   "keywords": [
     "3D mesh file format", "mesh I/O", "Python", "VTK", "Wavefront OBJ",
-    "Stanford PLY", "STL", "Gmsh", "Abaqus", "Nastran", "finite element mesh",
+    "Stanford PLY", "STL", "glTF", "Gmsh", "Abaqus", "Nastran", "finite element mesh",
     "memory-mapped mesh reading", "computational geometry"
   ],
   "author": {
@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all twenty-nine - and raises instead of quietly corrupting
+        writes all thirty - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>27</b><span>formats</span></div>
+        <div><b>30</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -118,6 +118,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/medit.html"><span>Medit ASCII</span><span class="px-ext">.mesh .medit</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/gltf.html"><span>glTF 2.0</span><span class="px-ext">.gltf .glb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">scene: read_scene</span></a>
       <a class="px-tr" href="formats/gmsh.html"><span>Gmsh</span><span class="px-ext">.msh*</span><span class="px-ok">[x]</span><span class="px-ok">[x] v2 only</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/nastran.html"><span>Nastran</span><span class="px-ext">.bdf .nas .fem .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/tecplot.html"><span>Tecplot ASCII</span><span class="px-ext">.tec .dat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -134,7 +135,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 29 codecs, the 34 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <p class="px-tfoot">} // 30 codecs, the 36 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -205,7 +206,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a thirtieth format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirty-first format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -527,7 +528,7 @@ which was which.
 
 Where to go next
 
-formats/index - the twenty-nine supported formats, one page each
+formats/index - the thirty supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -543,7 +544,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four
+polyxios ships thirty codecs across thirty-seven extensions - the thirty-six
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -688,6 +689,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="flac3d.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">glTF 2.0 <span class="px-fmtext">.gltf .glb</span></p>
+    <p class="px-fmtdesc">JSON scene graph with PBR materials, animations and a
+      binary buffer; GLB packs everything into one self-contained file.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="gltf.html">read_scene() &#8594;</a>
+      <a class="px-fmtspec" href="https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html">full spec &#8599;</a>
     </p>
   </div>
 
@@ -2014,6 +2025,145 @@ ZGROUP and FGROUP names become element tags; a zone in several groups stays in a
 Gridpoint ids are sparse in practice and are remapped to a dense 0-based index on read.
 
 Coordinates and connectivity accumulate into machine-number arrays rather than Python lists while a file is read, which is what keeps a large grid’s peak memory a small multiple of the file rather than a large one.
+
+index - the full format table.
+
+## glTF
+
+Source: https://polyxios.org/stable/formats/gltf.html
+
+glTF
+
+.gltf .glb read + write scene: read_scene + write_scene
+
+Summary of the specification
+
+glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A .gltf file is a UTF-8 JSON document that references external binary buffers (.bin) and image files; a .glb file packs the JSON and an optional binary buffer into a single binary container whose chunks are each 4-byte aligned. The scene graph is a forest of nodes, each holding a local transform (either a 4×4 column-major matrix or explicit translation/rotation/scale), optional mesh and camera references, and a list of child indices. Meshes are composed of one or more primitives, each of which is a typed accessor view into the binary buffer together with an optional material index. Materials follow a PBR metallic-roughness model with base-colour texture, metallic-roughness texture, normal map, occlusion texture, and emissive factor. Animations describe time-sampled keyframe channels targeting node TRS properties or morph-target weights.
+
+Specification at a glance
+
+
+
+
+
+container forms
+
+.gltf (JSON + external .bin) or .glb (self-contained binary)
+
+GLB magic
+
+glTF (bytes 0–3), version uint32 = 2, total-length uint32
+
+GLB chunks
+
+JSON chunk (type 0x4E4F534A), then optional BIN chunk (type 0x004E4942); all 4-byte aligned
+
+scene graph
+
+scenes array of root-node-index lists; scene selects the default
+
+node transform
+
+4×4 column-major matrix, or translation / rotation (xyzw quaternion) / scale
+
+bufferViews
+
+byte range inside a buffer; target 34962 (ARRAY_BUFFER) or 34963 (ELEMENT_ARRAY_BUFFER) for mesh data; omitted for animation and image data
+
+accessors
+
+typed view into a bufferView: componentType, type (SCALAR/VEC2/VEC3/VEC4/MAT*), count
+
+primitive modes
+
+0 POINTS, 1 LINES, 3 LINE_STRIP, 4 TRIANGLES, 5 TRIANGLE_STRIP
+
+PBR material
+
+pbrMetallicRoughness: baseColorFactor, baseColorTexture, metallicFactor, roughnessFactor, metallicRoughnessTexture; plus normalTexture, occlusionTexture, emissiveFactor
+
+data URI buffers
+
+data:application/octet-stream;base64,<b64> inline in the JSON
+
+animation
+
+sampler input (time) and output (values) accessors, LINEAR/STEP/CUBICSPLINE interpolation
+
+Read the full glTF 2.0 specification ↗
+
+Reading
+
+read_scene returns a SceneData preserving the full scene graph:
+
+import polyxios as px
+
+scene = px.read_scene("robot.glb")
+scene.nodes        # tuple of SceneNode (matrix, mesh index, children)
+scene.meshes       # tuple of PolyData (one per glTF mesh, primitives merged)
+scene.materials    # tuple of SceneMaterial (PBR metallic-roughness)
+scene.textures     # tuple of SceneTexture (image index + sampler settings)
+scene.images       # tuple of SceneImage (URI or embedded bytes)
+
+Flatten to a single PolyData applying all node transforms:
+
+mesh = scene.to_polydata()  # applies world transforms, merges all meshes
+mesh.vertices               # (n, 3)
+mesh.element_types          # element groups from all nodes
+
+read() flattens automatically but warns that scene data is discarded:
+
+mesh = px.read("robot.glb")   # issues UserWarning; use read_scene to suppress
+
+Writing
+
+write_scene round-trips a SceneData:
+
+px.write_scene(scene, "out.glb")   # GLB (self-contained)
+px.write_scene(scene, "out.gltf")  # glTF JSON + out.bin (separate buffer)
+
+write serialises a flat PolyData as a single-node scene:
+
+px.write(mesh, "out.glb")
+px.write(mesh, "out.gltf")
+
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+binary
+
+None
+
+True → GLB output; False → .gltf + .bin.  When None, inferred from the path suffix (.glb → True, .gltf → False).
+
+Quirks worth knowing
+
+GLB is detected by the glTF magic bytes, so a file renamed to .gltf but carrying a binary GLB header still reads correctly.
+
+Multiple glTF primitives inside one mesh are merged into a single PolyData on read; element_attrs["material"] records per-element material indices.
+
+Node world transforms are applied during to_polydata(): vertices are multiplied by the world matrix, normals by the inverse-transpose of the linear 3×3 part of the node matrix, and tangents by the linear 3×3 part directly (covariant transform).
+
+Animation data is preserved in global_attrs["animations"] as decoded numpy arrays and re-encoded on write_scene.  Animated nodes are forced to TRS form (never matrix) as the glTF spec requires.
+
+Textures with image: -1 are placeholder entries that preserve index alignment for KHR_texture_basisu / EXT_texture_webp extensions; they are read and written without a source key.
+
+Writing uses allow_nan=False in the JSON serialiser; a CodecError is raised if any floating-point value is NaN or Inf.
+
+External .bin buffers require a filesystem path; writing .gltf to a stream raises CodecError. Use binary=True for a self-contained GLB instead.
+
+TRS decomposition for animated-node export attempts scipy’s Rotation.from_matrix and falls back to a pure-numpy Shepherd quaternion extraction if scipy is unavailable.
 
 index - the full format table.
 
@@ -3706,6 +3856,34 @@ polyxios
 
 
 
+polyxios.SceneData(meshes, ...], nodes, ...)
+
+Multi-mesh scene with hierarchy, materials, and texture images.
+
+polyxios.SceneNode(name, mesh, children, ...)
+
+One node in the scene graph.
+
+polyxios.SceneMaterial(name, base_color, ...)
+
+PBR metallic-roughness material.
+
+polyxios.SceneTexture(image[, mag_filter, ...])
+
+A texture: image index plus OpenGL sampler settings.
+
+polyxios.SceneImage([uri, data, media_type, ...])
+
+A texture image: external URI or embedded bytes.
+
+polyxios.read_scene(path, *[, fmt, registry])
+
+Read a scene-graph file and return a SceneData.
+
+polyxios.write_scene(scene, path, *[, fmt, ...])
+
+Write a SceneData to a scene-graph file.
+
 polyxios.transforms
 
 
@@ -3738,6 +3916,10 @@ read(path, *[, fmt, lazy, registry])
 
 Read a mesh file and return a PolyData.
 
+read_scene(path, *[, fmt, registry])
+
+Read a scene-graph file and return a SceneData.
+
 supported_extensions(*[, registry])
 
 List the file extensions the registry resolves.
@@ -3745,6 +3927,10 @@ List the file extensions the registry resolves.
 write(poly, path, *[, fmt, registry])
 
 Write a PolyData to a mesh file.
+
+write_scene(scene, path, *[, fmt, registry])
+
+Write a SceneData to a scene-graph file.
 
 Modules
 
@@ -4072,6 +4258,611 @@ Exceptions
 Traversal
 
 A sub-file reference that points outside its own index's directory.
+
+## polyxios.SceneData
+
+Source: https://polyxios.org/stable/api/generated/polyxios.SceneData.html
+
+polyxios.SceneData
+
+
+
+class polyxios.SceneData(meshes: tuple[~polyxios._types.PolyData, ...], nodes: tuple[~polyxios._scene.SceneNode, ...], materials: tuple[~polyxios._scene.SceneMaterial, ...] = (), textures: tuple[~polyxios._scene.SceneTexture, ...] = (), images: tuple[~polyxios._scene.SceneImage, ...] = (), scenes: tuple[tuple[int, ...], ...] = (), active_scene: int = 0, name: str = '', global_attrs: dict[str, ~typing.Any] = <factory>)
+
+Multi-mesh scene with hierarchy, materials, and texture images.
+
+This is the type returned by scene-aware codecs (glTF, FBX, USD,
+COLLADA).  Each entry in meshes is a flat PolyData;
+element_attrs["material"] holds int32 indices into materials
+(-1 meaning no material).  Node transforms are stored as local
+matrices; world transforms are computed on demand by
+world_transform().
+
+Parameters
+
+meshes
+
+One PolyData per glTF mesh (primitives merged).
+
+nodes
+
+Scene-graph nodes with local transforms and parent–child wiring.
+
+materials
+
+PBR materials referenced by element_attrs[“material”] indices.
+
+textures
+
+Textures referencing entries in images.
+
+images
+
+Raw image data or URI references.
+
+scenes
+
+Each entry is a tuple of root-node indices defining one scene.
+
+active_scene
+
+Index of the default scene in scenes.
+
+name
+
+Optional top-level name from the source file.
+
+global_attrs
+
+Format-level metadata: asset, raw animations, skins, etc.
+
+!! processed by numpydoc !!
+
+
+
+__init__(meshes: tuple[~polyxios._types.PolyData, ...], nodes: tuple[~polyxios._scene.SceneNode, ...], materials: tuple[~polyxios._scene.SceneMaterial, ...] = (), textures: tuple[~polyxios._scene.SceneTexture, ...] = (), images: tuple[~polyxios._scene.SceneImage, ...] = (), scenes: tuple[tuple[int, ...], ...] = (), active_scene: int = 0, name: str = '', global_attrs: dict[str, ~typing.Any] = <factory>) -> None
+
+!! processed by numpydoc !!
+
+Methods
+
+
+
+
+
+
+
+__init__(meshes, ...], nodes, ...], ...)
+
+
+
+to_polydata(*[, scene, apply_transforms])
+
+Flatten the scene graph into a single merged PolyData.
+
+world_transform(node_index)
+
+Return the world-space 4×4 transform for the given node.
+
+Attributes
+
+
+
+
+
+
+
+meshes
+
+
+
+nodes
+
+
+
+materials
+
+
+
+textures
+
+
+
+images
+
+
+
+scenes
+
+
+
+active_scene
+
+
+
+name
+
+
+
+global_attrs
+
+## polyxios.SceneNode
+
+Source: https://polyxios.org/stable/api/generated/polyxios.SceneNode.html
+
+polyxios.SceneNode
+
+
+
+class polyxios.SceneNode(name: str = '', mesh: int | None = None, children: tuple[int, ...]=(), matrix: ndarray = <factory>, extras: dict[str, ~typing.Any]=<factory>)
+
+One node in the scene graph.
+
+Parameters
+
+name
+
+Node name from the source file.
+
+mesh
+
+Index into SceneData.meshes, or None if this node
+carries no geometry (e.g. a grouping or camera node).
+
+children
+
+Indices of child nodes into SceneData.nodes.
+
+matrix
+
+Local 4×4 transform matrix (float64, row-major / C-order).
+Defaults to the identity transform.
+
+extras
+
+Format-specific extra data (cameras, lights, skins) preserved for
+round-tripping.
+
+!! processed by numpydoc !!
+
+
+
+__init__(name: str = '', mesh: int | None = None, children: tuple[int, ...]=(), matrix: ndarray = <factory>, extras: dict[str, ~typing.Any]=<factory>) -> None
+
+!! processed by numpydoc !!
+
+Methods
+
+
+
+
+
+
+
+__init__(name, mesh, children, ...] =, ...)
+
+
+
+Attributes
+
+
+
+
+
+
+
+name
+
+
+
+mesh
+
+
+
+children
+
+
+
+matrix
+
+
+
+extras
+
+## polyxios.SceneMaterial
+
+Source: https://polyxios.org/stable/api/generated/polyxios.SceneMaterial.html
+
+polyxios.SceneMaterial
+
+
+
+class polyxios.SceneMaterial(name: str = '', base_color: tuple[float, float, float, float]=(1.0, 1.0, 1.0, 1.0), metallic: float = 1.0, roughness: float = 1.0, emissive: tuple[float, float, float]=(0.0, 0.0, 0.0), alpha_mode: str = 'OPAQUE', alpha_cutoff: float = 0.5, double_sided: bool = False, base_color_texture: int | None = None, normal_texture: int | None = None, metallic_roughness_texture: int | None = None, occlusion_texture: int | None = None, emissive_texture: int | None = None, extras: dict[str, ~typing.Any]=<factory>)
+
+PBR metallic-roughness material.
+
+Parameters
+
+name
+
+Material name from the source file.
+
+base_color
+
+RGBA base-color factor in linear space, each component in [0, 1].
+
+metallic
+
+Metallic factor in [0, 1].
+
+roughness
+
+Roughness factor in [0, 1].
+
+emissive
+
+RGB emissive factor in linear space.
+
+alpha_mode
+
+One of "OPAQUE", "MASK", or "BLEND".
+
+alpha_cutoff
+
+Alpha cutoff threshold used when alpha_mode is "MASK".
+
+double_sided
+
+Whether the material is rendered on both sides.
+
+base_color_texture
+
+Index into SceneData.textures, or None.
+
+normal_texture
+
+Index into SceneData.textures, or None.
+
+metallic_roughness_texture
+
+Index into SceneData.textures, or None.
+
+occlusion_texture
+
+Index into SceneData.textures, or None.
+
+emissive_texture
+
+Index into SceneData.textures, or None.
+
+extras
+
+Format-specific extra data preserved for round-tripping.
+
+!! processed by numpydoc !!
+
+
+
+__init__(name: str = '', base_color: tuple[float, float, float, float]=(1.0, 1.0, 1.0, 1.0), metallic: float = 1.0, roughness: float = 1.0, emissive: tuple[float, float, float]=(0.0, 0.0, 0.0), alpha_mode: str = 'OPAQUE', alpha_cutoff: float = 0.5, double_sided: bool = False, base_color_texture: int | None = None, normal_texture: int | None = None, metallic_roughness_texture: int | None = None, occlusion_texture: int | None = None, emissive_texture: int | None = None, extras: dict[str, ~typing.Any]=<factory>) -> None
+
+!! processed by numpydoc !!
+
+Methods
+
+
+
+
+
+
+
+__init__(name, base_color, float, float, ...)
+
+
+
+Attributes
+
+
+
+
+
+
+
+name
+
+
+
+base_color
+
+
+
+metallic
+
+
+
+roughness
+
+
+
+emissive
+
+
+
+alpha_mode
+
+
+
+alpha_cutoff
+
+
+
+double_sided
+
+
+
+base_color_texture
+
+
+
+normal_texture
+
+
+
+metallic_roughness_texture
+
+
+
+occlusion_texture
+
+
+
+emissive_texture
+
+
+
+extras
+
+## polyxios.SceneTexture
+
+Source: https://polyxios.org/stable/api/generated/polyxios.SceneTexture.html
+
+polyxios.SceneTexture
+
+
+
+class polyxios.SceneTexture(image: int, mag_filter: int | None = None, min_filter: int | None = None, wrap_s: int = 10497, wrap_t: int = 10497)
+
+A texture: image index plus OpenGL sampler settings.
+
+Parameters
+
+image
+
+Index into SceneData.images.
+
+mag_filter
+
+GL magnification filter enum (e.g. 9729 = GL_LINEAR).
+
+min_filter
+
+GL minification filter enum (e.g. 9987 = GL_LINEAR_MIPMAP_LINEAR).
+
+wrap_s
+
+GL wrap mode for the S axis (default 10497 = GL_REPEAT).
+
+wrap_t
+
+GL wrap mode for the T axis (default 10497 = GL_REPEAT).
+
+!! processed by numpydoc !!
+
+
+
+__init__(image: int, mag_filter: int | None = None, min_filter: int | None = None, wrap_s: int = 10497, wrap_t: int = 10497) -> None
+
+!! processed by numpydoc !!
+
+Methods
+
+
+
+
+
+
+
+__init__(image[, mag_filter, min_filter, ...])
+
+
+
+Attributes
+
+
+
+
+
+
+
+image
+
+
+
+mag_filter
+
+
+
+min_filter
+
+
+
+wrap_s
+
+
+
+wrap_t
+
+## polyxios.SceneImage
+
+Source: https://polyxios.org/stable/api/generated/polyxios.SceneImage.html
+
+polyxios.SceneImage
+
+
+
+class polyxios.SceneImage(uri: str | None = None, data: bytes | None = None, media_type: str | None = None, name: str = '')
+
+A texture image: external URI or embedded bytes.
+
+Parameters
+
+uri
+
+File-system path or data: URI.  Mutually exclusive with data.
+
+data
+
+Raw image bytes decoded from a glTF buffer view or a data: URI.
+
+media_type
+
+MIME type string, e.g. "image/png" or "image/jpeg".
+
+name
+
+Optional human-readable label from the source file.
+
+!! processed by numpydoc !!
+
+
+
+__init__(uri: str | None = None, data: bytes | None = None, media_type: str | None = None, name: str = '') -> None
+
+!! processed by numpydoc !!
+
+Methods
+
+
+
+
+
+
+
+__init__([uri, data, media_type, name])
+
+
+
+Attributes
+
+
+
+
+
+
+
+uri
+
+
+
+data
+
+
+
+media_type
+
+
+
+name
+
+## polyxios.read_scene
+
+Source: https://polyxios.org/stable/api/generated/polyxios.read_scene.html
+
+polyxios.read_scene
+
+
+
+polyxios.read_scene(path: str | PathLike[str] | IO[Any], *, fmt: str | None = None, registry: dict | None = None, **opts: object) -> SceneData
+
+Read a scene-graph file and return a SceneData.
+
+Parameters
+
+path
+
+Path to the scene file (e.g. .gltf or .glb).
+
+fmt
+
+Format override (e.g. '.glb').  Inferred from the file
+extension when None.
+
+registry
+
+Custom codec registry.  Uses the built-in registry if None.
+
+**opts
+
+Format-specific options passed to the codec’s read_scene function.
+
+Returns
+
+SceneData
+
+Full scene graph with meshes, nodes, materials, textures, and images.
+
+Raises
+
+UnsupportedFormatError
+
+If the format does not carry scene data.  Use read() for
+flat single-mesh formats.
+
+!! processed by numpydoc !!
+
+## polyxios.write_scene
+
+Source: https://polyxios.org/stable/api/generated/polyxios.write_scene.html
+
+polyxios.write_scene
+
+
+
+polyxios.write_scene(scene: SceneData, path: str | PathLike[str] | IO[Any], *, fmt: str | None = None, registry: dict | None = None, **opts: object) -> None
+
+Write a SceneData to a scene-graph file.
+
+Parameters
+
+scene
+
+SceneData to serialize.
+
+path
+
+Output file path.
+
+fmt
+
+Format override (e.g. '.glb').  Inferred from the file
+extension when None.
+
+registry
+
+Custom codec registry.  Uses the built-in registry if None.
+
+**opts
+
+Format-specific options passed to the codec’s write_scene
+function (e.g. binary=False for .gltf + .bin).
+
+Raises
+
+UnsupportedFormatError
+
+If the format does not support scene writing.  Use write()
+to write a flat PolyData instead.
+
+!! processed by numpydoc !!
 
 ## Contributing
 
@@ -4404,6 +5195,12 @@ Changelog
 
 New features
 
+glTF 2.0 (.gltf, .glb) is read and written.  read_scene returns
+a SceneData with the full node hierarchy, PBR materials, textures, and
+animations; read flattens to a single PolyData with a warning.
+write_scene round-trips from SceneData; write serialises a flat
+mesh as a single-node scene.
+
 ANSYS Fluent meshes are read and written: .msh when the file opens with
 a parenthesised section, and .fluent to name the codec on a write,
 gzip included. A Fluent mesh is its faces, each naming the cell on either
@@ -4503,7 +5300,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:118: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:124: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -4574,7 +5371,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:182: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:188: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -4812,7 +5609,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:406: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:412: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -4850,7 +5647,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:442: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:448: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -5815,7 +6612,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1302: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1308: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -5899,7 +6696,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1370: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1376: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -5947,7 +6744,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1401: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1407: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -5962,7 +6759,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1413: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1419: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -6068,7 +6865,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1486: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1492: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

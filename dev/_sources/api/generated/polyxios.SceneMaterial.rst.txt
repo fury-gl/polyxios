@@ -1,0 +1,41 @@
+﻿polyxios.SceneMaterial
+======================
+
+.. currentmodule:: polyxios
+
+.. autoclass:: SceneMaterial
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SceneMaterial.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SceneMaterial.name
+      ~SceneMaterial.base_color
+      ~SceneMaterial.metallic
+      ~SceneMaterial.roughness
+      ~SceneMaterial.emissive
+      ~SceneMaterial.alpha_mode
+      ~SceneMaterial.alpha_cutoff
+      ~SceneMaterial.double_sided
+      ~SceneMaterial.base_color_texture
+      ~SceneMaterial.normal_texture
+      ~SceneMaterial.metallic_roughness_texture
+      ~SceneMaterial.occlusion_texture
+      ~SceneMaterial.emissive_texture
+      ~SceneMaterial.extras
+   
+   

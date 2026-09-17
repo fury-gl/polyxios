@@ -1,0 +1,31 @@
+﻿polyxios.SceneImage
+===================
+
+.. currentmodule:: polyxios
+
+.. autoclass:: SceneImage
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SceneImage.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SceneImage.uri
+      ~SceneImage.data
+      ~SceneImage.media_type
+      ~SceneImage.name
+   
+   

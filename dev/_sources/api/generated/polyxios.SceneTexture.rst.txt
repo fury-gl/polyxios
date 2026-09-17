@@ -1,0 +1,32 @@
+﻿polyxios.SceneTexture
+=====================
+
+.. currentmodule:: polyxios
+
+.. autoclass:: SceneTexture
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SceneTexture.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SceneTexture.image
+      ~SceneTexture.mag_filter
+      ~SceneTexture.min_filter
+      ~SceneTexture.wrap_s
+      ~SceneTexture.wrap_t
+   
+   

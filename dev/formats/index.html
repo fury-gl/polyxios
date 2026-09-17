@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="The twenty-nine 3D mesh and geometry formats polyxios reads and writes, across thirty-five extensions - VTK, OBJ, PLY, STL, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS and more, one reference page each." name="description" />
+<meta content="The thirty 3D mesh and geometry formats polyxios reads and writes, across thirty-seven extensions - VTK, OBJ, PLY, STL, glTF, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS and more, one reference page each." name="description" />
 <meta property="og:title" content="Supported formats" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the rig..." />
+<meta property="og:description" content="polyxios ships thirty codecs across thirty-seven extensions - the thirty-six below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right re..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_61d843dd.png" />
-<meta property="og:image:alt" content="polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the rig..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_8d7ab7bc.png" />
+<meta property="og:image:alt" content="polyxios ships thirty codecs across thirty-seven extensions - the thirty-six below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right re..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d543d0c"></script>
+    <script src="../_static/documentation_options.js?v=c398f11b"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-14"/>
+    <meta name="docbuild:last-update" content="2026-09-17"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -436,6 +436,7 @@
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gltf.html">glTF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
@@ -470,6 +471,13 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
@@ -538,7 +546,7 @@
                   
   <section id="supported-formats">
 <span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
-<p>polyxios ships twenty-nine codecs across thirty-five extensions - the thirty-four
+<p>polyxios ships thirty codecs across thirty-seven extensions - the thirty-six
 below plus <code class="docutils literal notranslate"><span class="pre">.plt</span></code>, which is recognised but not read. Each is registered by
 extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
 <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
@@ -681,6 +689,16 @@ deviates from it, and links to the authoritative document.</p>
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="flac3d.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://docs.itascacg.com/flac3d700/common/docproject/source/manual/program_guide/mechanics/otherinputs/gridformat.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">glTF 2.0 <span class="px-fmtext">.gltf .glb</span></p>
+    <p class="px-fmtdesc">JSON scene graph with PBR materials, animations and a
+      binary buffer; GLB packs everything into one self-contained file.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="gltf.html">read_scene() &#8594;</a>
+      <a class="px-fmtspec" href="https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html">full spec &#8599;</a>
     </p>
   </div>
 
@@ -973,7 +991,7 @@ file is not supported.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-14.
+  Last updated on 2026-09-17.
   <br/>
 </p></div>
       

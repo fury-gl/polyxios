@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): New features: ANSYS Fluent meshes are read and written:.msh when the file opens with a parenthesised section, and.fluent to name the codec on a write, gzip included. A Fluent mesh..." />
+<meta property="og:description" content="0.5.0 (upcoming): New features: glTF 2.0 (.gltf,.glb) is read and written. read_scene returns a SceneData with the full node hierarchy, PBR materials, textures, and animations; read flattens to a s..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_2360098f.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): New features: ANSYS Fluent meshes are read and written:.msh when the file opens with a parenthesised section, and.fluent to name the codec on a write, gzip included. A Fluent mesh..." />
-<meta name="description" content="0.5.0 (upcoming): New features: ANSYS Fluent meshes are read and written:.msh when the file opens with a parenthesised section, and.fluent to name the codec on a write, gzip included. A Fluent mesh..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_1d0fadb5.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): New features: glTF 2.0 (.gltf,.glb) is read and written. read_scene returns a SceneData with the full node hierarchy, PBR materials, textures, and animations; read flattens to a s..." />
+<meta name="description" content="0.5.0 (upcoming): New features: glTF 2.0 (.gltf,.glb) is read and written. read_scene returns a SceneData with the full node hierarchy, PBR materials, textures, and animations; read flattens to a s..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=6d543d0c"></script>
+    <script src="_static/documentation_options.js?v=c398f11b"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-14"/>
+    <meta name="docbuild:last-update" content="2026-09-17"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -436,6 +436,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/gltf.html">glTF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tecplot.html">Tecplot ASCII</a></li>
@@ -470,6 +471,13 @@
 <li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
@@ -543,6 +551,11 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>glTF 2.0 (<code class="docutils literal notranslate"><span class="pre">.gltf</span></code>, <code class="docutils literal notranslate"><span class="pre">.glb</span></code>) is read and written.  <code class="docutils literal notranslate"><span class="pre">read_scene</span></code> returns
+a <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> with the full node hierarchy, PBR materials, textures, and
+animations; <code class="docutils literal notranslate"><span class="pre">read</span></code> flattens to a single <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with a warning.
+<code class="docutils literal notranslate"><span class="pre">write_scene</span></code> round-trips from <code class="docutils literal notranslate"><span class="pre">SceneData</span></code>; <code class="docutils literal notranslate"><span class="pre">write</span></code> serialises a flat
+mesh as a single-node scene.</p></li>
 <li><p>ANSYS Fluent meshes are read and written: <code class="docutils literal notranslate"><span class="pre">.msh</span></code> when the file opens with
 a parenthesised section, and <code class="docutils literal notranslate"><span class="pre">.fluent</span></code> to name the codec on a write,
 gzip included. A Fluent mesh is its faces, each naming the cell on either
@@ -2140,7 +2153,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-14.
+  Last updated on 2026-09-17.
   <br/>
 </p></div>
       
