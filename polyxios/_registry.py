@@ -34,18 +34,108 @@ class Codec(NamedTuple):
         dispatcher a contested extension resolves to, naming the formats
         competing for it in the order their ``sniff`` is tried, so a caller
         can report the ambiguity without hard-coding the candidate list.
+    read_scene
+        Optional scene reader, invoked as ``read_scene(path=..., **opts)``
+        and returning a ``SceneData``.  ``None`` for formats that hold only
+        a single flat mesh.
+    write_scene
+        Optional scene writer, invoked as
+        ``write_scene(scene=..., path=..., **opts)``.  ``None`` for formats
+        that cannot represent a full scene graph.
     """
 
     read: Callable
     write: Callable
     sniff: Callable | None = None
     candidates: tuple[str, ...] = ()
+    read_scene: Callable | None = None
+    write_scene: Callable | None = None
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
 # deck's comment banner does not hide its first real card, small enough that
 # reading it costs one page.
 _SNIFF_BYTES: int = 8192
+
+
+def _sniff_head(path: Source, shared: str) -> bytes:
+    """Read the opening bytes of *path* for sniffing, rewinding if needed.
+
+    Raises :exc:`~polyxios.exceptions.CodecError` if *path* is a
+    non-seekable stream (the bytes cannot be given back to the codec).
+    """
+    if is_buffer(path) and not can_seek(path):
+        raise CodecError(
+            f"'{source_name(path)}': {shared}, so the file's opening "
+            f"has to be read to choose one - and this stream cannot "
+            f"seek back. Pass fmt= to choose one explicitly, or buffer "
+            f"the stream first."
+        )
+    # A file that cannot be opened is not an ambiguous file: let the OS
+    # error through so a missing or unreadable path raises the same thing
+    # here as it does under an extension one codec owns.
+    with open_read(path) as fh:
+        # Only a handle the caller owns is put back.  A path's handle is
+        # opened here and closed on the next line; a compressed handle is
+        # rewound by open_read itself on the source.
+        start = fh.tell() if is_buffer(path) and can_seek(fh) else None
+        head = fh.read(_SNIFF_BYTES)
+        if start is not None:
+            fh.seek(start)
+    # A full buffer means the read stopped mid-line; drop the partial line.
+    # A window with no newline is left alone — sniffers anchor at the start.
+    if len(head) == _SNIFF_BYTES and b"\n" in head:
+        head = head.rsplit(b"\n", 1)[0]
+    return head
+
+
+def _run_sniffers(
+    head: bytes,
+    path: Source,
+    entries: list[tuple[str, "Codec"]],
+) -> tuple[list[str], str | None, "Codec | None"]:
+    """Try each sniffer against *head*; return (broken_labels, label, first_match | None).
+
+    A sniffer that raises is recorded in *broken_labels* with its error and
+    warned about, but never allowed to mask the remaining sniffers.
+    """
+    broken: list[str] = []
+    for label, codec in entries:
+        try:
+            matched = bool(codec.sniff(head))
+        except Exception as exc:  # a broken sniffer must not mask the rest
+            broken.append(f"{label} ({exc})")
+            warnings.warn(
+                f"{label} sniffer raised on '{source_name(path)}': {exc}",
+                stacklevel=3,  # caller → dispatcher → _run_sniffers → here
+            )
+            continue
+        if matched:
+            return broken, label, codec
+    return broken, None, None
+
+
+def _sniff_no_match_error(
+    path: Source,
+    broken: list[str],
+    entries: list[tuple[str, "Codec"]],
+    shared: str,
+    no_match: str,
+) -> None:
+    """Raise :exc:`~polyxios.exceptions.UnsupportedFormatError` after a failed sniff.
+
+    Call only when every sniffer was tried and no default fallback applies.
+    """
+    if len(broken) == len(entries):
+        detail = f"no sniffer could answer, each one raising: {'; '.join(broken)}"
+    else:
+        detail = no_match
+    parts = [f"'{source_name(path)}': {shared} and {detail}."]
+    if broken and len(broken) != len(entries):
+        noun = "sniffer" if len(broken) == 1 else "sniffers"
+        parts.append(f"The {noun} {'; '.join(broken)} raised instead of answering.")
+    parts.append("Pass fmt= to choose one explicitly.")
+    raise UnsupportedFormatError(" ".join(parts))
 
 
 def _make_dispatcher(
@@ -98,81 +188,16 @@ def _make_dispatcher(
         no_match = f"the file's content does not look like {named}"
 
     def read(path: Source, *, lazy: bool = False, **opts: object) -> object:
-        # Sniffing a caller's handle spends bytes the codec still needs, so
-        # the position is put back afterwards. A stream that cannot rewind
-        # has no way to give them back at all: say so before a single byte is
-        # taken off it, rather than after opening it has already cost it its
-        # opening. The source is asked, never the handle open_read would hand
-        # back - a gzip wrapper answers 'seekable' for itself and not for the
-        # stream underneath it, so asking the wrapper would let an unseekable
-        # compressed stream through to fail on the rewind.
-        if is_buffer(path) and not can_seek(path):
-            raise CodecError(
-                f"'{source_name(path)}': {shared}, so the file's opening "
-                f"has to be read to choose one - and this stream cannot "
-                f"seek back to give it to the codec. Pass fmt= to choose "
-                f"one explicitly, or buffer the stream first."
-            )
-
-        # A file that cannot be opened is not an ambiguous file: let the OS
-        # error through, so a missing or unreadable path raises the same
-        # thing here as it does under an extension one codec owns.
-        with open_read(path) as fh:
-            # Only a handle the caller owns is put back. A path's handle is
-            # opened here and closed on the next line, so where the sniff left
-            # it is nobody's business; a compressed handle is rewound by
-            # open_read itself, on the source rather than on the decompressor
-            # sitting over it.
-            start = fh.tell() if is_buffer(path) and can_seek(fh) else None
-            head = fh.read(_SNIFF_BYTES)
-            if start is not None:
-                fh.seek(start)
-
-        # A full buffer means the read stopped mid-line, and half a line
-        # answers a sniffer's question by accident either way; drop it. A
-        # window holding no newline at all is left alone - there is nothing
-        # to drop back to, and the sniffers anchor at the start regardless.
-        if len(head) == _SNIFF_BYTES and b"\n" in head:
-            head = head.rsplit(b"\n", 1)[0]
-
-        broken: list[str] = []
-        for label, codec in entries:
-            try:
-                matched = bool(codec.sniff(head))
-            except Exception as exc:  # a broken sniffer must not mask the rest
-                broken.append(f"{label} ({exc})")
-                warnings.warn(
-                    f"{label} sniffer raised on '{source_name(path)}': {exc}",
-                    stacklevel=2,
-                )
-                continue
-            if matched:
-                return codec.read(path=path, lazy=lazy, **opts)
-
-        # Nothing recognised the file. An extension a format owns and merely
-        # shares still belongs to that format, so the read goes to it rather
-        # than stopping here: it held the key before the extension was shared
-        # and its own error names the real problem, where a verdict from the
-        # dispatcher can only say that no sniffer spoke up. An extension no
-        # one owns has no such fallback and does stop here.
+        head = _sniff_head(path, shared)
+        broken, _, codec = _run_sniffers(head, path, entries)
+        if codec is not None:
+            return codec.read(path=path, lazy=lazy, **opts)
+        # Nothing recognised the file.  An extension a format owns and merely
+        # shares still belongs to that format; let its own reader give the
+        # real error rather than the dispatcher's generic verdict.
         if default_writer is not None:
             return default_writer[1].read(path=path, lazy=lazy, **opts)
-
-        # A sniffer that raised never answered, so reporting that the content
-        # matched nothing would state a verdict no one reached; say what
-        # actually happened, and name the failures either way.
-        if len(broken) == len(entries):
-            detail = f"no sniffer could answer, each one raising: {'; '.join(broken)}"
-        else:
-            detail = no_match
-
-        parts = [f"'{source_name(path)}': {shared} and {detail}."]
-        if broken and len(broken) != len(entries):
-            noun = "sniffer" if len(broken) == 1 else "sniffers"
-            parts.append(f"The {noun} {'; '.join(broken)} raised instead of answering.")
-        parts.append("Pass fmt= to choose one explicitly.")
-
-        raise UnsupportedFormatError(" ".join(parts))
+        _sniff_no_match_error(path, broken, entries, shared, no_match)
 
     def write(poly: object, path: Source, **opts: object) -> None:
         if default_writer is not None:
@@ -182,7 +207,41 @@ def _make_dispatcher(
             f"alone. Pass fmt= to choose one explicitly."
         )
 
-    return Codec(read, write, None, labels)
+    scene_entries = [
+        (label, codec) for label, codec in entries if codec.read_scene is not None
+    ]
+
+    def _dispatcher_read_scene(path: Source, **opts: object) -> object:
+        """Delegate read_scene to the first sniffer-matched scene codec."""
+        head = _sniff_head(path, shared)
+        broken, label, codec = _run_sniffers(head, path, entries)
+        if codec is not None:
+            if codec.read_scene is None:
+                raise UnsupportedFormatError(
+                    f"{label!r} does not carry scene data; use read() instead."
+                )
+            return codec.read_scene(path=path, **opts)
+        if default_writer is not None and default_writer[1].read_scene is not None:
+            return default_writer[1].read_scene(path=path, **opts)
+        _sniff_no_match_error(path, broken, entries, shared, no_match)
+
+    def _dispatcher_write_scene(scene: object, path: Source, **opts: object) -> None:
+        """Delegate write_scene to the default-writer scene codec."""
+        if default_writer is not None and default_writer[1].write_scene is not None:
+            return default_writer[1].write_scene(scene=scene, path=path, **opts)
+        raise UnsupportedFormatError(
+            f"{shared}, so a scene writer cannot be chosen from the extension "
+            f"alone. Pass fmt= to choose one explicitly."
+        )
+
+    dispatcher_read_scene = _dispatcher_read_scene if scene_entries else None
+    dispatcher_write_scene: Callable | None = None
+    if default_writer is not None and default_writer[1].write_scene is not None:
+        dispatcher_write_scene = _dispatcher_write_scene
+
+    return Codec(
+        read, write, None, labels, dispatcher_read_scene, dispatcher_write_scene
+    )
 
 
 def build_default_registry() -> dict[str, Codec]:
@@ -290,7 +349,21 @@ def build_default_registry() -> dict[str, Codec]:
             if not callable(sniff_fn):
                 sniff_fn = None
 
-            codec = Codec(read_fn, write_fn, sniff_fn)
+            read_scene_fn = getattr(mod, "read_scene", None)
+            if not callable(read_scene_fn):
+                read_scene_fn = None
+
+            write_scene_fn = getattr(mod, "write_scene", None)
+            if not callable(write_scene_fn):
+                write_scene_fn = None
+
+            codec = Codec(
+                read_fn,
+                write_fn,
+                sniff_fn,
+                read_scene=read_scene_fn,
+                write_scene=write_scene_fn,
+            )
             # EXTENSION leads, so a module whose EXTENSIONS forgets its own
             # canonical spelling still answers to it; dict.fromkeys drops the
             # repeat the usual case produces. resolve() looks a key up in

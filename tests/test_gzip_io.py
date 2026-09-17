@@ -23,6 +23,7 @@ from polyxios._io import read_bytes, source_size
 from polyxios.codecs._splat import _SPLAT_DTYPE as SPLAT_DTYPE
 from polyxios.exceptions import CodecError, LazyReadError, UnsupportedFormatError
 from tests.test_buffer_io import (
+    _BUFFER_EQUAL,
     _BUFFERABLE,
     _TECPLOT,
     _quietly,
@@ -33,7 +34,10 @@ from tests.test_roundtrip import CANONICAL, CAPABILITIES
 
 # TetGen writes two files, and .plt is refused before any byte is written;
 # both are covered by their own tests and have nothing to say about gzip.
+# .gltf is excluded from equality tests: path writes JSON + external .bin,
+# but a compressed buffer delivers JSON bytes that cannot resolve the .bin.
 _GZIPPABLE: tuple[str, ...] = _BUFFERABLE
+_GZIP_EQUAL: tuple[str, ...] = _BUFFER_EQUAL
 
 
 @pytest.mark.parametrize("ext", _GZIPPABLE)
@@ -44,11 +48,10 @@ def test_a_gzipped_file_reads_like_a_plain_one(tmp_path, ext: str) -> None:
     _quietly(polyxios.write, poly, plain)
     packed = tmp_path / f"mesh{ext}.gz"
     packed.write_bytes(gzip.compress(plain.read_bytes()))
-
     _same_mesh(_quietly(polyxios.read, plain), _quietly(polyxios.read, packed))
 
 
-@pytest.mark.parametrize("ext", _GZIPPABLE)
+@pytest.mark.parametrize("ext", _GZIP_EQUAL)
 def test_writing_a_gz_name_compresses(tmp_path, ext: str) -> None:
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
@@ -179,7 +182,7 @@ def test_an_empty_gzip_member_is_reported_by_the_codec(tmp_path) -> None:
         _quietly(polyxios.read, path)
 
 
-@pytest.mark.parametrize("ext", _GZIPPABLE)
+@pytest.mark.parametrize("ext", _GZIP_EQUAL)
 def test_a_gzipped_buffer_reads_like_a_gzipped_path(tmp_path, ext: str) -> None:
     """The path matrix above says nothing about a handle.
 
@@ -200,7 +203,7 @@ def test_a_gzipped_buffer_reads_like_a_gzipped_path(tmp_path, ext: str) -> None:
     )
 
 
-@pytest.mark.parametrize("ext", _GZIPPABLE)
+@pytest.mark.parametrize("ext", _GZIP_EQUAL)
 def test_a_gzipped_buffer_reads_from_where_it_stands(tmp_path, ext: str) -> None:
     """A member reached at an offset is the member that is read."""
     poly = CANONICAL[CAPABILITIES[ext].mesh]()

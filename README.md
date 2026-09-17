@@ -58,6 +58,20 @@ px.write(mesh, "brain.vtk", binary=True)
 px.write(mesh, "brain.ply", binary=True, endian="little")
 ```
 
+Scene-aware formats preserve hierarchy, materials, and textures:
+
+```python
+# Read the full scene graph
+scene = px.read_scene("robot.glb")
+print(len(scene.nodes), "nodes,", len(scene.meshes), "meshes")
+
+# Flatten to a single PolyData (applies transforms, merges meshes)
+mesh = scene.to_polydata()
+
+# read() on a glTF file flattens automatically (issues a warning)
+mesh = px.read("robot.glb")
+```
+
 ---
 
 ## Files, buffers and streams
@@ -179,34 +193,54 @@ file like any other read.
 Each format has its own page at [polyxios.org/stable/formats](https://polyxios.org/stable/formats/index.html)
 describing what is read, what is written and what is dropped.
 
+### Scene & animation
+
+Formats that carry a full scene graph — node hierarchy, materials, textures, and animations.
+Use `read_scene` / `write_scene` to preserve the structure; `read` flattens to a single mesh.
+
+| Format | Extension | Read | Write | Notes |
+|--------|-----------|------|-------|-------|
+| glTF 2.0 | `.gltf` `.glb` | ✓ | ✓ | `read_scene` returns full hierarchy, PBR materials, animations; `read()` flattens with a warning |
+
+### Surface, point & interchange
+
+Primarily surface meshes, point clouds, and widely used interchange formats.
+
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
 | VTK Legacy | `.vtk` | ✓ | ✓ | lazy: binary |
-| VTK RectilinearGrid | `.vtr` | ✓ | ✓ | per-axis coordinate arrays, appended or inline base64 |
 | VTK PolyData | `.vtp` | ✓ | ✓ | points, lines, polygons, strips |
 | Wavefront OBJ | `.obj` | ✓ | ✓ | `vt`/`vn` round trip, groups → element tags |
 | Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary |
 | STL | `.stl` | ✓ | ✓ | lazy: binary, which skips vertex deduplication |
 | OFF | `.off` | ✓ | ✓ | ASCII + big-endian binary, `ST`/`C`/`N` variants → vertex/face attrs |
-| Abaqus | `.inp` | ✓ | ✓ | `*NSET`/`*ELSET` → tags, planar cards for a 2-D deck |
 | AVS-UCD | `.avs` | ✓ | ✓ | node/cell/model data → attrs |
 | Medit binary | `.meshb` | ✓ | ✓ | a path is always mmapped; no `lazy=` needed |
 | Medit ASCII | `.mesh`* `.medit` | ✓ | ✓ | reference integers → tags; write with `fmt=".medit"` |
+| Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
+| Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only |
+
+### Volume, grid & simulation
+
+Volumetric meshes, structured grids, and FEM/CFD simulation formats.
+
+| Format | Extension | Read | Write | Notes |
+|--------|-----------|------|-------|-------|
+| VTK RectilinearGrid | `.vtr` | ✓ | ✓ | per-axis coordinate arrays, appended or inline base64 |
+| VTK StructuredGrid | `.vts` | ✓ | ✓ | curvilinear grid, cells implied by the extent (hexahedra, or quads when flat) |
+| VTK ImageData | `.vti` | ✓ | ✓ | origin/spacing/extent only, no coordinate array |
+| VTK UnstructuredGrid | `.vtu` | ✓ | ✓ | arbitrary cell-type mix |
+| MFEM mesh | `.mesh`* | ✓ | ✓ | geometry type codes; INLINE is materialised, NURBS reads back control points |
+| Netgen | `.vol` | ✓ | ✓ | ASCII, points/edges/faces/cells incl. quadratic, `bcnr`/`matnr` + names → element tags |
+| UGRID (AFLR) | `.ugrid` | ✓ | ✓ | ASCII, tri/quad surface + tet/pyramid/prism/hex volume, boundary tags → element tags |
 | DOLFIN / FEniCS XML | `.xml` | ✓ | ✓ | interval/triangle/tetrahedron meshes |
+| Abaqus | `.inp` | ✓ | ✓ | `*NSET`/`*ELSET` → tags, planar cards for a 2-D deck |
 | FLAC3D | `.f3grid` | ✓ | ✓ | zones + faces, groups → element tags |
 | Gmsh | `.msh`* | ✓ | ✓ (v2) | ASCII v2 + v4.1, physical groups → element tags |
 | Nastran | `.bdf` `.nas` `.fem` `.dat`* | ✓ | ✓ | free/small/large field read, free-field write with large-field `GRID` on request |
 | Tecplot ASCII | `.tec` `.dat`* | ✓ | ✓ | FE zone, POINT + BLOCK packing, solution variables → vertex attrs; binary `.plt` is recognised but not read |
 | SU2 | `.su2` | ✓ | ✓ | ASCII, VTK element codes, boundary markers → element tags |
 | TetGen | `.ele`+`.node` | ✓ | ✓ | paired files, 1-/0-based indices, boundary markers → vertex tags, region attrs |
-| Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
-| VTK UnstructuredGrid | `.vtu` | ✓ | ✓ | arbitrary cell-type mix |
-| VTK StructuredGrid | `.vts` | ✓ | ✓ | curvilinear grid, cells implied by the extent (hexahedra, or quads when flat) |
-| VTK ImageData | `.vti` | ✓ | ✓ | origin/spacing/extent only, no coordinate array |
-| MFEM mesh | `.mesh`* | ✓ | ✓ | geometry type codes; INLINE is materialised, NURBS reads back control points |
-| Netgen | `.vol` | ✓ | ✓ | ASCII, points/edges/faces/cells incl. quadratic, `bcnr`/`matnr` + names → element tags |
-| UGRID (AFLR) | `.ugrid` | ✓ | ✓ | ASCII, tri/quad surface + tet/pyramid/prism/hex volume, boundary tags → element tags |
-| Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only |
 | Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
 | PERMAS | `.dato` `.post` `.dat`* | ✓ | ✓ | ASCII, `$NSET`/`$ESET` → tags, free numbering → `original_ids`, `element_type=` picks the solver class |
 | ANSYS Fluent | `.msh`* `.fluent` | ✓ | ✓ | ASCII + binary sections, cells assembled from faces, zones → element tags, boundary faces read as elements; write with `fmt="fluent"` |
@@ -224,7 +258,7 @@ geometry - only references to sub-files. Reading one raises `UnsupportedFormatEr
 at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
 them is not supported.
 
-**29 formats supported** across the 34 extensions in the table, plus `.plt`, which
+**30 formats supported** across the 36 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

@@ -31,6 +31,7 @@ py.install_sources(
     '_ids.py',
     '_io.py',
     '_registry.py',
+    '_scene.py',
     '_tags.py',
     '_types.py',
     'exceptions.py',
