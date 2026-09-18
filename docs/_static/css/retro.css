@@ -458,7 +458,8 @@ p.px-badges code:nth-child(2) { color: var(--px-accent-2); }
 }
 .px-fmtlinks { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: baseline; }
 .px-fmtlinks a { text-decoration: none; }
-.px-fmtread { font-size: 0.8rem; font-weight: 700; color: var(--px-accent); }
+.px-fmtread,
+.px-fmtwrite { font-size: 0.8rem; font-weight: 700; color: var(--px-accent); }
 .px-fmtspec { font-size: 0.74rem; color: var(--px-dim); }
 .px-fmtspec:hover { color: var(--px-accent-2); }
 

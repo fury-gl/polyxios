@@ -11,7 +11,8 @@ This file is the matrix of that: one absurd count per format, and the promise
 that what comes back is a polyxios error naming the file. It is exhaustive by
 declaration rather than by construction - a format whose counts are implied by
 its data (Abaqus, Nastran, OBJ, WKT, FLAC3D, MDPA, PERMAS) has no such header to
-corrupt, and is listed in ``_NO_DECLARED_COUNT`` so the omission is on purpose.
+corrupt, and is listed in ``_NO_DECLARED_COUNT`` so the omission is on purpose,
+as is one that is never read at all (SVG).
 """
 
 from __future__ import annotations
@@ -135,6 +136,8 @@ _NO_DECLARED_COUNT: frozenset[str] = frozenset(
         ".stl",
         ".splat",
         ".vtm",
+        # Write-only: there is no reader for a count to reach.
+        ".svg",
     }
 )
 
