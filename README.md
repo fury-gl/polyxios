@@ -244,6 +244,7 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 | Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
 | PERMAS | `.dato` `.post` `.dat`* | ✓ | ✓ | ASCII, `$NSET`/`$ESET` → tags, free numbering → `original_ids`, `element_type=` picks the solver class |
 | ANSYS Fluent | `.msh`* `.fluent` | ✓ | ✓ | ASCII + binary sections, cells assembled from faces, zones → element tags, boundary faces read as elements; write with `fmt="fluent"` |
+| SVG | `.svg` | – | ✓ | a picture of the mesh projected onto a plane, one `<path>` per element type; `plane=`, `width=`, `stroke_width=` |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
@@ -258,7 +259,7 @@ geometry - only references to sub-files. Reading one raises `UnsupportedFormatEr
 at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
 them is not supported.
 
-**30 formats supported** across the 36 extensions in the tables, plus `.plt`, which
+**31 formats supported** across the 37 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

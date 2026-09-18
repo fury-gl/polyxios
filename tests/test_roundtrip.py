@@ -532,6 +532,14 @@ _NOT_WRITABLE: dict[str, type[Exception]] = {
     ".dat": UnsupportedFormatError,
 }
 
+# Written so the mesh can be looked at, never to be read: a picture keeps no
+# third coordinate, element type or attribute to read a mesh back from. Each
+# is asserted below in both directions - the write has to succeed for the
+# refusal to mean anything.
+_NOT_READABLE: dict[str, type[Exception]] = {
+    ".svg": UnsupportedFormatError,
+}
+
 
 # ---------------------------------------------------------------------------
 # The matrix
@@ -621,7 +629,12 @@ def test_surviving_attribute_values_are_unchanged(tmp_path, ext: str) -> None:
 
 def test_every_extension_is_accounted_for() -> None:
     """A new codec cannot land without declaring its round-trip behaviour."""
-    declared = frozenset(CAPABILITIES) | _ALIASES | frozenset(_NOT_WRITABLE)
+    declared = (
+        frozenset(CAPABILITIES)
+        | _ALIASES
+        | frozenset(_NOT_WRITABLE)
+        | frozenset(_NOT_READABLE)
+    )
     assert declared == frozenset(polyxios.supported_extensions())
 
 
@@ -648,6 +661,20 @@ def test_an_unwritable_extension_refuses_to_be_written(tmp_path, ext: str) -> No
     """The formats excluded from the matrix are excluded for a stated reason."""
     with pytest.raises(_NOT_WRITABLE[ext]):
         polyxios.write(_surface(), tmp_path / f"mesh{ext}")
+
+
+@pytest.mark.parametrize("ext", sorted(_NOT_READABLE))
+def test_an_unreadable_extension_is_written_and_refuses_to_be_read(
+    tmp_path, ext: str
+) -> None:
+    """A write-only format writes without complaint and refuses by name."""
+    path = tmp_path / f"mesh{ext}"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        polyxios.write(_surface(), path)
+    assert path.stat().st_size > 0
+    with pytest.raises(_NOT_READABLE[ext]):
+        polyxios.read(path)
 
 
 # ---------------------------------------------------------------------------
