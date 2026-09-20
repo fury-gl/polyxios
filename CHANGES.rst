@@ -12,6 +12,21 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- SVG pictures are written: ``.svg``, gzip included, is a drawing of the
+  mesh projected onto a plane - ``plane="xy"`` by default, ``"xz"`` or
+  ``"yz"`` on request - in the mesh's own units with the upward axis
+  mirrored, the ``viewBox`` its extent padded by half a stroke. Lines and
+  faces are outlined, the higher-order kinds through their corner nodes and
+  a triangle strip as one ring per triangle, one ``<path>`` per element type
+  carrying the type's name as its ``class``; a vertex, a solid cell and an
+  element with too few nodes to outline are each skipped with a warning
+  per type. ``width=`` sets the rendered size, ``stroke_width=`` the line
+  weight and ``float_fmt=`` the number format. A mesh that is not flat in
+  the picture's plane is drawn as its projection with a warning. The format
+  is write-only: reading an ``.svg`` raises ``UnsupportedFormatError``
+  naming the file, since a picture keeps no third coordinate, element type
+  or attribute to read a mesh back from.
+
 - glTF 2.0 (``.gltf``, ``.glb``) is read and written.  ``read_scene`` returns
   a ``SceneData`` with the full node hierarchy, PBR materials, textures, and
   animations; ``read`` flattens to a single ``PolyData`` with a warning.

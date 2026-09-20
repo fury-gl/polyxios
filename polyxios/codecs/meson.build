@@ -21,6 +21,7 @@ py.install_sources(
     '_splat.py',
     '_stl.py',
     '_su2.py',
+    '_svg.py',
     '_tecplot.py',
     '_tetgen.py',
     '_ugrid.py',
