@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): New features: glTF 2.0 (.gltf,.glb) is read and written. read_scene returns a SceneData with the full node hierarchy, PBR materials, textures, and animations; read flattens to a s..." />
+<meta property="og:description" content="0.5.0 (upcoming): New features: SVG pictures are written:.svg, gzip included, is a drawing of the mesh projected onto a plane - plane=&quot;xy&quot; by default,&quot;xz&quot; or&quot;yz&quot; on re..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_1d0fadb5.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): New features: glTF 2.0 (.gltf,.glb) is read and written. read_scene returns a SceneData with the full node hierarchy, PBR materials, textures, and animations; read flattens to a s..." />
-<meta name="description" content="0.5.0 (upcoming): New features: glTF 2.0 (.gltf,.glb) is read and written. read_scene returns a SceneData with the full node hierarchy, PBR materials, textures, and animations; read flattens to a s..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_15a15b79.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): New features: SVG pictures are written:.svg, gzip included, is a drawing of the mesh projected onto a plane - plane=&quot;xy&quot; by default,&quot;xz&quot; or&quot;yz&quot; on re..." />
+<meta name="description" content="0.5.0 (upcoming): New features: SVG pictures are written:.svg, gzip included, is a drawing of the mesh projected onto a plane - plane=&quot;xy&quot; by default,&quot;xz&quot; or&quot;yz&quot; on re..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -44,7 +44,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=afa9f044" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=191de15f" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=c398f11b"></script>
+    <script src="_static/documentation_options.js?v=d8ce5377"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-17"/>
+    <meta name="docbuild:last-update" content="2026-09-20"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -453,6 +453,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -551,6 +552,20 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>SVG pictures are written: <code class="docutils literal notranslate"><span class="pre">.svg</span></code>, gzip included, is a drawing of the
+mesh projected onto a plane - <code class="docutils literal notranslate"><span class="pre">plane=&quot;xy&quot;</span></code> by default, <code class="docutils literal notranslate"><span class="pre">&quot;xz&quot;</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&quot;yz&quot;</span></code> on request - in the mesh’s own units with the upward axis
+mirrored, the <code class="docutils literal notranslate"><span class="pre">viewBox</span></code> its extent padded by half a stroke. Lines and
+faces are outlined, the higher-order kinds through their corner nodes and
+a triangle strip as one ring per triangle, one <code class="docutils literal notranslate"><span class="pre">&lt;path&gt;</span></code> per element type
+carrying the type’s name as its <code class="docutils literal notranslate"><span class="pre">class</span></code>; a vertex, a solid cell and an
+element with too few nodes to outline are each skipped with a warning
+per type. <code class="docutils literal notranslate"><span class="pre">width=</span></code> sets the rendered size, <code class="docutils literal notranslate"><span class="pre">stroke_width=</span></code> the line
+weight and <code class="docutils literal notranslate"><span class="pre">float_fmt=</span></code> the number format. A mesh that is not flat in
+the picture’s plane is drawn as its projection with a warning. The format
+is write-only: reading an <code class="docutils literal notranslate"><span class="pre">.svg</span></code> raises <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
+naming the file, since a picture keeps no third coordinate, element type
+or attribute to read a mesh back from.</p></li>
 <li><p>glTF 2.0 (<code class="docutils literal notranslate"><span class="pre">.gltf</span></code>, <code class="docutils literal notranslate"><span class="pre">.glb</span></code>) is read and written.  <code class="docutils literal notranslate"><span class="pre">read_scene</span></code> returns
 a <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> with the full node hierarchy, PBR materials, textures, and
 animations; <code class="docutils literal notranslate"><span class="pre">read</span></code> flattens to a single <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with a warning.
@@ -2153,7 +2168,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-17.
+  Last updated on 2026-09-20.
   <br/>
 </p></div>
       

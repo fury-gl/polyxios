@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty - and raises instead of quietly corrupting
+        writes all thirty-one - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -135,7 +135,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 30 codecs, the 36 extensions above plus .plt, recognised but not read - .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <a class="px-tr" href="formats/svg.html"><span>SVG</span><span class="px-ext">.svg</span><span class="px-dim">[ ]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 31 codecs, the 37 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -528,7 +529,7 @@ which was which.
 
 Where to go next
 
-formats/index - the thirty supported formats, one page each
+formats/index - the thirty-one supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -544,7 +545,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships thirty codecs across thirty-seven extensions - the thirty-six
+polyxios ships thirty-one codecs across thirty-eight extensions - the thirty-seven
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -553,7 +554,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The twenty-nine format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-one format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -859,6 +860,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="fluent.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://www.afs.enea.it/project/neptunius/docs/fluent/html/ug/node1490.htm">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">SVG <span class="px-fmtext">.svg</span></p>
+    <p class="px-fmtdesc">A picture, write-only: the mesh projected onto a plane,
+      one path per element type, lines and faces outlined in mesh units.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtwrite" href="svg.html">write() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.w3.org/TR/SVG11/">full spec &#8599;</a>
     </p>
   </div>
 
@@ -3531,6 +3542,78 @@ A declared count past the file’s own size or the safety caps is refused before
 
 index - the full format table.
 
+## SVG
+
+Source: https://polyxios.org/stable/formats/svg.html
+
+SVG
+
+.svg write only
+
+Summary of the specification
+
+Scalable Vector Graphics is the W3C’s XML picture format: a <svg> root whose viewBox names the drawing’s coordinate extent and whose width and height, when present, say how large to render it. Shapes are children of the root; a <path> is spelled by its d attribute as a sequence of commands - M moves, L draws a line, Z closes the outline - and a <g> groups shapes under shared presentation attributes such as stroke and fill. The y axis runs downward. Coordinates are unitless user space, scaled to the rendered size through the viewBox.
+
+An SVG is a picture, not a mesh. It carries no third coordinate, no element type and no attribute, so the mesh cannot be recovered from it: polyxios writes the format and refuses to read it.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+XML: <svg viewBox="…"> holding one <g> of <path> elements
+
+element record
+
+<path class="<type>" d="M x y L x y … Z">, one per element type
+
+coordinates
+
+the mesh’s own units, y mirrored, the top-left corner at the origin
+
+style
+
+fill="none" stroke="black" stroke-width="…" on the group
+
+size
+
+viewBox always; width / height on request
+
+SVG 1.1 (W3C) ↗
+
+Reading
+
+Not supported. polyxios.read() raises UnsupportedFormatError naming the file, so a pipeline that tries to round-trip through .svg fails at once rather than at the next step.
+
+Writing
+
+import polyxios as px
+
+px.write(mesh, "out.svg")
+px.write(mesh, "out.svg", plane="xz", width=800, stroke_width=0.02)
+px.write(mesh, "out.svg", float_fmt=".3f")
+
+plane picks the projection: "xy" (the default), "xz" or "yz", the first axis running rightward and the second upward. width sets the rendered width in CSS pixels, the height following from the mesh’s aspect ratio; without it the picture fills whatever displays it. stroke_width is the line weight in the mesh’s own units and defaults to a hundredth of the picture’s shorter side. float_fmt is the format specifier for every number written, .6g by default; one whose fill character is an XML delimiter (", <, >, &) is refused, since every number lands in an attribute. Any other option is warned about and ignored.
+
+Quirks worth knowing
+
+Coordinates go out in the mesh’s own units, shifted so the picture’s top-left corner is the origin and the upward axis mirrored, since SVG’s y grows downward; the viewBox is the mesh’s extent padded by half a stroke so an outline on the boundary is not clipped. Passing width scales the picture without touching the coordinates.
+
+Lines and faces are drawn: a line, polyline, triangle, quadrilateral, pixel, polygon or triangle strip, and the higher-order kinds of each through their corner nodes, a triangle strip as one ring per triangle. Every other element type - a vertex, a solid cell - is skipped with a warning, one per type, so a volume mesh writes as an empty picture with a warning per cell type; extract its surface first. An element of a free-size type with too few nodes to outline is skipped the same way. A vertex coordinate that is not finite is refused outright: it would leave the viewBox undefined and the whole picture with it.
+
+Each drawn type is one <path> carrying the type’s name as its class, its elements as subpaths in mesh order, so a stylesheet can colour triangles apart from quadrilaterals. vertex_attrs, element_attrs, the tags and global_attrs have no spelling in a picture and are not written.
+
+The coordinate the projection drops is expected to be constant across the mesh. When it is not, the picture is still written and a warning says which axis varies and that the drawing is a projection. A flat mesh off the origin’s plane - every vertex at z=7 - is flat and warns about nothing.
+
+A picture with no extent in one direction - a single horizontal line - takes its stroke from the other; one with no extent at all takes a stroke of one unit. Both still get a viewBox with area, from the padding.
+
+.svg.gz is written compressed like every other format. .svgz, the conventional name for a gzipped SVG, is not registered.
+
+index - the full format table.
+
 ## Lazy loading
 
 Source: https://polyxios.org/stable/lazy_loading.html
@@ -5195,6 +5278,21 @@ Changelog
 
 New features
 
+SVG pictures are written: .svg, gzip included, is a drawing of the
+mesh projected onto a plane - plane="xy" by default, "xz" or
+"yz" on request - in the mesh’s own units with the upward axis
+mirrored, the viewBox its extent padded by half a stroke. Lines and
+faces are outlined, the higher-order kinds through their corner nodes and
+a triangle strip as one ring per triangle, one <path> per element type
+carrying the type’s name as its class; a vertex, a solid cell and an
+element with too few nodes to outline are each skipped with a warning
+per type. width= sets the rendered size, stroke_width= the line
+weight and float_fmt= the number format. A mesh that is not flat in
+the picture’s plane is drawn as its projection with a warning. The format
+is write-only: reading an .svg raises UnsupportedFormatError
+naming the file, since a picture keeps no third coordinate, element type
+or attribute to read a mesh back from.
+
 glTF 2.0 (.gltf, .glb) is read and written.  read_scene returns
 a SceneData with the full node hierarchy, PBR materials, textures, and
 animations; read flattens to a single PolyData with a warning.
@@ -5300,7 +5398,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:124: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:139: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -5371,7 +5469,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:188: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:203: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -5609,7 +5707,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:412: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:427: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -5647,7 +5745,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:448: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:463: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -6612,7 +6710,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1308: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1323: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -6696,7 +6794,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1376: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1391: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -6744,7 +6842,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1407: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1422: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -6759,7 +6857,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1419: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1434: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -6865,7 +6963,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1492: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1507: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
