@@ -15,8 +15,7 @@ class UnsupportedFormatError(PolyxiosError):
 
 
 class MissingPackageError(UnsupportedFormatError, AttributeError):
-    """
-    Raised when a codec reaches for an optional package that is not installed.
+    """Raised when a codec reaches for an optional package that is not installed.
 
     An :class:`UnsupportedFormatError`, because a format whose reader is not
     there is one polyxios cannot read here, and the caller's ``except`` for

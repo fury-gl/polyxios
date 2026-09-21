@@ -75,6 +75,23 @@ def test_a_version_floor_is_honoured() -> None:
     assert "Upgrade it with `pip install numpy`" in str(info.value)
 
 
+def test_a_version_floor_compares_as_numbers_not_as_tuples(monkeypatch) -> None:
+    """``3.0`` is ``3.0.0``: a floor spelled longer than the installed
+    version must not read as above it."""
+    import numpy
+
+    monkeypatch.setattr(numpy, "__version__", "3.0")
+    _, have = optional_package("numpy", min_version="3.0.0")
+    assert have is True
+    _, have = optional_package("numpy", min_version="3")
+    assert have is True
+    _, have = optional_package("numpy", min_version="3.0.1")
+    assert have is False
+    monkeypatch.setattr(numpy, "__version__", "3")
+    _, have = optional_package("numpy", min_version="3.0")
+    assert have is True
+
+
 def test_a_version_floor_that_is_not_a_version_is_refused() -> None:
     with pytest.raises(ValueError, match="not a version number"):
         optional_package("numpy", min_version="latest")
@@ -107,3 +124,18 @@ def test_a_broken_package_carries_its_own_error(monkeypatch, tmp_path) -> None:
     assert have is False
     with pytest.raises(MissingPackageError, match="no libfoo.so"):
         _ = pkg.x
+
+
+def test_a_submodule_takes_its_version_from_the_top_level_package() -> None:
+    pkg, have = optional_package("numpy.linalg", min_version="1.0")
+    assert have is True and pkg.__name__ == "numpy.linalg"
+    pkg, have = optional_package("numpy.linalg", min_version="999.0")
+    assert have is False
+    with pytest.raises(MissingPackageError, match="999.0 or later.*found"):
+        _ = pkg.norm
+
+
+def test_deleting_from_a_tripwire_raises_the_same_error() -> None:
+    pkg = TripWire("gone")
+    with pytest.raises(MissingPackageError, match="gone"):
+        del pkg.anything

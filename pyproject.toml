@@ -81,6 +81,12 @@ doc = [
 viz = [
     "fury>=2",
 ]
+# The HDF5-backed formats (XDMF's usual heavy data). Without it those codecs
+# still read and write their inline and raw-binary flavours, and refuse an
+# HDF5 reference with the install line that fixes it.
+hdf5 = [
+    "h5py>=3.0",
+]
 
 [project.scripts]
 pxios = "polyxios.cli:main"

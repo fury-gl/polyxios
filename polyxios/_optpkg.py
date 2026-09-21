@@ -72,6 +72,9 @@ class TripWire:
     def __setattr__(self, name: str, value: object) -> None:
         raise MissingPackageError(self._msg)
 
+    def __delattr__(self, name: str) -> None:
+        raise MissingPackageError(self._msg)
+
     def __call__(self, *args: object, **kwargs: object) -> Any:
         raise MissingPackageError(self._msg)
 
@@ -114,15 +117,32 @@ def _version_tuple(text: str) -> tuple[int, ...] | None:
     return tuple(int(part) for part in match.group(1).split("."))
 
 
+def _at_least(found: tuple[int, ...], wanted: tuple[int, ...]) -> bool:
+    """Compare two version tuples as numbers: ``3.0`` is ``3.0.0``, not below it."""
+    width = max(len(found), len(wanted))
+    padded_found = found + (0,) * (width - len(found))
+    padded_wanted = wanted + (0,) * (width - len(wanted))
+    return padded_found >= padded_wanted
+
+
 def _installed_version(pkg: ModuleType, name: str) -> str | None:
-    """Find a package's version: its own ``__version__`` first, then pip's record."""
-    version = getattr(pkg, "__version__", None)
-    if isinstance(version, str) and version:
-        return version
-    try:
-        return importlib.metadata.version(name)
-    except importlib.metadata.PackageNotFoundError:
-        return None
+    """Find a package's version: its own ``__version__`` first, then pip's record.
+
+    A submodule - ``scipy.spatial`` - carries neither, so the top-level
+    package is asked in its place.
+    """
+    top = name.partition(".")[0]
+    candidates = [pkg] if top == name else [pkg, importlib.import_module(top)]
+    for module in candidates:
+        version = getattr(module, "__version__", None)
+        if isinstance(version, str) and version:
+            return version
+    for dist in dict.fromkeys((name, top)):
+        try:
+            return importlib.metadata.version(dist)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    return None
 
 
 def _install_hint(name: str, extra: str | None) -> str:
@@ -208,7 +228,7 @@ def optional_package(
         raise ValueError(f"min_version {min_version!r} is not a version number.")
     current = _installed_version(pkg, name)
     found = None if current is None else _version_tuple(current)
-    if found is not None and found >= wanted:
+    if found is not None and _at_least(found, wanted):
         return pkg, True
 
     if trip_msg is None:

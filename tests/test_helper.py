@@ -433,3 +433,74 @@ def test_a_chain_of_indexes_shorter_than_the_cap_still_reads(tmp_path) -> None:
     _write_piece(tmp_path / "leaf.vtu")
 
     assert len(read_blocks(tmp_path / "i0.vtm")) == 1
+
+
+# ---------------------------------------------------------------------------
+# Time series
+# ---------------------------------------------------------------------------
+
+
+def _step(value: float):
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    return make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2]], dtype=np.int32))],
+        vertex_attrs={"u": np.full(3, value)},
+    )
+
+
+def test_a_time_series_writes_and_reads_back_every_step(tmp_path) -> None:
+    from polyxios.helper import read_time_series, write_time_series
+
+    path = tmp_path / "run.xdmf"
+    write_time_series(
+        ((0.5 * i, _step(float(i))) for i in range(3)), path, data_format="xml"
+    )
+    times, meshes = read_time_series(path)
+    np.testing.assert_array_equal(times, [0.0, 0.5, 1.0])
+    assert [m.global_attrs["time"] for m in meshes] == [0.0, 0.5, 1.0]
+    np.testing.assert_array_equal(meshes[2].vertex_attrs["u"], [2, 2, 2])
+    # ``read`` still hands back one step, the first by default.
+    np.testing.assert_array_equal(polyxios.read(path).vertex_attrs["u"], [0, 0, 0])
+    np.testing.assert_array_equal(
+        polyxios.read(path, step=-1).vertex_attrs["u"], [2, 2, 2]
+    )
+
+
+def test_a_file_with_no_series_is_one_step_with_no_time(tmp_path) -> None:
+    from polyxios.helper import read_time_series
+
+    path = tmp_path / "one.xdmf"
+    polyxios.write(_step(1.0), path, data_format="xml")
+    times, meshes = read_time_series(path)
+    assert len(meshes) == 1 and np.isnan(times).all()
+
+
+def test_a_time_series_is_xdmf_only(tmp_path) -> None:
+    from polyxios.exceptions import UnsupportedFormatError
+    from polyxios.helper import read_time_series, write_time_series
+
+    with pytest.raises(UnsupportedFormatError, match="only XDMF"):
+        write_time_series([(0.0, _step(0.0))], tmp_path / "run.vtu")
+    with pytest.raises(UnsupportedFormatError, match="only XDMF"):
+        read_time_series(tmp_path / "run.vtu")
+
+
+def test_a_step_whose_time_is_text_reads_as_nan(tmp_path) -> None:
+    """An ``<Information Name="time">`` is a text global, not a time; the
+    series still comes back, that step's time unknown."""
+    from polyxios.helper import read_time_series
+
+    path = tmp_path / "t.xdmf"
+    path.write_text(
+        '<Xdmf Version="3.0"><Domain><Grid Name="g" GridType="Uniform">'
+        '<Information Name="time" Value="morning"/>'
+        '<Geometry GeometryType="XY"><DataItem Dimensions="3 2" Format="XML">'
+        "0 0 1 0 0 1</DataItem></Geometry>"
+        '<Topology TopologyType="Triangle" NumberOfElements="1">'
+        '<DataItem Dimensions="1 3" Format="XML">0 1 2</DataItem></Topology>'
+        "</Grid></Domain></Xdmf>"
+    )
+    times, meshes = read_time_series(path)
+    assert np.isnan(times).all()
+    assert meshes[0].global_attrs["time"] == "morning"

@@ -30,8 +30,15 @@ from tests.test_roundtrip import CANONICAL, CAPABILITIES
 # '.ele' file, and the second half is found beside the first by name.
 _NEEDS_A_PATH: tuple[str, ...] = (".node", ".ele")
 
+# XDMF reads from a buffer whenever its arrays are inline, but its default
+# write sends them to an HDF5 sidecar beside the file, which a buffer has
+# not; only data_format="xml" writes to one, and is tested below on its own.
+_WRITES_A_SIDECAR: tuple[str, ...] = (".xdmf",)
+
 _BUFFERABLE: tuple[str, ...] = tuple(
-    ext for ext in sorted(CAPABILITIES) if ext not in _NEEDS_A_PATH
+    ext
+    for ext in sorted(CAPABILITIES)
+    if ext not in _NEEDS_A_PATH and ext not in _WRITES_A_SIDECAR
 )
 
 # Formats where a buffer write produces different bytes than a path write
@@ -201,6 +208,20 @@ def test_tetgen_refuses_a_file_object(ext: str) -> None:
         polyxios.read(io.BytesIO(b"0 3 0 0\n"), fmt=ext)
     with pytest.raises(CodecError, match="a file object is not enough"):
         _quietly(polyxios.write, CANONICAL["volume"](), io.BytesIO(), fmt=ext)
+
+
+@pytest.mark.parametrize("ext", _WRITES_A_SIDECAR)
+def test_a_sidecar_writer_refuses_a_buffer_unless_inline(ext: str) -> None:
+    """The arrays go beside the file by default; asked to stay inline, the
+    same mesh round-trips through memory alone."""
+    poly = CANONICAL["mixed"]()
+    with pytest.raises(CodecError, match="a file object is not enough"):
+        _quietly(polyxios.write, poly, io.BytesIO(), fmt=ext)
+
+    buf = io.BytesIO()
+    _quietly(polyxios.write, poly, buf, fmt=ext, data_format="xml")
+    buf.seek(0)
+    _same_mesh(poly, _quietly(polyxios.read, buf, fmt=ext))
 
 
 def test_lazy_reading_an_in_memory_buffer_is_refused() -> None:
