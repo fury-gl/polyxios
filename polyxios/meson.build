@@ -30,6 +30,7 @@ py.install_sources(
     '_globals.py',
     '_ids.py',
     '_io.py',
+    '_optpkg.py',
     '_registry.py',
     '_scene.py',
     '_tags.py',
