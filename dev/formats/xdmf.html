@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="STL" />
+<meta property="og:title" content="XDMF" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/stl.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/xdmf.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".stl read + write lazy: binary only Summary of the specification: STL describes a solid as an unordered set of triangles - a triangle soup with no vertex sharing and no topology. Each facet carries..." />
+<meta property="og:description" content=".xdmf.xmf read + write eager time series Summary of the specification: The eXtensible Data Model and Format splits a dataset in two. The light data is an XML document: an&lt;Xdmf&gt; root holding a..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_stl_6f6466b2.png" />
-<meta property="og:image:alt" content=".stl read + write lazy: binary only Summary of the specification: STL describes a solid as an unordered set of triangles - a triangle soup with no vertex sharing and no topology. Each facet carries..." />
-<meta name="description" content=".stl read + write lazy: binary only Summary of the specification: STL describes a solid as an unordered set of triangles - a triangle soup with no vertex sharing and no topology. Each facet carries..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_xdmf_a379cd43.png" />
+<meta property="og:image:alt" content=".xdmf.xmf read + write eager time series Summary of the specification: The eXtensible Data Model and Format splits a dataset in two. The light data is an XML document: an&lt;Xdmf&gt; root holding a..." />
+<meta name="description" content=".xdmf.xmf read + write eager time series Summary of the specification: The eXtensible Data Model and Format splits a dataset in two. The light data is an XML document: an&lt;Xdmf&gt; root holding a..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>STL &#8212; polyxios</title>
+    <title>XDMF &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/stl';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/xdmf';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/stl.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/xdmf.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="OFF" href="off.html" />
-    <link rel="prev" title="Stanford PLY" href="ply.html" />
+    <link rel="next" title="Lazy loading" href="../lazy_loading.html" />
+    <link rel="prev" title="SVG" href="svg.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -428,7 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -454,7 +454,7 @@
 <li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
-<li class="toctree-l2"><a class="reference internal" href="xdmf.html">XDMF</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">XDMF</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -532,7 +532,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">STL</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">XDMF</span></li>
   </ul>
 </nav>
 </div>
@@ -549,12 +549,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="stl">
-<span id="format-stl"></span><h1>STL<a class="headerlink" href="#stl" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.stl</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">only</span></code></p>
+  <section id="xdmf">
+<span id="format-xdmf"></span><h1>XDMF<a class="headerlink" href="#xdmf" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.xdmf</span></code> <code class="docutils literal notranslate"><span class="pre">.xmf</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code> <code class="docutils literal notranslate"><span class="pre">time</span> <span class="pre">series</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>STL describes a solid as an unordered set of triangles - a triangle soup with no vertex sharing and no topology. Each facet carries its own normal and its three corner points. The ASCII flavour spells this out with <code class="docutils literal notranslate"><span class="pre">solid</span></code> / <code class="docutils literal notranslate"><span class="pre">facet</span> <span class="pre">normal</span></code> / <code class="docutils literal notranslate"><span class="pre">outer</span> <span class="pre">loop</span></code> / <code class="docutils literal notranslate"><span class="pre">vertex</span></code> keywords; the binary flavour is an 80-byte free-text header, a uint32 triangle count, then a fixed 50-byte record per facet (twelve float32 values plus a two-byte attribute field).</p>
+<p>The eXtensible Data Model and Format splits a dataset in two. The <em>light data</em> is an XML document: an <code class="docutils literal notranslate"><span class="pre">&lt;Xdmf&gt;</span></code> root holding a <code class="docutils literal notranslate"><span class="pre">&lt;Domain&gt;</span></code>, which holds <code class="docutils literal notranslate"><span class="pre">&lt;Grid&gt;</span></code> elements. A uniform grid names its <code class="docutils literal notranslate"><span class="pre">&lt;Topology&gt;</span></code> - the element type and count, or <code class="docutils literal notranslate"><span class="pre">Mixed</span></code> with a type code ahead of each cell - and its <code class="docutils literal notranslate"><span class="pre">&lt;Geometry&gt;</span></code> - <code class="docutils literal notranslate"><span class="pre">XYZ</span></code> or <code class="docutils literal notranslate"><span class="pre">XY</span></code> coordinates, or the axes and spacing of a lattice - then any number of <code class="docutils literal notranslate"><span class="pre">&lt;Attribute&gt;</span></code> elements centred on <code class="docutils literal notranslate"><span class="pre">Node</span></code>, <code class="docutils literal notranslate"><span class="pre">Cell</span></code> or <code class="docutils literal notranslate"><span class="pre">Grid</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Set&gt;</span></code> elements naming nodes or cells, and <code class="docutils literal notranslate"><span class="pre">&lt;Information&gt;</span></code> pairs. A collection grid holds other grids, spatially - several meshes side by side - or temporally, each child a step carrying a <code class="docutils literal notranslate"><span class="pre">&lt;Time</span> <span class="pre">Value&gt;</span></code>. The <em>heavy data</em> is every array, and each <code class="docutils literal notranslate"><span class="pre">&lt;DataItem&gt;</span></code> says where its own lives: inline in the XML (<code class="docutils literal notranslate"><span class="pre">Format=&quot;XML&quot;</span></code>), in an HDF5 file as <code class="docutils literal notranslate"><span class="pre">file.h5:/dataset</span></code> (<code class="docutils literal notranslate"><span class="pre">Format=&quot;HDF&quot;</span></code>, the usual case and the reason the format exists), or in a raw file at a byte offset (<code class="docutils literal notranslate"><span class="pre">Format=&quot;Binary&quot;</span></code>). A <code class="docutils literal notranslate"><span class="pre">DataItem</span></code> may also be a <code class="docutils literal notranslate"><span class="pre">HyperSlab</span></code> selecting from another, or a <code class="docutils literal notranslate"><span class="pre">Reference</span></code> to one elsewhere in the document by XPath, and a grid may borrow another’s topology and geometry through an XInclude pointer rather than spelling them again.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -564,83 +564,70 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>ascii form</p></td>
-<td><p>solid &lt;name&gt; … facet normal / outer loop / vertex x3 / endloop / endfacet</p></td>
+<tr class="row-odd"><td><p>structure</p></td>
+<td><p>XML: <code class="docutils literal notranslate"><span class="pre">&lt;Xdmf&gt;&lt;Domain&gt;&lt;Grid&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;Topology&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Geometry&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Attribute&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Set&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Time&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Information&gt;</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>binary form</p></td>
-<td><p>80-byte header, uint32 count, then 50 bytes per facet</p></td>
+<tr class="row-even"><td><p>topology</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TopologyType</span></code> naming the cell kind - <code class="docutils literal notranslate"><span class="pre">Triangle</span></code>, <code class="docutils literal notranslate"><span class="pre">Hexahedron_20</span></code>, <code class="docutils literal notranslate"><span class="pre">Polyline</span> <span class="pre">NodesPerElement=&quot;2&quot;</span></code> - or <code class="docutils literal notranslate"><span class="pre">Mixed</span></code>; <code class="docutils literal notranslate"><span class="pre">2DSMesh</span></code> … <code class="docutils literal notranslate"><span class="pre">3DCoRectMesh</span></code> for a lattice</p></td>
 </tr>
-<tr class="row-odd"><td><p>binary record</p></td>
-<td><p>3 float32 normal + 9 float32 vertices + uint16 attribute byte count</p></td>
+<tr class="row-odd"><td><p>geometry</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">XYZ</span></code> / <code class="docutils literal notranslate"><span class="pre">XY</span></code> coordinates, <code class="docutils literal notranslate"><span class="pre">X_Y_Z</span></code> split axes, <code class="docutils literal notranslate"><span class="pre">VXVYVZ</span></code> rectilinear axes, <code class="docutils literal notranslate"><span class="pre">ORIGIN_DXDYDZ</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>byte order</p></td>
-<td><p>little-endian</p></td>
+<tr class="row-even"><td><p>heavy data</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;DataItem</span> <span class="pre">Dimensions</span> <span class="pre">NumberType</span> <span class="pre">Precision</span> <span class="pre">Format&gt;</span></code>: inline text, <code class="docutils literal notranslate"><span class="pre">file.h5:/path</span></code>, or a binary file with <code class="docutils literal notranslate"><span class="pre">Seek</span></code> and <code class="docutils literal notranslate"><span class="pre">Endian</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>topology</p></td>
-<td><p>none - vertices are repeated per triangle</p></td>
+<tr class="row-odd"><td><p>time series</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;Grid</span> <span class="pre">GridType=&quot;Collection&quot;</span> <span class="pre">CollectionType=&quot;Temporal&quot;&gt;</span></code> of grids, each with <code class="docutils literal notranslate"><span class="pre">&lt;Time</span> <span class="pre">Value&gt;</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>sharing</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;DataItem</span> <span class="pre">Reference=&quot;XML&quot;&gt;</span></code> by XPath; <code class="docutils literal notranslate"><span class="pre">&lt;xi:include</span> <span class="pre">xpointer=&quot;…&quot;&gt;</span></code> for a grid’s topology and geometry</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://www.fabbers.com/tech/STL_Format">Read the full STL specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://www.xdmf.org/index.php/XDMF_Model_and_Format">XDMF Model and Format ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.stl"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"result.xdmf"</span><span class="p">)</span>                  <span class="c1"># the first step of a series</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"result.xdmf"</span><span class="p">,</span> <span class="n">step</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>         <span class="c1"># the last</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"time"</span><span class="p">]</span>                      <span class="c1"># that step's &lt;Time Value&gt;</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_tags</span><span class="p">,</span> <span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span>            <span class="c1"># &lt;Set&gt; elements</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"case"</span><span class="p">]</span>                      <span class="c1"># &lt;Information Name="case"&gt;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span>
+<span class="n">times</span><span class="p">,</span> <span class="n">meshes</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_time_series</span><span class="p">(</span><span class="s2">"result.xdmf"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.stl"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</pre></div>
-</div>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> hands back one mesh, always. Every uniform grid at the chosen step is read - a spatial collection flat, several grids beside one another merged - and where there are several, each grid’s elements are tagged with the grid’s <code class="docutils literal notranslate"><span class="pre">Name</span></code>, so a domain split into parts keeps saying which was which. A temporal collection is read at one step, the first without <code class="docutils literal notranslate"><span class="pre">step=</span></code>; <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.read_time_series()</span></code> reads them all. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>: the arrays live wherever the file says, and are decoded whole.</p>
+<p>The HDF5 flavour needs <a class="reference external" href="https://www.h5py.org/">h5py</a>, which is optional - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it the inline and binary flavours still read, and a file naming an HDF5 sidecar raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> spelling that command.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.stl"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.xdmf"</span><span class="p">)</span>                          <span class="c1"># arrays in out.h5, beside it</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.xdmf"</span><span class="p">,</span> <span class="n">data_format</span><span class="o">=</span><span class="s2">"xml"</span><span class="p">)</span>       <span class="c1"># arrays inline</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.xdmf"</span><span class="p">,</span> <span class="n">data_format</span><span class="o">=</span><span class="s2">"binary"</span><span class="p">)</span>    <span class="c1"># arrays in out.bin</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.xdmf"</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s2">"gzip"</span><span class="p">,</span> <span class="n">compression_opts</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.xdmf"</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+<span class="n">helper</span><span class="o">.</span><span class="n">write_time_series</span><span class="p">(((</span><span class="n">t</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">times</span><span class="p">),</span> <span class="s2">"run.xdmf"</span><span class="p">)</span>
 </pre></div>
 </div>
-</section>
-<section id="format-specific-options">
-<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
-<div class="pst-scrollable-table-container"><table class="px-spec-table table">
-<colgroup>
-<col style="width: 24.0%" />
-<col style="width: 20.0%" />
-<col style="width: 56.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Option</p></th>
-<th class="head"><p>Default</p></th>
-<th class="head"><p>Effect</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
-<td><p>On write: emit the 50-byte-per-facet binary form instead of ASCII.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">merge_vertices</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p></td>
-<td><p>On read: deduplicate the coincident vertices STL repeats per facet.
-Ignored under <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>, which never merges.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<p><code class="docutils literal notranslate"><span class="pre">data_format</span></code> says where the arrays go: <code class="docutils literal notranslate"><span class="pre">&quot;hdf&quot;</span></code>, the default, writes them to an HDF5 file named after the XDMF one - <code class="docutils literal notranslate"><span class="pre">out.h5</span></code> beside <code class="docutils literal notranslate"><span class="pre">out.xdmf</span></code>, never in the working directory - and needs h5py; <code class="docutils literal notranslate"><span class="pre">&quot;binary&quot;</span></code> writes them all to one <code class="docutils literal notranslate"><span class="pre">out.bin</span></code> beside it, each at its own <code class="docutils literal notranslate"><span class="pre">Seek</span></code>; <code class="docutils literal notranslate"><span class="pre">&quot;xml&quot;</span></code> keeps them inline, which is the one flavour that writes to a file object or a <code class="docutils literal notranslate"><span class="pre">.gz</span></code> path, since the other two need a beside. <code class="docutils literal notranslate"><span class="pre">compression</span></code> and <code class="docutils literal notranslate"><span class="pre">compression_opts</span></code> go to h5py for every dataset. <code class="docutils literal notranslate"><span class="pre">time</span></code> writes the grid’s <code class="docutils literal notranslate"><span class="pre">&lt;Time</span> <span class="pre">Value&gt;</span></code>; without it, a number under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code> does. Any other option is warned about and ignored.</p>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.write_time_series()</span></code> takes <code class="docutils literal notranslate"><span class="pre">(time,</span> <span class="pre">mesh)</span></code> pairs from any iterable, a generator included, and writes each step as it arrives: the first step spells the topology and geometry, and every later one includes them by pointer rather than spelling them again, so the mesh is in the file once. A step whose vertices moved writes its own geometry; one whose elements differ is refused, being another mesh rather than another step.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.</p></li>
-<li><p>Facet normals are read but not trusted for orientation; they are kept as element attributes.</p></li>
-<li><p>The declared triangle count is validated against the real file size before memory is allocated.</p></li>
-<li><p>A binary facet’s attribute word carries its colour, five bits per channel - but the two conventions in the wild disagree on both the channel order and the top bit. VisCAM and SolidView run blue in bits 0-4 and red in bits 10-14, and set the top bit to say the word holds a colour; Materialise Magics runs red low and blue high, and <em>clears</em> the top bit to say the facet owns its colour. Magics writes a <code class="docutils literal notranslate"><span class="pre">COLOR=</span></code> record in the 80-byte header, which is the only thing in the file that tells the two apart, so a header carrying one is read the Magics way and every other header the VisCAM way. VisCAM is also what polyxios writes. A zero word is no colour under either convention: read the Magics way to the letter it claims a facet colour of black, but it is what a writer that coloured nothing leaves behind, and an untouched file is not a black one.</p></li>
-<li><p>Facets that claim a colour land in <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code> as RGB in 0..1; the ones that do not stay <code class="docutils literal notranslate"><span class="pre">NaN</span></code>, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all. On write a floating point column is taken as 0..1 and an integer one as 0..255, the way every image format counts.</p></li>
-<li><p>Colours are written back on a binary write. ASCII STL has no field for one, so an ASCII write reports that they were dropped rather than losing them quietly.</p></li>
+<li><p>A mesh of one element type writes a topology named for it, the free-size kinds with <code class="docutils literal notranslate"><span class="pre">NodesPerElement</span></code>; a mesh mixing types writes <code class="docutils literal notranslate"><span class="pre">Mixed</span></code>, one type code ahead of each cell - and after the code of a <code class="docutils literal notranslate"><span class="pre">Polyvertex</span></code>, <code class="docutils literal notranslate"><span class="pre">Polyline</span></code> or <code class="docutils literal notranslate"><span class="pre">Polygon</span></code>, its node count, which is how the Xdmf library and VTK spell those and what lets a line sit beside a triangle. A pixel and a voxel go out as the quadrilateral and hexahedron they are, corners reordered. The quadratic and higher-order kinds - <code class="docutils literal notranslate"><span class="pre">Edge_3</span></code> through <code class="docutils literal notranslate"><span class="pre">Hexahedron_27</span></code> - are read and written in VTK’s node order, which is the order every other reader takes them in; <code class="docutils literal notranslate"><span class="pre">Hexahedron_64</span></code> and up read as <code class="docutils literal notranslate"><span class="pre">lagrange_hexahedron</span></code> with the file’s own order. An element type XDMF has no name for - a triangle strip, a polyhedron, a Lagrange triangle - is dropped with a warning per type, and the values and tags over the elements are cut to match; a polyhedron in a mixed topology is stepped over on the way in the same way.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;Attribute&gt;</span></code> elements centred on <code class="docutils literal notranslate"><span class="pre">Node</span></code> and <code class="docutils literal notranslate"><span class="pre">Cell</span></code> are <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> and <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code>, their shape the DataItem’s, so a vector stays <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> and a tensor <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3,</span> <span class="pre">3)</span></code>; the <code class="docutils literal notranslate"><span class="pre">AttributeType</span></code> is written from the shape and not read. One centred on <code class="docutils literal notranslate"><span class="pre">Grid</span></code> lands in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> as an array, an <code class="docutils literal notranslate"><span class="pre">&lt;Information</span> <span class="pre">Name</span> <span class="pre">Value&gt;</span></code> as text - a repeated name as a list of them - and a <code class="docutils literal notranslate"><span class="pre">&lt;Time</span> <span class="pre">Value&gt;</span></code> under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>. On the way out a number under that key is the <code class="docutils literal notranslate"><span class="pre">&lt;Time&gt;</span></code> and a text is an <code class="docutils literal notranslate"><span class="pre">&lt;Information&gt;</span></code>; a <code class="docutils literal notranslate"><span class="pre">time=</span></code> option wins over either, and a text it displaces is warned about. An attribute centred on a face or an edge, or holding a finite element function, is neither one value per point nor one per cell and is skipped with a warning, as is one whose length matches neither count. <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> and <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> are <code class="docutils literal notranslate"><span class="pre">&lt;Set&gt;</span></code> elements of <code class="docutils literal notranslate"><span class="pre">Node</span></code> and <code class="docutils literal notranslate"><span class="pre">Cell</span></code> type; a face or edge set is skipped.</p></li>
+<li><p>Every <code class="docutils literal notranslate"><span class="pre">DataItem</span></code> flavour is read: inline text, HDF5 by <code class="docutils literal notranslate"><span class="pre">file.h5:/dataset</span></code>, a binary file at a <code class="docutils literal notranslate"><span class="pre">Seek</span></code> in either <code class="docutils literal notranslate"><span class="pre">Endian</span></code>, a <code class="docutils literal notranslate"><span class="pre">HyperSlab</span></code> over any of those, and a <code class="docutils literal notranslate"><span class="pre">Reference</span></code> to another item by XPath. The sidecar a file names is found beside it; a spelled path that leaves the file’s own directory - a <code class="docutils literal notranslate"><span class="pre">..</span></code> or an absolute one - is refused, while a symlink beside the file is followed wherever it leads, that being the usual layout on a cluster. A <code class="docutils literal notranslate"><span class="pre">DataItem</span></code> declaring more values than it holds is refused naming the count; a count past the safety caps is refused before anything is sized.</p></li>
+<li><p>A grid may include another’s topology and geometry with <code class="docutils literal notranslate"><span class="pre">xi:include</span> <span class="pre">xpointer=&quot;xpointer(//Grid[&#64;Name=&quot;…&quot;]/*[self::Topology</span> <span class="pre">or</span> <span class="pre">self::Geometry])&quot;</span></code>, the way a solver’s time series does. The pointer’s steps may name a grid, count one (<code class="docutils literal notranslate"><span class="pre">Grid[1]</span></code>) or start from <code class="docutils literal notranslate"><span class="pre">/Xdmf/Domain</span></code>; a pointer of another form, or an include of another document, is skipped with a warning. A series reads an included array once and hands each step its own copy. A file holding more than one temporal collection is read at the first; the others are named in a warning and left. A grid named by such a pointer and lying beside a temporal collection rather than in it is the series’ shared mesh, not a mesh of its own, and is not read twice.</p></li>
+<li><p>A lattice topology - <code class="docutils literal notranslate"><span class="pre">2DSMesh</span></code>, <code class="docutils literal notranslate"><span class="pre">3DRectMesh</span></code>, <code class="docutils literal notranslate"><span class="pre">3DCoRectMesh</span></code> and the rest - is expanded into explicit hexahedra or quadrilaterals, the way <code class="docutils literal notranslate"><span class="pre">.vts</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> and <code class="docutils literal notranslate"><span class="pre">.vti</span></code> are. Its <code class="docutils literal notranslate"><span class="pre">Dimensions</span></code> run slowest axis first, <code class="docutils literal notranslate"><span class="pre">nz</span> <span class="pre">ny</span> <span class="pre">nx</span></code>, and so do the origin and spacing of <code class="docutils literal notranslate"><span class="pre">ORIGIN_DXDYDZ</span></code>, which is how VTK reads them. The writer spells every mesh unstructured.</p></li>
+<li><p>A planar geometry (<code class="docutils literal notranslate"><span class="pre">XY</span></code>) is padded to three columns and flagged <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code>; a mesh so flagged that stayed in the plane writes <code class="docutils literal notranslate"><span class="pre">XY</span></code> back.</p></li>
+<li><p>Several grids merged keep each grid’s own points, so a point block two grids share through a <code class="docutils literal notranslate"><span class="pre">Reference</span></code> comes back once per grid; <code class="xref py py-func docutils literal notranslate"><span class="pre">merge_duplicate_vertices()</span></code> joins them.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -660,20 +647,20 @@ Ignored under <code class="docutils literal notranslate"><span class="pre">lazy=
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="ply.html"
+       href="svg.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Stanford PLY</p>
+        <p class="prev-next-title">SVG</p>
       </div>
     </a>
     <a class="right-next"
-       href="off.html"
+       href="../lazy_loading.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">OFF</p>
+        <p class="prev-next-title">Lazy loading</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -700,7 +687,6 @@ Ignored under <code class="docutils literal notranslate"><span class="pre">lazy=
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>
@@ -709,7 +695,7 @@ Ignored under <code class="docutils literal notranslate"><span class="pre">lazy=
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/stl.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/xdmf.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

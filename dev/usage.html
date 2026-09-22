@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=3a664a8b"></script>
+    <script src="_static/documentation_options.js?v=26c26a06"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-21"/>
+    <meta name="docbuild:last-update" content="2026-09-22"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -454,6 +454,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -781,11 +782,23 @@ it.</p>
 things - a fluid domain and a solid one, one part per block - since
 <code class="xref py py-func docutils literal notranslate"><span class="pre">merge()</span></code> joins them into a mesh that no longer says
 which was which.</p>
+<p>A time series - one mesh at several times, which XDMF holds - is the same
+shape of problem with the same answer: <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> reads one step,
+the first unless <code class="docutils literal notranslate"><span class="pre">step=</span></code> says otherwise, and the several live in the helper:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">times</span><span class="p">,</span> <span class="n">meshes</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_time_series</span><span class="p">(</span><span class="s2">"run.xdmf"</span><span class="p">)</span>
+<span class="n">helper</span><span class="o">.</span><span class="n">write_time_series</span><span class="p">(((</span><span class="n">t</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">times</span><span class="p">),</span> <span class="s2">"run.xdmf"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The writer takes any iterable of <code class="docutils literal notranslate"><span class="pre">(time,</span> <span class="pre">mesh)</span></code> pairs and writes each step as
+it arrives, so a run can stream its results rather than hold them all. The
+usual XDMF layout keeps the arrays in an HDF5 file beside the XML one, which
+needs <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>; <code class="docutils literal notranslate"><span class="pre">data_format=&quot;xml&quot;</span></code> keeps them inline
+and needs nothing.</p>
 </section>
 <section id="where-to-go-next">
 <h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the thirty-one supported formats, one page each</p></li>
+<li><p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the thirty-two supported formats, one page each</p></li>
 <li><p><a class="reference internal" href="lazy_loading.html"><span class="doc">Lazy loading</span></a> - reading files larger than RAM</p></li>
 <li><p><a class="reference internal" href="transforms.html"><span class="doc">Transforms</span></a> - filtering, cleaning and merging meshes</p></li>
 <li><p><a class="reference internal" href="cli.html"><span class="doc">Command line interface (pxios)</span></a> - the <code class="docutils literal notranslate"><span class="pre">pxios</span></code> command line</p></li>
@@ -906,7 +919,7 @@ which was which.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-21.
+  Last updated on 2026-09-22.
   <br/>
 </p></div>
       

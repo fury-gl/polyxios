@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="polyxios reads and writes 27 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency. Raises on malformed input instead of silently truncating, and memory-maps files larger than RAM." name="description" />
+<meta content="polyxios reads and writes 32 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency. Raises on malformed input instead of silently truncating, and memory-maps files larger than RAM." name="description" />
 <meta property="og:title" content="polyxios - fast, clean mesh I/O for Python" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/index.html" />
@@ -18,7 +18,7 @@
 <meta property="og:image:alt" content="" />
 <meta name="twitter:card" content="summary_large_image" />
 
-    <meta property="og:description" content="polyxios reads and writes 27 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency. Raises on malformed input instead of silently truncating, and memory-maps files larger than RAM." />
+    <meta property="og:description" content="polyxios reads and writes 32 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency. Raises on malformed input instead of silently truncating, and memory-maps files larger than RAM." />
     <meta name="robots" content="noindex, follow" />
     <title>polyxios - fast, clean mesh I/O for Python &#8212; polyxios</title>
   
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=3a664a8b"></script>
+    <script src="_static/documentation_options.js?v=26c26a06"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -74,7 +74,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-21"/>
+    <meta name="docbuild:last-update" content="2026-09-22"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -475,7 +475,7 @@
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-one - and raises instead of quietly corrupting
+        writes all thirty-two - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -562,7 +562,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/svg.html"><span>SVG</span><span class="px-ext">.svg</span><span class="px-dim">[ ]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 31 codecs, the 37 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <a class="px-tr" href="formats/xdmf.html"><span>XDMF</span><span class="px-ext">.xdmf .xmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">series: helper</span></a>
+      <p class="px-tfoot">} // 32 codecs, the 39 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -633,7 +634,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a thirty-first format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirty-third format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -725,7 +726,7 @@ mesh = px.read(<span class="s">"model.abc"</span>)
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-21.
+  Last updated on 2026-09-22.
   <br/>
 </p></div>
       

@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-one - and raises instead of quietly corrupting
+        writes all thirty-two - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -136,7 +136,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/svg.html"><span>SVG</span><span class="px-ext">.svg</span><span class="px-dim">[ ]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 31 codecs, the 37 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <a class="px-tr" href="formats/xdmf.html"><span>XDMF</span><span class="px-ext">.xdmf .xmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">series: helper</span></a>
+      <p class="px-tfoot">} // 32 codecs, the 39 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -207,7 +208,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a thirty-first format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirty-third format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -270,6 +271,11 @@ NumPy >= 1.24
 Optional:
 
 Cython >= 3.0 (compiled hot-paths; pure Python fallbacks included)
+
+h5py >= 3.0, for the HDF5 heavy data of XDMF files -
+pip install "polyxios[hdf5]". Without it the inline and binary flavours
+still read and write, and an HDF5 reference raises
+UnsupportedFormatError naming the extra.
 
 ## Usage
 
@@ -527,9 +533,22 @@ things - a fluid domain and a solid one, one part per block - since
 merge() joins them into a mesh that no longer says
 which was which.
 
+A time series - one mesh at several times, which XDMF holds - is the same
+shape of problem with the same answer: polyxios.read() reads one step,
+the first unless step= says otherwise, and the several live in the helper:
+
+times, meshes = helper.read_time_series("run.xdmf")
+helper.write_time_series(((t, solve(t)) for t in times), "run.xdmf")
+
+The writer takes any iterable of (time, mesh) pairs and writes each step as
+it arrives, so a run can stream its results rather than hold them all. The
+usual XDMF layout keeps the arrays in an HDF5 file beside the XML one, which
+needs pip install "polyxios[hdf5]"; data_format="xml" keeps them inline
+and needs nothing.
+
 Where to go next
 
-formats/index - the thirty-one supported formats, one page each
+formats/index - the thirty-two supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -545,7 +564,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships thirty-one codecs across thirty-eight extensions - the thirty-seven
+polyxios ships thirty-two codecs across forty extensions - the thirty-nine
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -554,7 +573,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The thirty-one format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-two format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -870,6 +889,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtwrite" href="svg.html">write() &#8594;</a>
       <a class="px-fmtspec" href="https://www.w3.org/TR/SVG11/">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">XDMF <span class="px-fmtext">.xdmf .xmf</span></p>
+    <p class="px-fmtdesc">XML light data over HDF5, binary or inline arrays: mixed
+      topologies, lattices, sets, and a time series read one step at a time.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="xdmf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.xdmf.org/index.php/XDMF_Model_and_Format">full spec &#8599;</a>
     </p>
   </div>
 
@@ -3614,6 +3643,99 @@ A picture with no extent in one direction - a single horizontal line - takes its
 
 index - the full format table.
 
+## XDMF
+
+Source: https://polyxios.org/stable/formats/xdmf.html
+
+XDMF
+
+.xdmf .xmf read + write eager time series
+
+Summary of the specification
+
+The eXtensible Data Model and Format splits a dataset in two. The light data is an XML document: an <Xdmf> root holding a <Domain>, which holds <Grid> elements. A uniform grid names its <Topology> - the element type and count, or Mixed with a type code ahead of each cell - and its <Geometry> - XYZ or XY coordinates, or the axes and spacing of a lattice - then any number of <Attribute> elements centred on Node, Cell or Grid, <Set> elements naming nodes or cells, and <Information> pairs. A collection grid holds other grids, spatially - several meshes side by side - or temporally, each child a step carrying a <Time Value>. The heavy data is every array, and each <DataItem> says where its own lives: inline in the XML (Format="XML"), in an HDF5 file as file.h5:/dataset (Format="HDF", the usual case and the reason the format exists), or in a raw file at a byte offset (Format="Binary"). A DataItem may also be a HyperSlab selecting from another, or a Reference to one elsewhere in the document by XPath, and a grid may borrow another’s topology and geometry through an XInclude pointer rather than spelling them again.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+XML: <Xdmf><Domain><Grid> with <Topology>, <Geometry>, <Attribute>, <Set>, <Time>, <Information>
+
+topology
+
+TopologyType naming the cell kind - Triangle, Hexahedron_20, Polyline NodesPerElement="2" - or Mixed; 2DSMesh … 3DCoRectMesh for a lattice
+
+geometry
+
+XYZ / XY coordinates, X_Y_Z split axes, VXVYVZ rectilinear axes, ORIGIN_DXDYDZ
+
+heavy data
+
+<DataItem Dimensions NumberType Precision Format>: inline text, file.h5:/path, or a binary file with Seek and Endian
+
+time series
+
+<Grid GridType="Collection" CollectionType="Temporal"> of grids, each with <Time Value>
+
+sharing
+
+<DataItem Reference="XML"> by XPath; <xi:include xpointer="…"> for a grid’s topology and geometry
+
+XDMF Model and Format ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("result.xdmf")                  # the first step of a series
+mesh = px.read("result.xdmf", step=-1)         # the last
+mesh.global_attrs["time"]                      # that step's <Time Value>
+mesh.vertex_tags, mesh.element_tags            # <Set> elements
+mesh.global_attrs["case"]                      # <Information Name="case">
+
+from polyxios import helper
+times, meshes = helper.read_time_series("result.xdmf")
+
+polyxios.read() hands back one mesh, always. Every uniform grid at the chosen step is read - a spatial collection flat, several grids beside one another merged - and where there are several, each grid’s elements are tagged with the grid’s Name, so a domain split into parts keeps saying which was which. A temporal collection is read at one step, the first without step=; polyxios.helper.read_time_series() reads them all. lazy=True raises LazyReadError: the arrays live wherever the file says, and are decoded whole.
+
+The HDF5 flavour needs h5py, which is optional - pip install "polyxios[hdf5]". Without it the inline and binary flavours still read, and a file naming an HDF5 sidecar raises UnsupportedFormatError spelling that command.
+
+Writing
+
+px.write(mesh, "out.xdmf")                          # arrays in out.h5, beside it
+px.write(mesh, "out.xdmf", data_format="xml")       # arrays inline
+px.write(mesh, "out.xdmf", data_format="binary")    # arrays in out.bin
+px.write(mesh, "out.xdmf", compression="gzip", compression_opts=4)
+px.write(mesh, "out.xdmf", time=0.5)
+
+helper.write_time_series(((t, solve(t)) for t in times), "run.xdmf")
+
+data_format says where the arrays go: "hdf", the default, writes them to an HDF5 file named after the XDMF one - out.h5 beside out.xdmf, never in the working directory - and needs h5py; "binary" writes them all to one out.bin beside it, each at its own Seek; "xml" keeps them inline, which is the one flavour that writes to a file object or a .gz path, since the other two need a beside. compression and compression_opts go to h5py for every dataset. time writes the grid’s <Time Value>; without it, a number under global_attrs["time"] does. Any other option is warned about and ignored.
+
+polyxios.helper.write_time_series() takes (time, mesh) pairs from any iterable, a generator included, and writes each step as it arrives: the first step spells the topology and geometry, and every later one includes them by pointer rather than spelling them again, so the mesh is in the file once. A step whose vertices moved writes its own geometry; one whose elements differ is refused, being another mesh rather than another step.
+
+Quirks worth knowing
+
+A mesh of one element type writes a topology named for it, the free-size kinds with NodesPerElement; a mesh mixing types writes Mixed, one type code ahead of each cell - and after the code of a Polyvertex, Polyline or Polygon, its node count, which is how the Xdmf library and VTK spell those and what lets a line sit beside a triangle. A pixel and a voxel go out as the quadrilateral and hexahedron they are, corners reordered. The quadratic and higher-order kinds - Edge_3 through Hexahedron_27 - are read and written in VTK’s node order, which is the order every other reader takes them in; Hexahedron_64 and up read as lagrange_hexahedron with the file’s own order. An element type XDMF has no name for - a triangle strip, a polyhedron, a Lagrange triangle - is dropped with a warning per type, and the values and tags over the elements are cut to match; a polyhedron in a mixed topology is stepped over on the way in the same way.
+
+<Attribute> elements centred on Node and Cell are vertex_attrs and element_attrs, their shape the DataItem’s, so a vector stays (n, 3) and a tensor (n, 3, 3); the AttributeType is written from the shape and not read. One centred on Grid lands in global_attrs as an array, an <Information Name Value> as text - a repeated name as a list of them - and a <Time Value> under global_attrs["time"]. On the way out a number under that key is the <Time> and a text is an <Information>; a time= option wins over either, and a text it displaces is warned about. An attribute centred on a face or an edge, or holding a finite element function, is neither one value per point nor one per cell and is skipped with a warning, as is one whose length matches neither count. vertex_tags and element_tags are <Set> elements of Node and Cell type; a face or edge set is skipped.
+
+Every DataItem flavour is read: inline text, HDF5 by file.h5:/dataset, a binary file at a Seek in either Endian, a HyperSlab over any of those, and a Reference to another item by XPath. The sidecar a file names is found beside it; a spelled path that leaves the file’s own directory - a .. or an absolute one - is refused, while a symlink beside the file is followed wherever it leads, that being the usual layout on a cluster. A DataItem declaring more values than it holds is refused naming the count; a count past the safety caps is refused before anything is sized.
+
+A grid may include another’s topology and geometry with xi:include xpointer="xpointer(//Grid[@Name="…"]/*[self::Topology or self::Geometry])", the way a solver’s time series does. The pointer’s steps may name a grid, count one (Grid[1]) or start from /Xdmf/Domain; a pointer of another form, or an include of another document, is skipped with a warning. A series reads an included array once and hands each step its own copy. A file holding more than one temporal collection is read at the first; the others are named in a warning and left. A grid named by such a pointer and lying beside a temporal collection rather than in it is the series’ shared mesh, not a mesh of its own, and is not read twice.
+
+A lattice topology - 2DSMesh, 3DRectMesh, 3DCoRectMesh and the rest - is expanded into explicit hexahedra or quadrilaterals, the way .vts, .vtr and .vti are. Its Dimensions run slowest axis first, nz ny nx, and so do the origin and spacing of ORIGIN_DXDYDZ, which is how VTK reads them. The writer spells every mesh unstructured.
+
+A planar geometry (XY) is padded to three columns and flagged global_attrs["was_2d"]; a mesh so flagged that stayed in the plane writes XY back.
+
+Several grids merged keep each grid’s own points, so a point block two grids share through a Reference comes back once per grid; merge_duplicate_vertices() joins them.
+
+index - the full format table.
+
 ## Lazy loading
 
 Source: https://polyxios.org/stable/lazy_loading.html
@@ -4109,6 +4231,10 @@ LazyReadError
 
 Raised when lazy=True is requested for a format that does not support it.
 
+MissingPackageError
+
+Raised when a codec reaches for an optional package that is not installed.
+
 PolyxiosError
 
 Base exception for all polyxios errors.
@@ -4322,6 +4448,10 @@ read_polydata(filename)
 
 Read a PolyData object from the given file, resolving fetches and VTP index files.
 
+read_time_series(path)
+
+Read every step of a time series, one PolyData per step.
+
 resolve_path(filename)
 
 Resolve a filename to a local path, fetching it from the catalog if needed.
@@ -4329,6 +4459,10 @@ Resolve a filename to a local path, fetching it from the catalog if needed.
 visualize_mesh(polydata, *[, lines, points])
 
 Visualize a PolyData mesh using FURY.
+
+write_time_series(steps, path, **opts)
+
+Write a sequence of meshes as one time series.
 
 Exceptions
 
@@ -5278,6 +5412,40 @@ Changelog
 
 New features
 
+XDMF (.xdmf, .xmf) is read and written: XML light data over
+heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
+DataItem flavour read - a HyperSlab and a Reference by XPath
+among them - and a sidecar found beside the file, refused outside its
+directory. A uniform grid reads with its Node and Cell attributes
+in the shape the file gives them, Grid attributes and Information
+into global_attrs, Set elements into the tags and Time under
+global_attrs["time"]; a Mixed topology counts the nodes of its
+free-size cells the way the Xdmf library does, so a line beside a
+triangle reads and writes; a lattice topology expands into explicit
+cells. Several grids at one time are merged, each grid’s elements
+tagged with its name; a temporal collection is read at one step,
+step= choosing which, and the whole series by
+helper.read_time_series. A grid that borrows its mesh through an
+xi:include pointer is followed, and the grid it borrows from, lying
+beside the series, is not read as a second mesh. The writer names the
+topology for a single-type mesh and spells Mixed otherwise, sends
+the arrays to out.h5 beside out.xdmf by default -
+data_format="xml" inline, "binary" one raw sidecar with a seek
+per array - and helper.write_time_series streams (time, mesh)
+pairs into one collection, the mesh written once and included by
+pointer after, a moved mesh with its own geometry per step. The HDF5
+flavour needs h5py, now the polyxios[hdf5] extra; without it the
+other two work and an HDF5 reference raises UnsupportedFormatError
+spelling the install line.
+
+Optional packages have one rule, polyxios._optpkg.optional_package:
+a module when it imports, and otherwise a stand-in that raises
+MissingPackageError - an UnsupportedFormatError and an
+AttributeError both - the moment anything is asked of it, naming the
+package, why the import failed and the extra that installs it. A minimum
+version can be asked for and is read without a version-parsing
+dependency.
+
 SVG pictures are written: .svg, gzip included, is a drawing of the
 mesh projected onto a plane - plane="xy" by default, "xz" or
 "yz" on request - in the mesh’s own units with the upward axis
@@ -5398,7 +5566,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:139: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:173: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -5469,7 +5637,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:203: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:237: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -5707,7 +5875,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:427: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:461: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -5745,7 +5913,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:463: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:497: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -6710,7 +6878,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1323: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1357: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -6794,7 +6962,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1391: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1425: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -6842,7 +7010,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1422: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1456: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -6857,7 +7025,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1434: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1468: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -6963,7 +7131,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1507: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1541: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

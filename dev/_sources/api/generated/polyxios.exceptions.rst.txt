@@ -12,6 +12,7 @@ polyxios.exceptions
       FetcherError
       IndexOverflowError
       LazyReadError
+      MissingPackageError
       PolyxiosError
       UnknownElementTypeError
       UnsupportedFormatError

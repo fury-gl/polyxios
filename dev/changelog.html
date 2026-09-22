@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): New features: SVG pictures are written:.svg, gzip included, is a drawing of the mesh projected onto a plane - plane=&quot;xy&quot; by default,&quot;xz&quot; or&quot;yz&quot; on re..." />
+<meta property="og:description" content="0.5.0 (upcoming): New features: XDMF (.xdmf,.xmf) is read and written: XML light data over heavy data held inline, in an HDF5 sidecar or in a raw binary one, every DataItem flavour read - a HyperSl..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_15a15b79.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): New features: SVG pictures are written:.svg, gzip included, is a drawing of the mesh projected onto a plane - plane=&quot;xy&quot; by default,&quot;xz&quot; or&quot;yz&quot; on re..." />
-<meta name="description" content="0.5.0 (upcoming): New features: SVG pictures are written:.svg, gzip included, is a drawing of the mesh projected onto a plane - plane=&quot;xy&quot; by default,&quot;xz&quot; or&quot;yz&quot; on re..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_79d3aa44.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): New features: XDMF (.xdmf,.xmf) is read and written: XML light data over heavy data held inline, in an HDF5 sidecar or in a raw binary one, every DataItem flavour read - a HyperSl..." />
+<meta name="description" content="0.5.0 (upcoming): New features: XDMF (.xdmf,.xmf) is read and written: XML light data over heavy data held inline, in an HDF5 sidecar or in a raw binary one, every DataItem flavour read - a HyperSl..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=3a664a8b"></script>
+    <script src="_static/documentation_options.js?v=26c26a06"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-21"/>
+    <meta name="docbuild:last-update" content="2026-09-22"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -454,6 +454,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -552,6 +553,38 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>XDMF (<code class="docutils literal notranslate"><span class="pre">.xdmf</span></code>, <code class="docutils literal notranslate"><span class="pre">.xmf</span></code>) is read and written: XML light data over
+heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
+<code class="docutils literal notranslate"><span class="pre">DataItem</span></code> flavour read - a <code class="docutils literal notranslate"><span class="pre">HyperSlab</span></code> and a <code class="docutils literal notranslate"><span class="pre">Reference</span></code> by XPath
+among them - and a sidecar found beside the file, refused outside its
+directory. A uniform grid reads with its <code class="docutils literal notranslate"><span class="pre">Node</span></code> and <code class="docutils literal notranslate"><span class="pre">Cell</span></code> attributes
+in the shape the file gives them, <code class="docutils literal notranslate"><span class="pre">Grid</span></code> attributes and <code class="docutils literal notranslate"><span class="pre">Information</span></code>
+into <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>, <code class="docutils literal notranslate"><span class="pre">Set</span></code> elements into the tags and <code class="docutils literal notranslate"><span class="pre">Time</span></code> under
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>; a <code class="docutils literal notranslate"><span class="pre">Mixed</span></code> topology counts the nodes of its
+free-size cells the way the Xdmf library does, so a line beside a
+triangle reads and writes; a lattice topology expands into explicit
+cells. Several grids at one time are merged, each grid’s elements
+tagged with its name; a temporal collection is read at one step,
+<code class="docutils literal notranslate"><span class="pre">step=</span></code> choosing which, and the whole series by
+<code class="docutils literal notranslate"><span class="pre">helper.read_time_series</span></code>. A grid that borrows its mesh through an
+<code class="docutils literal notranslate"><span class="pre">xi:include</span></code> pointer is followed, and the grid it borrows from, lying
+beside the series, is not read as a second mesh. The writer names the
+topology for a single-type mesh and spells <code class="docutils literal notranslate"><span class="pre">Mixed</span></code> otherwise, sends
+the arrays to <code class="docutils literal notranslate"><span class="pre">out.h5</span></code> beside <code class="docutils literal notranslate"><span class="pre">out.xdmf</span></code> by default -
+<code class="docutils literal notranslate"><span class="pre">data_format=&quot;xml&quot;</span></code> inline, <code class="docutils literal notranslate"><span class="pre">&quot;binary&quot;</span></code> one raw sidecar with a seek
+per array - and <code class="docutils literal notranslate"><span class="pre">helper.write_time_series</span></code> streams <code class="docutils literal notranslate"><span class="pre">(time,</span> <span class="pre">mesh)</span></code>
+pairs into one collection, the mesh written once and included by
+pointer after, a moved mesh with its own geometry per step. The HDF5
+flavour needs h5py, now the <code class="docutils literal notranslate"><span class="pre">polyxios[hdf5]</span></code> extra; without it the
+other two work and an HDF5 reference raises <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
+spelling the install line.</p></li>
+<li><p>Optional packages have one rule, <code class="docutils literal notranslate"><span class="pre">polyxios._optpkg.optional_package</span></code>:
+a module when it imports, and otherwise a stand-in that raises
+<code class="docutils literal notranslate"><span class="pre">MissingPackageError</span></code> - an <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> and an
+<code class="docutils literal notranslate"><span class="pre">AttributeError</span></code> both - the moment anything is asked of it, naming the
+package, why the import failed and the extra that installs it. A minimum
+version can be asked for and is read without a version-parsing
+dependency.</p></li>
 <li><p>SVG pictures are written: <code class="docutils literal notranslate"><span class="pre">.svg</span></code>, gzip included, is a drawing of the
 mesh projected onto a plane - <code class="docutils literal notranslate"><span class="pre">plane=&quot;xy&quot;</span></code> by default, <code class="docutils literal notranslate"><span class="pre">&quot;xz&quot;</span></code> or
 <code class="docutils literal notranslate"><span class="pre">&quot;yz&quot;</span></code> on request - in the mesh’s own units with the upward axis
@@ -2168,7 +2201,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-21.
+  Last updated on 2026-09-22.
   <br/>
 </p></div>
       
