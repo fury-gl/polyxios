@@ -88,7 +88,7 @@ _XI_URI: str = "http://www.w3.org/2001/XInclude"
 # each with the polyxios type it reads as. The mixed-topology code of each is
 # what the Xdmf library numbers them; a reader meeting a code not here is met
 # with UnknownElementTypeError rather than a KeyError.
-_XDMF_TO_POLYXIOS: dict[str, str] = {
+XDMF_TO_POLYXIOS: dict[str, str] = {
     "polyvertex": "vertex",
     "polyline": "line",
     "polygon": "polygon",
@@ -123,8 +123,8 @@ _XDMF_TO_POLYXIOS: dict[str, str] = {
 # them apart on the way back out.
 _LAGRANGE_HEX_NODES: tuple[int, ...] = (64, 125, 216, 343, 512, 729, 1000, 1331)
 for _count in _LAGRANGE_HEX_NODES:
-    _XDMF_TO_POLYXIOS[f"hexahedron_{_count}"] = "lagrange_hexahedron"
-    _XDMF_TO_POLYXIOS[f"hex_{_count}"] = "lagrange_hexahedron"
+    XDMF_TO_POLYXIOS[f"hexahedron_{_count}"] = "lagrange_hexahedron"
+    XDMF_TO_POLYXIOS[f"hex_{_count}"] = "lagrange_hexahedron"
 
 # Mixed-topology codes, as XdmfTopologyType numbers them.
 _CODE_TO_XDMF: dict[int, str] = {
@@ -171,7 +171,7 @@ _POLY_DEFAULT_NODES: dict[str, int] = {"polyvertex": 1, "polyline": 2}
 # Nodes per XDMF type, for the fixed-size ones.
 _XDMF_NODES: dict[str, int] = {
     name: NODES_PER_ELEMENT[ptype]
-    for name, ptype in _XDMF_TO_POLYXIOS.items()
+    for name, ptype in XDMF_TO_POLYXIOS.items()
     if name not in _POLY_XDMF and NODES_PER_ELEMENT[ptype] > 0
 }
 for _count in _LAGRANGE_HEX_NODES:
@@ -184,7 +184,7 @@ for _count in _LAGRANGE_HEX_NODES:
 _MIXED_CELL: dict[int, tuple[int, int]] = {
     code: (
         0 if code in _POLY_CODES else _XDMF_NODES[name],
-        ELEMENT_TYPES[_XDMF_TO_POLYXIOS[name]],
+        ELEMENT_TYPES[XDMF_TO_POLYXIOS[name]],
     )
     for code, name in _CODE_TO_XDMF.items()
     if code != _POLYHEDRON_CODE
@@ -201,7 +201,7 @@ _POLY_TYPE_CODES: dict[int, tuple[int, int]] = {
 # polyxios type code -> XDMF name and the node order the file wants. A pixel
 # and a voxel are VTK's axis-aligned quad and hexahedron with the corners in
 # lattice order; XDMF has only the general kind, so they go out reordered.
-_WRITE_MAP: dict[int, tuple[str, tuple[int, ...] | None]] = {
+WRITE_MAP: dict[int, tuple[str, tuple[int, ...] | None]] = {
     ELEMENT_TYPES["vertex"]: ("Polyvertex", None),
     ELEMENT_TYPES["poly_vertex"]: ("Polyvertex", None),
     ELEMENT_TYPES["line"]: ("Polyline", None),
@@ -969,7 +969,7 @@ def _read_topology(
         raise CodecError(
             f"{where}: a Polyhedron topology has no element type here and is not read."
         )
-    ptype = _XDMF_TO_POLYXIOS.get(topo_type)
+    ptype = XDMF_TO_POLYXIOS.get(topo_type)
     if ptype is None:
         raise CodecError(
             f"{where}: TopologyType '{topology.get('TopologyType')}' is not known."
@@ -2305,7 +2305,7 @@ def _writable_elements(poly: PolyData) -> tuple[np.ndarray, set[str]]:
     sizes = np.diff(poly.offsets)
     for code in np.unique(codes):
         code = int(code)
-        if code in _WRITE_MAP:
+        if code in WRITE_MAP:
             continue
         here = codes == code
         if code == _LAGRANGE_HEX:
@@ -2322,7 +2322,7 @@ def _writable_elements(poly: PolyData) -> tuple[np.ndarray, set[str]]:
 def _xdmf_name(code: int, size: int) -> tuple[str, tuple[int, ...] | None]:
     if code == _LAGRANGE_HEX:
         return f"Hexahedron_{size}", None
-    return _WRITE_MAP[code]
+    return WRITE_MAP[code]
 
 
 def _topology_lines(
@@ -2380,7 +2380,7 @@ def _reordered_cells(
     starts = offsets[index]
     cells = conn[starts[:, None] + np.arange(per_cell)[None, :]].astype(np.int64)
     for code in np.unique(codes[index]):
-        order = _WRITE_MAP.get(int(code), ("", None))[1]
+        order = WRITE_MAP.get(int(code), ("", None))[1]
         if order is not None:
             rows = codes[index] == code
             cells[rows] = cells[rows][:, list(order)]
@@ -2407,7 +2407,7 @@ def _mixed_stream(
                     f"hexahedron_{int(size)}"
                 ]
             continue
-        name = _WRITE_MAP[int(code)][0].lower()
+        name = WRITE_MAP[int(code)][0].lower()
         xdmf_codes[rows] = _XDMF_TO_CODE[name]
         if name in _POLY_XDMF:
             is_poly[rows] = True
@@ -2426,7 +2426,7 @@ def _mixed_stream(
     gathered = conn[np.repeat(offsets[index], kept_sizes) + local].astype(np.int64)
     # A pixel or voxel in a mixed stream is reordered the same way as alone.
     for code in np.unique(kept_codes):
-        order = _WRITE_MAP.get(int(code), ("", None))[1]
+        order = WRITE_MAP.get(int(code), ("", None))[1]
         if order is None:
             continue
         rows = np.flatnonzero(kept_codes == code)

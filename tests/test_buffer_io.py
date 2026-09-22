@@ -48,7 +48,7 @@ _BUFFERABLE: tuple[str, ...] = tuple(
 # below; round-trip-through-memory tests still exercise them.
 # An HDF5 file also carries the time each object was created in its headers,
 # so two writes of one mesh agree byte for byte only within the same second.
-_HDF5: frozenset[str] = frozenset({".med", ".cgns"})
+_HDF5: frozenset[str] = frozenset({".med", ".cgns", ".h5m", ".hmf"})
 _BUFFER_EQUAL: tuple[str, ...] = tuple(
     ext for ext in _BUFFERABLE if ext not in {".gltf"} | _HDF5
 )

@@ -174,9 +174,28 @@ def _corrupt_cgns(path) -> None:
         )
 
 
+def _corrupt_h5m(path) -> None:
+    h5py = pytest.importorskip("h5py")
+    with h5py.File(path, "w") as f:
+        tstt = f.create_group("tstt")
+        coords = tstt.create_dataset("nodes/coordinates", data=np.zeros((1, 3)))
+        coords.attrs["start_id"] = 1
+        sets = tstt.create_group("sets")
+        table = sets.create_dataset(
+            "list", data=np.array([[1, -1, -1, 8]], dtype=np.int64)
+        )
+        table.attrs["start_id"] = 2
+        # Range-compressed contents: one run of BIG entities from handle 1.
+        sets.create_dataset("contents", data=np.array([1, BIG], dtype=np.uint64))
+        tags = tstt.create_group("tags/NAME")
+        tags.create_dataset("id_list", data=np.array([2], dtype=np.uint64))
+        tags.create_dataset("values", data=np.array([b"s"], dtype="S32"))
+
+
 CORRUPT_HDF5: dict[str, Callable] = {
     ".med": _corrupt_med,
     ".cgns": _corrupt_cgns,
+    ".h5m": _corrupt_h5m,
 }
 
 
@@ -208,6 +227,8 @@ _NO_DECLARED_COUNT: frozenset[str] = frozenset(
         ".vtm",
         # Write-only: there is no reader for a count to reach.
         ".svg",
+        # Every array is an HDF5 dataset of its own size; nothing declares one.
+        ".hmf",
     }
 )
 
