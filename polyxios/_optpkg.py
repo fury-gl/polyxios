@@ -85,30 +85,6 @@ class TripWire:
         return f"TripWire({self._msg!r})"
 
 
-def is_tripwire(obj: object) -> bool:
-    """Say whether *obj* is the stand-in a missing package leaves behind.
-
-    Parameters
-    ----------
-    obj
-        Anything :func:`optional_package` might have handed back.
-
-    Returns
-    -------
-    bool
-        True for a :class:`TripWire`, False for a module or anything else.
-
-    Examples
-    --------
-    >>> is_tripwire(TripWire("gone"))
-    True
-    >>> import os
-    >>> is_tripwire(os)
-    False
-    """
-    return isinstance(obj, TripWire)
-
-
 def _version_tuple(text: str) -> tuple[int, ...] | None:
     """Turn the numeric prefix of a version string into a comparable tuple."""
     match = _VERSION_DIGITS.match(text)

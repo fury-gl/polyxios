@@ -576,7 +576,7 @@ def visualize_mesh(
 
 # The extensions that hold a time series: several meshes at several times in
 # one file, which ``read`` hands back one step of. The whole series lives here.
-_SERIES_SUFFIXES: frozenset[str] = frozenset({".xdmf", ".xmf"})
+_SERIES_SUFFIXES: frozenset[str] = frozenset(_xdmf.EXTENSIONS)
 
 
 def _series_codec(path: str | Path, verb: str) -> Any:
@@ -633,7 +633,9 @@ def read_time_series(path: str | Path) -> tuple[np.ndarray, list[polyxios.PolyDa
 def _step_time(step: polyxios.PolyData) -> float:
     """A step's time from its globals, ``nan`` when the file spells none or text."""
     held = step.global_attrs.get("time")
-    if isinstance(held, bool) or not isinstance(held, (int, float, np.number)):
+    if isinstance(held, bool) or not isinstance(
+        held, (int, float, np.integer, np.floating)
+    ):
         return float("nan")
     return float(held)
 

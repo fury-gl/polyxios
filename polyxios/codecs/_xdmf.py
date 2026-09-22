@@ -23,9 +23,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
+import functools
 import math
+import os
 from pathlib import Path
 import re
+from types import ModuleType
 from typing import Any
 import warnings
 import xml.etree.ElementTree as ET
@@ -36,7 +39,7 @@ import numpy as np
 from polyxios import transforms
 from polyxios._dimension import mark_2d, output_dimension, pad_to_3d
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV, NODES_PER_ELEMENT
-from polyxios._globals import globals_for_write, text_for_write
+from polyxios._globals import as_text, globals_for_write, text_for_write
 from polyxios._io import (
     Source,
     is_buffer,
@@ -45,7 +48,7 @@ from polyxios._io import (
     source_name,
     write_text,
 )
-from polyxios._optpkg import optional_package
+from polyxios._optpkg import TripWire, optional_package
 from polyxios._tags import member_indices, member_values
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
@@ -64,7 +67,17 @@ from polyxios.validate import validate_header
 EXTENSION: str = ".xdmf"
 EXTENSIONS: tuple[str, ...] = (".xdmf", ".xmf")
 
-h5py, HAVE_H5PY = optional_package("h5py", min_version="3.0", extra="hdf5")
+
+@functools.cache
+def _h5py() -> tuple[ModuleType | TripWire, bool]:
+    """h5py and whether it is there, imported on first use.
+
+    Importing h5py costs about a third of ``import polyxios``, and only the
+    HDF5 flavour needs it; every other format, and the XML and binary
+    flavours here, should not pay for it.
+    """
+    return optional_package("h5py", min_version="3.0", extra="hdf5")
+
 
 _XI: str = "{http://www.w3.org/2001/XInclude}"
 _XI_URI: str = "http://www.w3.org/2001/XInclude"
@@ -405,6 +418,7 @@ def _open_document(path: Source) -> dict[str, Any]:
         "item_cache": None,
         "pointer_cache": {},
         "temporal": None,
+        "warned_extra_series": False,
         "time": None,
     }
 
@@ -589,7 +603,10 @@ def _merge_grids(
         while name in poly.element_tags:
             name = f"grid_{index}" if counter == 0 else f"grid_{index}_{counter}"
             counter += 1
-        tags = {**poly.element_tags, name: np.arange(len(poly.element_types))}
+        tags = {
+            **poly.element_tags,
+            name: np.arange(len(poly.element_types), dtype=np.int32),
+        }
         tagged.append(
             PolyData(
                 vertices=poly.vertices,
@@ -604,6 +621,10 @@ def _merge_grids(
             )
         )
         merged_globals.update(poly.global_attrs)
+    # The merged mesh is planar only if every grid was: a 3-D grid's z would
+    # otherwise be cut on the way back out.
+    if not all(poly.global_attrs.get("was_2d") for poly in polys):
+        merged_globals.pop("was_2d", None)
     return transforms.merge(*tagged), merged_globals
 
 
@@ -627,6 +648,20 @@ def _leaves(
                 continue
             out.append(grid)
         elif kind == "temporal":
+            # One file, one series: the step count and the step asked for
+            # are the first collection's, and a second one would be read at
+            # a step it may not have.
+            if grid is not _temporal_collections(ctx)[0]:
+                if not ctx["warned_extra_series"]:
+                    ctx["warned_extra_series"] = True
+                    warnings.warn(
+                        f"'{ctx['name']}': the file holds more than one"
+                        " temporal collection; only the first is read, and"
+                        f" '{grid.get('Name', '')}' is skipped.",
+                        UserWarning,
+                        stacklevel=4,
+                    )
+                continue
             steps = grid.findall("Grid")
             if not steps:
                 raise CodecError(
@@ -719,7 +754,8 @@ def _read_information(parent: ET.Element, globals_: dict[str, Any]) -> None:
     for info in parent.findall("Information"):
         name = info.get("Name")
         # A text under the planarity key would be read as a flag on the way
-        # back out; a text "time" is harmless, and stays as text.
+        # back out; a text "time" stays as text, and a <Time> value on the
+        # same grid replaces it.
         if not name or name == "was_2d":
             continue
         value = info.get("Value")
@@ -823,6 +859,7 @@ def _read_uniform(grid: ET.Element, ctx: dict[str, Any]) -> PolyData:
     vertex_tags: dict[str, np.ndarray] = {}
     element_tags: dict[str, np.ndarray] = {}
 
+    _read_information(grid, globals_)
     for child in children:
         if child.tag == "Attribute":
             _read_attribute(
@@ -842,7 +879,6 @@ def _read_uniform(grid: ET.Element, ctx: dict[str, Any]) -> PolyData:
             )
         elif child.tag == "Time" and child.get("Value") is not None:
             globals_[_TIME_KEY] = _as_float(child.get("Value"), ctx, "Time Value")
-    _read_information(grid, globals_)
 
     return PolyData(
         vertices=vertices,
@@ -967,6 +1003,12 @@ def _read_topology(
                 f"{where}: the topology declares {n_declared} cells and holds"
                 f" {n_cells}."
             )
+        warnings.warn(
+            f"{where}: the topology declares {n_declared} cells and holds"
+            f" {n_cells}; the declared count is read and the rest left.",
+            UserWarning,
+            stacklevel=6,
+        )
         flat = flat[: n_declared * per_cell]
         n_cells = n_declared
     connectivity = _as_indices(flat, n_verts, where)
@@ -1025,10 +1067,24 @@ def _read_mixed(
                     raise CodecError(truncated)
                 n_faces = int(values[i])
                 i += 1
+                # Each face is a count and that many nodes, so every face
+                # takes at least two values: a count that does not fit, or
+                # a face of no nodes, is a malformed stream, not a long one.
+                if n_faces < 1 or n_faces > (n - i) // 2:
+                    raise CodecError(
+                        f"{where}: a polyhedron in the mixed topology"
+                        f" declares {n_faces} faces."
+                    )
                 for _ in range(n_faces):
                     if i >= n:
                         raise CodecError(truncated)
-                    i += 1 + int(values[i])
+                    face_nodes = int(values[i])
+                    if face_nodes < 1:
+                        raise CodecError(
+                            f"{where}: a polyhedron face in the mixed"
+                            f" topology declares {face_nodes} nodes."
+                        )
+                    i += 1 + face_nodes
                 if i > n:
                     raise CodecError(truncated)
                 n_polyhedra += 1
@@ -1460,16 +1516,17 @@ def _find_reference(xpath: str, ctx: dict[str, Any]) -> ET.Element:
 
 
 def _uniform_item(item: ET.Element, ctx: dict[str, Any]) -> np.ndarray:
-    dtype = _item_dtype(item, ctx)
     spelled = item.get("Dimensions")
     dims = None if spelled is None else _dims_of(spelled, ctx)
     fmt = (item.get("Format") or "XML").lower()
+    # An HDF5 dataset carries its own type; NumberType is read only where
+    # the bytes have none.
     if fmt == "xml":
-        values = _xml_values(item, dtype, ctx)
+        values = _xml_values(item, _item_dtype(item, ctx), ctx)
     elif fmt in ("hdf", "hdf5"):
         values = _hdf_values(item, dims, ctx)
     elif fmt == "binary":
-        values = _binary_values(item, dtype, dims, ctx)
+        values = _binary_values(item, _item_dtype(item, ctx), dims, ctx)
     else:
         raise CodecError(
             f"'{ctx['name']}': a DataItem Format '{item.get('Format')}' is not read."
@@ -1502,11 +1559,16 @@ def _xml_values(item: ET.Element, dtype: np.dtype, ctx: dict[str, Any]) -> np.nd
             doubles = np.array(tokens, dtype=np.float64)
             if not np.all(np.mod(doubles, 1) == 0):
                 raise ValueError from None
+            limits = np.iinfo(dtype)
+            if doubles.size and (
+                doubles.min() < limits.min or doubles.max() > limits.max
+            ):
+                raise OverflowError from None
             return doubles.astype(dtype)
     except (ValueError, OverflowError):
         raise CodecError(
             f"'{ctx['name']}': an inline DataItem holds a value that is not a"
-            f" {item.get('NumberType') or 'Float'}."
+            f" {item.get('NumberType') or 'Float'} of {dtype.itemsize} byte(s)."
         ) from None
 
 
@@ -1519,7 +1581,11 @@ def _sidecar(reference: str, ctx: dict[str, Any], what: str) -> Path:
             " which is found beside the file, and a file object has no beside."
             " Pass a path instead."
         )
-    candidate = (base_dir / reference).resolve()
+    # Checked as spelled, not as resolved: a sidecar that is a symlink to
+    # bulk storage elsewhere is the usual layout on a cluster, and the name
+    # beside the file is what the XML vouches for. What the check refuses
+    # is a spelled ``..`` or an absolute path that leaves the directory.
+    candidate = Path(os.path.normpath(base_dir / reference))
     if base_dir != candidate and base_dir not in candidate.parents:
         raise CodecError(
             f"'{ctx['name']}': {what} '{reference}' resolves outside the"
@@ -1540,7 +1606,8 @@ def _hdf_dataset(item: ET.Element, ctx: dict[str, Any]) -> tuple[Any, str]:
         raise CodecError(
             f"'{ctx['name']}': an HDF DataItem reads '{text}', not 'file.h5:/dataset'."
         )
-    if not HAVE_H5PY:
+    h5py, have_h5py = _h5py()
+    if not have_h5py:
         raise UnsupportedFormatError(
             f"'{ctx['name']}': the arrays live in the HDF5 file '{file_part}',"
             ' and reading it needs h5py: pip install "polyxios[hdf5]".'
@@ -1643,7 +1710,9 @@ def _hyperslab_item(item: ET.Element, ctx: dict[str, Any]) -> np.ndarray:
             f"'{ctx['name']}': a HyperSlab DataItem needs a selection and a"
             f" source, and holds {len(items)} DataItem(s)."
         )
-    selection = _item_array(items[0], ctx).ravel().astype(np.int64)
+    selection = _whole_numbers(
+        _item_array(items[0], ctx).ravel(), f"'{ctx['name']}'", "a HyperSlab selection"
+    ).astype(np.int64)
     source_item = items[1]
     spelled_source = source_item.get("Dimensions")
     source_dims = None if spelled_source is None else _dims_of(spelled_source, ctx)
@@ -1892,6 +1961,11 @@ def _write_options(
         "compression": opts.pop("compression", None),
         "compression_opts": opts.pop("compression_opts", None),
     }
+    if sink_opts["compression_opts"] is not None and sink_opts["compression"] is None:
+        raise CodecError(
+            f"{EXTENSION} {what}: compression_opts names a level and compression"
+            " names no method; pass compression='gzip' (or another h5py filter)."
+        )
     time = opts.pop("time", None) if takes_time else None
     if time is not None:
         try:
@@ -1937,25 +2011,41 @@ Store = Callable[[str, np.ndarray], tuple[dict[str, str], str]]
 def _open_sink(
     data_format: str, target: Path | None, sink_opts: dict[str, Any]
 ) -> Iterator[Store]:
+    """Open the heavy-data sink and hand back its store.
+
+    The sidecar is written under a temporary name and moved into place once
+    the body has run through, so a write that fails halfway leaves neither
+    a truncated sidecar nor a stale one from an earlier write beside a
+    missing XML file.
+    """
     if data_format == "xml":
         yield _xml_store
         return
     assert target is not None
     if data_format == "hdf":
-        if not HAVE_H5PY:
+        h5py, have_h5py = _h5py()
+        if not have_h5py:
             raise UnsupportedFormatError(
                 f"'{target.name}': the arrays go to an HDF5 file beside it,"
                 ' which needs h5py: pip install "polyxios[hdf5]". Or pass'
                 ' data_format="xml" to keep them inline, or "binary" for a'
                 " raw sidecar."
             )
-        h5_path = target.with_name(target.stem + _H5_SUFFIX)
-        with h5py.File(h5_path, "w") as handle:
-            yield _hdf_store(handle, h5_path.name, sink_opts)
-        return
-    bin_path = target.with_name(target.stem + _BIN_SUFFIX)
-    with open(bin_path, "wb") as handle:
-        yield _binary_store(handle, bin_path.name)
+        sidecar = target.with_name(target.stem + _H5_SUFFIX)
+    else:
+        sidecar = target.with_name(target.stem + _BIN_SUFFIX)
+    partial = sidecar.with_name(sidecar.name + ".partial")
+    try:
+        if data_format == "hdf":
+            with h5py.File(partial, "w") as handle:
+                yield _hdf_store(handle, sidecar.name, sink_opts)
+        else:
+            with open(partial, "wb") as handle:
+                yield _binary_store(handle, sidecar.name)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    os.replace(partial, sidecar)
 
 
 def _xml_store(hint: str, arr: np.ndarray) -> tuple[dict[str, str], str]:
@@ -2006,8 +2096,13 @@ def _binary_store(handle: Any, bin_name: str) -> Store:
 
 
 def _h5_safe(name: str) -> str:
-    """A dataset name from an attribute name: a slash would open a group."""
-    return name.replace("/", "_") or "_"
+    """A dataset name from an attribute name.
+
+    A slash would open a group, and ``.`` and ``..`` name the group itself
+    and its parent, which HDF5 refuses to create a dataset over.
+    """
+    safe = name.replace("/", "_")
+    return "_" * max(len(safe), 1) if safe in ("", ".", "..") else safe
 
 
 def _storable(arr: np.ndarray) -> np.ndarray | None:
@@ -2063,14 +2158,30 @@ def _grid_lines(
     """
     pad = " " * indent
     lines: list[str] = []
-    if time is None:
-        held = poly.global_attrs.get(_TIME_KEY)
-        if isinstance(held, (int, float, np.integer, np.floating)) and not isinstance(
-            held, bool
-        ):
-            time = float(held)
+    held = poly.global_attrs.get(_TIME_KEY)
+    held_number = _is_number(held)
+    if time is None and held_number:
+        time = float(held)
+    # A text "time" is an Information like any other text global when no
+    # <Time> is written. A number the caller's time= overrides is meant to
+    # be; anything else under the key has nowhere to go and is said so.
+    text_reserved = _RESERVED_GLOBALS
     if time is not None:
         lines.append(f'{pad}<Time Value="{time!r}"/>')
+    elif held is not None and as_text(held) is not None:
+        text_reserved = _RESERVED_GLOBALS - {_TIME_KEY}
+    if (
+        held is not None
+        and not held_number
+        and (time is not None or as_text(held) is None)
+    ):
+        warnings.warn(
+            f"{EXTENSION} write: global_attrs['time'] is {held!r}, which is"
+            f" {'not a number' if time is None else 'not the <Time> written'};"
+            " it is not written.",
+            UserWarning,
+            stacklevel=5,
+        )
     if include:
         pointer = "".join(
             f"/Grid[@Name=&quot;{name}&quot;]" for name in (_SERIES_GRID_NAME, "step0")
@@ -2160,10 +2271,16 @@ def _grid_lines(
     )
     lines.extend(
         f"{pad}<Information Name={quoteattr(str(name))} Value={quoteattr(value)}/>"
-        for name, strings in text_for_write(poly, reserved=_RESERVED_GLOBALS).items()
+        for name, strings in text_for_write(poly, reserved=text_reserved).items()
         for value in strings
     )
     return lines
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(
+        value, bool
+    )
 
 
 def _kept_elements(poly: PolyData, *, stacklevel: int) -> np.ndarray:
@@ -2427,7 +2544,6 @@ def _set_lines(
 __all__ = [
     "EXTENSION",
     "EXTENSIONS",
-    "HAVE_H5PY",
     "read",
     "read_time_series",
     "write",

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+import subprocess
+import sys
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -16,6 +18,7 @@ import pytest
 
 import polyxios
 from polyxios import make_polydata
+from polyxios._optpkg import TripWire
 from polyxios.codecs import _xdmf
 from polyxios.codecs._xdmf import read, read_time_series, write, write_time_series
 from polyxios.exceptions import (
@@ -429,6 +432,35 @@ def test_sets_become_tags_and_information_becomes_text(tmp_path: Path) -> None:
     assert poly.global_attrs["solver"] == ["fem", "v2"]
     np.testing.assert_array_equal(poly.global_attrs["gnum"], [42])
     assert poly.global_attrs["time"] == 0.25
+
+
+def test_an_information_named_time_does_not_bury_the_time_value(
+    tmp_path: Path,
+) -> None:
+    """The <Time> value is the time; an <Information Name="time"> beside it
+    would otherwise list the two together and read as no time at all."""
+    body = _SQUARE_GRID.replace(
+        "</Grid>",
+        """
+  <Time Value="0.25"/>
+  <Information Name="time" Value="run-A"/>
+</Grid>""",
+    )
+    poly = read(_write_doc(tmp_path, body))
+    assert poly.global_attrs["time"] == 0.25
+
+
+def test_an_inline_integer_past_its_precision_is_refused(tmp_path: Path) -> None:
+    """A token too wide for the declared width must not wrap or saturate."""
+    body = _SQUARE_GRID.replace("0 1 2  1 3 2", "0 1 2  1 99999999999 2")
+    with pytest.raises(CodecError, match="not a Int of 4 byte"):
+        read(_write_doc(tmp_path, body))
+    body = _SQUARE_GRID.replace(
+        'Dimensions="2" NumberType="Float" Format="XML">0.5 0.5',
+        'Dimensions="2" NumberType="UInt" Precision="1" Format="XML">-1 0',
+    )
+    with pytest.raises(CodecError, match="not a UInt of 1 byte"):
+        read(_write_doc(tmp_path, body))
 
 
 def test_an_attribute_that_is_neither_per_point_nor_per_cell_is_skipped(
@@ -1059,7 +1091,7 @@ def test_a_missing_hdf_dataset_is_named(tmp_path: Path) -> None:
 def test_without_h5py_an_hdf_reference_names_the_extra(
     tmp_path: Path, monkeypatch
 ) -> None:
-    monkeypatch.setattr(_xdmf, "HAVE_H5PY", False)
+    monkeypatch.setattr(_xdmf, "_h5py", lambda: (TripWire("no h5py"), False))
     body = _SQUARE_GRID.replace(
         """<DataItem Dimensions="4 3" NumberType="Float" Precision="8" Format="XML">
       0 0 0  1 0 0  0 1 0  1 1 0
@@ -1398,7 +1430,7 @@ def test_binary_format_writes_one_sidecar_with_seeks(tmp_path: Path) -> None:
 def test_without_h5py_the_default_write_names_the_extra_and_the_way_round(
     tmp_path: Path, monkeypatch
 ) -> None:
-    monkeypatch.setattr(_xdmf, "HAVE_H5PY", False)
+    monkeypatch.setattr(_xdmf, "_h5py", lambda: (TripWire("no h5py"), False))
     with pytest.raises(
         UnsupportedFormatError, match=r'polyxios\[hdf5\].*data_format="xml"'
     ):
@@ -1543,3 +1575,218 @@ def test_a_series_warns_once_for_the_elements_it_drops(tmp_path: Path) -> None:
     assert len(dropped) == 1
     back = read_time_series(tmp_path / "s.xdmf")
     assert [b.element_types.tolist() for b in back] == [[5]] * 4
+
+
+# ---------------------------------------------------------------------------
+# Malformed streams, sidecars and names
+# ---------------------------------------------------------------------------
+
+
+_TET_POINTS = """
+<Grid Name="g" GridType="Uniform">
+  <Geometry GeometryType="XYZ">
+    <DataItem Dimensions="4 3" Format="XML">0 0 0 1 0 0 0 1 0 0 0 1</DataItem>
+  </Geometry>
+  <Topology TopologyType="Mixed" NumberOfElements="1">
+    <DataItem Dimensions="{n}" NumberType="Int" Precision="8" Format="XML">
+      {stream}
+    </DataItem>
+  </Topology>
+</Grid>
+"""
+
+
+@pytest.mark.parametrize(
+    ("stream", "message"),
+    [
+        ("16 4000000000000 -1 0", "declares 4000000000000 faces"),
+        ("16 -1 3 0 1 2", "declares -1 faces"),
+        ("16 2 3 0 1 2 -1 4", "face in the mixed topology declares -1 nodes"),
+        ("16 2 3 0 1 2 0 4", "face in the mixed topology declares 0 nodes"),
+        ("16 3 3 0 1 2 3 0 1 3", "ends inside a cell"),
+    ],
+)
+def test_a_malformed_polyhedron_is_refused_not_spun_on(
+    tmp_path: Path, stream: str, message: str
+) -> None:
+    """A face count that cannot fit, or a face of no nodes, used to leave the
+    walk in place; a count of 4e12 faces of -1 nodes ran for as long as it
+    was let. Each is a malformed stream and is refused at once."""
+    body = _TET_POINTS.format(n=len(stream.split()), stream=stream)
+    with pytest.raises(CodecError, match=message):
+        read(_write_doc(tmp_path, body))
+
+
+def test_a_topology_that_holds_more_cells_than_declared_warns(
+    tmp_path: Path,
+) -> None:
+    body = _SQUARE_GRID.replace('NumberOfElements="2"', 'NumberOfElements="1"')
+    with pytest.warns(UserWarning, match="declares 1 cells and holds 2"):
+        poly = read(_write_doc(tmp_path, body))
+    assert len(poly.element_types) == 1
+
+
+def test_a_sidecar_that_is_a_symlink_beside_the_file_is_read(tmp_path: Path) -> None:
+    """The cluster layout: the XML in the run directory, the bytes on bulk
+    storage, a link between them. The check is on the name the XML spells,
+    not on where the link leads."""
+    store = tmp_path / "store"
+    store.mkdir()
+    run = tmp_path / "run"
+    run.mkdir()
+    write(_two_triangles(), store / "m.xdmf", data_format="binary")
+    try:
+        (run / "m.bin").symlink_to(store / "m.bin")
+    except OSError as exc:
+        pytest.skip(f"symlinks are not available here: {exc}")
+    (run / "m.xdmf").write_bytes((store / "m.xdmf").read_bytes())
+    assert read(run / "m.xdmf").element_types.tolist() == [5, 5]
+
+
+@pytest.mark.parametrize("reference", ["../m.bin", "sub/../../m.bin", "/etc/m.bin"])
+def test_a_spelled_path_that_leaves_the_directory_is_refused(
+    tmp_path: Path, reference: str
+) -> None:
+    body = _SQUARE_GRID.replace(
+        """<DataItem Dimensions="4 3" NumberType="Float" Precision="8" Format="XML">
+      0 0 0  1 0 0  0 1 0  1 1 0
+    </DataItem>""",
+        f"""<DataItem Dimensions="4 3" NumberType="Float" Precision="8" Format="Binary">{reference}</DataItem>""",
+    )
+    with pytest.raises(CodecError, match="outside the file's own directory"):
+        read(_write_doc(tmp_path, body))
+
+
+def test_an_hdf_item_is_not_refused_for_a_number_type_it_never_reads(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("h5py")
+    path = tmp_path / "m.xdmf"
+    write(_two_triangles(), path)
+    text = path.read_text(encoding="utf-8")
+    assert 'Precision="8"' in text
+    path.write_text(text.replace('Precision="8"', 'Precision="16"'), encoding="utf-8")
+    assert read(path).element_types.tolist() == [5, 5]
+
+
+def test_a_hyperslab_selection_with_a_fraction_is_refused(tmp_path: Path) -> None:
+    body = _SQUARE_GRID.replace(
+        """<DataItem Dimensions="4" NumberType="Float" Format="XML">1 2 3 4</DataItem>""",
+        """<DataItem ItemType="HyperSlab" Dimensions="4">
+      <DataItem Dimensions="3" Format="XML">0.5 1 4</DataItem>
+      <DataItem Dimensions="8" Format="XML">1 2 3 4 5 6 7 8</DataItem>
+    </DataItem>""",
+    )
+    with pytest.raises(CodecError, match="HyperSlab selection holds non-integer"):
+        read(_write_doc(tmp_path, body))
+
+
+def test_only_the_first_temporal_collection_is_read(tmp_path: Path) -> None:
+    """Two series in one file would be read at one step, which the second
+    may not have; the first is the series, the second is named and left."""
+    second = _SERIES.replace('Name="TimeSeries"', 'Name="Other"').replace(
+        'Name="grid0"', 'Name="o0"'
+    )
+    second = (
+        second[: second.index('<Grid GridType="Uniform" Name="grid1">')] + "</Grid>"
+    )
+    path = _write_doc(tmp_path, _SERIES + second)
+    with pytest.warns(UserWarning, match="only the first is read, and 'Other'"):
+        steps = read_time_series(path)
+    assert [s.global_attrs["time"] for s in steps] == [0.0, 0.001]
+    assert all(len(s.element_types) == 2 for s in steps)
+
+
+def test_a_failed_write_leaves_no_sidecar_behind(tmp_path: Path, monkeypatch) -> None:
+    """The sidecar is moved into place once the arrays are all in it, so a
+    write that fails halfway leaves neither a truncated sidecar nor a stale
+    one from before beside a missing XML file."""
+    write(_two_triangles(), tmp_path / "m.xdmf", data_format="binary")
+    before = (tmp_path / "m.bin").read_bytes()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(_xdmf, "_set_lines", boom)
+    with pytest.raises(RuntimeError, match="boom"):
+        write(_two_triangles(), tmp_path / "m.xdmf", data_format="binary")
+    assert (tmp_path / "m.bin").read_bytes() == before
+    assert not list(tmp_path.glob("*.partial"))
+    pytest.importorskip("h5py")
+    with pytest.raises(RuntimeError, match="boom"):
+        write(_two_triangles(), tmp_path / "h.xdmf")
+    assert not (tmp_path / "h.h5").exists()
+    assert not list(tmp_path.glob("*.partial"))
+
+
+def test_a_dataset_name_hdf5_reserves_is_still_written(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    poly = _two_triangles(
+        vertex_attrs={".": np.arange(4.0), "..": np.ones(4), "a/b": np.zeros(4)}
+    )
+    path = tmp_path / "m.xdmf"
+    write(poly, path)
+    back = read(path)
+    np.testing.assert_array_equal(back.vertex_attrs["."], np.arange(4.0))
+    np.testing.assert_array_equal(back.vertex_attrs[".."], np.ones(4))
+    np.testing.assert_array_equal(back.vertex_attrs["a/b"], np.zeros(4))
+
+
+def test_a_text_time_global_round_trips_as_information(tmp_path: Path) -> None:
+    poly = _two_triangles(global_attrs={"time": "run-A", "note": "x"})
+    path = tmp_path / "m.xdmf"
+    write(poly, path, data_format="xml")
+    assert read(path).global_attrs == {"time": "run-A", "note": "x"}
+    with pytest.warns(UserWarning, match="'run-A', which is not the <Time> written"):
+        write(poly, path, data_format="xml", time=2.0)
+    back = read(path)
+    assert back.global_attrs["time"] == 2.0
+    with pytest.warns(UserWarning, match="not a number"):
+        write(
+            _two_triangles(global_attrs={"time": np.arange(3)}), path, data_format="xml"
+        )
+    assert "time" not in read(path).global_attrs
+
+
+def test_h5py_is_not_imported_with_polyxios() -> None:
+    code = "import sys, polyxios; print('h5py' in sys.modules)"
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert out.stdout.strip() == "False"
+
+
+def test_merged_grids_are_planar_only_when_every_grid_was(tmp_path: Path) -> None:
+    """A 3-D grid merged with a planar one used to take the planar flag from
+    whichever grid came last, and lose its z on the way back out."""
+    flat = """
+<Grid Name="flat" GridType="Uniform">
+  <Geometry GeometryType="XY">
+    <DataItem Dimensions="3 2" Format="XML">0 0 1 0 0 1</DataItem>
+  </Geometry>
+  <Topology TopologyType="Triangle" NumberOfElements="1">
+    <DataItem Dimensions="3" Format="XML">0 1 2</DataItem>
+  </Topology>
+</Grid>
+"""
+    tall = flat.replace('Name="flat"', 'Name="tall"').replace(
+        """<Geometry GeometryType="XY">
+    <DataItem Dimensions="3 2" Format="XML">0 0 1 0 0 1</DataItem>""",
+        """<Geometry GeometryType="XYZ">
+    <DataItem Dimensions="3 3" Format="XML">0 0 5 1 0 5 0 1 5</DataItem>""",
+    )
+    poly = read(_write_doc(tmp_path, tall + flat))
+    assert "was_2d" not in poly.global_attrs
+    out = tmp_path / "out.xdmf"
+    write(poly, out, data_format="xml")
+    assert read(out).vertices[:, 2].tolist() == [5, 5, 5, 0, 0, 0]
+    both_flat = read(_write_doc(tmp_path, flat + flat.replace("flat", "flat2")))
+    assert both_flat.global_attrs["was_2d"] is True
+
+
+def test_a_compression_level_without_a_method_is_refused_up_front(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(CodecError, match="compression names no method"):
+        write(_two_triangles(), tmp_path / "m.xdmf", compression_opts=4)
+    assert not (tmp_path / "m.h5").exists()

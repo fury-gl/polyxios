@@ -6,7 +6,7 @@ import types
 
 import pytest
 
-from polyxios._optpkg import TripWire, is_tripwire, optional_package
+from polyxios._optpkg import TripWire, optional_package
 from polyxios.exceptions import MissingPackageError, UnsupportedFormatError
 
 
@@ -20,7 +20,7 @@ def test_a_present_package_is_handed_back_as_itself() -> None:
 def test_a_missing_package_is_a_tripwire_that_names_the_fix() -> None:
     pkg, have = optional_package("polyxios_no_such_package", extra="hdf5")
     assert have is False
-    assert is_tripwire(pkg)
+    assert isinstance(pkg, TripWire)
     assert not pkg
     with pytest.raises(
         MissingPackageError, match=r'pip install "polyxios\[hdf5\]"'
