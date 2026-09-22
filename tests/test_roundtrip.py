@@ -517,6 +517,16 @@ CAPABILITIES: dict[str, Cap] = {
         requires="h5py",
     ),
     ".xml": Cap("volume", note="DOLFIN XML stores a single-type mesh only."),
+    ".cgns": Cap(
+        "mixed",
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("base_name", "gnum", "zone_name"),
+        note="The base's and the zone's names are read back with the mesh.",
+        requires="h5py",
+    ),
     ".med": Cap(
         "mixed",
         vertex_attrs=("scalar", "vector"),

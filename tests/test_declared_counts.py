@@ -145,8 +145,38 @@ def _corrupt_med(path) -> None:
         coo.attrs["NBR"] = BIG
 
 
+def _corrupt_cgns(path) -> None:
+    h5py = pytest.importorskip("h5py")
+
+    def node(parent, name, label, data):
+        g = parent.create_group(name)
+        g.attrs.create("name", np.bytes_(name), dtype="S33")
+        g.attrs.create("label", np.bytes_(label), dtype="S33")
+        g.attrs.create(
+            "type", np.bytes_("I4" if data is not None else "MT"), dtype="S3"
+        )
+        if data is not None:
+            g.create_dataset(" data", data=np.asarray(data))
+        return g
+
+    with h5py.File(path, "w") as f:
+        base = node(f, "Base", "CGNSBase_t", np.array([3, 3], dtype=np.int32))
+        zone = node(base, "Zone", "Zone_t", np.array([[1], [1], [0]], dtype=np.int32))
+        grid = node(zone, "GridCoordinates", "GridCoordinates_t", None)
+        for axis in ("CoordinateX", "CoordinateY", "CoordinateZ"):
+            node(grid, axis, "DataArray_t", np.zeros(1))
+        section = node(zone, "Cells", "Elements_t", np.array([2, 0], dtype=np.int32))
+        node(
+            section, "ElementRange", "IndexRange_t", np.array([1, BIG], dtype=np.int64)
+        )
+        node(
+            section, "ElementConnectivity", "DataArray_t", np.array([1], dtype=np.int32)
+        )
+
+
 CORRUPT_HDF5: dict[str, Callable] = {
     ".med": _corrupt_med,
+    ".cgns": _corrupt_cgns,
 }
 
 

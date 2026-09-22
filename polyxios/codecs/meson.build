@@ -6,6 +6,7 @@ py.install_sources(
     '_obj.py',
     '_ply.py',
     '_abaqus.py',
+    '_cgns.py',
     '_avs.py',
     '_dolfin.py',
     '_flac3d.py',
