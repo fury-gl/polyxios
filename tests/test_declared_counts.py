@@ -17,6 +17,7 @@ as is one that is never read at all (SVG).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import re
 import struct
 import warnings
@@ -130,6 +131,38 @@ CORRUPT: dict[str, str] = {
 # Formats whose sizes are implied by the data rather than declared in a header,
 # so there is no count to corrupt. Listed rather than left out, so a reader
 # that grows a header of its own is noticed.
+# The HDF5-backed formats declare their counts in attributes and index ranges
+# beside datasets that carry their own size; one builder per format writes a
+# tiny file whose declaration is BIG. Each needs h5py, and is skipped without.
+
+
+def _corrupt_med(path) -> None:
+    h5py = pytest.importorskip("h5py")
+    with h5py.File(path, "w") as f:
+        mesh = f.create_group("ENS_MAA/m")
+        mesh.attrs["ESP"] = 3
+        coo = mesh.create_dataset("NOE/COO", data=np.zeros(3))
+        coo.attrs["NBR"] = BIG
+
+
+CORRUPT_HDF5: dict[str, Callable] = {
+    ".med": _corrupt_med,
+}
+
+
+@pytest.mark.parametrize("ext", sorted(CORRUPT_HDF5))
+def test_a_count_no_hdf5_file_can_hold_is_refused(tmp_path, ext: str) -> None:
+    path = tmp_path / f"corrupt{ext}"
+    CORRUPT_HDF5[ext](path)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises((CodecError, ValidationError)) as excinfo:
+            polyxios.read(path)
+
+    assert re.search(r"\d{15,}", str(excinfo.value)), excinfo.value
+
+
 _NO_DECLARED_COUNT: frozenset[str] = frozenset(
     {
         ".inp",
@@ -166,7 +199,7 @@ def test_a_count_no_file_can_hold_is_refused(tmp_path, ext: str) -> None:
 
 def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
     """A new codec cannot land without saying which side of this it is on."""
-    covered = frozenset(CORRUPT) | _NO_DECLARED_COUNT
+    covered = frozenset(CORRUPT) | frozenset(CORRUPT_HDF5) | _NO_DECLARED_COUNT
     # Aliases, meta-files and the binary-only flavours are covered by the
     # codec they resolve to; every other extension has to be accounted for.
     resolved = {

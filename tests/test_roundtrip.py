@@ -517,6 +517,18 @@ CAPABILITIES: dict[str, Cap] = {
         requires="h5py",
     ),
     ".xml": Cap("volume", note="DOLFIN XML stores a single-type mesh only."),
+    ".med": Cap(
+        "mixed",
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("mesh_name",),
+        warns=(r"global_attrs \['gnum'\] have no place in a MED file",),
+        note="A MED file holds meshes, families and fields, and nothing"
+        " mesh-wide but the mesh's own name; the name is read back.",
+        requires="h5py",
+    ),
     ".gltf": Cap(
         "surface",
         geometry=False,
