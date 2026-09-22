@@ -31,7 +31,8 @@ or, from conda-forge:
 conda install -c conda-forge polyxios
 ```
 
-The XDMF codec keeps its arrays in an HDF5 file by default, which needs
+The XDMF codec keeps its arrays in an HDF5 file by default, and MED, CGNS,
+H5M and HMF are HDF5 files outright; all need
 [h5py](https://www.h5py.org/) - an optional extra:
 
 ```bash
@@ -253,6 +254,10 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 | ANSYS Fluent | `.msh`* `.fluent` | ✓ | ✓ | ASCII + binary sections, cells assembled from faces, zones → element tags, boundary faces read as elements; write with `fmt="fluent"` |
 | SVG | `.svg` | – | ✓ | a picture of the mesh projected onto a plane, one `<path>` per element type; `plane=`, `width=`, `stroke_width=` |
 | XDMF | `.xdmf` `.xmf` | ✓ | ✓ | XML light data over HDF5 (`pip install "polyxios[hdf5]"`), binary or inline arrays; mixed topologies, lattices, `<Set>` → tags, time series via `helper.read_time_series` / `write_time_series`, `step=` on read |
+| MED (Salome) | `.med` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); families and groups → tags, fields on nodes, cells and Gauss points → attrs, several meshes merged or `mesh=` picks one, `step=` on read |
+| CGNS | `.cgns` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); every zone read and tagged or `zone=` picks one, MIXED and NGON sections, structured zones expanded, `ZoneBC` → tags, `FlowSolution` → attrs |
+| H5M (MOAB) | `.h5m` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); dense tags → attrs, meshsets → tags named by `NAME` or their material / boundary number, `GLOBAL_ID` → `original_ids` |
+| HMF | `.hmf` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); XDMF's model in one file, typed topologies, node and cell attributes, sets and mesh-wide values |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
@@ -267,7 +272,7 @@ geometry - only references to sub-files. Reading one raises `UnsupportedFormatEr
 at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
 them is not supported.
 
-**32 formats supported** across the 39 extensions in the tables, plus `.plt`, which
+**36 formats supported** across the 43 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---
