@@ -12,6 +12,40 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- XDMF (``.xdmf``, ``.xmf``) is read and written: XML light data over
+  heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
+  ``DataItem`` flavour read - a ``HyperSlab`` and a ``Reference`` by XPath
+  among them - and a sidecar found beside the file, refused outside its
+  directory. A uniform grid reads with its ``Node`` and ``Cell`` attributes
+  in the shape the file gives them, ``Grid`` attributes and ``Information``
+  into ``global_attrs``, ``Set`` elements into the tags and ``Time`` under
+  ``global_attrs["time"]``; a ``Mixed`` topology counts the nodes of its
+  free-size cells the way the Xdmf library does, so a line beside a
+  triangle reads and writes; a lattice topology expands into explicit
+  cells. Several grids at one time are merged, each grid's elements
+  tagged with its name; a temporal collection is read at one step,
+  ``step=`` choosing which, and the whole series by
+  ``helper.read_time_series``. A grid that borrows its mesh through an
+  ``xi:include`` pointer is followed, and the grid it borrows from, lying
+  beside the series, is not read as a second mesh. The writer names the
+  topology for a single-type mesh and spells ``Mixed`` otherwise, sends
+  the arrays to ``out.h5`` beside ``out.xdmf`` by default -
+  ``data_format="xml"`` inline, ``"binary"`` one raw sidecar with a seek
+  per array - and ``helper.write_time_series`` streams ``(time, mesh)``
+  pairs into one collection, the mesh written once and included by
+  pointer after, a moved mesh with its own geometry per step. The HDF5
+  flavour needs h5py, now the ``polyxios[hdf5]`` extra; without it the
+  other two work and an HDF5 reference raises ``UnsupportedFormatError``
+  spelling the install line.
+
+- Optional packages have one rule, ``polyxios._optpkg.optional_package``:
+  a module when it imports, and otherwise a stand-in that raises
+  ``MissingPackageError`` - an ``UnsupportedFormatError`` and an
+  ``AttributeError`` both - the moment anything is asked of it, naming the
+  package, why the import failed and the extra that installs it. A minimum
+  version can be asked for and is read without a version-parsing
+  dependency.
+
 - SVG pictures are written: ``.svg``, gzip included, is a drawing of the
   mesh projected onto a plane - ``plane="xy"`` by default, ``"xz"`` or
   ``"yz"`` on request - in the mesh's own units with the upward axis

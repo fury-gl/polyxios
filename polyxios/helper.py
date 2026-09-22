@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 import logging
 from pathlib import Path
+from typing import Any
 import xml.etree.ElementTree as ET
 
 import numpy as np
 
 import polyxios
+from polyxios.codecs import _xdmf
 from polyxios.exceptions import UnsupportedFormatError
 from polyxios.fetcher import fetch
 import polyxios.transforms as transforms
@@ -569,3 +572,111 @@ def visualize_mesh(
             )
 
     window.show(actors)
+
+
+# The extensions that hold a time series: several meshes at several times in
+# one file, which ``read`` hands back one step of. The whole series lives here.
+_SERIES_SUFFIXES: frozenset[str] = frozenset(_xdmf.EXTENSIONS)
+
+
+def _series_codec(path: str | Path, verb: str) -> Any:
+    suffixes = [s.lower() for s in Path(path).suffixes]
+    if suffixes and suffixes[-1] in (".gz", ".gzip"):
+        suffixes = suffixes[:-1]
+    if not suffixes or suffixes[-1] not in _SERIES_SUFFIXES:
+        raise UnsupportedFormatError(
+            f"'{path}': only XDMF ({', '.join(sorted(_SERIES_SUFFIXES))}) holds a"
+            f" time series to {verb}."
+        )
+    return _xdmf
+
+
+def read_time_series(path: str | Path) -> tuple[np.ndarray, list[polyxios.PolyData]]:
+    """Read every step of a time series, one PolyData per step.
+
+    ``read`` hands back one mesh, always, so a file holding a mesh at several
+    times is read at one of them - the first, or the ``step=`` asked for. The
+    whole series is read here.
+
+    Parameters
+    ----------
+    path
+        An ``.xdmf`` or ``.xmf`` file, the only format polyxios reads a time
+        series from.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, list of polyxios.PolyData]
+        The time of each step, and the mesh at it, in the file's order. A
+        step whose time the file does not spell is ``nan``. Each mesh also
+        carries its time under ``global_attrs["time"]``. A file holding no
+        time series is one step.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the file is not an XDMF file, or names an HDF5 sidecar and h5py
+        is not installed.
+
+    Examples
+    --------
+    >>> from polyxios import helper                        # doctest: +SKIP
+    >>> times, meshes = helper.read_time_series("run.xdmf")  # doctest: +SKIP
+    >>> meshes[-1].vertex_attrs["u"]                       # doctest: +SKIP
+    """
+    codec = _series_codec(path, "read")
+    steps = codec.read_time_series(path)
+    times = np.array([_step_time(step) for step in steps], dtype=np.float64)
+    return times, steps
+
+
+def _step_time(step: polyxios.PolyData) -> float:
+    """A step's time from its globals, ``nan`` when the file spells none or text."""
+    held = step.global_attrs.get("time")
+    if isinstance(held, bool) or not isinstance(
+        held, (int, float, np.integer, np.floating)
+    ):
+        return float("nan")
+    return float(held)
+
+
+def write_time_series(
+    steps: Iterable[tuple[float, polyxios.PolyData]],
+    path: str | Path,
+    **opts: object,
+) -> None:
+    """Write a sequence of meshes as one time series.
+
+    Parameters
+    ----------
+    steps
+        ``(time, mesh)`` pairs in time order. Any iterable will do, a
+        generator included: each step is written as it arrives, so a run can
+        stream its results without holding them all. The first mesh's
+        elements are written once and every later step refers to them; a
+        later mesh whose vertices moved writes its own coordinates, one
+        whose elements differ is refused.
+    path
+        An ``.xdmf`` or ``.xmf`` file, the only format polyxios writes a
+        time series to.
+    **opts
+        Passed to the codec: ``data_format`` (``"hdf"``, the default, needs
+        h5py; ``"xml"`` keeps the arrays inline; ``"binary"`` writes one raw
+        sidecar), ``compression`` and ``compression_opts`` for the HDF5
+        datasets.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the file is not an XDMF file, or the default HDF5 sidecar is
+        asked for and h5py is not installed.
+    CodecError
+        If ``steps`` is empty, or a step's elements differ from the first's.
+
+    Examples
+    --------
+    >>> from polyxios import helper                                 # doctest: +SKIP
+    >>> helper.write_time_series(((t, solve(t)) for t in times), "run.xdmf")  # doctest: +SKIP
+    """
+    codec = _series_codec(path, "write")
+    codec.write_time_series(steps, path, **opts)

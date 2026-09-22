@@ -14,6 +14,17 @@ class UnsupportedFormatError(PolyxiosError):
     """Raised when no codec is registered for a file format."""
 
 
+class MissingPackageError(UnsupportedFormatError, AttributeError):
+    """Raised when a codec reaches for an optional package that is not installed.
+
+    An :class:`UnsupportedFormatError`, because a format whose reader is not
+    there is one polyxios cannot read here, and the caller's ``except`` for
+    the one catches the other. An :class:`AttributeError` too, so that
+    ``hasattr`` and ``getattr(..., default)`` on the stand-in a missing
+    package leaves behind answer the way they do on anything else.
+    """
+
+
 class LazyReadError(PolyxiosError):
     """Raised when lazy=True is requested for a format that does not support it."""
 

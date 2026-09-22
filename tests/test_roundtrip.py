@@ -233,6 +233,9 @@ class Cap:
         default to a ``.10g`` field.
     note
         Why anything above is lossy. Required whenever something is lost.
+    requires
+        An importable package the round trip needs, skipped without it: the
+        formats whose heavy data goes through h5py.
     """
 
     mesh: str
@@ -250,6 +253,7 @@ class Cap:
     warns: tuple[str, ...] = ()
     rtol: float = 1e-9
     note: str = ""
+    requires: str | None = None
 
 
 # Keyed by each codec's canonical EXTENSION. Aliases resolve to the same codec
@@ -503,6 +507,15 @@ CAPABILITIES: dict[str, Cap] = {
         " canonical surface is flat, so it is written without a Z suffix and"
         " reads back flagged two-dimensional.",
     ),
+    ".xdmf": Cap(
+        "mixed",
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        global_attrs=("gnum",),
+        requires="h5py",
+    ),
     ".xml": Cap("volume", note="DOLFIN XML stores a single-type mesh only."),
     ".gltf": Cap(
         "surface",
@@ -515,7 +528,7 @@ CAPABILITIES: dict[str, Cap] = {
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
-_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node", ".post", ".glb"})
+_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node", ".post", ".glb", ".xmf"})
 
 # Registered so the error names the format, never to be written. Each is
 # asserted below, so an entry cannot be parked here to escape the matrix.
@@ -570,6 +583,8 @@ def _round_trip(poly: PolyData, path, cap: Cap) -> PolyData:
 @pytest.mark.parametrize("ext", sorted(CAPABILITIES))
 def test_round_trip_matches_the_declared_capabilities(tmp_path, ext: str) -> None:
     cap = CAPABILITIES[ext]
+    if cap.requires:
+        pytest.importorskip(cap.requires)
     poly = CANONICAL[cap.mesh]()
     back = _round_trip(poly, tmp_path / f"mesh{ext}", cap)
 
@@ -600,6 +615,8 @@ def test_round_trip_matches_the_declared_capabilities(tmp_path, ext: str) -> Non
 def test_surviving_attribute_values_are_unchanged(tmp_path, ext: str) -> None:
     """Keeping a name is not enough; the numbers have to come back too."""
     cap = CAPABILITIES[ext]
+    if cap.requires:
+        pytest.importorskip(cap.requires)
     if not cap.geometry:
         pytest.skip(
             f"{ext} reorders or reshapes the mesh, so an index-wise comparison"

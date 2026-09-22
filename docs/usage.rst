@@ -273,10 +273,25 @@ things - a fluid domain and a solid one, one part per block - since
 :func:`~polyxios.transforms.merge` joins them into a mesh that no longer says
 which was which.
 
+A time series - one mesh at several times, which XDMF holds - is the same
+shape of problem with the same answer: :func:`polyxios.read` reads one step,
+the first unless ``step=`` says otherwise, and the several live in the helper:
+
+.. code-block:: python
+
+    times, meshes = helper.read_time_series("run.xdmf")
+    helper.write_time_series(((t, solve(t)) for t in times), "run.xdmf")
+
+The writer takes any iterable of ``(time, mesh)`` pairs and writes each step as
+it arrives, so a run can stream its results rather than hold them all. The
+usual XDMF layout keeps the arrays in an HDF5 file beside the XML one, which
+needs ``pip install "polyxios[hdf5]"``; ``data_format="xml"`` keeps them inline
+and needs nothing.
+
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the thirty-one supported formats, one page each
+* :doc:`formats/index` - the thirty-two supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

@@ -31,6 +31,13 @@ or, from conda-forge:
 conda install -c conda-forge polyxios
 ```
 
+The XDMF codec keeps its arrays in an HDF5 file by default, which needs
+[h5py](https://www.h5py.org/) - an optional extra:
+
+```bash
+pip install "polyxios[hdf5]"
+```
+
 ---
 
 ## Usage
@@ -245,6 +252,7 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 | PERMAS | `.dato` `.post` `.dat`* | ✓ | ✓ | ASCII, `$NSET`/`$ESET` → tags, free numbering → `original_ids`, `element_type=` picks the solver class |
 | ANSYS Fluent | `.msh`* `.fluent` | ✓ | ✓ | ASCII + binary sections, cells assembled from faces, zones → element tags, boundary faces read as elements; write with `fmt="fluent"` |
 | SVG | `.svg` | – | ✓ | a picture of the mesh projected onto a plane, one `<path>` per element type; `plane=`, `width=`, `stroke_width=` |
+| XDMF | `.xdmf` `.xmf` | ✓ | ✓ | XML light data over HDF5 (`pip install "polyxios[hdf5]"`), binary or inline arrays; mixed topologies, lattices, `<Set>` → tags, time series via `helper.read_time_series` / `write_time_series`, `step=` on read |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
@@ -259,7 +267,7 @@ geometry - only references to sub-files. Reading one raises `UnsupportedFormatEr
 at `examples/read_parallel_vtk.py` rather than failing with a parse error further in; writing
 them is not supported.
 
-**31 formats supported** across the 37 extensions in the tables, plus `.plt`, which
+**32 formats supported** across the 39 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

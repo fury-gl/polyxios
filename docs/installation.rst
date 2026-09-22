@@ -43,3 +43,7 @@ Dependencies
 Optional:
 
 - Cython >= 3.0 (compiled hot-paths; pure Python fallbacks included)
+- h5py >= 3.0, for the HDF5 heavy data of :doc:`XDMF <formats/xdmf>` files -
+  ``pip install "polyxios[hdf5]"``. Without it the inline and binary flavours
+  still read and write, and an HDF5 reference raises
+  :class:`~polyxios.exceptions.UnsupportedFormatError` naming the extra.

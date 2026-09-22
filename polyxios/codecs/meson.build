@@ -39,6 +39,7 @@ py.install_sources(
     '_vts.py',
     '_vtu.py',
     '_wkt.py',
+    '_xdmf.py',
   ],
   subdir: 'polyxios/codecs',
 )

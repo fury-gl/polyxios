@@ -103,6 +103,13 @@ CORRUPT: dict[str, str] = {
         ' format="ascii">0 0 0</DataArray></Points></Piece>'
         "</UnstructuredGrid></VTKFile>\n"
     ),
+    ".xdmf": (
+        '<Xdmf Version="3.0"><Domain><Grid Name="g"><Geometry GeometryType="XYZ">'
+        f'<DataItem Dimensions="{BIG} 3" Format="XML">0 0 0</DataItem></Geometry>'
+        '<Topology TopologyType="Polyvertex" NumberOfElements="1">'
+        '<DataItem Dimensions="1" NumberType="Int" Format="XML">0</DataItem>'
+        "</Topology></Grid></Domain></Xdmf>"
+    ),
     ".xml": (
         f'<dolfin><mesh celltype="tetrahedron" dim="3"><vertices size="{BIG}">'
         '<vertex index="0" x="0" y="0" z="0"/></vertices>'
@@ -175,6 +182,7 @@ def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
         ".pvts": ".vts",
         ".pvtu": ".vtu",
         ".glb": ".gltf",
+        ".xmf": ".xdmf",
     }
     outstanding = {
         ext
