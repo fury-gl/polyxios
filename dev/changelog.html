@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=26c26a06"></script>
+    <script src="_static/documentation_options.js?v=3232c789"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-22"/>
+    <meta name="docbuild:last-update" content="2026-09-23"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -455,6 +455,10 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/hmf.html">HMF</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -578,6 +582,53 @@ pointer after, a moved mesh with its own geometry per step. The HDF5
 flavour needs h5py, now the <code class="docutils literal notranslate"><span class="pre">polyxios[hdf5]</span></code> extra; without it the
 other two work and an HDF5 reference raises <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
 spelling the install line.</p></li>
+<li><p>MED (<code class="docutils literal notranslate"><span class="pre">.med</span></code>), the HDF5 mesh file of Salome and code_aster, is read and
+written. Every mesh in the file is read, several merged with each mesh’s
+elements tagged by its name and <code class="docutils literal notranslate"><span class="pre">mesh=</span></code> picking one; MED groups become
+tag groups through the families, a cell in two groups landing in both,
+and a family belonging to no group keeps its number. Fields on the
+nodes and on the cells are attributes, a field over some geometries
+only NaN on the rest, Gauss-point and per-node values keeping their
+axis, a profiled field spread over its support; <code class="docutils literal notranslate"><span class="pre">step=</span></code> picks the
+fields’ step and its time lands in <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>. The
+writer spells MED 3.0 with every attribute the MED library’s mesh-info
+call reads, one cell group per geometry with its <code class="docutils literal notranslate"><span class="pre">GEO</span></code> code, one
+family per distinct combination of groups, and per-node values as
+<code class="docutils literal notranslate"><span class="pre">ELNO</span></code>; a write to a path lands under a temporary name and is moved
+into place, so a failed write leaves no half file.</p></li>
+<li><p>CGNS (<code class="docutils literal notranslate"><span class="pre">.cgns</span></code>), in its HDF5 form, is read and written. Bases, zones
+and sections are found by their label whatever their names; every zone
+is read, several merged with each zone’s elements tagged by its name
+and <code class="docutils literal notranslate"><span class="pre">zone=</span></code> and <code class="docutils literal notranslate"><span class="pre">base=</span></code> picking one; sections split by type,
+<code class="docutils literal notranslate"><span class="pre">MIXED</span></code> by the code ahead of each cell with or without start
+offsets, <code class="docutils literal notranslate"><span class="pre">NGON_n</span></code> as polygons in either layout, a structured zone
+expanded into cells with its solutions and its <code class="docutils literal notranslate"><span class="pre">PointRange</span></code> boundary
+conditions laid over the lattice; boundary conditions become tag
+groups over the vertices or the elements their location says, flow
+solutions attributes, one over a <code class="docutils literal notranslate"><span class="pre">PointList</span></code> or <code class="docutils literal notranslate"><span class="pre">PointRange</span></code>
+landing on the listed entities and a cell-centred one over the volume
+cells alone NaN on the boundary elements; the quadratic hexahedron and
+wedge are permuted from the SIDS order to VTK’s. The writer spells
+every node attribute, root dataset and version node the CGNS library
+probes, and splits the element values by dimension so the cell-centred
+solution counts what the zone says, faces and edges in their own
+solutions over a <code class="docutils literal notranslate"><span class="pre">PointList</span></code>.</p></li>
+<li><p>H5M (<code class="docutils literal notranslate"><span class="pre">.h5m</span></code>), MOAB’s native file, is read and written: handle ids
+resolved through each group’s <code class="docutils literal notranslate"><span class="pre">start_id</span></code>, dense tags as attributes
+laid over every element, meshsets as tag groups named by their
+<code class="docutils literal notranslate"><span class="pre">NAME</span></code> tag or their material, Neumann or Dirichlet number, range
+compression expanded, <code class="docutils literal notranslate"><span class="pre">GLOBAL_ID</span></code> as <code class="docutils literal notranslate"><span class="pre">original_ids</span></code>; the wedges
+and the quadratic hexahedra are permuted from MOAB’s node order to
+VTK’s. The writer spells one group per type, dense tags declared with
+their type, and a meshset per tag group with a <code class="docutils literal notranslate"><span class="pre">NAME</span></code> and a set
+number.</p></li>
+<li><p>HMF (<code class="docutils literal notranslate"><span class="pre">.hmf</span></code>), XDMF’s model in one HDF5 file, is read and written,
+the topologies in the order they are numbered, with <code class="docutils literal notranslate"><span class="pre">NodeSets</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CellSets</span></code> and <code class="docutils literal notranslate"><span class="pre">Attributes</span></code> added for the tags and the mesh-wide
+values.</p></li>
+<li><p>The four share <code class="docutils literal notranslate"><span class="pre">polyxios.codecs._hdf5</span></code>: h5py imported on first use,
+a file opened from a path, a buffer or a gzip member alike, and a
+count larger than its dataset refused naming both.</p></li>
 <li><p>Optional packages have one rule, <code class="docutils literal notranslate"><span class="pre">polyxios._optpkg.optional_package</span></code>:
 a module when it imports, and otherwise a stand-in that raises
 <code class="docutils literal notranslate"><span class="pre">MissingPackageError</span></code> - an <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> and an
@@ -2201,7 +2252,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-22.
+  Last updated on 2026-09-23.
   <br/>
 </p></div>
       

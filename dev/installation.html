@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=26c26a06"></script>
+    <script src="_static/documentation_options.js?v=3232c789"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-22"/>
+    <meta name="docbuild:last-update" content="2026-09-23"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -455,6 +455,10 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/hmf.html">HMF</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -581,10 +585,13 @@ spin<span class="w"> </span>install<span class="w"> </span>-e<span class="w">  <
 <p>Optional:</p>
 <ul class="simple">
 <li><p>Cython &gt;= 3.0 (compiled hot-paths; pure Python fallbacks included)</p></li>
-<li><p>h5py &gt;= 3.0, for the HDF5 heavy data of <a class="reference internal" href="formats/xdmf.html"><span class="doc">XDMF</span></a> files -
-<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it the inline and binary flavours
-still read and write, and an HDF5 reference raises
-<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> naming the extra.</p></li>
+<li><p>h5py &gt;= 3.0, for the HDF5 heavy data of <a class="reference internal" href="formats/xdmf.html"><span class="doc">XDMF</span></a> files
+and for the formats that are HDF5 files outright - <a class="reference internal" href="formats/med.html"><span class="doc">MED</span></a>,
+<a class="reference internal" href="formats/cgns.html"><span class="doc">CGNS</span></a>, <a class="reference internal" href="formats/h5m.html"><span class="doc">H5M</span></a> and
+<a class="reference internal" href="formats/hmf.html"><span class="doc">HMF</span></a> - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it
+XDMF’s inline and binary flavours still read and write, and an HDF5 file or
+reference raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
+naming the extra.</p></li>
 </ul>
 </section>
 </section>
@@ -697,7 +704,7 @@ still read and write, and an HDF5 reference raises
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-22.
+  Last updated on 2026-09-23.
   <br/>
 </p></div>
       

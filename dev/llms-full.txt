@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-two - and raises instead of quietly corrupting
+        writes all thirty-six - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -137,7 +137,11 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/svg.html"><span>SVG</span><span class="px-ext">.svg</span><span class="px-dim">[ ]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/xdmf.html"><span>XDMF</span><span class="px-ext">.xdmf .xmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">series: helper</span></a>
-      <p class="px-tfoot">} // 32 codecs, the 39 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <a class="px-tr" href="formats/med.html"><span>MED (Salome)</span><span class="px-ext">.med</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/cgns.html"><span>CGNS</span><span class="px-ext">.cgns</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <p class="px-tfoot">} // 36 codecs, the 43 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -272,10 +276,13 @@ Optional:
 
 Cython >= 3.0 (compiled hot-paths; pure Python fallbacks included)
 
-h5py >= 3.0, for the HDF5 heavy data of XDMF files -
-pip install "polyxios[hdf5]". Without it the inline and binary flavours
-still read and write, and an HDF5 reference raises
-UnsupportedFormatError naming the extra.
+h5py >= 3.0, for the HDF5 heavy data of XDMF files
+and for the formats that are HDF5 files outright - MED,
+CGNS, H5M and
+HMF - pip install "polyxios[hdf5]". Without it
+XDMF’s inline and binary flavours still read and write, and an HDF5 file or
+reference raises UnsupportedFormatError
+naming the extra.
 
 ## Usage
 
@@ -548,7 +555,7 @@ and needs nothing.
 
 Where to go next
 
-formats/index - the thirty-two supported formats, one page each
+formats/index - the thirty-six supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -564,7 +571,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships thirty-two codecs across forty extensions - the thirty-nine
+polyxios ships thirty-six codecs across forty-four extensions - the forty-three
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -573,7 +580,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The thirty-two format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-six format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -899,6 +906,46 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="xdmf.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://www.xdmf.org/index.php/XDMF_Model_and_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">MED <span class="px-fmtext">.med</span></p>
+    <p class="px-fmtdesc">Salome's and code_aster's HDF5 file: families and groups
+      as tags, fields on nodes, cells and Gauss points, several meshes merged.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="med.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.salome-platform.org/latest/dev/MEDCoupling/developer/med-file.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">CGNS <span class="px-fmtext">.cgns</span></p>
+    <p class="px-fmtdesc">The CFD standard in HDF5: every zone read and tagged,
+      MIXED and NGON sections, boundary conditions as tags, solutions as attrs.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="cgns.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://cgns.github.io/standard/SIDS/CGNS_docs_current/sids/index.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">H5M <span class="px-fmtext">.h5m</span></p>
+    <p class="px-fmtdesc">MOAB's native file: handle ids resolved, dense tags as
+      attrs, meshsets as named tags with their material or boundary number.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="h5m.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.mcs.anl.gov/~fathom/moab-docs/html/h5mmain.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">HMF <span class="px-fmtext">.hmf</span></p>
+    <p class="px-fmtdesc">XDMF's model in one HDF5 file: typed topologies, node
+      and cell attributes, plus sets and mesh-wide values.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="hmf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/nschloe/meshio/tree/main/src/meshio/hmf">full spec &#8599;</a>
     </p>
   </div>
 
@@ -3736,6 +3783,322 @@ Several grids merged keep each grid’s own points, so a point block two grids s
 
 index - the full format table.
 
+## MED
+
+Source: https://polyxios.org/stable/formats/med.html
+
+MED
+
+.med read + write eager needs h5py
+
+Summary of the specification
+
+MED is the mesh and field file of the Salome platform and of code_aster: one HDF5 file with a fixed tree. The meshes live under ENS_MAA, each a group named for the mesh and carrying the space dimension, the mesh dimension, a description and the axis names as attributes; under it a computation step - -0000000000000000001-0000000000000000001 for a mesh that does not step - holds the nodes (NOE) and the cells by geometry (MAI/TR3, MAI/HE8 and so on, named for the shape and its node count). Coordinates and connectivity are flat datasets stored component-major - every X, then every Y; every first node, then every second - with a NBR attribute counting the entities. Every node and every cell carries a family number, and the families under FAS/<mesh> each belong to any number of named groups: that is how a MED mesh spells its sets, node families numbered upward and cell families downward, family zero belonging to nothing. Fields live under CHA, one group per field with its component count and names, one subgroup per time step, and under each step the values on the nodes (NOE), on the cells of one geometry (MAI.HE8), at the nodes of each cell (NOE.HE8) or at Gauss points named under GAUSS; a field over part of a mesh names a profile under PROFILS.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+HDF5: INFOS_GENERALES (version), ENS_MAA/<mesh>/<step>/{NOE,MAI}, FAS/<mesh>, CHA/<field>/<step>, PROFILS, GAUSS
+
+nodes
+
+NOE/COO flat, component-major; FAM family per node; NUM optional numbering
+
+cells
+
+MAI/<GEO>/NOD flat, node-slot-major, 1-based; FAM; NUM; GEO attribute = dimension × 100 + node count
+
+geometries
+
+PO1 SE2 SE3 SE4 TR3 TR6 TR7 QU4 QU8 QU9 TE4 T10 PY5 P13 PE6 P15 P18 HE8 H20 H27, plus polygons and polyhedra
+
+families
+
+FAS/<mesh>/{NOEUD,ELEME}/<family> with NUM and GRO/NOM, the group names as 80-character rows
+
+fields
+
+CHA/<name> with NCO, NOM, TYP; per step NOE, MAI.<GEO>, NOE.<GEO>; values in <profile>/CO, NBR × NGA × NCO
+
+MED file format ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("model.med")
+mesh.global_attrs["mesh_name"]            # the mesh's name in the file
+mesh.vertex_tags, mesh.element_tags       # the MED groups
+mesh.element_attrs["SIEF_ELGA"]           # a field on the cells
+
+mesh = px.read("results.med", mesh="Fluid domain")   # one of several
+mesh = px.read("results.med", step=3)                # the fields' fourth step
+
+Every mesh in the file is read, and when there are several they are merged into one, each mesh’s elements tagged with the mesh’s name; mesh= picks one by name, and a name the file does not hold is refused listing the ones it does. Each MED group becomes a tag group whose members are the nodes or cells of every family listing it, so a cell in two groups is in both; a family belonging to no group keeps its number as family_<n>. A field on the nodes is a vertex_attrs entry and a field on the cells an element_attrs one, laid over every element with NaN where the field does not reach a geometry; values at Gauss points or at the nodes of each cell keep their axis. Fields are read at one step, the first without step=, and the step’s time lands in global_attrs["time"]. Node and cell numbers other than 1..n land in original_ids. lazy=True raises LazyReadError.
+
+The codec needs h5py, which is optional - pip install "polyxios[hdf5]". Without it UnsupportedFormatError spells that command.
+
+Writing
+
+px.write(mesh, "out.med")
+px.write(mesh, "out.med", mesh_name="plate", time=0.5)
+px.write(mesh, "out.med", compression="gzip", compression_opts=4)
+
+The file is MED 3.0, which every Salome since 7 and every code_aster since 11 reads; the nine attributes the MED library’s mesh-info call reads are all spelled, and each cell group carries its GEO code. mesh_name names the mesh inside the file, global_attrs["mesh_name"] failing that and "mesh" failing both. Tag groups become MED groups: each distinct combination of groups an entity belongs to is a family, and the family belongs to every group in the combination, which is what Salome itself does. vertex_attrs are NOEU fields and element_attrs are fields with one MAI.<GEO> part per cell type; a third axis the size of the cell’s node count goes out as NOE.<GEO> values. A vertex attribute and an element attribute sharing a name, a component count and a value type are one field over the nodes and the cells, which is how MED spells such a field; sharing a name and nothing else, or holding a / an HDF5 link cannot, the second is filed under a name that fits (v_2, a_b) with a warning saying so. time is the fields’ time step, global_attrs["time"] failing that; without either the fields carry no step. An element attribute that is NaN on every element is not written - a MED field would turn that “no value” into one - and is warned about. compression and compression_opts go to h5py for every dataset of more than one value; the MED library reads a filtered dataset as it reads any other. A file written to a path is written under a temporary name and moved into place, so a write that fails leaves nothing half done.
+
+Quirks worth knowing
+
+Node order is Salome’s, which is VTK’s for every geometry MED names but the 27-node hexahedron, whose six face centres MED lists bottom, front, right, back, left, top and VTK by axis; those are permuted on the way in and out, and per-node (NOE.<GEO>) values with them. A pixel and a voxel go out as the quad and hexahedron they are, corners reordered and per-node values with them. Polygons, polyhedra and any other geometry polyxios has no element type for are skipped on the way in with one warning naming them, and an element type MED has no geometry for - a polygon, a triangle strip, a Lagrange cell - is dropped on the way out with one warning per type, the values and tags over the elements cut to match.
+
+Cells read by ascending polyxios type code whatever order the file lists its geometry groups in, so a mesh already grouped by type comes back in the order it was written. A mesh whose types are interleaved is written grouped, one MAI group per geometry, and reads back grouped.
+
+A family with no GRO subgroup - Gmsh writes one per elementary entity outside any physical group - reads as family_<n>; a file with no FAS at all reads with no tags. A structured (grid) mesh is refused by name; only unstructured meshes are read.
+
+A field’s part on a geometry the mesh does not hold, or holding the wrong count for one it does, is skipped with a warning naming the field; a field whose parts disagree on shape across geometries is skipped whole, and one holding both cell and per-node values on a geometry keeps the cell values. A profiled field is spread over its whole support, NaN where the profile does not reach, however far it reaches; a profile naming an entity past the support is refused. Gauss-point values are read but not written: writing them needs a localisation the mesh does not carry, so an element attribute whose third axis is neither one nor the cell’s node count is dropped with a warning.
+
+A MED file holds meshes, families and fields and nothing mesh-wide, so global_attrs other than mesh_name and time are dropped with a warning. A space dimension of 2 pads the coordinates and flags global_attrs["was_2d"]; a mesh so flagged that stayed in the plane writes two coordinates back. The mesh dimension written is the cells’ - a shell in 3-D space is DIM=2, ESP=3 - which is what the MED library expects.
+
+Counts are checked against the datasets: a NBR larger than what its dataset holds is refused naming both, one smaller reads the first entities whole - the block is shaped by what it holds before it is cut, coordinates and connectivity being component-major - and a node index outside 1..n is refused before anything is built. A FAM or NUM shorter than its entities is ignored with a warning. step= must be a whole number from zero.
+
+index - the full format table.
+
+## CGNS
+
+Source: https://polyxios.org/stable/formats/cgns.html
+
+CGNS
+
+.cgns read + write eager needs h5py
+
+Summary of the specification
+
+The CFD General Notation System describes a mesh and its solutions as a tree of typed nodes, the Standard Interface Data Structures, and stores that tree in HDF5 (or, historically, in ADF). In the HDF5 mapping every node is a group carrying its name, its label - the SIDS type, CGNSBase_t, Zone_t, Elements_t - and the type of its value, I4, R8, C1 or MT for none; the value itself is a dataset called `` data`` with a leading space, its dimensions the CGNS ones reversed since CGNS counts in Fortran order. A base holds the cell and physical dimensions and any number of zones. An unstructured zone holds its coordinates under GridCoordinates and its cells in Elements_t sections, each one element type - TETRA_4, HEXA_20, NGON_n - or MIXED with a type code ahead of each cell, over a consecutive ElementRange of element numbers shared across the zone’s sections. A structured zone holds its coordinates on a lattice and its cells are implied. Boundary conditions under ZoneBC name their entities in a PointList or PointRange at a GridLocation; solutions under FlowSolution_t hold one DataArray_t per variable at Vertex or CellCenter.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+HDF5: root `` format`` and `` hdf5version``; CGNSLibraryVersion; CGNSBase_t → Zone_t → GridCoordinates_t, Elements_t, ZoneBC_t, FlowSolution_t
+
+node
+
+group with name, label, type (33, 33 and 3 characters) and flags; value in `` data``
+
+zone
+
+`` data`` = [[vertices], [cells], [boundary vertices]]; ZoneType Unstructured or Structured
+
+sections
+
+`` data`` = [ElementType, ElementSizeBoundary]; ElementRange; ElementConnectivity 1-based; ElementStartOffset for NGON_n, NFACE_n and MIXED since CGNS 4
+
+element types
+
+NODE BAR_2 BAR_3 BAR_4 TRI_3 TRI_6 QUAD_4 QUAD_8 QUAD_9 TETRA_4 TETRA_10 PYRA_5 PYRA_13 PENTA_6 PENTA_15 PENTA_18 HEXA_8 HEXA_20 HEXA_27 NGON_n read; PYRA_14, NFACE_n and the cubic and quartic kinds skipped
+
+boundaries
+
+BC_t with GridLocation and PointList or PointRange, or the ElementList / ElementRange CGNS 2 spelled (read only)
+
+solutions
+
+FlowSolution_t with GridLocation and DataArray_t children, (n, k) stored as (k, n)
+
+CGNS Standard Interface Data Structures ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("wing.cgns")
+mesh.element_tags["wall"]                  # a BC at FaceCenter
+mesh.vertex_attrs["Pressure"]              # a FlowSolution at Vertex
+mesh.global_attrs["zone_name"]
+
+mesh = px.read("multi.cgns", zone="blk-2")  # one of several zones
+mesh = px.read("multi.cgns", base="Fluid")  # a base other than the first
+
+Bases, zones and sections are found by their label, whatever they are named. Every zone of the base is read, and when there are several they are merged into one mesh, each zone’s elements tagged with the zone’s name - the zones being the first thing a multi-zone file is opened for; zone= picks one and base= picks the base, a name the file does not hold refused listing the ones it does. Sections are read in element-number order and split by type, a MIXED section by the code ahead of each cell, with or without ElementStartOffset; an NGON_n section reads as polygons in either the CGNS 4 layout or the older one with a node count ahead of each. A structured zone expands into explicit hexahedra, quadrilaterals or lines the way .vts does, and its solutions flatten off the lattice in the same order. A boundary condition at Vertex is a vertex_tags group and one at any other location an element_tags group, its numbers turned into mesh indices; a PointRange is spanned, and on a structured zone a range or list of index triples is spanned over the lattice’s vertices or cells. A condition spelled with an ElementList or ElementRange, as CGNS 2 did, names elements whatever its location says. A solution at Vertex is a vertex_attrs entry and one at any other location an element_attrs one: it spans every element of its location’s dimension - a cell-centred solution the volume cells, a face-centred one the faces - or every element when its length says so, or the entities its own PointList or PointRange names; several solutions can each fill part of one attribute, and what none covers is NaN. DataArray_t and Descriptor_t nodes under a UserDefinedData_t on the base are global_attrs, as are the base’s and the zone’s names. lazy=True raises LazyReadError.
+
+The codec needs h5py, which is optional - pip install "polyxios[hdf5]". Without it UnsupportedFormatError spells that command.
+
+Writing
+
+px.write(mesh, "out.cgns")
+px.write(mesh, "out.cgns", base_name="Fluid", zone_name="wing")
+px.write(mesh, "out.cgns", compression="gzip", compression_opts=4)
+
+One base of the mesh’s own cell and physical dimensions, one unstructured zone, one section per element type over consecutive element numbers, the types in ascending polyxios code order with the polygons in their place among them as an NGON_n section with ElementStartOffset. Every node carries the name, label, type and flags the CGNS library reads, the root its `` format`` and `` hdf5version``, and a CGNSLibraryVersion says 4.2. vertex_tags are BC_t nodes at Vertex and element_tags at FaceCenter when every member is a face below the cells, EdgeCenter for an edge below a surface mesh, CellCenter otherwise; each with a PointList. vertex_attrs go under a FlowSolution_t at Vertex; element_attrs under one at CellCenter over the cells of the mesh’s own dimension - as many as the zone declares, which is what a CGNS reader expects there - and, for the faces or edges below them, under one at FaceCenter or EdgeCenter with a PointList naming them. Numeric global_attrs are DataArray_t nodes and text ones Descriptor_t nodes under a UserDefinedData_t on the base; zone_name and base_name name the zone and the base, the options winning over the globals. A tag, attribute or global name that has to change - a node name is 32 characters, holds no / and cannot repeat among its siblings - is warned about once, with what it became. compression and compression_opts go to h5py for every dataset of more than one value; a file without them is what the CGNS library writes.
+
+Quirks worth knowing
+
+Node order follows the SIDS, which lists a quadratic hexahedron’s vertical mid-edge nodes before its top ones where VTK lists the top ones first, and a quadratic wedge’s likewise; the 27-node hexahedron’s face centres are listed by face where VTK lists them by axis. HEXA_20, HEXA_27, PENTA_15 and PENTA_18 are permuted on the way in and out; every other type’s order is VTK’s already. A pixel and a voxel go out as the quad and hexahedron they are.
+
+Cells read by ascending polyxios type code, sections merged, whatever order the file’s sections come in, so a boundary-face section ahead of the cells does not put the faces first. A PYRA_14, an NFACE_n section of polyhedra, or a cubic or quartic kind is skipped on the way in with one warning naming it; a type code the SIDS does not define raises UnknownElementTypeError. An element type CGNS has no code for - a triangle strip, a Lagrange cell - is dropped on the way out with a warning, the values and tags over the elements cut to match.
+
+Integer I4 and I8 datasets are both read; the writer uses I4 until a count outgrows it, an unsigned value the I4 or I8 it fits, and refuses one above what I8 holds. A CGNS (n, k) solution array reads as (k, n) and is transposed back, so a vector stays (n, 3); a solution whose length fits neither the vertices nor the elements of its location is skipped with a warning. A boolean attribute is written as I4. A node name is 32 characters, so two attributes alike that far, or one named GridLocation, are told apart by a _2 within the width; a zone named like one of its own boundary conditions tags the merged mesh as name_2.
+
+A physical dimension of 2 pads the coordinates and flags global_attrs["was_2d"]; a mesh so flagged that stayed in the plane writes two coordinates back. A structured zone’s boundary at Vertex or CellCenter is spanned over the lattice; one at a face-centred location names faces the expanded mesh does not hold and is skipped. A zone declaring more or fewer vertices than its coordinates hold, a section numbered from below one, or two sections claiming one element number are refused naming the culprit; an empty section is walked past.
+
+The written file spells what cgnscheck probes first - `` hdf5version``, the node attributes, the typed `` data`` under every node - which the file this codec replaces did not; a BC goes out as BCTypeUserDefined.
+
+index - the full format table.
+
+## H5M (MOAB)
+
+Source: https://polyxios.org/stable/formats/h5m.html
+
+H5M (MOAB)
+
+.h5m read + write eager needs h5py
+
+Summary of the specification
+
+H5M is the native file of MOAB, the Mesh-Oriented datABase used by DAGMC and the SIGMA toolkit. Everything sits under one HDF5 group, tstt: the coordinates in nodes/coordinates, one group per element type under elements - Tri3, Tet4, Hex8, named for the shape and its node count - each holding a connectivity table, and sets, the meshsets MOAB builds its materials, boundary conditions, geometric entities and partitions out of. Every entity has a handle id: the nodes are numbered from the start_id on their coordinates, then each element group from its own, then the sets, and both the connectivity and the sets speak in those ids. Values on the entities are dense tags, one dataset per name under the owner’s tags group, each also declared under tstt/tags with its datatype and class; a sparse tag names its entities in an id_list beside its values, which is how a set carries its NAME, MATERIAL_SET, NEUMANN_SET or DIRICHLET_SET number.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+HDF5: tstt/{nodes,elements/<Type>,sets,tags,elemtypes,history}; tstt carries max_id
+
+nodes
+
+nodes/coordinates (n, 3) float64 with start_id; nodes/tags/<name> dense
+
+elements
+
+elements/<Type>/connectivity (n, k) of handle ids, start_id, element_type from the elemtypes enum; tags/<name> dense
+
+types
+
+Edge2 Edge3 Edge4 Tri3 Tri6 Tri7 Quad4 Quad8 Quad9 Tet4 Tet10 Pyramid5 Pyramid13 Prism6 Prism15 Prism18 Hex8 Hex20 Hex27; Polygon, Polyhedron, Knife skipped
+
+sets
+
+sets/list (n, 4) of [contents end, children end, parents end, flags]; contents of handle ids, (start, count) pairs when the range bit is set
+
+tags
+
+tags/<name> with class (bit, sparse, dense, mesh), a committed type, and id_list + values for a sparse one
+
+MOAB HDF5 file format ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("dagmc.h5m")
+mesh.element_tags["mat:steel"]            # a set with a NAME tag
+mesh.element_tags["material_2"]           # one with a MATERIAL_SET number only
+mesh.vertex_attrs["original_ids"]         # the GLOBAL_ID tag, when it is not 1..n
+
+Element groups are read by ascending polyxios type code and their connectivity turned from handle ids into mesh indices through the start_id of the nodes. Dense tags on the nodes are vertex_attrs and dense tags on the elements element_attrs, a tag one element type carries and another does not laid over every element with NaN where it is absent; a GLOBAL_ID tag other than 1..n lands in original_ids. Each set becomes a tag group over the nodes and the elements it holds - a set holding both becomes one group of each - named by its NAME tag when it has one and by its MATERIAL_SET, NEUMANN_SET or DIRICHLET_SET number otherwise, as material_<n> and the like; a set with none of those is not a group, and an empty one is an empty group over the vertices when it is Dirichlet, over the elements otherwise. Range-compressed contents are expanded. A mesh-wide tag with a value is a global_attrs entry. A sparse tag set over the nodes or the elements themselves rather than over sets is not read; the ones met are named in one warning. lazy=True raises LazyReadError.
+
+The codec needs h5py, which is optional - pip install "polyxios[hdf5]". Without it UnsupportedFormatError spells that command.
+
+Writing
+
+px.write(mesh, "out.h5m")
+px.write(mesh, "out.h5m", compression="gzip", compression_opts=4)
+px.write(mesh, "out.h5m", global_ids=False)
+
+One group per element type, the types in ascending polyxios code order, each element’s handle id following the last, the elemtypes enum and max_id spelled as MOAB expects. vertex_attrs and element_attrs are dense tags, a vector as a record of k values per entity rather than an (n, k) table, each declared under tstt/tags; a GLOBAL_ID numbering the nodes and the elements from one in the written order is added unless global_ids=False, and original_ids are written under it when the mesh carries them. A MOAB tag has one type, so a vertex attribute and an element attribute of one name and different types go out as two tags, the elements’ under <name>__cell; one named like the NAME or set-kind tag the meshsets carry goes out as <name>__attr, and a numeric global named like a dense tag as <name>__global. Each such declaration carries a polyxios_name attribute that the reader undoes. The tag groups are meshsets, one per group, each carrying a NAME tag with the group’s name and - so mbconvert and friends list them - a DIRICHLET_SET number for a vertex group and a MATERIAL_SET number for an element group. Numeric global_attrs are mesh tags with a global value. compression and compression_opts go to h5py for every dataset of more than one value.
+
+Quirks worth knowing
+
+Node order is MOAB’s canonical one, which is VTK’s for every type both name but the wedges and the quadratic hexahedra: MOAB’s prism is VTK’s wedge with its triangles turned over, and MOAB numbers a hexahedron’s vertical edges before its top ring where VTK numbers them after, its 27-node face centres by face where VTK goes by axis. Those are permuted on the way in and out, by the tables MOAB’s own VTK reader uses. A pixel and a voxel go out as the quad and hexahedron they are. A vertex element has no MOAB group - the nodes are entities in their own right - and is dropped on the way out with a warning, as is a polygon, a strip or a Lagrange cell; a Polygon, Polyhedron or Knife group is skipped on the way in with a warning naming it.
+
+A mesh whose elements of one type are interleaved with others - one block per Gmsh entity, say - is written as one group per type and reads back grouped, which is the only shape MOAB has for it.
+
+A dense tag whose length is not the owner’s, or whose values are strings or records, is not an attribute; a tag whose shape differs from one element type to the next is skipped with a warning. A set’s NAME is read from its 32-byte opaque value up to the first NUL.
+
+The written history names polyxios and the time; the file is otherwise what MOAB’s own writer spells, but MOAB itself has not been run against it.
+
+index - the full format table.
+
+## HMF
+
+Source: https://polyxios.org/stable/formats/hmf.html
+
+HMF
+
+.hmf read + write eager needs h5py
+
+Summary of the specification
+
+HMF is XDMF’s data model in one HDF5 file, with no XML beside it - the experimental format meshio invented for the case XDMF serves badly, a mesh whose arrays all live in the HDF5 file anyway and whose XML only says where. The file calls itself hmf and versions itself 0.1-alpha in two root attributes, and holds one domain group with one grid. The grid holds a Geometry dataset of (n, dim) coordinates with a GeometryType of XYZ, XY or X; one Topology<k> dataset per element type, each an (n, k) index table whose TopologyType is XDMF’s name for the cell - Triangle, Tetrahedron_10, Polyvertex; and the arrays over the nodes and the cells under NodeAttributes and CellAttributes, one dataset per name. polyxios adds NodeSets and CellSets for its tag groups and Attributes for the mesh-wide values, each only when the mesh has some.
+
+Specification at a glance
+
+
+
+
+
+structure
+
+HDF5: root attrs type="hmf", version="0.1-alpha"; domain/grid/{Geometry,Topology<k>,NodeAttributes,CellAttributes}
+
+geometry
+
+Geometry (n, dim) with GeometryType XYZ / XY / X
+
+topology
+
+Topology<k> (n, nodes) 0-based with TopologyType, the XDMF names - Polyvertex through Hexahedron_27
+
+attributes
+
+NodeAttributes/<name>, CellAttributes/<name>, one value per entity in the order the topologies are numbered
+
+polyxios extension
+
+NodeSets/<name>, CellSets/<name> as index arrays; Attributes/<name> for mesh-wide numbers and text
+
+HMF in meshio ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("out.hmf")
+mesh.element_tags["skin"]                 # CellSets/skin
+mesh.global_attrs["case"]                 # Attributes/case
+
+The topologies are read in the order they are numbered - Topology10 after Topology9, not after Topology1 - so the elements keep the order the file gave them and the cell attributes line up. NodeAttributes are vertex_attrs, CellAttributes element_attrs, NodeSets and CellSets the tag groups and Attributes the global_attrs. A file that does not call itself hmf is refused by name, as is a topology XDMF does not name, one of the wrong width for its type, or one naming a node the geometry does not hold. lazy=True raises LazyReadError.
+
+The codec needs h5py, which is optional - pip install "polyxios[hdf5]". Without it UnsupportedFormatError spells that command.
+
+Writing
+
+px.write(mesh, "out.hmf")
+px.write(mesh, "out.hmf", compression="gzip", compression_opts=4)
+
+One Topology<k> per element type, the types in ascending polyxios code order; a pixel and a voxel go out as the quadrilateral and hexahedron they are, and polygons all of one width as a Polygon table - polygons of differing widths have no (n, k) table to go in and are dropped with a warning. The Geometry is XYZ, or XY for a mesh that came from a two-dimensional file and stayed in the plane. compression and compression_opts go to h5py for every dataset of more than one value.
+
+Quirks worth knowing
+
+The topology names and the node order are XDMF’s, so what xdmf says of them holds here: VTK’s order for every named kind, and an element type XDMF has no name for dropped on the way out with a warning per type, the values and tags over the elements cut to match.
+
+A mesh whose types are interleaved is written grouped by type and reads back grouped. An attribute whose length fits neither the nodes nor the cells is skipped with a warning naming it.
+
+The format calls itself experimental and versions itself 0.1-alpha; this codec reads and writes that version. The sets and mesh-wide attributes are polyxios’ own addition to it, written only when the mesh has some: the originator’s reader asserts on a key it does not know, so a mesh without tag groups or global_attrs is written in exactly the layout it reads, and one with them reads back here and in any reader that walks the keys it knows.
+
+index - the full format table.
+
 ## Lazy loading
 
 Source: https://polyxios.org/stable/lazy_loading.html
@@ -5438,6 +5801,58 @@ flavour needs h5py, now the polyxios[hdf5] extra; without it the
 other two work and an HDF5 reference raises UnsupportedFormatError
 spelling the install line.
 
+MED (.med), the HDF5 mesh file of Salome and code_aster, is read and
+written. Every mesh in the file is read, several merged with each mesh’s
+elements tagged by its name and mesh= picking one; MED groups become
+tag groups through the families, a cell in two groups landing in both,
+and a family belonging to no group keeps its number. Fields on the
+nodes and on the cells are attributes, a field over some geometries
+only NaN on the rest, Gauss-point and per-node values keeping their
+axis, a profiled field spread over its support; step= picks the
+fields’ step and its time lands in global_attrs["time"]. The
+writer spells MED 3.0 with every attribute the MED library’s mesh-info
+call reads, one cell group per geometry with its GEO code, one
+family per distinct combination of groups, and per-node values as
+ELNO; a write to a path lands under a temporary name and is moved
+into place, so a failed write leaves no half file.
+
+CGNS (.cgns), in its HDF5 form, is read and written. Bases, zones
+and sections are found by their label whatever their names; every zone
+is read, several merged with each zone’s elements tagged by its name
+and zone= and base= picking one; sections split by type,
+MIXED by the code ahead of each cell with or without start
+offsets, NGON_n as polygons in either layout, a structured zone
+expanded into cells with its solutions and its PointRange boundary
+conditions laid over the lattice; boundary conditions become tag
+groups over the vertices or the elements their location says, flow
+solutions attributes, one over a PointList or PointRange
+landing on the listed entities and a cell-centred one over the volume
+cells alone NaN on the boundary elements; the quadratic hexahedron and
+wedge are permuted from the SIDS order to VTK’s. The writer spells
+every node attribute, root dataset and version node the CGNS library
+probes, and splits the element values by dimension so the cell-centred
+solution counts what the zone says, faces and edges in their own
+solutions over a PointList.
+
+H5M (.h5m), MOAB’s native file, is read and written: handle ids
+resolved through each group’s start_id, dense tags as attributes
+laid over every element, meshsets as tag groups named by their
+NAME tag or their material, Neumann or Dirichlet number, range
+compression expanded, GLOBAL_ID as original_ids; the wedges
+and the quadratic hexahedra are permuted from MOAB’s node order to
+VTK’s. The writer spells one group per type, dense tags declared with
+their type, and a meshset per tag group with a NAME and a set
+number.
+
+HMF (.hmf), XDMF’s model in one HDF5 file, is read and written,
+the topologies in the order they are numbered, with NodeSets,
+CellSets and Attributes added for the tags and the mesh-wide
+values.
+
+The four share polyxios.codecs._hdf5: h5py imported on first use,
+a file opened from a path, a buffer or a gzip member alike, and a
+count larger than its dataset refused naming both.
+
 Optional packages have one rule, polyxios._optpkg.optional_package:
 a module when it imports, and otherwise a stand-in that raises
 MissingPackageError - an UnsupportedFormatError and an
@@ -5566,7 +5981,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:173: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:220: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -5637,7 +6052,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:237: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:284: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -5875,7 +6290,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:461: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:508: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -5913,7 +6328,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:497: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:544: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -6878,7 +7293,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1357: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1404: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -6962,7 +7377,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1425: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1472: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -7010,7 +7425,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1456: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1503: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -7025,7 +7440,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1468: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1515: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -7131,7 +7546,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1541: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1588: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
