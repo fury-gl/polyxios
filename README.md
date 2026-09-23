@@ -39,6 +39,9 @@ H5M and HMF are HDF5 files outright; all need
 pip install "polyxios[hdf5]"
 ```
 
+Exodus II is a netCDF file and needs [netCDF4](https://unidata.github.io/netcdf4-python/)
+the same way - `pip install "polyxios[netcdf]"`.
+
 ---
 
 ## Usage
@@ -260,6 +263,7 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 | CGNS | `.cgns` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); every zone read and tagged or `zone=` picks one, MIXED and NGON sections, structured zones expanded, `ZoneBC` → tags, `FlowSolution` → attrs |
 | H5M (MOAB) | `.h5m` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); dense tags → attrs, meshsets → tags named by `NAME` or their material / boundary number, `GLOBAL_ID` → `original_ids` |
 | HMF | `.hmf` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); XDMF's model in one file, typed topologies, node and cell attributes, sets and mesh-wide values |
+| Exodus II | `.e` `.exo` `.ex2` | ✓ | ✓ | netCDF (`polyxios[netcdf]`); blocks, node sets and element sets → tags, side sets → faces with `face_parent`, nodal / element / global variables → attrs, `step=` on read |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
@@ -283,7 +287,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**36 formats supported** across the 43 extensions in the tables, plus `.plt`, which
+**37 formats supported** across the 46 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

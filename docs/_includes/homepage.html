@@ -8,7 +8,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 36 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 37 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -41,7 +41,7 @@
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-six - and raises instead of quietly corrupting
+        writes all thirty-seven - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -63,7 +63,7 @@
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>36</b><span>formats</span></div>
+        <div><b>37</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -133,7 +133,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/cgns.html"><span>CGNS</span><span class="px-ext">.cgns</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 36 codecs, the 43 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
+      <p class="px-tfoot">} // 37 codecs, the 46 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 

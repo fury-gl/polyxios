@@ -84,6 +84,21 @@ New features
 - The four share ``polyxios.codecs._hdf5``: h5py imported on first use,
   a file opened from a path, a buffer or a gzip member alike, and a
   count larger than its dataset refused naming both.
+- Exodus II (``.e``, ``.exo``, ``.ex2``), Sandia's netCDF finite element
+  database, is read and written. Every element block, node set and
+  element set is a tag group named by its name or its id; a side set is
+  read as the faces it names, linked to their parents by ``face_parent``
+  and ``face_index``, and a group of such faces goes back out as one. The
+  nodal, element and global variables at one time step - ``step=`` picks
+  it - are the attributes, ``_x``/``_y``/``_z`` and ``_0``/``_1``/...
+  families folded into one array and split again on write; the step's
+  time and the file's title travel in ``global_attrs``, the number maps in
+  ``original_ids``. A ``HEX20``, ``HEX27``, ``WEDGE15`` or ``WEDGE18`` is
+  permuted between Exodus's node order and VTK's both ways, and the side
+  numbering is checked against the manual's table. Blocks are chosen on
+  write from the tag groups that partition the mesh by type, the rest per
+  type. The codec needs netCDF4, the new ``polyxios[netcdf]`` extra, and
+  refuses with the install line without it.
 
 - Optional packages have one rule, ``polyxios._optpkg.optional_package``:
   a module when it imports, and otherwise a stand-in that raises
