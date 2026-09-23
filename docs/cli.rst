@@ -10,7 +10,8 @@ convert, and visualize 3D models.
 
 ``--verbose`` can be given on either side of the subcommand (e.g.
 ``pxios --verbose fetch bunny.obj`` or ``pxios fetch bunny.obj --verbose``) to
-print debug logs and full tracebacks when a command fails.
+print debug logs and full tracebacks when a command fails. ``pxios --version``
+prints the installed version and exits.
 
 Subcommands
 -----------
@@ -27,8 +28,14 @@ Subcommands
 *   ``pxios fetch <filename|extension>``: Downloads and caches a single model
     file (e.g., ``bunny.obj``) or every model catalogued for an extension
     (e.g., ``obj`` or ``.obj``).
+
+    *   ``--overwrite``: Download again over a file already in the cache.
+
 *   ``pxios convert <input_file> <output_file>``: Converts a model file from
     one format to another directly in a single process.
+
+    *   ``--force`` / ``-f``: Overwrite an existing output file.
+
 *   ``pxios viz <filename>``: Visualizes a local or cached model file using the
     `FURY <https://fury.gl>`__ library.
 
