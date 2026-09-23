@@ -187,7 +187,7 @@ html_theme_options = {
     # visible; sections with children (formats, api) expand on click, and the
     # section containing the current page is expanded on load. Raising this to 2
     # expands everything but drops the toggles entirely, which loses the
-    # collapse affordance on the thirty format pages.
+    # collapse affordance on the format pages.
     "show_nav_level": 1,
     "navigation_depth": 3,
     "collapse_navigation": False,
