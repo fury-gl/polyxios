@@ -16,5 +16,7 @@ Complete reference for all public functions, types, and exceptions.
    polyxios.read_scene
    polyxios.write_scene
    polyxios.transforms
+   polyxios.helper
+   polyxios.fetcher
    polyxios.validate
    polyxios.exceptions

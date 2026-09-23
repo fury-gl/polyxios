@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 30 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 36 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>30</b><span>formats</span></div>
+        <div><b>36</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -212,7 +212,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a thirty-third format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirty-seventh format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -4258,7 +4258,8 @@ convert, and visualize 3D models.
 
 --verbose can be given on either side of the subcommand (e.g.
 pxios --verbose fetch bunny.obj or pxios fetch bunny.obj --verbose) to
-print debug logs and full tracebacks when a command fails.
+print debug logs and full tracebacks when a command fails. pxios --version
+prints the installed version and exits.
 
 Subcommands
 
@@ -4277,8 +4278,12 @@ pxios fetch <filename|extension>: Downloads and caches a single model
 file (e.g., bunny.obj) or every model catalogued for an extension
 (e.g., obj or .obj).
 
+--overwrite: Download again over a file already in the cache.
+
 pxios convert <input_file> <output_file>: Converts a model file from
 one format to another directly in a single process.
+
+--force / -f: Overwrite an existing output file.
 
 pxios viz <filename>: Visualizes a local or cached model file using the
 FURY library.
@@ -4453,6 +4458,14 @@ polyxios.write_scene(scene, path, *[, fmt, ...])
 Write a SceneData to a scene-graph file.
 
 polyxios.transforms
+
+
+
+polyxios.helper
+
+
+
+polyxios.fetcher
 
 
 

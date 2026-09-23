@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=3232c789"></script>
+    <script src="_static/documentation_options.js?v=93106877"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -485,6 +485,8 @@
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -556,7 +558,8 @@
 convert, and visualize 3D models.</p>
 <p><code class="docutils literal notranslate"><span class="pre">--verbose</span></code> can be given on either side of the subcommand (e.g.
 <code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">--verbose</span> <span class="pre">fetch</span> <span class="pre">bunny.obj</span></code> or <code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span> <span class="pre">bunny.obj</span> <span class="pre">--verbose</span></code>) to
-print debug logs and full tracebacks when a command fails.</p>
+print debug logs and full tracebacks when a command fails. <code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">--version</span></code>
+prints the installed version and exits.</p>
 <section id="subcommands">
 <h2>Subcommands<a class="headerlink" href="#subcommands" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -572,9 +575,17 @@ available in the remote catalog.</p></li>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span> <span class="pre">&lt;filename|extension&gt;</span></code>: Downloads and caches a single model
 file (e.g., <code class="docutils literal notranslate"><span class="pre">bunny.obj</span></code>) or every model catalogued for an extension
-(e.g., <code class="docutils literal notranslate"><span class="pre">obj</span></code> or <code class="docutils literal notranslate"><span class="pre">.obj</span></code>).</p></li>
+(e.g., <code class="docutils literal notranslate"><span class="pre">obj</span></code> or <code class="docutils literal notranslate"><span class="pre">.obj</span></code>).</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--overwrite</span></code>: Download again over a file already in the cache.</p></li>
+</ul>
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">convert</span> <span class="pre">&lt;input_file&gt;</span> <span class="pre">&lt;output_file&gt;</span></code>: Converts a model file from
-one format to another directly in a single process.</p></li>
+one format to another directly in a single process.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">--force</span></code> / <code class="docutils literal notranslate"><span class="pre">-f</span></code>: Overwrite an existing output file.</p></li>
+</ul>
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">viz</span> <span class="pre">&lt;filename&gt;</span></code>: Visualizes a local or cached model file using the
 <a class="reference external" href="https://fury.gl">FURY</a> library.</p>
 <ul>
