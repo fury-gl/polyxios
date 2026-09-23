@@ -1,5 +1,5 @@
 <!--
-  The thirty-two format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-six format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -325,6 +325,46 @@
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="xdmf.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://www.xdmf.org/index.php/XDMF_Model_and_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">MED <span class="px-fmtext">.med</span></p>
+    <p class="px-fmtdesc">Salome's and code_aster's HDF5 file: families and groups
+      as tags, fields on nodes, cells and Gauss points, several meshes merged.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="med.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.salome-platform.org/latest/dev/MEDCoupling/developer/med-file.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">CGNS <span class="px-fmtext">.cgns</span></p>
+    <p class="px-fmtdesc">The CFD standard in HDF5: every zone read and tagged,
+      MIXED and NGON sections, boundary conditions as tags, solutions as attrs.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="cgns.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://cgns.github.io/standard/SIDS/CGNS_docs_current/sids/index.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">H5M <span class="px-fmtext">.h5m</span></p>
+    <p class="px-fmtdesc">MOAB's native file: handle ids resolved, dense tags as
+      attrs, meshsets as named tags with their material or boundary number.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="h5m.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.mcs.anl.gov/~fathom/moab-docs/html/h5mmain.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">HMF <span class="px-fmtext">.hmf</span></p>
+    <p class="px-fmtdesc">XDMF's model in one HDF5 file: typed topologies, node
+      and cell attributes, plus sets and mesh-wide values.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="hmf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/nschloe/meshio/tree/main/src/meshio/hmf">full spec &#8599;</a>
     </p>
   </div>
 

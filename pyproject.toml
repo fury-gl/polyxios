@@ -81,9 +81,10 @@ doc = [
 viz = [
     "fury>=2",
 ]
-# The HDF5-backed formats (XDMF's usual heavy data). Without it those codecs
-# still read and write their inline and raw-binary flavours, and refuse an
-# HDF5 reference with the install line that fixes it.
+# The HDF5-backed formats: XDMF's usual heavy data, and MED, CGNS, H5M and
+# HMF outright. Without it XDMF still reads and writes its inline and
+# raw-binary flavours, and every HDF5 file or reference is refused with the
+# install line that fixes it.
 hdf5 = [
     "h5py>=3.0",
 ]
@@ -141,6 +142,9 @@ quote-style = "double"
 # 'domin domout' is the Netgen .vol surface-element column header, spelled that
 # way by the format. Scoped to the pair so a bare 'domin' is still a typo.
 ignore-regex = 'domin\s+domout'
+# 'NOE' and 'COO' are the node group and coordinate dataset of a MED file,
+# spelled that way by the MED library.
+ignore-words-list = "noe,coo"
 
 [tool.mypy]
 strict = true

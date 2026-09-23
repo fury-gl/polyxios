@@ -37,6 +37,53 @@ New features
   flavour needs h5py, now the ``polyxios[hdf5]`` extra; without it the
   other two work and an HDF5 reference raises ``UnsupportedFormatError``
   spelling the install line.
+- MED (``.med``), the HDF5 mesh file of Salome and code_aster, is read and
+  written. Every mesh in the file is read, several merged with each mesh's
+  elements tagged by its name and ``mesh=`` picking one; MED groups become
+  tag groups through the families, a cell in two groups landing in both,
+  and a family belonging to no group keeps its number. Fields on the
+  nodes and on the cells are attributes, a field over some geometries
+  only NaN on the rest, Gauss-point and per-node values keeping their
+  axis, a profiled field spread over its support; ``step=`` picks the
+  fields' step and its time lands in ``global_attrs["time"]``. The
+  writer spells MED 3.0 with every attribute the MED library's mesh-info
+  call reads, one cell group per geometry with its ``GEO`` code, one
+  family per distinct combination of groups, and per-node values as
+  ``ELNO``; a write to a path lands under a temporary name and is moved
+  into place, so a failed write leaves no half file.
+- CGNS (``.cgns``), in its HDF5 form, is read and written. Bases, zones
+  and sections are found by their label whatever their names; every zone
+  is read, several merged with each zone's elements tagged by its name
+  and ``zone=`` and ``base=`` picking one; sections split by type,
+  ``MIXED`` by the code ahead of each cell with or without start
+  offsets, ``NGON_n`` as polygons in either layout, a structured zone
+  expanded into cells with its solutions and its ``PointRange`` boundary
+  conditions laid over the lattice; boundary conditions become tag
+  groups over the vertices or the elements their location says, flow
+  solutions attributes, one over a ``PointList`` or ``PointRange``
+  landing on the listed entities and a cell-centred one over the volume
+  cells alone NaN on the boundary elements; the quadratic hexahedron and
+  wedge are permuted from the SIDS order to VTK's. The writer spells
+  every node attribute, root dataset and version node the CGNS library
+  probes, and splits the element values by dimension so the cell-centred
+  solution counts what the zone says, faces and edges in their own
+  solutions over a ``PointList``.
+- H5M (``.h5m``), MOAB's native file, is read and written: handle ids
+  resolved through each group's ``start_id``, dense tags as attributes
+  laid over every element, meshsets as tag groups named by their
+  ``NAME`` tag or their material, Neumann or Dirichlet number, range
+  compression expanded, ``GLOBAL_ID`` as ``original_ids``; the wedges
+  and the quadratic hexahedra are permuted from MOAB's node order to
+  VTK's. The writer spells one group per type, dense tags declared with
+  their type, and a meshset per tag group with a ``NAME`` and a set
+  number.
+- HMF (``.hmf``), XDMF's model in one HDF5 file, is read and written,
+  the topologies in the order they are numbered, with ``NodeSets``,
+  ``CellSets`` and ``Attributes`` added for the tags and the mesh-wide
+  values.
+- The four share ``polyxios.codecs._hdf5``: h5py imported on first use,
+  a file opened from a path, a buffer or a gzip member alike, and a
+  count larger than its dataset refused naming both.
 
 - Optional packages have one rule, ``polyxios._optpkg.optional_package``:
   a module when it imports, and otherwise a stand-in that raises

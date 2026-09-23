@@ -46,9 +46,18 @@ _BUFFERABLE: tuple[str, ...] = tuple(
 # or where reading a path-written file from a buffer fails (JSON cannot resolve
 # the companion .bin).  These are excluded only from the byte-equality tests
 # below; round-trip-through-memory tests still exercise them.
+# An HDF5 file also carries the time each object was created in its headers,
+# so two writes of one mesh agree byte for byte only within the same second.
+_HDF5: frozenset[str] = frozenset({".med", ".cgns", ".h5m", ".hmf"})
 _BUFFER_EQUAL: tuple[str, ...] = tuple(
-    ext for ext in _BUFFERABLE if ext not in {".gltf"}
+    ext for ext in _BUFFERABLE if ext not in {".gltf"} | _HDF5
 )
+
+
+def _needs(ext: str) -> None:
+    """Skip a format whose codec needs a package this environment lacks."""
+    if CAPABILITIES[ext].requires:
+        pytest.importorskip(CAPABILITIES[ext].requires)
 
 
 def _quietly(fn, *args, **kwargs):
@@ -83,6 +92,7 @@ def _same_mesh(a, b) -> None:
 
 @pytest.mark.parametrize("ext", _BUFFER_EQUAL)
 def test_writing_to_a_buffer_matches_writing_to_a_path(tmp_path, ext: str) -> None:
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     on_disk = tmp_path / f"mesh{ext}"
@@ -96,6 +106,7 @@ def test_writing_to_a_buffer_matches_writing_to_a_path(tmp_path, ext: str) -> No
 
 @pytest.mark.parametrize("ext", _BUFFER_EQUAL)
 def test_reading_from_a_buffer_matches_reading_from_a_path(tmp_path, ext: str) -> None:
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     on_disk = tmp_path / f"mesh{ext}"
@@ -110,6 +121,7 @@ def test_reading_from_a_buffer_matches_reading_from_a_path(tmp_path, ext: str) -
 @pytest.mark.parametrize("ext", _BUFFERABLE)
 def test_a_mesh_round_trips_through_memory_alone(ext: str) -> None:
     """Write to a buffer, read the same buffer back; disk is never involved."""
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     buf = io.BytesIO()

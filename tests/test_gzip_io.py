@@ -26,6 +26,7 @@ from tests.test_buffer_io import (
     _BUFFER_EQUAL,
     _BUFFERABLE,
     _TECPLOT,
+    _needs,
     _quietly,
     _same_mesh,
     _Unseekable,
@@ -42,6 +43,7 @@ _GZIP_EQUAL: tuple[str, ...] = _BUFFER_EQUAL
 
 @pytest.mark.parametrize("ext", _GZIPPABLE)
 def test_a_gzipped_file_reads_like_a_plain_one(tmp_path, ext: str) -> None:
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     plain = tmp_path / f"mesh{ext}"
@@ -53,6 +55,7 @@ def test_a_gzipped_file_reads_like_a_plain_one(tmp_path, ext: str) -> None:
 
 @pytest.mark.parametrize("ext", _GZIP_EQUAL)
 def test_writing_a_gz_name_compresses(tmp_path, ext: str) -> None:
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     plain = tmp_path / f"mesh{ext}"
@@ -66,6 +69,7 @@ def test_writing_a_gz_name_compresses(tmp_path, ext: str) -> None:
 
 @pytest.mark.parametrize("ext", _GZIPPABLE)
 def test_a_mesh_round_trips_through_gzip(tmp_path, ext: str) -> None:
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     plain = tmp_path / f"mesh{ext}"
@@ -191,6 +195,7 @@ def test_a_gzipped_buffer_reads_like_a_gzipped_path(tmp_path, ext: str) -> None:
     where the first one did - not wherever the decompressor's read-ahead left
     the bytes underneath it.
     """
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     plain = tmp_path / f"mesh{ext}"
@@ -206,6 +211,7 @@ def test_a_gzipped_buffer_reads_like_a_gzipped_path(tmp_path, ext: str) -> None:
 @pytest.mark.parametrize("ext", _GZIP_EQUAL)
 def test_a_gzipped_buffer_reads_from_where_it_stands(tmp_path, ext: str) -> None:
     """A member reached at an offset is the member that is read."""
+    _needs(ext)
     poly = CANONICAL[CAPABILITIES[ext].mesh]()
 
     plain = tmp_path / f"mesh{ext}"
