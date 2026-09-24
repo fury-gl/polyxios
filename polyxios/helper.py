@@ -483,9 +483,6 @@ def visualize_mesh(
     points : bool, optional
         Render strictly as a point cloud.
     """
-    # Importing FURY and creating the window take a couple of seconds; say so
-    # rather than go silent after the load report.
-    logger.info("  Opening FURY window ...")
     try:
         from fury import actor, window
     except ImportError as e:
@@ -496,6 +493,9 @@ def visualize_mesh(
 
     if len(polydata.vertices) == 0:
         return
+
+    # Actor construction takes seconds; do not go silent after the load report.
+    logger.info("  Opening FURY window ...")
 
     # transforms.vertex_colors picks the first (n_verts, >= 3) attribute and
     # normalizes it to floats in [0, 1], which is what the actors expect.

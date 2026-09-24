@@ -35,10 +35,16 @@ class _Formatter(logging.Formatter):
 def _log_warning(message, category, filename, lineno, file=None, line=None):
     """Report a Python warning as a CLI log record.
 
-    Replaces ``warnings.showwarning`` for the lifetime of the process: a codec
-    warning about the file being read is user-facing advice, so it is printed
-    like any other CLI warning rather than with the library source location
-    and code line that the default hook prepends.
+    Installed as ``warnings.showwarning`` by :func:`main` for the duration
+    of a command, inside a ``warnings.catch_warnings`` block so the previous
+    hook is restored when ``main()`` is driven from Python rather than the
+    console script. A codec warning about the file being read is user-facing
+    advice, so it is printed like any other CLI warning rather than with the
+    library source location and code line that the default hook prepends;
+    ``--verbose`` appends ``(filename:lineno)`` for bug reports. The class
+    name is dropped for ``UserWarning`` and its subclasses, the classes codecs
+    raise, where it would only repeat the ``WARNING:`` prefix; every other
+    class (``DeprecationWarning``, ``RuntimeWarning``, ...) is named.
 
     Parameters
     ----------
@@ -47,29 +53,32 @@ def _log_warning(message, category, filename, lineno, file=None, line=None):
     category : type
         The warning class.
     filename : str
-        Source file that triggered the warning; not reported.
+        Source file that triggered the warning; reported under ``--verbose``.
     lineno : int
-        Source line that triggered the warning; not reported.
+        Source line that triggered the warning; reported under ``--verbose``.
     file : file-like, optional
         Ignored; output goes to the CLI logger.
     line : str, optional
         Ignored; output goes to the CLI logger.
     """
-    logger.warning(f"{category.__name__}: {message}")
+    text = (
+        str(message)
+        if issubclass(category, UserWarning)
+        else f"{category.__name__}: {message}"
+    )
+    if logger.isEnabledFor(logging.DEBUG):
+        text = f"{text} ({filename}:{lineno})"
+    logger.warning(text)
 
 
 def _setup_logging(*, verbose: bool = False):
     """Configure stream handlers for CLI logging: stdout for INFO, stderr for WARNING+.
-
-    Python warnings are routed through the same handlers, see
-    :func:`_log_warning`.
 
     Parameters
     ----------
     verbose : bool, optional
         Emit DEBUG records and attach tracebacks to reported failures.
     """
-    warnings.showwarning = _log_warning
     logger.handlers.clear()
 
     class InfoFilter(logging.Filter):
@@ -460,7 +469,9 @@ def main():
     # SUPPRESS leaves the attribute out entirely when the flag is never given.
     args.verbose = getattr(args, "verbose", False)
     _setup_logging(verbose=args.verbose)
-    sys.exit(args.func(args))
+    with warnings.catch_warnings():
+        warnings.showwarning = _log_warning
+        sys.exit(args.func(args))
 
 
 if __name__ == "__main__":

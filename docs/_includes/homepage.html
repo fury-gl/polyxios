@@ -180,11 +180,15 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
     </div>
     <div class="px-panel">
       <div class="px-panel-head"><span>bash - 80&times;24</span></div>
-<pre class="px-code"><span class="p">$</span> pxios fetch bunny.obj
-<span class="c">  cached -&gt; ~/.polyxios/bunny.obj  (2.9 MB)</span>
+<pre class="px-code"><span class="p">$</span> pxios fetch stanford-bunny.obj
+<span class="c">  Successfully fetched to: ~/.polyxios/obj/stanford-bunny.obj</span>
 
-<span class="p">$</span> pxios convert bunny.obj bunny.vtk
-<span class="c">  35947 vertices &middot; 69451 triangles &middot; 0.4s</span>
+<span class="p">$</span> pxios convert stanford-bunny.obj bunny.vtk
+<span class="c">  Reading 'stanford-bunny.obj'...
+  Read in 0.1680 seconds
+  Writing to 'bunny.vtk'...
+  Wrote in 0.0476 seconds
+  Conversion successful.</span>
 
 <span class="p">$</span> pxios list --codecs
 <span class="c">  File formats supported by polyxios codecs:
@@ -193,12 +197,18 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
     medit (.medit, .meshb)
     medit/mesh (.mesh)
     ...
+    permas/tecplot/nastran (.dat)
+    ...
     tecplot (.plt, .tec)
-    tecplot/nastran (.dat)
     ...
     wkt (.wkt)</span>
 
-<span class="p">$</span> pxios viz bunny.vtk --points<span class="px-cursor">&#9608;</span></pre>
+<span class="p">$</span> pxios viz bunny.vtk --points
+<span class="c">  Reading bunny.vtk ...
+  Loaded in 0.0814 seconds
+  35947 vertices | 69451 elements | vertex attrs: none
+  Opening FURY window ...
+  Rendering strictly as point cloud per --points request.</span><span class="px-cursor" aria-hidden="true">&#9608;</span></pre>
     </div>
   </section>
 
