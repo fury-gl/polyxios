@@ -291,7 +291,7 @@ and needs nothing.
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the thirty-six supported formats, one page each
+* :doc:`formats/index` - the thirty-seven supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

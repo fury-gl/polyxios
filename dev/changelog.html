@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=93106877"></script>
+    <script src="_static/documentation_options.js?v=0d90afc5"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-23"/>
+    <meta name="docbuild:last-update" content="2026-09-24"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -459,6 +459,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/cgns.html">CGNS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/h5m.html">H5M (MOAB)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -631,6 +632,21 @@ values.</p></li>
 <li><p>The four share <code class="docutils literal notranslate"><span class="pre">polyxios.codecs._hdf5</span></code>: h5py imported on first use,
 a file opened from a path, a buffer or a gzip member alike, and a
 count larger than its dataset refused naming both.</p></li>
+<li><p>Exodus II (<code class="docutils literal notranslate"><span class="pre">.e</span></code>, <code class="docutils literal notranslate"><span class="pre">.exo</span></code>, <code class="docutils literal notranslate"><span class="pre">.ex2</span></code>), Sandia’s netCDF finite element
+database, is read and written. Every element block, node set and
+element set is a tag group named by its name or its id; a side set is
+read as the faces it names, linked to their parents by <code class="docutils literal notranslate"><span class="pre">face_parent</span></code>
+and <code class="docutils literal notranslate"><span class="pre">face_index</span></code>, and a group of such faces goes back out as one. The
+nodal, element and global variables at one time step - <code class="docutils literal notranslate"><span class="pre">step=</span></code> picks
+it - are the attributes, <code class="docutils literal notranslate"><span class="pre">_x</span></code>/<code class="docutils literal notranslate"><span class="pre">_y</span></code>/<code class="docutils literal notranslate"><span class="pre">_z</span></code> and <code class="docutils literal notranslate"><span class="pre">_0</span></code>/<code class="docutils literal notranslate"><span class="pre">_1</span></code>/…
+families folded into one array and split again on write; the step’s
+time and the file’s title travel in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>, the number maps in
+<code class="docutils literal notranslate"><span class="pre">original_ids</span></code>. A <code class="docutils literal notranslate"><span class="pre">HEX20</span></code>, <code class="docutils literal notranslate"><span class="pre">HEX27</span></code>, <code class="docutils literal notranslate"><span class="pre">WEDGE15</span></code> or <code class="docutils literal notranslate"><span class="pre">WEDGE18</span></code> is
+permuted between Exodus’s node order and VTK’s both ways, and the side
+numbering is checked against the manual’s table. Blocks are chosen on
+write from the tag groups that partition the mesh by type, the rest per
+type. The codec needs netCDF4, the new <code class="docutils literal notranslate"><span class="pre">polyxios[netcdf]</span></code> extra, and
+refuses with the install line without it.</p></li>
 <li><p>Optional packages have one rule, <code class="docutils literal notranslate"><span class="pre">polyxios._optpkg.optional_package</span></code>:
 a module when it imports, and otherwise a stand-in that raises
 <code class="docutils literal notranslate"><span class="pre">MissingPackageError</span></code> - an <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> and an
@@ -2254,7 +2270,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-23.
+  Last updated on 2026-09-24.
   <br/>
 </p></div>
       

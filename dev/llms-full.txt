@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 36 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 37 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-six - and raises instead of quietly corrupting
+        writes all thirty-seven - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>36</b><span>formats</span></div>
+        <div><b>37</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -141,7 +141,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/cgns.html"><span>CGNS</span><span class="px-ext">.cgns</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <p class="px-tfoot">} // 36 codecs, the 43 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
+      <p class="px-tfoot">} // 37 codecs, the 46 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -283,6 +284,10 @@ HMF - pip install "polyxios[hdf5]". Without it
 XDMF’s inline and binary flavours still read and write, and an HDF5 file or
 reference raises UnsupportedFormatError
 naming the extra.
+
+netCDF4 >= 1.6, for Exodus II files -
+pip install "polyxios[netcdf]". Without it the format raises
+UnsupportedFormatError naming the extra.
 
 ## Usage
 
@@ -555,7 +560,7 @@ and needs nothing.
 
 Where to go next
 
-formats/index - the thirty-six supported formats, one page each
+formats/index - the thirty-seven supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -571,7 +576,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships thirty-six codecs across forty-four extensions - the forty-three
+polyxios ships thirty-seven codecs across forty-seven extensions - the forty-six
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -580,7 +585,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The thirty-six format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-seven format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -946,6 +951,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="hmf.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://github.com/nschloe/meshio/tree/main/src/meshio/hmf">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">Exodus II <span class="px-fmtext">.e .exo .ex2</span></p>
+    <p class="px-fmtdesc">Sandia's netCDF finite element database: blocks and
+      sets as tags, side sets as faces, results at one time step.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="exodus.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://sandialabs.github.io/seacas-docs/exodusII-new.pdf">full spec &#8599;</a>
     </p>
   </div>
 
@@ -4099,6 +4114,91 @@ The format calls itself experimental and versions itself 0.1-alpha; this codec r
 
 index - the full format table.
 
+## Exodus II
+
+Source: https://polyxios.org/stable/formats/exodus.html
+
+Exodus II
+
+.e .exo .ex2 read + write eager needs netCDF4
+
+Summary of the specification
+
+Exodus II is Sandia’s finite element database: a netCDF file whose dimensions, variables and attributes carry the names the Exodus library fixes. num_nodes and coord (num_dim rows of coordinates, or coordx / coordy / coordz) hold the geometry; the elements come in blocks, one connect<i> table per block with an elem_type attribute naming the shape - HEX8, TETRA10, SHELL4, BAR2 - and a 1-based node list per element; node_ns<i> lists the node sets, elem_ss<i> with side_ss<i> the side sets - an element and which of its sides - and elem_els<i> the element sets, each with an id in *_prop1 and a name in *_names. Results live along a time_step record dimension: vals_nod_var<i> per nodal variable, vals_elem_var<i>eb<j> per element variable and block, vals_glo_var for the whole-mesh values, named in name_nod_var, name_elem_var and name_glo_var, with the times in time_whole. Cubit writes it, Sierra and MOOSE run on it, ParaView reads it natively.
+
+Specification at a glance
+
+
+
+
+
+container
+
+netCDF: classic (CDF\x01), 64-bit offset (CDF\x02), CDF5 (CDF\x05) or netCDF-4 (HDF5)
+
+geometry
+
+coord (num_dim, num_nodes) float64, or coordx / coordy / coordz
+
+elements
+
+connect<i> (num_el_in_blk<i>, num_nod_per_el<i>) 1-based, elem_type names the shape; eb_prop1 ids, eb_names names, attrib<i> per-element block attributes
+
+sets
+
+node_ns<i>, elem_ss<i> + side_ss<i>, elem_els<i>, each with *_prop1 and *_names
+
+results
+
+time_whole; vals_nod_var<i>, vals_elem_var<i>eb<j> (elem_var_tab says which block holds which), vals_glo_var
+
+numbering
+
+node_num_map, elem_num_map: the ids the entities carry outside the file
+
+Exodus II manual ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("out.e")
+mesh.element_tags["steel"]                # a block, by its name
+mesh.vertex_tags["clamped"]               # a node set
+mesh.element_tags["load_face"]            # a side set, read as faces
+mesh.vertex_attrs["disp"]                 # disp_x, disp_y, disp_z folded
+mesh = px.read("out.e", step=4)           # the fifth time step
+
+Every element block is read in file order and becomes an element tag group named by its name, or block_<id> when the file names it nothing; a block’s attributes - attrib<i> - are element attributes, NaN on the other blocks. A node set is a vertex tag group and an element set an element tag group, named the same way (nodeset_<id>, elemset_<id>). A side set names a side of a solid rather than an element, so it is read the way the Abaqus reader reads a *Surface: as the triangle or quadrilateral that side describes, appended after the blocks, tagged with the set’s name and linked to its parent by the face_parent and face_index element attributes. A side named twice is one face in both groups; a side of a shell or a bar, or a side number the element has no side of, has no face to read and is skipped with a warning naming the set. An empty block - the NULL block Cubit leaves for a set with nothing in it - reads as nothing, its name with it.
+
+The variables at one time step - the first, or step= - are the attributes: nodal variables vertex_attrs, element variables element_attrs (NaN on a block the elem_var_tab leaves out), global variables global_attrs. Exodus holds scalars only, so a <name>_x / <name>_y / <name>_z triple folds back into one (n, 3) array and a <name>_0 / <name>_1 / … run into an (n, k) one. The step’s time is global_attrs["time"] and the file’s title global_attrs["title"]; node_num_map and elem_num_map land in original_ids when they say something the index does not - the faces a side set adds carry no id in the file and are numbered on past the largest, so the ids the file holds survive a round trip. A num_dim of 2 pads the coordinates and flags the mesh two-dimensional.
+
+The shape is the block’s family and its node count together - HEX with twenty nodes per element reads as HEX20 does - so a file that spells TETRA for a ten-node block reads. A family Exodus does not define raises UnknownElementTypeError; a count the family has no VTK cell for - HEX9, WEDGE16, PYRAMID14, TETRA14 - is skipped with a warning, its values and set members with it. lazy=True raises LazyReadError.
+
+The codec needs netCDF4, which is optional - pip install "polyxios[netcdf]". Without it UnsupportedFormatError spells that command.
+
+Writing
+
+px.write(mesh, "out.e")
+
+Exodus partitions the elements into blocks of one shape each, so the writer has to choose them: a tag group whose members are all of one type and overlap no group already taken goes out as a block of its name, and every element left over goes into a block per type, named triangle, tetra and so on - tetra_2 when a group already took the plain name, so the two never read back as one tag. A group whose members are all faces of solids - what a side set reads back as - goes out as a side set, and its faces are not written as elements unless another group names them; every other element group is an element set and every vertex group a node set. The variables are written at one time step: an (n, 3) attribute as <name>_x / <name>_y / <name>_z, any other (n, k) as <name>_0 to <name>_{k-1} - an array of more axes flattened to that first, an (n, 1) one as <name>_0 alone, so neither reads back in its shape - integers and booleans as doubles. A name two attributes would land on (v split beside a plain v_x) is written once, from the first, with a warning; a value on a face that goes out as a side has no place in the file and is dropped with a warning too. Numeric global_attrs are global variables, title the file’s title, time the step’s time; any other text is dropped with a warning. The file is classic netCDF with 64-bit offsets, CDF5 when an index needs 64 bits, netCDF-4 for an empty mesh.
+
+Quirks worth knowing
+
+Node order. VTK’s for every shape but the quadratic hexahedra and wedges: Exodus lists a HEX20’s mid-edge nodes bottom ring, vertical edges, top ring where VTK lists bottom, top, vertical, and a WEDGE15 the same way; a HEX27 puts the centroid first and the face centres bottom, top, left, right, front, back - nodes 22 to 27 of the manual’s side-set table - where VTK orders them by axis with the centroid last. Both are permuted on the way in and back on the way out, so a reader that trusted the file’s order would hand back a hexahedron whose top edges sit on its vertical ones.
+
+Side numbering. Exodus counts a solid’s lateral faces first and the ends last; polyxios’s ELEMENT_FACES puts the ends first. The table between them is checked in the tests against the manual’s side-set node lists, so a side set read here names the face the manual names.
+
+Blocks come back as tags. A mesh written with no tags reads back with one tag per block - triangle, tetra - because the file holds the partition and the reader reports what the file holds. A mesh whose tags partition it by type goes out under those names and comes back under them.
+
+A pixel and a voxel go out as the quad and hexahedron they are, corners reordered.
+
+Buffers. A file object reads through the netCDF library’s in-memory open and writes through a temporary file, so a buffer receives the same bytes a path would. A .gz name is compressed on the way out and read on the way in like any other format.
+
+Every element type the file holds a block for is read; a NSIDED or NFACED block - polygons and polyhedra - is not, and is skipped with a warning.
+
+index - the full format table.
+
 ## Lazy loading
 
 Source: https://polyxios.org/stable/lazy_loading.html
@@ -5866,6 +5966,22 @@ The four share polyxios.codecs._hdf5: h5py imported on first use,
 a file opened from a path, a buffer or a gzip member alike, and a
 count larger than its dataset refused naming both.
 
+Exodus II (.e, .exo, .ex2), Sandia’s netCDF finite element
+database, is read and written. Every element block, node set and
+element set is a tag group named by its name or its id; a side set is
+read as the faces it names, linked to their parents by face_parent
+and face_index, and a group of such faces goes back out as one. The
+nodal, element and global variables at one time step - step= picks
+it - are the attributes, _x/_y/_z and _0/_1/…
+families folded into one array and split again on write; the step’s
+time and the file’s title travel in global_attrs, the number maps in
+original_ids. A HEX20, HEX27, WEDGE15 or WEDGE18 is
+permuted between Exodus’s node order and VTK’s both ways, and the side
+numbering is checked against the manual’s table. Blocks are chosen on
+write from the tag groups that partition the mesh by type, the rest per
+type. The codec needs netCDF4, the new polyxios[netcdf] extra, and
+refuses with the install line without it.
+
 Optional packages have one rule, polyxios._optpkg.optional_package:
 a module when it imports, and otherwise a stand-in that raises
 MissingPackageError - an UnsupportedFormatError and an
@@ -5994,7 +6110,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:220: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:235: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -6065,7 +6181,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:284: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:299: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -6303,7 +6419,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:508: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:523: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -6341,7 +6457,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:544: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:559: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -7306,7 +7422,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1404: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1419: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -7390,7 +7506,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1472: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1487: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -7438,7 +7554,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1503: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1518: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -7453,7 +7569,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1515: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1530: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -7559,7 +7675,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1588: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1603: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

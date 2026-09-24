@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="VTK RectilinearGrid" />
+<meta property="og:title" content="Exodus II" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/vtr.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/exodus.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".vtr read + write eager Summary of the specification:.vtr is one of the VTK XML serial formats. A&lt;VTKFile type=&quot;RectilinearGrid&quot;&gt; root wraps a piece whose extent is declared as six ..." />
+<meta property="og:description" content=".e.exo.ex2 read + write eager needs netCDF4 Summary of the specification: Exodus II is Sandia’s finite element database: a netCDF file whose dimensions, variables and attributes carry the names the..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtr_4f8c1885.png" />
-<meta property="og:image:alt" content=".vtr read + write eager Summary of the specification:.vtr is one of the VTK XML serial formats. A&lt;VTKFile type=&quot;RectilinearGrid&quot;&gt; root wraps a piece whose extent is declared as six ..." />
-<meta name="description" content=".vtr read + write eager Summary of the specification:.vtr is one of the VTK XML serial formats. A&lt;VTKFile type=&quot;RectilinearGrid&quot;&gt; root wraps a piece whose extent is declared as six ..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_exodus_2f17be7c.png" />
+<meta property="og:image:alt" content=".e.exo.ex2 read + write eager needs netCDF4 Summary of the specification: Exodus II is Sandia’s finite element database: a netCDF file whose dimensions, variables and attributes carry the names the..." />
+<meta name="description" content=".e.exo.ex2 read + write eager needs netCDF4 Summary of the specification: Exodus II is Sandia’s finite element database: a netCDF file whose dimensions, variables and attributes carry the names the..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>VTK RectilinearGrid &#8212; polyxios</title>
+    <title>Exodus II &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/vtr';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/exodus';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/vtr.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/exodus.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="VTK PolyData" href="vtp.html" />
-    <link rel="prev" title="VTK Legacy" href="vtk.html" />
+    <link rel="next" title="Lazy loading" href="../lazy_loading.html" />
+    <link rel="prev" title="HMF" href="hmf.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -424,7 +424,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../usage.html">usage.rst</a></li>
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="vtk.html">VTK Legacy</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">VTK RectilinearGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtr.html">VTK RectilinearGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
@@ -459,7 +459,7 @@
 <li class="toctree-l2"><a class="reference internal" href="cgns.html">CGNS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="h5m.html">H5M (MOAB)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="hmf.html">HMF</a></li>
-<li class="toctree-l2"><a class="reference internal" href="exodus.html">Exodus II</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -539,7 +539,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">VTK RectilinearGrid</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Exodus II</span></li>
   </ul>
 </nav>
 </div>
@@ -556,12 +556,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="vtk-rectilineargrid">
-<span id="format-vtr"></span><h1>VTK RectilinearGrid<a class="headerlink" href="#vtk-rectilineargrid" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+  <section id="exodus-ii">
+<span id="format-exodus"></span><h1>Exodus II<a class="headerlink" href="#exodus-ii" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.e</span></code> <code class="docutils literal notranslate"><span class="pre">.exo</span></code> <code class="docutils literal notranslate"><span class="pre">.ex2</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code> <code class="docutils literal notranslate"><span class="pre">needs</span> <span class="pre">netCDF4</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">.vtr</span></code> is one of the VTK XML serial formats. A <code class="docutils literal notranslate"><span class="pre">&lt;VTKFile</span> <span class="pre">type=&quot;RectilinearGrid&quot;&gt;</span></code> root wraps a piece whose extent is declared as six integer indices, and whose geometry is three independent coordinate arrays - one per axis - rather than an explicit point list. Data arrays live in <code class="docutils literal notranslate"><span class="pre">&lt;PointData&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;CellData&gt;</span></code> and may be stored inline as ASCII, inline as base64, or appended as a single raw block referenced by byte offset, optionally zlib-compressed.</p>
+<p>Exodus II is Sandia’s finite element database: a netCDF file whose dimensions, variables and attributes carry the names the Exodus library fixes. <code class="docutils literal notranslate"><span class="pre">num_nodes</span></code> and <code class="docutils literal notranslate"><span class="pre">coord</span></code> (<code class="docutils literal notranslate"><span class="pre">num_dim</span></code> rows of coordinates, or <code class="docutils literal notranslate"><span class="pre">coordx</span></code> / <code class="docutils literal notranslate"><span class="pre">coordy</span></code> / <code class="docutils literal notranslate"><span class="pre">coordz</span></code>) hold the geometry; the elements come in blocks, one <code class="docutils literal notranslate"><span class="pre">connect&lt;i&gt;</span></code> table per block with an <code class="docutils literal notranslate"><span class="pre">elem_type</span></code> attribute naming the shape - <code class="docutils literal notranslate"><span class="pre">HEX8</span></code>, <code class="docutils literal notranslate"><span class="pre">TETRA10</span></code>, <code class="docutils literal notranslate"><span class="pre">SHELL4</span></code>, <code class="docutils literal notranslate"><span class="pre">BAR2</span></code> - and a 1-based node list per element; <code class="docutils literal notranslate"><span class="pre">node_ns&lt;i&gt;</span></code> lists the node sets, <code class="docutils literal notranslate"><span class="pre">elem_ss&lt;i&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">side_ss&lt;i&gt;</span></code> the side sets - an element and which of its sides - and <code class="docutils literal notranslate"><span class="pre">elem_els&lt;i&gt;</span></code> the element sets, each with an id in <code class="docutils literal notranslate"><span class="pre">*_prop1</span></code> and a name in <code class="docutils literal notranslate"><span class="pre">*_names</span></code>. Results live along a <code class="docutils literal notranslate"><span class="pre">time_step</span></code> record dimension: <code class="docutils literal notranslate"><span class="pre">vals_nod_var&lt;i&gt;</span></code> per nodal variable, <code class="docutils literal notranslate"><span class="pre">vals_elem_var&lt;i&gt;eb&lt;j&gt;</span></code> per element variable and block, <code class="docutils literal notranslate"><span class="pre">vals_glo_var</span></code> for the whole-mesh values, named in <code class="docutils literal notranslate"><span class="pre">name_nod_var</span></code>, <code class="docutils literal notranslate"><span class="pre">name_elem_var</span></code> and <code class="docutils literal notranslate"><span class="pre">name_glo_var</span></code>, with the times in <code class="docutils literal notranslate"><span class="pre">time_whole</span></code>. Cubit writes it, Sierra and MOOSE run on it, ParaView reads it natively.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -571,60 +571,62 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>root</p></td>
-<td><p>&lt;VTKFile type=”RectilinearGrid” version=”1.0” byte_order=”…”&gt;</p></td>
+<tr class="row-odd"><td><p>container</p></td>
+<td><p>netCDF: classic (<code class="docutils literal notranslate"><span class="pre">CDF\x01</span></code>), 64-bit offset (<code class="docutils literal notranslate"><span class="pre">CDF\x02</span></code>), CDF5 (<code class="docutils literal notranslate"><span class="pre">CDF\x05</span></code>) or netCDF-4 (HDF5)</p></td>
 </tr>
 <tr class="row-even"><td><p>geometry</p></td>
-<td><p>&lt;Coordinates&gt; with three &lt;DataArray&gt;, one per axis</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">coord</span></code> <code class="docutils literal notranslate"><span class="pre">(num_dim,</span> <span class="pre">num_nodes)</span></code> float64, or <code class="docutils literal notranslate"><span class="pre">coordx</span></code> / <code class="docutils literal notranslate"><span class="pre">coordy</span></code> / <code class="docutils literal notranslate"><span class="pre">coordz</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>extent</p></td>
-<td><p>WholeExtent / Extent as six integers: x0 x1 y0 y1 z0 z1</p></td>
+<tr class="row-odd"><td><p>elements</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">connect&lt;i&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">(num_el_in_blk&lt;i&gt;,</span> <span class="pre">num_nod_per_el&lt;i&gt;)</span></code> 1-based, <code class="docutils literal notranslate"><span class="pre">elem_type</span></code> names the shape; <code class="docutils literal notranslate"><span class="pre">eb_prop1</span></code> ids, <code class="docutils literal notranslate"><span class="pre">eb_names</span></code> names, <code class="docutils literal notranslate"><span class="pre">attrib&lt;i&gt;</span></code> per-element block attributes</p></td>
 </tr>
-<tr class="row-even"><td><p>storage</p></td>
-<td><p>format=”ascii” | “binary” (base64) | “appended” with offsets</p></td>
+<tr class="row-even"><td><p>sets</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_ns&lt;i&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">elem_ss&lt;i&gt;</span></code> + <code class="docutils literal notranslate"><span class="pre">side_ss&lt;i&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">elem_els&lt;i&gt;</span></code>, each with <code class="docutils literal notranslate"><span class="pre">*_prop1</span></code> and <code class="docutils literal notranslate"><span class="pre">*_names</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>compression</p></td>
-<td><p>optional vtkZLibDataCompressor header</p></td>
+<tr class="row-odd"><td><p>results</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">time_whole</span></code>; <code class="docutils literal notranslate"><span class="pre">vals_nod_var&lt;i&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">vals_elem_var&lt;i&gt;eb&lt;j&gt;</span></code> (<code class="docutils literal notranslate"><span class="pre">elem_var_tab</span></code> says which block holds which), <code class="docutils literal notranslate"><span class="pre">vals_glo_var</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>numbering</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node_num_map</span></code>, <code class="docutils literal notranslate"><span class="pre">elem_num_map</span></code>: the ids the entities carry outside the file</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://examples.vtk.org/site/VTKFileFormats/">Read the full VTK RectilinearGrid specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://sandialabs.github.io/seacas-docs/exodusII-new.pdf">Exodus II manual ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.vtr"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"out.e"</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span><span class="p">[</span><span class="s2">"steel"</span><span class="p">]</span>                <span class="c1"># a block, by its name</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_tags</span><span class="p">[</span><span class="s2">"clamped"</span><span class="p">]</span>               <span class="c1"># a node set</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span><span class="p">[</span><span class="s2">"load_face"</span><span class="p">]</span>            <span class="c1"># a side set, read as faces</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"disp"</span><span class="p">]</span>                 <span class="c1"># disp_x, disp_y, disp_z folded</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"out.e"</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>           <span class="c1"># the fifth time step</span>
 </pre></div>
 </div>
+<p>Every element block is read in file order and becomes an element tag group named by its name, or <code class="docutils literal notranslate"><span class="pre">block_&lt;id&gt;</span></code> when the file names it nothing; a block’s attributes - <code class="docutils literal notranslate"><span class="pre">attrib&lt;i&gt;</span></code> - are element attributes, NaN on the other blocks. A node set is a vertex tag group and an element set an element tag group, named the same way (<code class="docutils literal notranslate"><span class="pre">nodeset_&lt;id&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">elemset_&lt;id&gt;</span></code>). A side set names a side of a solid rather than an element, so it is read the way the <a class="reference internal" href="abaqus.html"><span class="doc">Abaqus</span></a> reader reads a <code class="docutils literal notranslate"><span class="pre">*Surface</span></code>: as the triangle or quadrilateral that side describes, appended after the blocks, tagged with the set’s name and linked to its parent by the <code class="docutils literal notranslate"><span class="pre">face_parent</span></code> and <code class="docutils literal notranslate"><span class="pre">face_index</span></code> element attributes. A side named twice is one face in both groups; a side of a shell or a bar, or a side number the element has no side of, has no face to read and is skipped with a warning naming the set. An empty block - the NULL block Cubit leaves for a set with nothing in it - reads as nothing, its name with it.</p>
+<p>The variables at one time step - the first, or <code class="docutils literal notranslate"><span class="pre">step=</span></code> - are the attributes: nodal variables <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code>, element variables <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code> (NaN on a block the <code class="docutils literal notranslate"><span class="pre">elem_var_tab</span></code> leaves out), global variables <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. Exodus holds scalars only, so a <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_x</span></code> / <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_y</span></code> / <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_z</span></code> triple folds back into one <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> array and a <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_0</span></code> / <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_1</span></code> / … run into an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">k)</span></code> one. The step’s time is <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code> and the file’s title <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;title&quot;]</span></code>; <code class="docutils literal notranslate"><span class="pre">node_num_map</span></code> and <code class="docutils literal notranslate"><span class="pre">elem_num_map</span></code> land in <code class="docutils literal notranslate"><span class="pre">original_ids</span></code> when they say something the index does not - the faces a side set adds carry no id in the file and are numbered on past the largest, so the ids the file holds survive a round trip. A <code class="docutils literal notranslate"><span class="pre">num_dim</span></code> of 2 pads the coordinates and flags the mesh two-dimensional.</p>
+<p>The shape is the block’s family and its node count together - <code class="docutils literal notranslate"><span class="pre">HEX</span></code> with twenty nodes per element reads as <code class="docutils literal notranslate"><span class="pre">HEX20</span></code> does - so a file that spells <code class="docutils literal notranslate"><span class="pre">TETRA</span></code> for a ten-node block reads. A family Exodus does not define raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnknownElementTypeError</span></code>; a count the family has no VTK cell for - <code class="docutils literal notranslate"><span class="pre">HEX9</span></code>, <code class="docutils literal notranslate"><span class="pre">WEDGE16</span></code>, <code class="docutils literal notranslate"><span class="pre">PYRAMID14</span></code>, <code class="docutils literal notranslate"><span class="pre">TETRA14</span></code> - is skipped with a warning, its values and set members with it. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p>
+<p>The codec needs <a class="reference external" href="https://unidata.github.io/netcdf4-python/">netCDF4</a>, which is optional - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[netcdf]&quot;</span></code>. Without it <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> spells that command.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtr"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.e"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+<p>Exodus partitions the elements into blocks of one shape each, so the writer has to choose them: a tag group whose members are all of one type and overlap no group already taken goes out as a block of its name, and every element left over goes into a block per type, named <code class="docutils literal notranslate"><span class="pre">triangle</span></code>, <code class="docutils literal notranslate"><span class="pre">tetra</span></code> and so on - <code class="docutils literal notranslate"><span class="pre">tetra_2</span></code> when a group already took the plain name, so the two never read back as one tag. A group whose members are all faces of solids - what a side set reads back as - goes out as a side set, and its faces are not written as elements unless another group names them; every other element group is an element set and every vertex group a node set. The variables are written at one time step: an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> attribute as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_x</span></code> / <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_y</span></code> / <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_z</span></code>, any other <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">k)</span></code> as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_0</span></code> to <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_{k-1}</span></code> - an array of more axes flattened to that first, an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">1)</span></code> one as <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;_0</span></code> alone, so neither reads back in its shape - integers and booleans as doubles. A name two attributes would land on (<code class="docutils literal notranslate"><span class="pre">v</span></code> split beside a plain <code class="docutils literal notranslate"><span class="pre">v_x</span></code>) is written once, from the first, with a warning; a value on a face that goes out as a side has no place in the file and is dropped with a warning too. Numeric <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> are global variables, <code class="docutils literal notranslate"><span class="pre">title</span></code> the file’s title, <code class="docutils literal notranslate"><span class="pre">time</span></code> the step’s time; any other text is dropped with a warning. The file is classic netCDF with 64-bit offsets, CDF5 when an index needs 64 bits, netCDF-4 for an empty mesh.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>A tag group has no set of its own in this format, so it travels as one <code class="docutils literal notranslate"><span class="pre">PointData</span></code> or <code class="docutils literal notranslate"><span class="pre">CellData</span></code> column of ones and zeros named <code class="docutils literal notranslate"><span class="pre">polyxios_tag_&lt;group&gt;</span></code>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <code class="docutils literal notranslate"><span class="pre">&lt;Piece&gt;</span></code> alike, and written back from <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> holds a <code class="docutils literal notranslate"><span class="pre">String</span></code> array beside its numeric ones, so a <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.</p></li>
-<li><p>The <code class="docutils literal notranslate"><span class="pre">vtr_*</span></code> grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> entry does.</p></li>
-<li><p>The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.</p></li>
-<li><p>Appended and base64 payloads are decoded eagerly, and <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code> rather than pretending otherwise - the XML container has no seekable layout for mmap.</p></li>
-<li><p>Multi-component attributes declare and honour <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code>, so an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> vector survives a round trip rather than coming back as <code class="docutils literal notranslate"><span class="pre">3n</span></code> rows.</p></li>
-<li><p>Binary arrays are written in the type their <code class="docutils literal notranslate"><span class="pre">&lt;DataArray&gt;</span></code> declares, so an integer attribute stays an integer one.</p></li>
-<li><p>An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every <code class="docutils literal notranslate"><span class="pre">CellData</span></code> array belonging to nothing.</p></li>
-<li><p>The writer holds a lattice and nothing else, and says so rather than spelling a file its own reader refuses. The extent is read off the cells, and the three coordinate arrays are then read off the vertices a stride at a time - so an axis that runs downwards keeps its direction rather than being sorted round under its own point data. A mesh whose vertices are not that lattice expanded, in the order the file reads them back, raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>; so do cells that are not the grid’s own, which the file carries no connectivity for and would drop with their <code class="docutils literal notranslate"><span class="pre">CellData</span></code>. Write a <a class="reference internal" href="vts.html"><span class="doc">VTK StructuredGrid</span></a> for points that are not a lattice, or a <a class="reference internal" href="vtu.html"><span class="doc">VTK UnstructuredGrid</span></a> for an arbitrary mesh.</p></li>
-<li><p>A mesh with no vertices writes the extent VTK spells an empty grid with, <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">-1</span></code>, and reads back as a mesh with none.</p></li>
-<li><p>An extent that ends before it starts on any axis holds no points, so it holds no cells either - <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">-1</span> <span class="pre">0</span> <span class="pre">2</span> <span class="pre">0</span> <span class="pre">2</span></code> reads as an empty mesh rather than as four quads whose corners name points the file never spelled.</p></li>
-<li><p>The extent counts the planes and the coordinate arrays spell them, and nothing in the file makes the two agree. An array of a different length raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming its axis: the cells, the offsets and every <code class="docutils literal notranslate"><span class="pre">PointData</span></code> array are sized off the extent, so a longer one used to expand into a mesh whose connectivity covered part of itself and whose attributes covered none of it. Every axis is asked, including one the extent gives no plane at all - the point count is a product and goes to zero on such an axis, but the vertices are built from the coordinates, so a file spelling one anyway came back as a mesh the extent called empty. An axis the file leaves no array for at all takes its one plane at zero, which is how a 2-D grid writes its z.</p></li>
-<li><p>The extent of the file a mesh was read from travels with it, so a block that did not begin at zero is written back at the indices it stood on rather than slid to the origin - which is what a <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> assembling it next to its neighbours reads. It is checked against the mesh at the point of writing rather than trusted: one a transform has moved the mesh out from under is re-derived from the cells.</p></li>
+<li><p><strong>Node order.</strong> VTK’s for every shape but the quadratic hexahedra and wedges: Exodus lists a <code class="docutils literal notranslate"><span class="pre">HEX20</span></code>’s mid-edge nodes bottom ring, vertical edges, top ring where VTK lists bottom, top, vertical, and a <code class="docutils literal notranslate"><span class="pre">WEDGE15</span></code> the same way; a <code class="docutils literal notranslate"><span class="pre">HEX27</span></code> puts the centroid first and the face centres bottom, top, left, right, front, back - nodes 22 to 27 of the manual’s side-set table - where VTK orders them by axis with the centroid last. Both are permuted on the way in and back on the way out, so a reader that trusted the file’s order would hand back a hexahedron whose top edges sit on its vertical ones.</p></li>
+<li><p><strong>Side numbering.</strong> Exodus counts a solid’s lateral faces first and the ends last; polyxios’s <code class="docutils literal notranslate"><span class="pre">ELEMENT_FACES</span></code> puts the ends first. The table between them is checked in the tests against the manual’s side-set node lists, so a side set read here names the face the manual names.</p></li>
+<li><p><strong>Blocks come back as tags.</strong> A mesh written with no tags reads back with one tag per block - <code class="docutils literal notranslate"><span class="pre">triangle</span></code>, <code class="docutils literal notranslate"><span class="pre">tetra</span></code> - because the file holds the partition and the reader reports what the file holds. A mesh whose tags partition it by type goes out under those names and comes back under them.</p></li>
+<li><p><strong>A pixel and a voxel</strong> go out as the quad and hexahedron they are, corners reordered.</p></li>
+<li><p><strong>Buffers.</strong> A file object reads through the netCDF library’s in-memory open and writes through a temporary file, so a buffer receives the same bytes a path would. A <code class="docutils literal notranslate"><span class="pre">.gz</span></code> name is compressed on the way out and read on the way in like any other format.</p></li>
+<li><p>Every element type the file holds a block for is read; a <code class="docutils literal notranslate"><span class="pre">NSIDED</span></code> or <code class="docutils literal notranslate"><span class="pre">NFACED</span></code> block - polygons and polyhedra - is not, and is skipped with a warning.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -644,20 +646,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="vtk.html"
+       href="hmf.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">VTK Legacy</p>
+        <p class="prev-next-title">HMF</p>
       </div>
     </a>
     <a class="right-next"
-       href="vtp.html"
+       href="../lazy_loading.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">VTK PolyData</p>
+        <p class="prev-next-title">Lazy loading</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -692,7 +694,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/vtr.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/exodus.rst">
       <i class="fa-solid fa-pencil"></i>
       
       
