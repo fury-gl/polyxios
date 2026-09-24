@@ -236,6 +236,8 @@ _NO_DECLARED_COUNT: frozenset[str] = frozenset(
         ".stl",
         ".splat",
         ".vtm",
+        # Every vertex and triangle is an XML element of its own; no count.
+        ".3mf",
         # Write-only: there is no reader for a count to reach.
         ".svg",
         # Every array is an HDF5 dataset of its own size; nothing declares one.
