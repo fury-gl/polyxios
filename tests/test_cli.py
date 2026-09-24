@@ -294,6 +294,33 @@ def test_cli_convert(temp_polyxios_home, monkeypatch, capsys):
     assert len(poly_out.vertices) == 3
 
 
+@pytest.mark.filterwarnings("default")
+def test_cli_reports_codec_warnings_without_source_location(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A codec warning reads like CLI advice, not a Python traceback fragment."""
+    input_path = temp_polyxios_home / "seam.obj"
+    output_path = temp_polyxios_home / "seam.vtk"
+    input_path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nvn 0 0 1\nvn 0 1 0\n"
+        "f 1//1 2//1 3//1\nf 1//2 2//2 3//2\n"
+    )
+
+    monkeypatch.setattr(
+        sys, "argv", ["pxios", "convert", str(input_path), str(output_path)]
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+
+    captured = capsys.readouterr()
+    assert "WARNING: UserWarning: .obj: a vertex is given more than one normal" in (
+        captured.err
+    )
+    assert "helper.py" not in captured.err
+    assert "polyxios.read(" not in captured.err
+
+
 def test_cli_list(temp_polyxios_home, monkeypatch, capsys):
     models_file = temp_polyxios_home / "models.json"
     mock_catalog = {

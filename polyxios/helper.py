@@ -483,6 +483,9 @@ def visualize_mesh(
     points : bool, optional
         Render strictly as a point cloud.
     """
+    # Importing FURY and creating the window take a couple of seconds; say so
+    # rather than go silent after the load report.
+    logger.info("  Opening FURY window ...")
     try:
         from fury import actor, window
     except ImportError as e:

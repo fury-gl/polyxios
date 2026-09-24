@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+import warnings
 
 import polyxios
 
@@ -31,14 +32,44 @@ class _Formatter(logging.Formatter):
         return message
 
 
+def _log_warning(message, category, filename, lineno, file=None, line=None):
+    """Report a Python warning as a CLI log record.
+
+    Replaces ``warnings.showwarning`` for the lifetime of the process: a codec
+    warning about the file being read is user-facing advice, so it is printed
+    like any other CLI warning rather than with the library source location
+    and code line that the default hook prepends.
+
+    Parameters
+    ----------
+    message : Warning or str
+        The warning instance or text.
+    category : type
+        The warning class.
+    filename : str
+        Source file that triggered the warning; not reported.
+    lineno : int
+        Source line that triggered the warning; not reported.
+    file : file-like, optional
+        Ignored; output goes to the CLI logger.
+    line : str, optional
+        Ignored; output goes to the CLI logger.
+    """
+    logger.warning(f"{category.__name__}: {message}")
+
+
 def _setup_logging(*, verbose: bool = False):
     """Configure stream handlers for CLI logging: stdout for INFO, stderr for WARNING+.
+
+    Python warnings are routed through the same handlers, see
+    :func:`_log_warning`.
 
     Parameters
     ----------
     verbose : bool, optional
         Emit DEBUG records and attach tracebacks to reported failures.
     """
+    warnings.showwarning = _log_warning
     logger.handlers.clear()
 
     class InfoFilter(logging.Filter):
@@ -380,7 +411,7 @@ def main():
     viz_parser.add_argument(
         "filename",
         help=(
-            "Filename to fetch and visualize (e.g. 'mesh.vtk', 'bunny.obj'), or a "
+            "Filename to fetch and visualize (e.g. 'stanford-bunny.obj'), or a "
             "local path (relative or absolute)."
         ),
     )
