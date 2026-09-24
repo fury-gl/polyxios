@@ -226,6 +226,7 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 | Wavefront OBJ | `.obj` | ✓ | ✓ | `vt`/`vn` round trip, groups → element tags |
 | Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary |
 | STL | `.stl` | ✓ | ✓ | lazy: binary, which skips vertex deduplication |
+| 3MF | `.3mf` | ✓ | ✓ | objects → element tags, assemblies placed by transform, materials → `colors`, `unit` in `global_attrs` |
 | OFF | `.off` | ✓ | ✓ | ASCII + big-endian binary, `ST`/`C`/`N` variants → vertex/face attrs |
 | AVS-UCD | `.avs` | ✓ | ✓ | node/cell/model data → attrs |
 | Medit binary | `.meshb` | ✓ | ✓ | a path is always mmapped; no `lazy=` needed |
@@ -287,7 +288,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**37 formats supported** across the 46 extensions in the tables, plus `.plt`, which
+**38 formats supported** across the 47 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

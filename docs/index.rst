@@ -3,7 +3,7 @@
 .. title:: polyxios - fast, clean mesh I/O for Python
 
 .. meta::
-   :description: polyxios reads and writes 37 3D mesh and geometry file formats
+   :description: polyxios reads and writes 38 3D mesh and geometry file formats
       in Python through one API - VTK, OBJ, PLY, STL, Gmsh, Abaqus, Nastran and
       more - with NumPy as its only dependency. Raises on malformed input
       instead of silently truncating, and memory-maps files larger than RAM.
