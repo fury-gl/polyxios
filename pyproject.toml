@@ -88,6 +88,11 @@ viz = [
 hdf5 = [
     "h5py>=3.0",
 ]
+# Exodus II is a netCDF file. Without it the format is refused with the
+# install line that fixes it.
+netcdf = [
+    "netCDF4>=1.6",
+]
 
 [project.scripts]
 pxios = "polyxios.cli:main"

@@ -557,6 +557,19 @@ CAPABILITIES: dict[str, Cap] = {
         global_attrs=("gnum",),
         requires="h5py",
     ),
+    ".e": Cap(
+        "mixed",
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b", "quad", "tetra"),
+        global_attrs=("gnum", "time"),
+        note="Exodus partitions the elements into blocks: a tag group of one"
+        " type that overlaps no other goes out as a block of its name, the"
+        " rest as a block per type, and every block reads back as a tag. The"
+        " variables live on a time step, so the step's time comes back too.",
+        requires="netCDF4",
+    ),
     ".gltf": Cap(
         "surface",
         geometry=False,
@@ -568,7 +581,9 @@ CAPABILITIES: dict[str, Cap] = {
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
-_ALIASES: frozenset[str] = frozenset({".nas", ".fem", ".node", ".post", ".glb", ".xmf"})
+_ALIASES: frozenset[str] = frozenset(
+    {".nas", ".fem", ".node", ".post", ".glb", ".xmf", ".exo", ".ex2"}
+)
 
 # Registered so the error names the format, never to be written. Each is
 # asserted below, so an entry cannot be parked here to escape the matrix.
