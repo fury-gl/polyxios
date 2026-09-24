@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+import warnings
 
 import polyxios
 
@@ -29,6 +30,45 @@ class _Formatter(logging.Formatter):
         if record.exc_info:
             message = f"{message}\n{self.formatException(record.exc_info)}"
         return message
+
+
+def _log_warning(message, category, filename, lineno, file=None, line=None):
+    """Report a Python warning as a CLI log record.
+
+    Installed as ``warnings.showwarning`` by :func:`main` for the duration
+    of a command, inside a ``warnings.catch_warnings`` block so the previous
+    hook is restored when ``main()`` is driven from Python rather than the
+    console script. A codec warning about the file being read is user-facing
+    advice, so it is printed like any other CLI warning rather than with the
+    library source location and code line that the default hook prepends;
+    ``--verbose`` appends ``(filename:lineno)`` for bug reports. The class
+    name is dropped for ``UserWarning`` and its subclasses, the classes codecs
+    raise, where it would only repeat the ``WARNING:`` prefix; every other
+    class (``DeprecationWarning``, ``RuntimeWarning``, ...) is named.
+
+    Parameters
+    ----------
+    message : Warning or str
+        The warning instance or text.
+    category : type
+        The warning class.
+    filename : str
+        Source file that triggered the warning; reported under ``--verbose``.
+    lineno : int
+        Source line that triggered the warning; reported under ``--verbose``.
+    file : file-like, optional
+        Ignored; output goes to the CLI logger.
+    line : str, optional
+        Ignored; output goes to the CLI logger.
+    """
+    text = (
+        str(message)
+        if issubclass(category, UserWarning)
+        else f"{category.__name__}: {message}"
+    )
+    if logger.isEnabledFor(logging.DEBUG):
+        text = f"{text} ({filename}:{lineno})"
+    logger.warning(text)
 
 
 def _setup_logging(*, verbose: bool = False):
@@ -380,7 +420,7 @@ def main():
     viz_parser.add_argument(
         "filename",
         help=(
-            "Filename to fetch and visualize (e.g. 'mesh.vtk', 'bunny.obj'), or a "
+            "Filename to fetch and visualize (e.g. 'stanford-bunny.obj'), or a "
             "local path (relative or absolute)."
         ),
     )
@@ -429,7 +469,9 @@ def main():
     # SUPPRESS leaves the attribute out entirely when the flag is never given.
     args.verbose = getattr(args, "verbose", False)
     _setup_logging(verbose=args.verbose)
-    sys.exit(args.func(args))
+    with warnings.catch_warnings():
+        warnings.showwarning = _log_warning
+        sys.exit(args.func(args))
 
 
 if __name__ == "__main__":

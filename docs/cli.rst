@@ -9,9 +9,10 @@ polyxios comes with a command-line interface ``pxios`` to quickly fetch, list,
 convert, and visualize 3D models.
 
 ``--verbose`` can be given on either side of the subcommand (e.g.
-``pxios --verbose fetch bunny.obj`` or ``pxios fetch bunny.obj --verbose``) to
-print debug logs and full tracebacks when a command fails. ``pxios --version``
-prints the installed version and exits.
+``pxios --verbose fetch stanford-bunny.obj`` or
+``pxios fetch stanford-bunny.obj --verbose``) to print debug logs and full
+tracebacks when a command fails. ``pxios --version`` prints the installed
+version and exits.
 
 Subcommands
 -----------
@@ -26,7 +27,7 @@ Subcommands
     *   ``--codecs``: Lists all formats supported by polyxios codecs.
 
 *   ``pxios fetch <filename|extension>``: Downloads and caches a single model
-    file (e.g., ``bunny.obj``) or every model catalogued for an extension
+    file (e.g., ``stanford-bunny.obj``) or every model catalogued for an extension
     (e.g., ``obj`` or ``.obj``).
 
     *   ``--overwrite``: Download again over a file already in the cache.
@@ -52,13 +53,13 @@ Example commands
     pxios list
 
     # Fetch a single model
-    pxios fetch bunny.obj
+    pxios fetch stanford-bunny.obj
 
     # Fetch every model catalogued for an extension
     pxios fetch vtk
 
     # Convert a mesh file
-    pxios convert bunny.obj bunny.vtk
+    pxios convert stanford-bunny.obj bunny.vtk
 
     # Visualize a model
-    pxios viz bunny.obj
+    pxios viz stanford-bunny.obj

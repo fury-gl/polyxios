@@ -494,6 +494,9 @@ def visualize_mesh(
     if len(polydata.vertices) == 0:
         return
 
+    # Actor construction takes seconds; do not go silent after the load report.
+    logger.info("  Opening FURY window ...")
+
     # transforms.vertex_colors picks the first (n_verts, >= 3) attribute and
     # normalizes it to floats in [0, 1], which is what the actors expect.
     colors = transforms.vertex_colors(polydata)

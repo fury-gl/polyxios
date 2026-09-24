@@ -2,8 +2,11 @@ import io
 import json
 import logging
 import os
+import re
 import sys
+import types
 import urllib.request
+import warnings
 import zipfile
 
 import numpy as np
@@ -11,8 +14,9 @@ import pytest
 
 import polyxios
 from polyxios import make_polydata
-from polyxios.cli import logger as cli_logger, main
+from polyxios.cli import _log_warning, _setup_logging, logger as cli_logger, main
 from polyxios.fetcher import fetch
+from polyxios.helper import visualize_mesh
 
 
 @pytest.fixture
@@ -190,6 +194,7 @@ def test_cli_viz_points(temp_polyxios_home, monkeypatch, capsys):
         main()
     assert excinfo.value.code == 0
     captured = capsys.readouterr()
+    assert "Opening FURY window ..." in captured.out
     assert "Rendering strictly as point cloud" in captured.out
 
 
@@ -209,6 +214,8 @@ def test_cli_viz_no_fury(temp_polyxios_home, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert "FURY is not installed" in captured.err
+    # No window is about to open, so the CLI must not say one is.
+    assert "Opening FURY window" not in captured.out
 
 
 def test_cli_list_local(temp_polyxios_home, monkeypatch, capsys):
@@ -292,6 +299,97 @@ def test_cli_convert(temp_polyxios_home, monkeypatch, capsys):
     assert output_path.exists()
     poly_out = polyxios.read(str(output_path))
     assert len(poly_out.vertices) == 3
+
+
+def _write_seam_obj(path):
+    """Write a triangle pair whose shared vertices carry two different normals."""
+    path.write_text(
+        "v 0 0 0\nv 1 0 0\nv 0 1 0\nvn 0 0 1\nvn 0 1 0\n"
+        "f 1//1 2//1 3//1\nf 1//2 2//2 3//2\n"
+    )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_reports_codec_warnings_without_source_location(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A codec warning reads like CLI advice, not a Python traceback fragment."""
+    input_path = temp_polyxios_home / "seam.obj"
+    output_path = temp_polyxios_home / "seam.vtk"
+    _write_seam_obj(input_path)
+
+    monkeypatch.setattr(
+        sys, "argv", ["pxios", "convert", str(input_path), str(output_path)]
+    )
+    hook_before = warnings.showwarning
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+    assert warnings.showwarning is hook_before
+
+    captured = capsys.readouterr()
+    lines = [ln for ln in captured.err.splitlines() if ln.startswith("WARNING: ")]
+    assert len(lines) == 1
+    assert re.fullmatch(
+        r"WARNING: \.obj: a vertex is given more than one normal, .*[^)]", lines[0]
+    )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_verbose_keeps_codec_warning_source_location(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """``--verbose`` appends the ``(file:line)`` a bug report needs."""
+    input_path = temp_polyxios_home / "seam.obj"
+    output_path = temp_polyxios_home / "seam.vtk"
+    _write_seam_obj(input_path)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pxios", "convert", str(input_path), str(output_path), "--verbose"],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 0
+
+    captured = capsys.readouterr()
+    lines = [ln for ln in captured.err.splitlines() if ln.startswith("WARNING: ")]
+    assert len(lines) == 1
+    assert re.search(r" \(.+\.py:\d+\)$", lines[0])
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        (UserWarning, "WARNING: careful"),
+        (type("ObjWarning", (UserWarning,), {}), "WARNING: careful"),
+        (DeprecationWarning, "WARNING: DeprecationWarning: careful"),
+    ],
+)
+def test_cli_warning_prefix_names_only_actionable_classes(
+    capsys, monkeypatch, category, expected
+):
+    """A ``UserWarning`` subclass reads as plain advice; other classes are named."""
+    monkeypatch.setattr(cli_logger, "handlers", [])
+    _setup_logging()
+    _log_warning("careful", category, "codec.py", 12)
+    assert capsys.readouterr().err.splitlines() == [expected]
+
+
+def test_visualize_mesh_empty_does_not_announce_window(monkeypatch, capsys):
+    """An empty mesh opens no window, so nothing may say one is opening."""
+    fake_fury = types.ModuleType("fury")
+    fake_fury.actor = types.SimpleNamespace()
+    fake_fury.window = types.SimpleNamespace()
+    monkeypatch.setitem(sys.modules, "fury", fake_fury)
+    monkeypatch.setattr(cli_logger, "handlers", [])
+    _setup_logging()
+
+    empty = make_polydata(np.empty((0, 3), dtype=np.float64), [])
+    visualize_mesh(empty)
+
+    assert "Opening FURY window" not in capsys.readouterr().out
 
 
 def test_cli_list(temp_polyxios_home, monkeypatch, capsys):
