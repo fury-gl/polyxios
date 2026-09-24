@@ -9,6 +9,7 @@ py.install_sources(
     '_cgns.py',
     '_avs.py',
     '_dolfin.py',
+    '_exodus.py',
     '_flac3d.py',
     '_fluent.py',
     '_gmsh.py',

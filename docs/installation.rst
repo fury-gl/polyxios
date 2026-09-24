@@ -50,3 +50,6 @@ Optional:
   XDMF's inline and binary flavours still read and write, and an HDF5 file or
   reference raises :class:`~polyxios.exceptions.UnsupportedFormatError`
   naming the extra.
+- netCDF4 >= 1.6, for :doc:`Exodus II <formats/exodus>` files -
+  ``pip install "polyxios[netcdf]"``. Without it the format raises
+  :class:`~polyxios.exceptions.UnsupportedFormatError` naming the extra.

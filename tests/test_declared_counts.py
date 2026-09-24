@@ -192,10 +192,21 @@ def _corrupt_h5m(path) -> None:
         tags.create_dataset("values", data=np.array([b"s"], dtype="S32"))
 
 
+def _corrupt_exodus(path) -> None:
+    # A netCDF header declares its dimensions up front, so a node count no
+    # file could hold costs a few bytes to spell; CDF5 is the flavour whose
+    # dimensions are 64-bit.
+    netcdf4 = pytest.importorskip("netCDF4")
+    with netcdf4.Dataset(path, "w", format="NETCDF3_64BIT_DATA") as f:
+        f.createDimension("num_dim", 3)
+        f.createDimension("num_nodes", BIG)
+
+
 CORRUPT_HDF5: dict[str, Callable] = {
     ".med": _corrupt_med,
     ".cgns": _corrupt_cgns,
     ".h5m": _corrupt_h5m,
+    ".e": _corrupt_exodus,
 }
 
 
@@ -267,6 +278,8 @@ def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
         ".pvtu": ".vtu",
         ".glb": ".gltf",
         ".xmf": ".xdmf",
+        ".exo": ".e",
+        ".ex2": ".e",
     }
     outstanding = {
         ext
