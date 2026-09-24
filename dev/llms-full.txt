@@ -188,11 +188,15 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
     </div>
     <div class="px-panel">
       <div class="px-panel-head"><span>bash - 80&times;24</span></div>
-<pre class="px-code"><span class="p">$</span> pxios fetch bunny.obj
-<span class="c">  cached -&gt; ~/.polyxios/bunny.obj  (2.9 MB)</span>
+<pre class="px-code"><span class="p">$</span> pxios fetch stanford-bunny.obj
+<span class="c">  Successfully fetched to: ~/.polyxios/obj/stanford-bunny.obj</span>
 
-<span class="p">$</span> pxios convert bunny.obj bunny.vtk
-<span class="c">  35947 vertices &middot; 69451 triangles &middot; 0.4s</span>
+<span class="p">$</span> pxios convert stanford-bunny.obj bunny.vtk
+<span class="c">  Reading 'stanford-bunny.obj'...
+  Read in 0.1680 seconds
+  Writing to 'bunny.vtk'...
+  Wrote in 0.0476 seconds
+  Conversion successful.</span>
 
 <span class="p">$</span> pxios list --codecs
 <span class="c">  File formats supported by polyxios codecs:
@@ -201,12 +205,18 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
     medit (.medit, .meshb)
     medit/mesh (.mesh)
     ...
+    permas/tecplot/nastran (.dat)
+    ...
     tecplot (.plt, .tec)
-    tecplot/nastran (.dat)
     ...
     wkt (.wkt)</span>
 
-<span class="p">$</span> pxios viz bunny.vtk --points<span class="px-cursor">&#9608;</span></pre>
+<span class="p">$</span> pxios viz bunny.vtk --points
+<span class="c">  Reading bunny.vtk ...
+  Loaded in 0.0814 seconds
+  35947 vertices | 69451 elements | vertex attrs: none
+  Opening FURY window ...
+  Rendering strictly as point cloud per --points request.</span><span class="px-cursor" aria-hidden="true">&#9608;</span></pre>
     </div>
   </section>
 
@@ -4357,9 +4367,10 @@ polyxios comes with a command-line interface pxios to quickly fetch, list,
 convert, and visualize 3D models.
 
 --verbose can be given on either side of the subcommand (e.g.
-pxios --verbose fetch bunny.obj or pxios fetch bunny.obj --verbose) to
-print debug logs and full tracebacks when a command fails. pxios --version
-prints the installed version and exits.
+pxios --verbose fetch stanford-bunny.obj or
+pxios fetch stanford-bunny.obj --verbose) to print debug logs and full
+tracebacks when a command fails. pxios --version prints the installed
+version and exits.
 
 Subcommands
 
@@ -4375,7 +4386,7 @@ available in the remote catalog.
 --codecs: Lists all formats supported by polyxios codecs.
 
 pxios fetch <filename|extension>: Downloads and caches a single model
-file (e.g., bunny.obj) or every model catalogued for an extension
+file (e.g., stanford-bunny.obj) or every model catalogued for an extension
 (e.g., obj or .obj).
 
 --overwrite: Download again over a file already in the cache.
@@ -4399,16 +4410,16 @@ Example commands
 pxios list
 
 # Fetch a single model
-pxios fetch bunny.obj
+pxios fetch stanford-bunny.obj
 
 # Fetch every model catalogued for an extension
 pxios fetch vtk
 
 # Convert a mesh file
-pxios convert bunny.obj bunny.vtk
+pxios convert stanford-bunny.obj bunny.vtk
 
 # Visualize a model
-pxios viz bunny.obj
+pxios viz stanford-bunny.obj
 
 ## Plugin system
 

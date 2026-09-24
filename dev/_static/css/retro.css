@@ -693,7 +693,8 @@ pre.px-code {
 pre.px-code .k, pre.px-code .c { color: var(--px-dim); }
 pre.px-code .s { color: var(--px-accent-2); }
 pre.px-code .b, pre.px-code .p { color: var(--px-accent); }
-.px-cursor { color: var(--px-accent); animation: px-blink 1.1s steps(1) infinite; }
+/* decoration only: a drag-select across the panel must not paste it into a shell */
+.px-cursor { color: var(--px-accent); animation: px-blink 1.1s steps(1) infinite; -webkit-user-select: none; user-select: none; }
 @keyframes px-blink { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
 
 .px-section { border-top: 1px solid var(--px-line); padding: 3rem 0; }

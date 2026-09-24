@@ -12,11 +12,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/cli.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios comes with a command-line interface pxios to quickly fetch, list, convert, and visualize 3D models.--verbose can be given on either side of the subcommand (e.g. pxios --verbose fetch bunny..." />
+<meta property="og:description" content="polyxios comes with a command-line interface pxios to quickly fetch, list, convert, and visualize 3D models.--verbose can be given on either side of the subcommand (e.g. pxios --verbose fetch stanf..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
 <meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_cli_108cc2f3.png" />
-<meta property="og:image:alt" content="polyxios comes with a command-line interface pxios to quickly fetch, list, convert, and visualize 3D models.--verbose can be given on either side of the subcommand (e.g. pxios --verbose fetch bunny..." />
+<meta property="og:image:alt" content="polyxios comes with a command-line interface pxios to quickly fetch, list, convert, and visualize 3D models.--verbose can be given on either side of the subcommand (e.g. pxios --verbose fetch stanf..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -44,7 +44,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=191de15f" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=0d90afc5"></script>
+    <script src="_static/documentation_options.js?v=b8a1a98d"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -558,9 +558,10 @@
 <p>polyxios comes with a command-line interface <code class="docutils literal notranslate"><span class="pre">pxios</span></code> to quickly fetch, list,
 convert, and visualize 3D models.</p>
 <p><code class="docutils literal notranslate"><span class="pre">--verbose</span></code> can be given on either side of the subcommand (e.g.
-<code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">--verbose</span> <span class="pre">fetch</span> <span class="pre">bunny.obj</span></code> or <code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span> <span class="pre">bunny.obj</span> <span class="pre">--verbose</span></code>) to
-print debug logs and full tracebacks when a command fails. <code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">--version</span></code>
-prints the installed version and exits.</p>
+<code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">--verbose</span> <span class="pre">fetch</span> <span class="pre">stanford-bunny.obj</span></code> or
+<code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span> <span class="pre">stanford-bunny.obj</span> <span class="pre">--verbose</span></code>) to print debug logs and full
+tracebacks when a command fails. <code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">--version</span></code> prints the installed
+version and exits.</p>
 <section id="subcommands">
 <h2>Subcommands<a class="headerlink" href="#subcommands" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -575,7 +576,7 @@ available in the remote catalog.</p></li>
 </ul>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">pxios</span> <span class="pre">fetch</span> <span class="pre">&lt;filename|extension&gt;</span></code>: Downloads and caches a single model
-file (e.g., <code class="docutils literal notranslate"><span class="pre">bunny.obj</span></code>) or every model catalogued for an extension
+file (e.g., <code class="docutils literal notranslate"><span class="pre">stanford-bunny.obj</span></code>) or every model catalogued for an extension
 (e.g., <code class="docutils literal notranslate"><span class="pre">obj</span></code> or <code class="docutils literal notranslate"><span class="pre">.obj</span></code>).</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">--overwrite</span></code>: Download again over a file already in the cache.</p></li>
@@ -603,16 +604,16 @@ rendering as a surface/point cloud.</p></li>
 pxios<span class="w"> </span>list
 
 <span class="c1"># Fetch a single model</span>
-pxios<span class="w"> </span>fetch<span class="w"> </span>bunny.obj
+pxios<span class="w"> </span>fetch<span class="w"> </span>stanford-bunny.obj
 
 <span class="c1"># Fetch every model catalogued for an extension</span>
 pxios<span class="w"> </span>fetch<span class="w"> </span>vtk
 
 <span class="c1"># Convert a mesh file</span>
-pxios<span class="w"> </span>convert<span class="w"> </span>bunny.obj<span class="w"> </span>bunny.vtk
+pxios<span class="w"> </span>convert<span class="w"> </span>stanford-bunny.obj<span class="w"> </span>bunny.vtk
 
 <span class="c1"># Visualize a model</span>
-pxios<span class="w"> </span>viz<span class="w"> </span>bunny.obj
+pxios<span class="w"> </span>viz<span class="w"> </span>stanford-bunny.obj
 </pre></div>
 </div>
 </section>
