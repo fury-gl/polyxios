@@ -12,6 +12,25 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- ``read(..., lazy=True)`` hands back arrays that view the file's own
+  mapping, read-only and in the dtype and byte order the file holds, for
+  every array a format stores as one run of bytes in the shape the mesh
+  needs. VTU and VTP files with a raw appended section map their points,
+  connectivity and attributes; the writers gain ``appended=True`` to emit
+  that layout, a third smaller than base64. XDMF maps a binary sidecar, and
+  an HDF5 dataset stored contiguously without a filter through the offset
+  h5py reports. ``.splat`` maps everything, a binary legacy VTK v5.1 file
+  every block and a v4.2 file its points and attributes, and binary PLY and
+  Medit ``.meshb`` their vertex records. What cannot be a view is built in
+  memory and the guide says which; what cannot be mapped at all raises
+  ``LazyReadError`` naming why. Before this, every lazy read copied its
+  arrays like an eager one and the guide said otherwise.
+- Reading a VTK XML file no longer walks its cells in Python nor re-slices
+  the appended section for every array, and a binary legacy VTK file reads
+  its blocks in place: a ten-million-point ``.vtu`` reads in half a second
+  instead of fourteen, a v5.1 ``.vtk`` in half a second instead of nine.
+  Cell offsets that run backwards or past the connectivity raise
+  ``CodecError`` naming the piece instead of silently dropping cells.
 - XDMF (``.xdmf``, ``.xmf``) is read and written: XML light data over
   heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
   ``DataItem`` flavour read - a ``HyperSlab`` and a ``Reference`` by XPath

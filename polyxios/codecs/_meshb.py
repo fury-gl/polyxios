@@ -113,8 +113,14 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
     path
         Path to the .meshb file.
     lazy
-        Accepted for API consistency; ignored. A path is always mapped,
-        and a file object always read into memory, whichever it is set to.
+        Keep the mapping open and hand back the vertices as a read-only
+        view of it, in the file's own dtype: each vertex record is its
+        coordinates then a reference, so the coordinates are one strided
+        ``(n, 3)`` array over the records. The elements are copied either
+        way, since the file numbers vertices from one and CSR needs them
+        from zero. A ``Dimension 2`` file is padded to three columns, which
+        is a copy too. Needs a path or a handle over a regular file at its
+        start.
 
     Returns
     -------
@@ -131,16 +137,11 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
     ------
     CodecError
         On unrecognised magic number, unsupported version, or truncated data.
+    LazyReadError
+        If ``lazy`` is set and the source cannot be mapped.
     """
-    if lazy:
-        warnings.warn(
-            "lazy=True ignored for .meshb; a path is mapped and a file"
-            " object read into memory either way.",
-            UserWarning,
-            stacklevel=2,
-        )
-    with open_block(path, fmt=".meshb") as block:
-        return _decode(block)
+    with open_block(path, fmt=".meshb", require_map=lazy) as block:
+        return _decode(block, lazy=lazy)
 
 
 def write(*, poly: PolyData, path: Source) -> None:
@@ -509,7 +510,7 @@ def _scan_sections(
     return sections
 
 
-def _decode(mm: mmap.mmap | bytes) -> PolyData:
+def _decode(mm: mmap.mmap | bytes, *, lazy: bool = False) -> PolyData:
     version, dim, endian = _parse_header(mm)
     sections = _scan_sections(mm, version, dim, endian)
 
@@ -522,8 +523,11 @@ def _decode(mm: mmap.mmap | bytes) -> PolyData:
         n_verts, vstart = sections[_KW_VERTICES]
         vert_dt = np.dtype([("xyz", float_dt, (dim,)), ("ref", endian + "i4")])
         verts_arr = np.frombuffer(mm, dtype=vert_dt, count=n_verts, offset=vstart)
-        vertices = pad_to_3d(verts_arr["xyz"], dim)
-        vrefs = verts_arr["ref"].astype(np.int32)
+        if lazy and dim == 3:
+            vertices = verts_arr["xyz"]
+        else:
+            vertices = pad_to_3d(verts_arr["xyz"], dim)
+        vrefs = verts_arr["ref"] if lazy else verts_arr["ref"].astype(np.int32)
         if vrefs.any():
             vertex_attrs["ref"] = vrefs
 

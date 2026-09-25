@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import dataclasses
+import io
+import mmap
 import struct
 
 import numpy as np
@@ -10,7 +12,48 @@ from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.codecs._meshb import read, write
-from polyxios.exceptions import CodecError
+from polyxios.exceptions import CodecError, LazyReadError
+
+
+def _mapped(arr: np.ndarray) -> bool:
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def test_lazy_vertices_view_the_mapping(tmp_path) -> None:
+    """A vertex record is its coordinates then a reference, so the
+    coordinates are one strided view over the records; the elements number
+    vertices from one and are decoded into a copy."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))])
+    tmp = tmp_path / "mesh.meshb"
+    write(poly=poly, path=tmp)
+    back = read(path=tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    assert _mapped(back.vertices)
+    assert not back.vertices.flags.writeable
+    assert back.vertices.shape == (4, 3)
+    assert not _mapped(back.connectivity)
+
+    eager = read(path=tmp)
+    assert eager.vertices.flags.writeable
+    assert not _mapped(eager.vertices)
+
+
+def test_lazy_refuses_an_in_memory_buffer(tmp_path) -> None:
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    tmp = tmp_path / "mesh.meshb"
+    write(poly=poly, path=tmp)
+    with pytest.raises(LazyReadError, match="no file descriptor"):
+        read(path=io.BytesIO(tmp.read_bytes()), lazy=True)
 
 
 def _tet_mesh():

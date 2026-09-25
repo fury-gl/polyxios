@@ -86,7 +86,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     path
         Path to the .mesh file.
     lazy
-        Ignored; .mesh files are always read eagerly.
+        Ignored, with a warning: MFEM is a text format and always loads
+        eagerly.
 
     Returns
     -------
@@ -101,9 +102,15 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Warns
     -----
     UserWarning
-        For an ``MFEM NURBS`` file, whose vertices come back as B-spline
-        control points rather than mesh nodes.
+        For ``lazy=True``, and for an ``MFEM NURBS`` file, whose vertices
+        come back as B-spline control points rather than mesh nodes.
     """
+    if lazy:
+        warnings.warn(
+            ".mesh: lazy=True ignored; MFEM is a text format and always loads eagerly.",
+            UserWarning,
+            stacklevel=2,
+        )
     # Measured rather than taken from a later read: the tokens are walked as
     # a stream, so no step below ever holds the whole file to take a length
     # off it. Over a compressed source that is one decompression pass counted

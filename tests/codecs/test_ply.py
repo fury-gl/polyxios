@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mmap
 import struct
 import tempfile
 import warnings
@@ -45,14 +46,44 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_roundtrip_lazy() -> None:
-    poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".ply", delete=False) as f:
-        tmp = f.name
+def _mapped(arr: np.ndarray) -> bool:
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def test_roundtrip_lazy(tmp_path) -> None:
+    """The vertex block is one run of records, so the coordinates and every
+    scalar vertex property view the mapping; a face list is prefixed by its
+    count and is decoded into a copy."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        vertex_attrs={"intensity": np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)},
+    )
+    tmp = tmp_path / "mesh.ply"
     write(poly, tmp, binary=True)
     poly_lazy = read(tmp, lazy=True)
+
     np.testing.assert_allclose(poly_lazy.vertices, poly.vertices, atol=1e-8)
     np.testing.assert_array_equal(poly_lazy.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(
+        poly_lazy.vertex_attrs["intensity"], poly.vertex_attrs["intensity"]
+    )
+    assert _mapped(poly_lazy.vertices)
+    assert _mapped(poly_lazy.vertex_attrs["intensity"])
+    assert not poly_lazy.vertices.flags.writeable
+    assert poly_lazy.vertices.shape == (4, 3)
+    assert not _mapped(poly_lazy.connectivity)
+
+    eager = read(tmp)
+    assert eager.vertices.flags.writeable
+    assert eager.vertices.dtype == np.float64
+    assert not _mapped(eager.vertices)
 
 
 def test_vertex_attrs() -> None:
