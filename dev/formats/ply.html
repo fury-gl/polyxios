@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/ply.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".ply read + write lazy: binary only Summary of the specification: PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ASCI..." />
+<meta property="og:description" content=".ply read + write lazy: binary vertices Summary of the specification: PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_ply_78c77fc5.png" />
-<meta property="og:image:alt" content=".ply read + write lazy: binary only Summary of the specification: PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ASCI..." />
-<meta name="description" content=".ply read + write lazy: binary only Summary of the specification: PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ASCI..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_ply_26f1066e.png" />
+<meta property="og:image:alt" content=".ply read + write lazy: binary vertices Summary of the specification: PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ..." />
+<meta name="description" content=".ply read + write lazy: binary vertices Summary of the specification: PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically vertex and face, each declared in an ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -559,7 +559,7 @@
                   
   <section id="stanford-ply">
 <span id="format-ply"></span><h1>Stanford PLY<a class="headerlink" href="#stanford-ply" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.ply</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">only</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.ply</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">vertices</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p>PLY - the Stanford Triangle Format - stores a mesh as a list of named elements, typically <code class="docutils literal notranslate"><span class="pre">vertex</span></code> and <code class="docutils literal notranslate"><span class="pre">face</span></code>, each declared in an ASCII header along with its property names and scalar types. The body that follows is either ASCII text or a packed binary block in the byte order the header names. Because the header is self-describing, PLY can carry arbitrary per-vertex and per-face attributes: colours, normals, confidence, intensity.</p>
@@ -604,10 +604,22 @@
 <span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
 </pre></div>
 </div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
+<p>A binary body’s vertex block can be memory-mapped instead of loaded:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.ply"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False: a view of the file, in its own dtype</span>
 </pre></div>
 </div>
+<p>The vertex block is one run of fixed-width records, so the coordinates are
+one <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> array striding from record to record - when <code class="docutils literal notranslate"><span class="pre">x</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code> and
+<code class="docutils literal notranslate"><span class="pre">z</span></code> sit side by side in one floating type, which is how every writer lays
+them out - and every other scalar vertex property is a strided column of its
+own, all read-only views of the mapping in the dtype the file holds. A file
+spelling its coordinates as integers, or laying the three out apart or in
+differing types, has them converted to float64 the way an eager read does,
+and a vertex element carrying a list property has no fixed record width, so
+its whole block is decoded into copies. Faces and edges are decoded either
+way: a face list is prefixed by its own count, so nothing on disk is the
+flat connectivity.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
@@ -644,7 +656,7 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>Vertex properties beyond x/y/z - colour, normals, confidence, intensity - are preserved as named vertex attributes rather than dropped.</p></li>
-<li><p>Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.</p></li>
+<li><p>Lazy loading applies to a binary body’s vertex block only; faces are decoded, and an ASCII file must be parsed in full before any value is available.</p></li>
 <li><p>Index widths are checked against the declared vertex count, so a mesh too large for the header’s list type raises instead of truncating.</p></li>
 <li><p>Line elements travel as <code class="docutils literal notranslate"><span class="pre">element</span> <span class="pre">edge</span></code> with <code class="docutils literal notranslate"><span class="pre">vertex1</span></code> / <code class="docutils literal notranslate"><span class="pre">vertex2</span></code>, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, <code class="docutils literal notranslate"><span class="pre">vertex_index1</span></code> / <code class="docutils literal notranslate"><span class="pre">vertex_index2</span></code> and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.</p></li>
 <li><p>An <code class="docutils literal notranslate"><span class="pre">element</span> <span class="pre">edge</span></code> record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.</p></li>

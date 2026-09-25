@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): New features: XDMF (.xdmf,.xmf) is read and written: XML light data over heavy data held inline, in an HDF5 sidecar or in a raw binary one, every DataItem flavour read - a HyperSl..." />
+<meta property="og:description" content="0.5.0 (upcoming): New features: read(..., lazy=True) hands back arrays that view the file’s own mapping, read-only and in the dtype and byte order the file holds, for every array a format stores as..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_79d3aa44.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): New features: XDMF (.xdmf,.xmf) is read and written: XML light data over heavy data held inline, in an HDF5 sidecar or in a raw binary one, every DataItem flavour read - a HyperSl..." />
-<meta name="description" content="0.5.0 (upcoming): New features: XDMF (.xdmf,.xmf) is read and written: XML light data over heavy data held inline, in an HDF5 sidecar or in a raw binary one, every DataItem flavour read - a HyperSl..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_f8c6e212.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): New features: read(..., lazy=True) hands back arrays that view the file’s own mapping, read-only and in the dtype and byte order the file holds, for every array a format stores as..." />
+<meta name="description" content="0.5.0 (upcoming): New features: read(..., lazy=True) hands back arrays that view the file’s own mapping, read-only and in the dtype and byte order the file holds, for every array a format stores as..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=235c76b4"></script>
+    <script src="_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -561,6 +561,26 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">read(...,</span> <span class="pre">lazy=True)</span></code> hands back arrays that view the file’s own
+mapping, read-only and in the dtype and byte order the file holds, for
+every array a format stores as one run of bytes in the shape the mesh
+needs. VTU and VTP files with a raw appended section map their points,
+connectivity and attributes; the writers gain <code class="docutils literal notranslate"><span class="pre">appended=True</span></code> to emit
+that layout, a third smaller than base64, and declare
+<code class="docutils literal notranslate"><span class="pre">header_type=&quot;UInt64&quot;</span></code> when a block passes four gigabytes. XDMF maps a binary sidecar, and
+an HDF5 dataset stored contiguously without a filter through the offset
+h5py reports. <code class="docutils literal notranslate"><span class="pre">.splat</span></code> maps everything, a binary legacy VTK v5.1 file
+every block and a v4.2 file its points and attributes, and binary PLY and
+Medit <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> their vertex records. What cannot be a view is built in
+memory and the guide says which; what cannot be mapped at all raises
+<code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming why. Before this, every lazy read copied its
+arrays like an eager one and the guide said otherwise.</p></li>
+<li><p>Reading a VTK XML file no longer walks its cells in Python nor re-slices
+the appended section for every array, and a binary legacy VTK file reads
+its blocks in place: a ten-million-point <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> reads in half a second
+instead of fourteen, a v5.1 <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> in half a second instead of nine.
+Cell offsets that run backwards or past the connectivity raise
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the piece instead of silently dropping cells.</p></li>
 <li><p>XDMF (<code class="docutils literal notranslate"><span class="pre">.xdmf</span></code>, <code class="docutils literal notranslate"><span class="pre">.xmf</span></code>) is read and written: XML light data over
 heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
 <code class="docutils literal notranslate"><span class="pre">DataItem</span></code> flavour read - a <code class="docutils literal notranslate"><span class="pre">HyperSlab</span></code> and a <code class="docutils literal notranslate"><span class="pre">Reference</span></code> by XPath
@@ -754,6 +774,38 @@ in use where a generic helper needed a type variable declared beside it.</p></li
 <section id="bug-fixes">
 <h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>A 3MF whose model part inflates past a gigabyte - ten million vertices -
+is read. The part was inflated whole and handed to the XML parser in one
+buffer, which expat refuses past that size with <code class="docutils literal notranslate"><span class="pre">out</span> <span class="pre">of</span> <span class="pre">memory</span></code>, and
+the tree it built held an Element per vertex and per triangle, thirty
+times the memory of the numbers. The part is now fed to the parser as it
+inflates, and each <code class="docutils literal notranslate"><span class="pre">&lt;vertex&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;triangle&gt;</span></code> goes straight into a
+numeric buffer instead of the tree.</p></li>
+<li><p>A VTK XML file declaring <code class="docutils literal notranslate"><span class="pre">header_type=&quot;UInt64&quot;</span></code> has its inline binary
+arrays read past an eight-byte block header; the reader assumed four
+there and handed back values shifted by half a word.</p></li>
+<li><p>A count a file spells as negative - a PLY <code class="docutils literal notranslate"><span class="pre">element</span></code> line, a legacy VTK
+<code class="docutils literal notranslate"><span class="pre">POINTS</span></code> or <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> header, an XDMF <code class="docutils literal notranslate"><span class="pre">Seek</span></code> - raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming it. numpy reads a negative count as “everything left”, so the
+block swallowed what followed it and the parser walked backwards from
+there.</p></li>
+<li><p>A legacy VTK v5.1 binary file whose <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> run backwards or end past
+the <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> total, a VTU whose <code class="docutils literal notranslate"><span class="pre">types</span></code> array miscounts its cells, a
+VTK XML block whose bytes are not a whole number of values, that declares
+more bytes than its section holds, or whose <code class="docutils literal notranslate"><span class="pre">offset</span></code> is not one, a raw
+appended section with no <code class="docutils literal notranslate"><span class="pre">_</span></code> marker, a VTK XML head that is not
+well-formed, and a Medit <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> shorter than its header are each
+refused with <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> where they read a broken mesh or raised a
+bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> or <code class="docutils literal notranslate"><span class="pre">ParseError</span></code>.</p></li>
+<li><p>A VTU or VTP file of several pieces shifts each piece’s indices by the
+points before it in an integer type that holds the sum. Added in the
+file’s own dtype, a one- or two-byte connectivity wrapped, or numpy
+refused the shift outright. The offsets of a lazy read are native int32,
+or int64 when they need it, whatever unsigned or big-endian dtype the
+file’s connectivity keeps.</p></li>
+<li><p>A 3MF object or metadata name holding a tab, newline or return is written
+as character references and reads back unchanged; XML normalises the
+literal characters to spaces inside an attribute.</p></li>
 <li><p>A TetGen pair in a directory the process cannot search is reported as the
 permission error it is on Python 3.14 too. The codec asked
 <code class="docutils literal notranslate"><span class="pre">Path.exists</span></code>, which answered False there rather than propagating the

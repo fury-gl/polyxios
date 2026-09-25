@@ -58,15 +58,16 @@ parsing it and by the extensions several formats share, both of which say so
 rather than guess.
 
 Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - binary PLY and binary VTK - since ``mmap``
-maps a file descriptor: an ``io.BytesIO`` raises ``LazyReadError`` rather
-than quietly loading eagerly. It also needs the handle to stand at the start
-of that file - a mapping addresses a file from byte zero - so a handle
-part-way into one is refused for a lazy read and read eagerly without
-complaint. A format whose lazy mode only skips work, such as binary STL
-skipping vertex deduplication, copies what it reads and so takes a buffer
-like any other read. TetGen is the one format a buffer cannot carry - a mesh
-is a ``.node`` and an ``.ele`` file found beside each other by name.
+come back view the file itself - VTU, VTP, XDMF, splat, binary VTK, PLY and
+Medit, see :doc:`lazy_loading` - since ``mmap`` maps a file descriptor: an
+``io.BytesIO`` raises ``LazyReadError`` rather than quietly loading eagerly.
+It also needs the handle to stand at the start of that file - a mapping
+addresses a file from byte zero - so a handle part-way into one is refused
+for a lazy read and read eagerly without complaint. A format whose lazy mode
+only skips work, such as binary STL skipping vertex deduplication, copies
+what it reads and so takes a buffer like any other read. TetGen is the one
+format a buffer cannot carry - a mesh is a ``.node`` and an ``.ele`` file
+found beside each other by name.
 
 Text formats are written with ``\n`` line endings on every platform, so the
 bytes a path receives and the bytes a buffer receives are the same ones.

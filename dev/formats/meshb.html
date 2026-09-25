@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/meshb.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta property="og:description" content=".meshb read + write lazy: vertices Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_meshb_189e41c0.png" />
-<meta property="og:image:alt" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
-<meta name="description" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_meshb_4214610d.png" />
+<meta property="og:image:alt" content=".meshb read + write lazy: vertices Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta name="description" content=".meshb read + write lazy: vertices Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -559,7 +559,7 @@
                   
   <section id="medit-binary">
 <span id="format-meshb"></span><h1>Medit binary<a class="headerlink" href="#medit-binary" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">always</span> <span class="pre">mmapped</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">vertices</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, the byte position of the next field, then that field’s data. Codes identify the version and dimension first, then typed entity blocks - <code class="docutils literal notranslate"><span class="pre">Vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Triangles</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilaterals</span></code>, <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Hexahedra</span></code> - each a count followed by fixed-width records of node indices plus a trailing reference (tag) integer. The version code fixes whether floats are 32- or 64-bit.</p>
@@ -604,11 +604,19 @@
 <span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
 </pre></div>
 </div>
-<p>A path is memory-mapped rather than loaded, always - there is no eager mode
-to ask for and no <code class="docutils literal notranslate"><span class="pre">lazy=</span></code> to pass:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.meshb"</span><span class="p">)</span>
+<p>A path is read through a memory map either way; <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> keeps the map
+open and hands back the vertices as a view of it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.meshb"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False: a strided view over the records</span>
 </pre></div>
 </div>
+<p>Each vertex record is its coordinates then a reference, so the coordinates
+are one <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> array striding from record to record, in the file’s own
+dtype. The elements are decoded into a copy whichever way the file is read:
+the format numbers vertices from one and CSR needs them from zero. So are
+the vertex references, one native <code class="docutils literal notranslate"><span class="pre">int32</span></code> column whatever byte order the
+file is in. A <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> file is padded to three columns, which is a
+copy too.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
@@ -626,7 +634,7 @@ to ask for and no <code class="docutils literal notranslate"><span class="pre">l
 <li><p><code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Prisms</span></code> and <code class="docutils literal notranslate"><span class="pre">Pyramids</span></code> are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.</p></li>
 <li><p>The higher-order sections (<code class="docutils literal notranslate"><span class="pre">TrianglesP2</span></code>, <code class="docutils literal notranslate"><span class="pre">TetrahedraP2</span></code>, <code class="docutils literal notranslate"><span class="pre">HexahedraQ2</span></code>, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion <code class="docutils literal notranslate"><span class="pre">*Ordering</span></code> section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.</p></li>
 <li><p>Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.</p></li>
-<li><p>A path is mapped and a file object read into memory, whichever <code class="docutils literal notranslate"><span class="pre">lazy=</span></code> says, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and changes nothing while <code class="docutils literal notranslate"><span class="pre">lazy=False</span></code> is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.</p></li>
+<li><p>An eager read maps a path too, decodes everything and closes the map; <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> needs a source that can be mapped - a path, or a handle over a regular file at its start - and refuses an in-memory buffer or a gzipped file with <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

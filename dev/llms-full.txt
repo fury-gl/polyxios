@@ -105,17 +105,17 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       what polyxios does with it, and a link to the authoritative document.</p>
     <div class="px-table">
       <div class="px-tr px-th"><span>format</span><span>ext</span><span>read</span><span>write</span><span>lazy</span></div>
-      <a class="px-tr" href="formats/vtk.html"><span>VTK Legacy</span><span class="px-ext">.vtk</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/vtk.html"><span>VTK Legacy</span><span class="px-ext">.vtk</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: v5.1 all, v4.2 all but cells</span></a>
       <a class="px-tr" href="formats/vtr.html"><span>VTK RectilinearGrid</span><span class="px-ext">.vtr</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/vtp.html"><span>VTK PolyData</span><span class="px-ext">.vtp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vtp.html"><span>VTK PolyData</span><span class="px-ext">.vtp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: raw appended</span></a>
       <a class="px-tr" href="formats/obj.html"><span>Wavefront OBJ</span><span class="px-ext">.obj</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/ply.html"><span>Stanford PLY</span><span class="px-ext">.ply</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
-      <a class="px-tr" href="formats/stl.html"><span>STL</span><span class="px-ext">.stl</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/ply.html"><span>Stanford PLY</span><span class="px-ext">.ply</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: vertices</span></a>
+      <a class="px-tr" href="formats/stl.html"><span>STL</span><span class="px-ext">.stl</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">skips dedup</span></a>
       <a class="px-tr" href="formats/3mf.html"><span>3MF</span><span class="px-ext">.3mf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">objects: tags</span></a>
       <a class="px-tr" href="formats/off.html"><span>OFF</span><span class="px-ext">.off</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/abaqus.html"><span>Abaqus</span><span class="px-ext">.inp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/avs.html"><span>AVS-UCD</span><span class="px-ext">.avs</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/meshb.html"><span>Medit binary</span><span class="px-ext">.meshb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: always</span></a>
+      <a class="px-tr" href="formats/meshb.html"><span>Medit binary</span><span class="px-ext">.meshb</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: vertices</span></a>
       <a class="px-tr" href="formats/medit.html"><span>Medit ASCII</span><span class="px-ext">.mesh .medit</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/dolfin.html"><span>DOLFIN / FEniCS XML</span><span class="px-ext">.xml</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/flac3d.html"><span>FLAC3D</span><span class="px-ext">.f3grid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -126,18 +126,18 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/su2.html"><span>SU2</span><span class="px-ext">.su2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/tetgen.html"><span>TetGen</span><span class="px-ext">.ele + .node</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/wkt.html"><span>Well-Known Text</span><span class="px-ext">.wkt</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/vtu.html"><span>VTK UnstructuredGrid</span><span class="px-ext">.vtu</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vtu.html"><span>VTK UnstructuredGrid</span><span class="px-ext">.vtu</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: raw appended</span></a>
       <a class="px-tr" href="formats/vts.html"><span>VTK StructuredGrid</span><span class="px-ext">.vts</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/vti.html"><span>VTK ImageData</span><span class="px-ext">.vti</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mfem.html"><span>MFEM mesh</span><span class="px-ext">.mesh</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/netgen.html"><span>Netgen</span><span class="px-ext">.vol</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: all</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/svg.html"><span>SVG</span><span class="px-ext">.svg</span><span class="px-dim">[ ]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
-      <a class="px-tr" href="formats/xdmf.html"><span>XDMF</span><span class="px-ext">.xdmf .xmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">series: helper</span></a>
+      <a class="px-tr" href="formats/xdmf.html"><span>XDMF</span><span class="px-ext">.xdmf .xmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: sidecars</span></a>
       <a class="px-tr" href="formats/med.html"><span>MED (Salome)</span><span class="px-ext">.med</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/cgns.html"><span>CGNS</span><span class="px-ext">.cgns</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -354,15 +354,16 @@ parsing it and by the extensions several formats share, both of which say so
 rather than guess.
 
 Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - binary PLY and binary VTK - since mmap
-maps a file descriptor: an io.BytesIO raises LazyReadError rather
-than quietly loading eagerly. It also needs the handle to stand at the start
-of that file - a mapping addresses a file from byte zero - so a handle
-part-way into one is refused for a lazy read and read eagerly without
-complaint. A format whose lazy mode only skips work, such as binary STL
-skipping vertex deduplication, copies what it reads and so takes a buffer
-like any other read. TetGen is the one format a buffer cannot carry - a mesh
-is a .node and an .ele file found beside each other by name.
+come back view the file itself - VTU, VTP, XDMF, splat, binary VTK, PLY and
+Medit, see lazy_loading - since mmap maps a file descriptor: an
+io.BytesIO raises LazyReadError rather than quietly loading eagerly.
+It also needs the handle to stand at the start of that file - a mapping
+addresses a file from byte zero - so a handle part-way into one is refused
+for a lazy read and read eagerly without complaint. A format whose lazy mode
+only skips work, such as binary STL skipping vertex deduplication, copies
+what it reads and so takes a buffer like any other read. TetGen is the one
+format a buffer cannot carry - a mesh is a .node and an .ele file
+found beside each other by name.
 
 Text formats are written with \n line endings on every platform, so the
 bytes a path receives and the bytes a buffer receives are the same ones.
@@ -1013,7 +1014,7 @@ Source: https://polyxios.org/stable/formats/vtk.html
 
 VTK Legacy
 
-.vtk read + write lazy: binary only
+.vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells
 
 Summary of the specification
 
@@ -1055,9 +1056,20 @@ mesh = px.read("model.vtk")
 mesh.vertices          # (n, 3)
 mesh.element_types     # element groups found in the file
 
-Binary bodies can be memory-mapped instead of loaded:
+A binary UNSTRUCTURED_GRID can be memory-mapped instead of loaded:
 
 mesh = px.read("big.vtk", lazy=True)
+mesh.vertices.dtype             # >f4 or >f8: the file's own big-endian bytes
+mesh.vertices.flags.writeable   # False
+
+The points and every point and cell array are read-only views of the
+mapping, in the big-endian dtype the file holds. Whether the cells are too
+depends on the file’s version: the v5.1 layout stores OFFSETS and
+CONNECTIVITY as two blocks and both are viewed, while the v4.2 CELLS
+block interleaves each cell’s count with its indices, so nothing on disk is
+the connectivity and it is decoded either way. write(..., vtk_version="5.1",
+binary=True) produces the mappable layout. ASCII files, and the POLYDATA
+and structured datasets, raise LazyReadError.
 
 Writing
 
@@ -1093,7 +1105,7 @@ A value no numeric array holds - a string, a mapping - is dropped with a warning
 
 POINTS and a v4.2 CELLS block are a run of numbers the header counts, not a line apiece. One row to a vertex or a cell is what VTK’s own writer emits and what this reads first; a block wrapped some other way is read again as that run, so a file no reader of rows could take is read as the mesh it holds.
 
-Binary files can be memory-mapped with lazy=True; ASCII files must be parsed end to end before any value is available.
+A binary UNSTRUCTURED_GRID can be memory-mapped with lazy=True - fully in the v5.1 layout, points and attributes only in v4.2; ASCII files must be parsed end to end before any value is available.
 
 Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
 
@@ -1229,7 +1241,7 @@ Source: https://polyxios.org/stable/formats/vtp.html
 
 VTK PolyData
 
-.vtp read + write eager
+.vtp read + write lazy: raw appended
 
 Summary of the specification
 
@@ -1273,9 +1285,45 @@ mesh.element_types     # element groups found in the file
 
 Writing
 
-px.write(mesh, "out.vtp")
+px.write(mesh, "out.vtp")                 # base64 payloads (default)
+px.write(mesh, "out.vtp", binary=False)   # inline ASCII
+px.write(mesh, "out.vtp", appended=True)  # raw appended section, mappable
 
-This codec takes no format-specific options.
+
+
+
+
+option
+
+meaning
+
+binary
+
+True (the default) writes base64-encoded payloads; False writes inline ASCII, which is larger but diffable.
+
+appended
+
+True writes every array as one raw <AppendedData encoding="raw"> section after the XML, the layout VTK itself writes by default: a third smaller than base64, and the one a lazy read can map. Field data stays inline.
+
+Lazy reading
+
+A file whose arrays sit in a raw, uncompressed appended section can be
+mapped instead of loaded:
+
+mesh = px.read("model.vtp", lazy=True)
+mesh.vertices.flags.writeable   # False: the array is the file's own bytes
+
+The vertices, connectivity and every point and cell array are read-only
+views of the mapping, in the dtype and byte order the file holds. The offsets
+and element types are derived from the file rather than stored in it, so
+those two are built in memory, as is a connectivity the file declares as
+floats: an index is a whole number, so it is cast to integers the way an
+eager read casts it. A file of several pieces, or a piece holding
+more than one of Verts, Lines, Strips and Polys, is joined by
+copying. A file that keeps its arrays inline, base64-encoded or
+zlib-compressed has no bytes on disk in the shape an array needs, and
+lazy=True raises LazyReadError naming
+which.
 
 Quirks worth knowing
 
@@ -1297,7 +1345,7 @@ A Points array of a type that holds no numbers - type="String", or any type this
 
 Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 
-lazy=True raises LazyReadError; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
+Cell offsets that run backwards, or reach past the end of a section’s connectivity, raise CodecError naming the piece and section; a file like that describes no cells, and used to come back with some of them silently missing.
 
 index - the full format table.
 
@@ -1418,7 +1466,7 @@ Source: https://polyxios.org/stable/formats/ply.html
 
 Stanford PLY
 
-.ply read + write lazy: binary only
+.ply read + write lazy: binary vertices
 
 Summary of the specification
 
@@ -1464,9 +1512,22 @@ mesh = px.read("model.ply")
 mesh.vertices          # (n, 3)
 mesh.element_types     # element groups found in the file
 
-Binary bodies can be memory-mapped instead of loaded:
+A binary body’s vertex block can be memory-mapped instead of loaded:
 
 mesh = px.read("big.ply", lazy=True)
+mesh.vertices.flags.writeable   # False: a view of the file, in its own dtype
+
+The vertex block is one run of fixed-width records, so the coordinates are
+one (n, 3) array striding from record to record - when x, y and
+z sit side by side in one floating type, which is how every writer lays
+them out - and every other scalar vertex property is a strided column of its
+own, all read-only views of the mapping in the dtype the file holds. A file
+spelling its coordinates as integers, or laying the three out apart or in
+differing types, has them converted to float64 the way an eager read does,
+and a vertex element carrying a list property has no fixed record width, so
+its whole block is decoded into copies. Faces and edges are decoded either
+way: a face list is prefixed by its own count, so nothing on disk is the
+flat connectivity.
 
 Writing
 
@@ -1502,7 +1563,7 @@ Quirks worth knowing
 
 Vertex properties beyond x/y/z - colour, normals, confidence, intensity - are preserved as named vertex attributes rather than dropped.
 
-Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.
+Lazy loading applies to a binary body’s vertex block only; faces are decoded, and an ASCII file must be parsed in full before any value is available.
 
 Index widths are checked against the declared vertex count, so a mesh too large for the header’s list type raises instead of truncating.
 
@@ -1728,6 +1789,8 @@ One colour per triangle. 3MF lets a triangle name a property per corner (p1, p2,
 Coordinates are written in full. Each coordinate is written as the shortest decimal that reads back to the same double, so a round trip through the file changes nothing.
 
 Buffers. A file object is read and written like a path: the whole package is read into memory, and a .gz name is compressed on the way out and read on the way in like any other format.
+
+The model part is parsed as a stream. It is fed to the parser as it inflates, and each <vertex> and <triangle> goes straight into a numeric buffer rather than into the tree, so a mesh of ten million vertices - two gigabytes of XML - reads in the memory its numbers take, not thirty times that. Inflated whole, a part past a gigabyte is more than the XML parser will take in one buffer.
 
 The materials and production extensions are read only as far as <colorgroup>; a beam lattice, a slice stack or a texture is not geometry the reader returns.
 
@@ -1961,7 +2024,7 @@ Source: https://polyxios.org/stable/formats/meshb.html
 
 Medit binary
 
-.meshb read + write always mmapped
+.meshb read + write lazy: vertices
 
 Summary of the specification
 
@@ -2007,10 +2070,19 @@ mesh = px.read("model.meshb")
 mesh.vertices          # (n, 3)
 mesh.element_types     # element groups found in the file
 
-A path is memory-mapped rather than loaded, always - there is no eager mode
-to ask for and no lazy= to pass:
+A path is read through a memory map either way; lazy=True keeps the map
+open and hands back the vertices as a view of it:
 
-mesh = px.read("big.meshb")
+mesh = px.read("big.meshb", lazy=True)
+mesh.vertices.flags.writeable   # False: a strided view over the records
+
+Each vertex record is its coordinates then a reference, so the coordinates
+are one (n, 3) array striding from record to record, in the file’s own
+dtype. The elements are decoded into a copy whichever way the file is read:
+the format numbers vertices from one and CSR needs them from zero. So are
+the vertex references, one native int32 column whatever byte order the
+file is in. A Dimension 2 file is padded to three columns, which is a
+copy too.
 
 Writing
 
@@ -2032,7 +2104,7 @@ The higher-order sections (TrianglesP2, TetrahedraP2, HexahedraQ2, …) are step
 
 Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.
 
-A path is mapped and a file object read into memory, whichever lazy= says, so lazy=True warns and changes nothing while lazy=False is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.
+An eager read maps a path too, decodes everything and closes the map; lazy=True needs a source that can be mapped - a path, or a handle over a regular file at its start - and refuses an in-memory buffer or a gzipped file with LazyReadError.
 
 index - the full format table.
 
@@ -2269,7 +2341,7 @@ Source: https://polyxios.org/stable/formats/gltf.html
 
 glTF
 
-.gltf .glb read + write scene: read_scene + write_scene
+.gltf .glb read + write eager scene: read_scene + write_scene
 
 Summary of the specification
 
@@ -2872,7 +2944,7 @@ Source: https://polyxios.org/stable/formats/vtu.html
 
 VTK UnstructuredGrid
 
-.vtu read + write eager
+.vtu read + write lazy: raw appended
 
 Summary of the specification
 
@@ -2921,6 +2993,7 @@ Writing
 
 px.write(mesh, "out.vtu")                 # base64 payloads (default)
 px.write(mesh, "out.vtu", binary=False)   # inline ASCII
+px.write(mesh, "out.vtu", appended=True)  # raw appended section, mappable
 
 
 
@@ -2933,6 +3006,29 @@ meaning
 binary
 
 True (the default) writes base64-encoded payloads; False writes inline ASCII, which is larger but diffable.
+
+appended
+
+True writes every array as one raw <AppendedData encoding="raw"> section after the XML, the layout VTK itself writes by default: a third smaller than base64, and the one a lazy read can map. Field data stays inline.
+
+Lazy reading
+
+A file whose arrays sit in a raw, uncompressed appended section can be
+mapped instead of loaded:
+
+mesh = px.read("grid.vtu", lazy=True)
+mesh.vertices.flags.writeable   # False: the array is the file's own bytes
+
+The vertices, connectivity and every point and cell array are read-only
+views of the mapping, in the dtype and byte order the file holds - a
+Float32 points array stays float32. The offsets and element types are
+derived from the file rather than stored in it, so those two are built in
+memory, as is a connectivity the file declares as floats: an index is a whole
+number, so it is cast to integers the way an eager read casts it. A file of
+several pieces is joined by copying. A file that keeps its
+arrays inline, base64-encoded or zlib-compressed has no bytes on disk in the
+shape an array needs, and lazy=True raises
+LazyReadError naming which.
 
 Quirks worth knowing
 
@@ -2954,7 +3050,7 @@ VTK cell type codes with no polyxios equivalent are dropped rather than guessed 
 
 Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 
-lazy=True raises LazyReadError; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
+Cell offsets that run backwards, or reach past the end of the connectivity, raise CodecError naming the piece; a file like that describes no cells, and used to come back with some of them silently missing.
 
 Header counts are validated against the file size before any array is allocated.
 
@@ -3419,7 +3515,7 @@ Source: https://polyxios.org/stable/formats/splat.html
 
 Gaussian splat
 
-.splat read + write eager
+.splat read + write lazy: zero-copy
 
 Summary of the specification
 
@@ -3484,7 +3580,7 @@ A missing vertex_attrs entry is written as zeros rather than raising, so a plain
 
 element_types is always empty. Anything expecting faces will find none.
 
-lazy=True is ignored; the file is a flat binary array with no seekable structure to defer.
+lazy=True maps the file and hands back views of it: the file is a run of 32-byte records, so the positions are a strided float32 view three columns wide and each attribute a strided view of its own column, read-only, nothing decoded or copied. An eager read converts the positions to float64. The mapping needs a path or a handle over a regular file at its start; an in-memory buffer or a gzipped file raises LazyReadError.
 
 index - the full format table.
 
@@ -3844,7 +3940,7 @@ Source: https://polyxios.org/stable/formats/xdmf.html
 
 XDMF
 
-.xdmf .xmf read + write eager time series
+.xdmf .xmf read + write lazy: binary and contiguous HDF5 time series
 
 Summary of the specification
 
@@ -3895,7 +3991,20 @@ mesh.global_attrs["case"]                      # <Information Name="case">
 from polyxios import helper
 times, meshes = helper.read_time_series("result.xdmf")
 
-polyxios.read() hands back one mesh, always. Every uniform grid at the chosen step is read - a spatial collection flat, several grids beside one another merged - and where there are several, each grid’s elements are tagged with the grid’s Name, so a domain split into parts keeps saying which was which. A temporal collection is read at one step, the first without step=; polyxios.helper.read_time_series() reads them all. lazy=True raises LazyReadError: the arrays live wherever the file says, and are decoded whole.
+polyxios.read() hands back one mesh, always. Every uniform grid at the chosen step is read - a spatial collection flat, several grids beside one another merged - and where there are several, each grid’s elements are tagged with the grid’s Name, so a domain split into parts keeps saying which was which. A temporal collection is read at one step, the first without step=; polyxios.helper.read_time_series() reads them all.
+
+lazy=True maps the sidecars instead of reading them, and hands back
+arrays that view the mappings, read-only, in the dtype and byte order the
+sidecar holds. A Binary DataItem is one run of values at an offset; so is
+an HDF5 dataset stored contiguously without a filter, which is what
+write emits unless asked for compression - h5py finds where the
+dataset sits and the .h5 file is mapped around it. A chunked or
+compressed dataset, or values spelled inline as text, have no such run and
+raise LazyReadError naming which. Arrays the
+file does not store but implies - a uniform topology’s offsets, the element
+types, a mixed topology’s gathered connectivity, coordinates padded from two
+columns to three - are built in memory; the offsets are int32, or int64 when
+they need it, whatever dtype the connectivity keeps.
 
 The HDF5 flavour needs h5py, which is optional - pip install "polyxios[hdf5]". Without it the inline and binary flavours still read, and a file naming an HDF5 sidecar raises UnsupportedFormatError spelling that command.
 
@@ -4338,27 +4447,141 @@ Source: https://polyxios.org/stable/lazy_loading.html
 
 Lazy loading
 
-For large meshes (gigabytes of binary data), pass lazy=True. polyxios
-memory-maps the file and only loads the pages you actually touch - the rest
-stays on disk until needed.
+For a large binary mesh, pass lazy=True. polyxios maps the file and,
+wherever the file stores an array as one run of bytes in the shape the array
+needs, hands back a view of the mapping instead of a copy: nothing is
+decoded, the pages come in as they are touched, and the process holds the
+mesh once - in the page cache - rather than once there and again in its own
+memory.
 
-# File is opened but data is not loaded into RAM yet
-mesh = px.read("huge_brain.vtk", lazy=True)
+mesh = px.read("huge.vtu", lazy=True)
 
-# Only the vertices are pulled from disk here
-first_vertex = mesh.vertices[0]
+mesh.vertices.flags.writeable   # False: these are the file's bytes
+mesh.vertices.dtype             # whatever the file holds - float32 stays float32
+mesh.vertices[0]                # the first page comes in here
 
-# Element connectivity is still on disk until you access it
+coords = np.asarray(mesh.vertices, dtype=np.float64)   # a copy, when one is wanted
 
-lazy=True is honoured for binary .vtk, .ply and .stl files.
-ASCII formats load eagerly (the whole file must be parsed to extract values).
-Binary STL lazy mode skips vertex deduplication - vertices are returned as-is
-(3 per triangle), avoiding the extra pass over the data. .meshb needs no
-flag: a path is always memory-mapped and a file object always read into
-memory, so lazy=True there warns and changes nothing.
+What comes back
 
-formats/index - the per-format table records which formats support
-lazy loading.
+A lazy array is read-only, and carries the dtype and byte order the file
+holds: a Float32 block stays float32, a big-endian legacy VTK block
+stays big-endian. An eager read converts to float64 coordinates and native
+integer indices; a lazy read leaves that to you, since the conversion is the
+copy you declined. np.asarray(arr, dtype=...) makes one when you need it,
+and every NumPy operation reads a swapped or read-only array as it is.
+
+Only an array the file stores in the shape PolyData needs
+can be a view. That rules out anything encoded (ASCII, base64, zlib), any
+record that interleaves a count or a reference with the values, and any
+index that counts from one. Where a format stores some arrays that way and
+not others, the ones it does are views and the rest are built in memory -
+the offsets of a uniform topology, the element types, a padded third
+coordinate. The per-format table below says which is which.
+
+Which formats
+
+
+
+
+
+
+
+format
+
+lazy arrays
+
+notes
+
+.vtu .vtp
+
+vertices, connectivity, attributes
+
+Raw appended section only, the layout VTK writes by default and
+write(..., appended=True) writes. Inline, base64 or compressed
+arrays raise. Offsets and element types are derived. Several pieces
+are joined by copying.
+
+.vtk
+
+vertices, attributes; cells in v5.1
+
+Binary UNSTRUCTURED_GRID. The v5.1 layout stores offsets and
+connectivity as two blocks and both are views; a v4.2 CELLS
+block interleaves counts with indices and is decoded. Big-endian.
+
+.xdmf
+
+every array the sidecar stores
+
+A Binary DataItem, or an HDF5 dataset stored contiguously
+without a filter, which is what write emits unless asked for
+compression. Chunked, compressed or inline values raise.
+
+.splat
+
+everything
+
+32-byte records: float32 positions and every attribute are strided
+views. Nothing is decoded.
+
+.ply
+
+vertices, vertex properties
+
+Binary only. Coordinates are one strided view when x, y,
+z sit side by side in one type. A face list is prefixed by its
+count, so faces are decoded.
+
+.meshb
+
+vertices
+
+Each record is coordinates then a reference, so the coordinates are
+one strided view. Elements number vertices from one and are decoded.
+
+.stl
+
+none
+
+A 50-byte record cannot be viewed as (n, 3) coordinates. Binary
+STL’s lazy=True skips vertex deduplication instead, returning
+three vertices per triangle, and copies what it reads.
+
+.vti .vtr .vts .3mf .glb .obj .wkt, HDF5
+formats, Exodus
+
+none
+
+lazy=True raises LazyReadError
+naming why: implicit points, a ZIP member, a scene, text, or a
+library that reads the arrays whole.
+
+the text formats
+
+none
+
+lazy=True warns and loads eagerly; a number spelled as text has
+to be parsed before it is a number.
+
+What a mapping needs
+
+mmap maps a file descriptor from byte zero, so a lazy read needs a real,
+uncompressed file standing at its start: an io.BytesIO, a handle
+part-way into a file, or a gzipped one raises
+LazyReadError naming the reason rather than
+quietly loading eagerly. Binary STL’s lazy mode only skips work, so it takes
+a buffer or a compressed file like any other read.
+
+The mapping lives as long as any array viewing it does, and goes when the
+last one does. Nothing is closed behind your back and nothing needs closing.
+A mapping does keep its own descriptor open for that long, so a thousand
+lazy meshes held at once are a thousand open files; drop the arrays to
+release them.
+
+Each page under formats/index carries a badge saying what its
+codec maps, and the table on the front page has a
+lazy column.
 
 ## Transforms
 
@@ -6022,6 +6245,28 @@ Changelog
 
 New features
 
+read(..., lazy=True) hands back arrays that view the file’s own
+mapping, read-only and in the dtype and byte order the file holds, for
+every array a format stores as one run of bytes in the shape the mesh
+needs. VTU and VTP files with a raw appended section map their points,
+connectivity and attributes; the writers gain appended=True to emit
+that layout, a third smaller than base64, and declare
+header_type="UInt64" when a block passes four gigabytes. XDMF maps a binary sidecar, and
+an HDF5 dataset stored contiguously without a filter through the offset
+h5py reports. .splat maps everything, a binary legacy VTK v5.1 file
+every block and a v4.2 file its points and attributes, and binary PLY and
+Medit .meshb their vertex records. What cannot be a view is built in
+memory and the guide says which; what cannot be mapped at all raises
+LazyReadError naming why. Before this, every lazy read copied its
+arrays like an eager one and the guide said otherwise.
+
+Reading a VTK XML file no longer walks its cells in Python nor re-slices
+the appended section for every array, and a binary legacy VTK file reads
+its blocks in place: a ten-million-point .vtu reads in half a second
+instead of fourteen, a v5.1 .vtk in half a second instead of nine.
+Cell offsets that run backwards or past the connectivity raise
+CodecError naming the piece instead of silently dropping cells.
+
 XDMF (.xdmf, .xmf) is read and written: XML light data over
 heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
 DataItem flavour read - a HyperSlab and a Reference by XPath
@@ -6223,6 +6468,44 @@ in use where a generic helper needed a type variable declared beside it.
 
 Bug fixes
 
+A 3MF whose model part inflates past a gigabyte - ten million vertices -
+is read. The part was inflated whole and handed to the XML parser in one
+buffer, which expat refuses past that size with out of memory, and
+the tree it built held an Element per vertex and per triangle, thirty
+times the memory of the numbers. The part is now fed to the parser as it
+inflates, and each <vertex> and <triangle> goes straight into a
+numeric buffer instead of the tree.
+
+A VTK XML file declaring header_type="UInt64" has its inline binary
+arrays read past an eight-byte block header; the reader assumed four
+there and handed back values shifted by half a word.
+
+A count a file spells as negative - a PLY element line, a legacy VTK
+POINTS or CELLS header, an XDMF Seek - raises CodecError
+naming it. numpy reads a negative count as “everything left”, so the
+block swallowed what followed it and the parser walked backwards from
+there.
+
+A legacy VTK v5.1 binary file whose OFFSETS run backwards or end past
+the CELLS total, a VTU whose types array miscounts its cells, a
+VTK XML block whose bytes are not a whole number of values, that declares
+more bytes than its section holds, or whose offset is not one, a raw
+appended section with no _ marker, a VTK XML head that is not
+well-formed, and a Medit .meshb shorter than its header are each
+refused with CodecError where they read a broken mesh or raised a
+bare ValueError or ParseError.
+
+A VTU or VTP file of several pieces shifts each piece’s indices by the
+points before it in an integer type that holds the sum. Added in the
+file’s own dtype, a one- or two-byte connectivity wrapped, or numpy
+refused the shift outright. The offsets of a lazy read are native int32,
+or int64 when they need it, whatever unsigned or big-endian dtype the
+file’s connectivity keeps.
+
+A 3MF object or metadata name holding a tab, newline or return is written
+as character references and reads back unchanged; XML normalises the
+literal characters to spaces inside an attribute.
+
 A TetGen pair in a directory the process cannot search is reported as the
 permission error it is on Python 3.14 too. The codec asked
 Path.exists, which answered False there rather than propagating the
@@ -6258,7 +6541,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:248: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:300: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -6329,7 +6612,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:312: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:364: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -6567,7 +6850,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:536: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:588: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -6605,7 +6888,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:572: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:624: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -7570,7 +7853,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1432: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1484: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -7654,7 +7937,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1500: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1552: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -7702,7 +7985,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1531: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1583: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -7717,7 +8000,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1543: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1595: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -7823,7 +8106,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1616: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1668: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

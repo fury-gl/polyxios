@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/vtk.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
+<meta property="og:description" content=".vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banne..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtk_f1647263.png" />
-<meta property="og:image:alt" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
-<meta name="description" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtk_e0a140fb.png" />
+<meta property="og:image:alt" content=".vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banne..." />
+<meta name="description" content=".vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banne..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -559,7 +559,7 @@
                   
   <section id="vtk-legacy">
 <span id="format-vtk"></span><h1>VTK Legacy<a class="headerlink" href="#vtk-legacy" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">only</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">v5.1</span> <span class="pre">zero-copy,</span> <span class="pre">v4.2</span> <span class="pre">all</span> <span class="pre">but</span> <span class="pre">cells</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p>The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, <code class="docutils literal notranslate"><span class="pre">ASCII</span></code> or <code class="docutils literal notranslate"><span class="pre">BINARY</span></code> data mode, and a <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> keyword naming the geometry type. What follows depends on that type: an unstructured grid lists <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, then <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> as connectivity lists prefixed by their point count, then a parallel <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> array of integer type codes. Point and cell attributes arrive afterwards in <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> / <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> sections as named <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> arrays. In <code class="docutils literal notranslate"><span class="pre">BINARY</span></code> mode the arrays are raw big-endian values packed straight after their declaration line.</p>
@@ -601,10 +601,20 @@
 <span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
 </pre></div>
 </div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
+<p>A binary <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> can be memory-mapped instead of loaded:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.vtk"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">dtype</span>             <span class="c1"># &gt;f4 or &gt;f8: the file's own big-endian bytes</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False</span>
 </pre></div>
 </div>
+<p>The points and every point and cell array are read-only views of the
+mapping, in the big-endian dtype the file holds. Whether the cells are too
+depends on the file’s version: the v5.1 layout stores <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> and
+<code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code> as two blocks and both are viewed, while the v4.2 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>
+block interleaves each cell’s count with its indices, so nothing on disk is
+the connectivity and it is decoded either way. <code class="docutils literal notranslate"><span class="pre">write(...,</span> <span class="pre">vtk_version=&quot;5.1&quot;,</span>
+<span class="pre">binary=True)</span></code> produces the mappable layout. ASCII files, and the <code class="docutils literal notranslate"><span class="pre">POLYDATA</span></code>
+and structured datasets, raise <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
@@ -640,7 +650,7 @@
 <li><p>A <code class="docutils literal notranslate"><span class="pre">FIELD</span> <span class="pre">FieldData</span></code> block between the <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> line and the geometry belongs to the mesh rather than to its points or cells, and is read into <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>; <code class="docutils literal notranslate"><span class="pre">write</span></code> puts one back there. Unlike a point or cell array, which is written as a double, a field array keeps the type it is held in, so an integer comes home an integer. A <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> inside a <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> or <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> section still names arrays over the points or the cells, and is read as attributes. A <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> or <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> file reads a dataset-level block too, which is where VTK’s own writer puts a time value.</p></li>
 <li><p>A value no numeric array holds - a string, a mapping - is dropped with a warning naming the key; the XML family’s <code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> holds text and this block does not. The <code class="docutils literal notranslate"><span class="pre">vtk_*</span></code> grid entries a structured read recorded do travel in the block: this writer spells an <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> and rebuilds no grid, so holding them back would drop them without a word. A structured read takes the grid it rebuilt over anything a field block names, so carrying them costs the next read nothing.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">POINTS</span></code> and a v4.2 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> block are a run of numbers the header counts, not a line apiece. One row to a vertex or a cell is what VTK’s own writer emits and what this reads first; a block wrapped some other way is read again as that run, so a file no reader of rows could take is read as the mesh it holds.</p></li>
-<li><p>Binary files can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>; ASCII files must be parsed end to end before any value is available.</p></li>
+<li><p>A binary <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> - fully in the v5.1 layout, points and attributes only in v4.2; ASCII files must be parsed end to end before any value is available.</p></li>
 <li><p>Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.</p></li>
 <li><p>Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code>, <code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code>, <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.</p></li>

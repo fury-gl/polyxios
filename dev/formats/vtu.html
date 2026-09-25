@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/vtu.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".vtu read + write eager Summary of the specification:.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A&lt;VTKFile type=&quot;UnstructuredGrid&q..." />
+<meta property="og:description" content=".vtu read + write lazy: raw appended Summary of the specification:.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A&lt;VTKFile type=&quot;Unstr..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtu_a374fd95.png" />
-<meta property="og:image:alt" content=".vtu read + write eager Summary of the specification:.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A&lt;VTKFile type=&quot;UnstructuredGrid&q..." />
-<meta name="description" content=".vtu read + write eager Summary of the specification:.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A&lt;VTKFile type=&quot;UnstructuredGrid&q..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtu_04f56d23.png" />
+<meta property="og:image:alt" content=".vtu read + write lazy: raw appended Summary of the specification:.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A&lt;VTKFile type=&quot;Unstr..." />
+<meta name="description" content=".vtu read + write lazy: raw appended Summary of the specification:.vtu is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A&lt;VTKFile type=&quot;Unstr..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -559,7 +559,7 @@
                   
   <section id="vtk-unstructuredgrid">
 <span id="format-vtu"></span><h1>VTK UnstructuredGrid<a class="headerlink" href="#vtk-unstructuredgrid" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtu</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtu</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">raw</span> <span class="pre">appended</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.vtu</span></code> is the XML serial form of a VTK UnstructuredGrid: an arbitrary mix of cell types in one dataset. A <code class="docutils literal notranslate"><span class="pre">&lt;VTKFile</span> <span class="pre">type=&quot;UnstructuredGrid&quot;&gt;</span></code> root holds an <code class="docutils literal notranslate"><span class="pre">&lt;UnstructuredGrid&gt;</span></code> with one or more <code class="docutils literal notranslate"><span class="pre">&lt;Piece&gt;</span></code> elements, each declaring <code class="docutils literal notranslate"><span class="pre">NumberOfPoints</span></code> and <code class="docutils literal notranslate"><span class="pre">NumberOfCells</span></code>. A piece carries <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code> with a three-component coordinate <code class="docutils literal notranslate"><span class="pre">DataArray</span></code>, and <code class="docutils literal notranslate"><span class="pre">&lt;Cells&gt;</span></code> with three named arrays - <code class="docutils literal notranslate"><span class="pre">connectivity</span></code>, <code class="docutils literal notranslate"><span class="pre">offsets</span></code> and <code class="docutils literal notranslate"><span class="pre">types</span></code> - where <code class="docutils literal notranslate"><span class="pre">types</span></code> holds one VTK cell type code per cell. <code class="docutils literal notranslate"><span class="pre">&lt;PointData&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;CellData&gt;</span></code> hold named attribute arrays. Every <code class="docutils literal notranslate"><span class="pre">DataArray</span></code> is inline ASCII, inline base64, or a reference into a single appended binary blob, optionally zlib-compressed.</p>
@@ -608,6 +608,7 @@
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtu"</span><span class="p">)</span>                 <span class="c1"># base64 payloads (default)</span>
 <span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtu"</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>   <span class="c1"># inline ASCII</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtu"</span><span class="p">,</span> <span class="n">appended</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># raw appended section, mappable</span>
 </pre></div>
 </div>
 <div class="pst-scrollable-table-container"><table class="px-spec-table table">
@@ -624,9 +625,31 @@
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">True</span></code> (the default) writes base64-encoded payloads; <code class="docutils literal notranslate"><span class="pre">False</span></code> writes inline ASCII, which is larger but diffable.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">appended</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code> writes every array as one raw <code class="docutils literal notranslate"><span class="pre">&lt;AppendedData</span> <span class="pre">encoding=&quot;raw&quot;&gt;</span></code> section after the XML, the layout VTK itself writes by default: a third smaller than base64, and the one a lazy read can map. Field data stays inline.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
+</section>
+<section id="lazy-reading">
+<h2>Lazy reading<a class="headerlink" href="#lazy-reading" title="Link to this heading">#</a></h2>
+<p>A file whose arrays sit in a raw, uncompressed appended section can be
+mapped instead of loaded:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"grid.vtu"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False: the array is the file's own bytes</span>
+</pre></div>
+</div>
+<p>The vertices, connectivity and every point and cell array are read-only
+views of the mapping, in the dtype and byte order the file holds - a
+<code class="docutils literal notranslate"><span class="pre">Float32</span></code> points array stays <code class="docutils literal notranslate"><span class="pre">float32</span></code>. The offsets and element types are
+derived from the file rather than stored in it, so those two are built in
+memory, as is a connectivity the file declares as floats: an index is a whole
+number, so it is cast to integers the way an eager read casts it. A file of
+several pieces is joined by copying. A file that keeps its
+arrays inline, base64-encoded or zlib-compressed has no bytes on disk in the
+shape an array needs, and <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming which.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
@@ -640,7 +663,7 @@
 <li><p>A <code class="docutils literal notranslate"><span class="pre">Points</span></code> array of a type that holds no numbers - <code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code>, or any type this reader does not know - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the type.</p></li>
 <li><p>VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.</p></li>
 <li><p>Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.</p></li>
+<li><p>Cell offsets that run backwards, or reach past the end of the connectivity, raise <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the piece; a file like that describes no cells, and used to come back with some of them silently missing.</p></li>
 <li><p>Header counts are validated against the file size before any array is allocated.</p></li>
 </ul>
 <div class="admonition seealso">
@@ -702,6 +725,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-reading">Lazy reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>

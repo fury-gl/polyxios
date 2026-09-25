@@ -5,7 +5,7 @@ glTF
 
 .. rst-class:: px-badges
 
-``.gltf`` ``.glb`` ``read + write`` ``scene: read_scene + write_scene``
+``.gltf`` ``.glb`` ``read + write`` ``eager`` ``scene: read_scene + write_scene``
 
 Summary of the specification
 -----------------------------

@@ -5,7 +5,7 @@ VTK PolyData
 
 .. rst-class:: px-badges
 
-``.vtp`` ``read + write`` ``eager``
+``.vtp`` ``read + write`` ``lazy: raw appended``
 
 Summary of the specification
 ----------------------------
@@ -50,9 +50,44 @@ Writing
 
 .. code-block:: python
 
-    px.write(mesh, "out.vtp")
+    px.write(mesh, "out.vtp")                 # base64 payloads (default)
+    px.write(mesh, "out.vtp", binary=False)   # inline ASCII
+    px.write(mesh, "out.vtp", appended=True)  # raw appended section, mappable
 
-This codec takes no format-specific options.
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+   :class: px-spec-table
+
+   * - option
+     - meaning
+   * - ``binary``
+     - ``True`` (the default) writes base64-encoded payloads; ``False`` writes inline ASCII, which is larger but diffable.
+   * - ``appended``
+     - ``True`` writes every array as one raw ``<AppendedData encoding="raw">`` section after the XML, the layout VTK itself writes by default: a third smaller than base64, and the one a lazy read can map. Field data stays inline.
+
+Lazy reading
+------------
+
+A file whose arrays sit in a raw, uncompressed appended section can be
+mapped instead of loaded:
+
+.. code-block:: python
+
+    mesh = px.read("model.vtp", lazy=True)
+    mesh.vertices.flags.writeable   # False: the array is the file's own bytes
+
+The vertices, connectivity and every point and cell array are read-only
+views of the mapping, in the dtype and byte order the file holds. The offsets
+and element types are derived from the file rather than stored in it, so
+those two are built in memory, as is a connectivity the file declares as
+floats: an index is a whole number, so it is cast to integers the way an
+eager read casts it. A file of several pieces, or a piece holding
+more than one of ``Verts``, ``Lines``, ``Strips`` and ``Polys``, is joined by
+copying. A file that keeps its arrays inline, base64-encoded or
+zlib-compressed has no bytes on disk in the shape an array needs, and
+``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError` naming
+which.
 
 Quirks worth knowing
 --------------------
@@ -68,7 +103,7 @@ Quirks worth knowing
 - A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
 - A ``Points`` array of a type that holds no numbers - ``type="String"``, or any type this reader does not know - raises :class:`~polyxios.exceptions.CodecError` naming the type.
 - Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
-- ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`; the payload may be compressed or base64-encoded, neither of which can be memory-mapped.
+- Cell offsets that run backwards, or reach past the end of a section's connectivity, raise :class:`~polyxios.exceptions.CodecError` naming the piece and section; a file like that describes no cells, and used to come back with some of them silently missing.
 
 .. seealso::
 

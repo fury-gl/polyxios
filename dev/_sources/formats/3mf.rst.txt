@@ -95,6 +95,7 @@ Quirks worth knowing
 - **One colour per triangle.** 3MF lets a triangle name a property per corner (``p1``, ``p2``, ``p3``); only ``p1`` is read, since a colour per corner has no element to land on. The material's name is not kept, only its colour.
 - **Coordinates are written in full.** Each coordinate is written as the shortest decimal that reads back to the same double, so a round trip through the file changes nothing.
 - **Buffers.** A file object is read and written like a path: the whole package is read into memory, and a ``.gz`` name is compressed on the way out and read on the way in like any other format.
+- **The model part is parsed as a stream.** It is fed to the parser as it inflates, and each ``<vertex>`` and ``<triangle>`` goes straight into a numeric buffer rather than into the tree, so a mesh of ten million vertices - two gigabytes of XML - reads in the memory its numbers take, not thirty times that. Inflated whole, a part past a gigabyte is more than the XML parser will take in one buffer.
 - The materials and production extensions are read only as far as ``<colorgroup>``; a beam lattice, a slice stack or a texture is not geometry the reader returns.
 
 .. seealso::

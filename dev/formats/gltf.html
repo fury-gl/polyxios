@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/gltf.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".gltf.glb read + write scene: read_scene + write_scene Summary of the specification: glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A.gltf file is a UTF-..." />
+<meta property="og:description" content=".gltf.glb read + write eager scene: read_scene + write_scene Summary of the specification: glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A.gltf file is ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_gltf_43b65f6d.png" />
-<meta property="og:image:alt" content=".gltf.glb read + write scene: read_scene + write_scene Summary of the specification: glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A.gltf file is a UTF-..." />
-<meta name="description" content=".gltf.glb read + write scene: read_scene + write_scene Summary of the specification: glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A.gltf file is a UTF-..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_gltf_11c2a072.png" />
+<meta property="og:image:alt" content=".gltf.glb read + write eager scene: read_scene + write_scene Summary of the specification: glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A.gltf file is ..." />
+<meta name="description" content=".gltf.glb read + write eager scene: read_scene + write_scene Summary of the specification: glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A.gltf file is ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -559,7 +559,7 @@
                   
   <section id="gltf">
 <span id="format-gltf"></span><h1>glTF<a class="headerlink" href="#gltf" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.gltf</span></code> <code class="docutils literal notranslate"><span class="pre">.glb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">scene:</span> <span class="pre">read_scene</span> <span class="pre">+</span> <span class="pre">write_scene</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.gltf</span></code> <code class="docutils literal notranslate"><span class="pre">.glb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code> <code class="docutils literal notranslate"><span class="pre">scene:</span> <span class="pre">read_scene</span> <span class="pre">+</span> <span class="pre">write_scene</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p>glTF 2.0 is a JSON-based container for real-time 3D assets published by the Khronos Group. A <code class="docutils literal notranslate"><span class="pre">.gltf</span></code> file is a UTF-8 JSON document that references external binary buffers (<code class="docutils literal notranslate"><span class="pre">.bin</span></code>) and image files; a <code class="docutils literal notranslate"><span class="pre">.glb</span></code> file packs the JSON and an optional binary buffer into a single binary container whose chunks are each 4-byte aligned. The scene graph is a forest of nodes, each holding a local transform (either a 4×4 column-major matrix or explicit translation/rotation/scale), optional mesh and camera references, and a list of child indices. Meshes are composed of one or more primitives, each of which is a typed accessor view into the binary buffer together with an optional material index. Materials follow a PBR metallic-roughness model with base-colour texture, metallic-roughness texture, normal map, occlusion texture, and emissive factor. Animations describe time-sampled keyframe channels targeting node TRS properties or morph-target weights.</p>

@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/splat.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".splat read + write eager Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a..." />
+<meta property="og:description" content=".splat read + write lazy: zero-copy Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_splat_6d1993f5.png" />
-<meta property="og:image:alt" content=".splat read + write eager Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a..." />
-<meta name="description" content=".splat read + write eager Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_splat_b2a13a3b.png" />
+<meta property="og:image:alt" content=".splat read + write lazy: zero-copy Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the..." />
+<meta name="description" content=".splat read + write lazy: zero-copy Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -559,7 +559,7 @@
                   
   <section id="gaussian-splat">
 <span id="format-splat"></span><h1>Gaussian splat<a class="headerlink" href="#gaussian-splat" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.splat</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.splat</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">zero-copy</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.splat</span></code> is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a flat array of fixed-width little-endian records, and the splat count is the file size divided by 32. Each record is three <code class="docutils literal notranslate"><span class="pre">float32</span></code> positions, three <code class="docutils literal notranslate"><span class="pre">float32</span></code> scales, four <code class="docutils literal notranslate"><span class="pre">uint8</span></code> colour and opacity bytes, and four <code class="docutils literal notranslate"><span class="pre">uint8</span></code> packed rotation quaternion components - 32 bytes exactly. The format carries a point cloud only; there is no connectivity of any kind.</p>
@@ -622,7 +622,7 @@
 <li><p>The eleven non-positional fields are read into and written from <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> under their record names: <code class="docutils literal notranslate"><span class="pre">scale_0..2</span></code>, <code class="docutils literal notranslate"><span class="pre">color_r/g/b</span></code>, <code class="docutils literal notranslate"><span class="pre">opacity</span></code>, <code class="docutils literal notranslate"><span class="pre">rot_0..3</span></code>.</p></li>
 <li><p>A missing <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> entry is written as zeros rather than raising, so a plain point cloud can be written out as a <code class="docutils literal notranslate"><span class="pre">.splat</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">element_types</span></code> is always empty. Anything expecting faces will find none.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> is ignored; the file is a flat binary array with no seekable structure to defer.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps the file and hands back views of it: the file is a run of 32-byte records, so the positions are a strided <code class="docutils literal notranslate"><span class="pre">float32</span></code> view three columns wide and each attribute a strided view of its own column, read-only, nothing decoded or copied. An eager read converts the positions to <code class="docutils literal notranslate"><span class="pre">float64</span></code>. The mapping needs a path or a handle over a regular file at its start; an in-memory buffer or a gzipped file raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=235c76b4"></script>
+    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -656,6 +656,7 @@ back to <code class="docutils literal notranslate"><span class="pre">global_attr
 <li><p><strong>One colour per triangle.</strong> 3MF lets a triangle name a property per corner (<code class="docutils literal notranslate"><span class="pre">p1</span></code>, <code class="docutils literal notranslate"><span class="pre">p2</span></code>, <code class="docutils literal notranslate"><span class="pre">p3</span></code>); only <code class="docutils literal notranslate"><span class="pre">p1</span></code> is read, since a colour per corner has no element to land on. The material’s name is not kept, only its colour.</p></li>
 <li><p><strong>Coordinates are written in full.</strong> Each coordinate is written as the shortest decimal that reads back to the same double, so a round trip through the file changes nothing.</p></li>
 <li><p><strong>Buffers.</strong> A file object is read and written like a path: the whole package is read into memory, and a <code class="docutils literal notranslate"><span class="pre">.gz</span></code> name is compressed on the way out and read on the way in like any other format.</p></li>
+<li><p><strong>The model part is parsed as a stream.</strong> It is fed to the parser as it inflates, and each <code class="docutils literal notranslate"><span class="pre">&lt;vertex&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;triangle&gt;</span></code> goes straight into a numeric buffer rather than into the tree, so a mesh of ten million vertices - two gigabytes of XML - reads in the memory its numbers take, not thirty times that. Inflated whole, a part past a gigabyte is more than the XML parser will take in one buffer.</p></li>
 <li><p>The materials and production extensions are read only as far as <code class="docutils literal notranslate"><span class="pre">&lt;colorgroup&gt;</span></code>; a beam lattice, a slice stack or a texture is not geometry the reader returns.</p></li>
 </ul>
 <div class="admonition seealso">

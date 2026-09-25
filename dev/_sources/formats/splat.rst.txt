@@ -5,7 +5,7 @@ Gaussian splat
 
 .. rst-class:: px-badges
 
-``.splat`` ``read + write`` ``eager``
+``.splat`` ``read + write`` ``lazy: zero-copy``
 
 Summary of the specification
 ----------------------------
@@ -67,7 +67,7 @@ Quirks worth knowing
 - The eleven non-positional fields are read into and written from ``vertex_attrs`` under their record names: ``scale_0..2``, ``color_r/g/b``, ``opacity``, ``rot_0..3``.
 - A missing ``vertex_attrs`` entry is written as zeros rather than raising, so a plain point cloud can be written out as a ``.splat``.
 - ``element_types`` is always empty. Anything expecting faces will find none.
-- ``lazy=True`` is ignored; the file is a flat binary array with no seekable structure to defer.
+- ``lazy=True`` maps the file and hands back views of it: the file is a run of 32-byte records, so the positions are a strided ``float32`` view three columns wide and each attribute a strided view of its own column, read-only, nothing decoded or copied. An eager read converts the positions to ``float64``. The mapping needs a path or a handle over a regular file at its start; an in-memory buffer or a gzipped file raises :class:`~polyxios.exceptions.LazyReadError`.
 
 .. seealso::
 
