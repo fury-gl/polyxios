@@ -578,6 +578,22 @@ CAPABILITIES: dict[str, Cap] = {
         note="glTF fan-triangulates quads into triangles on write (mode 4 "
         "only); read() warns that flattening loses scene hierarchy.",
     ),
+    ".3mf": Cap(
+        "surface",
+        n_vertices=7,
+        n_elements=3,
+        geometry=False,
+        coords=False,
+        element_tags=("a", "b"),
+        global_attrs=("unit",),
+        warns=(r"element tag group\(s\) \['b'\] name elements an earlier group",),
+        note="3MF holds triangles, so the quad is split in two; every tag group"
+        " goes out as an object of its name, an object owns its triangles and"
+        " its own vertex list, so an element in two groups stays with the"
+        " first and a vertex two objects share is written twice. The model's"
+        " unit comes back with it. Nothing in the format carries a vertex or"
+        " element attribute but a colour.",
+    ),
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.

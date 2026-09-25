@@ -99,6 +99,19 @@ New features
   write from the tag groups that partition the mesh by type, the rest per
   type. The codec needs netCDF4, the new ``polyxios[netcdf]`` extra, and
   refuses with the install line without it.
+- 3MF (``.3mf``), the 3D-printing interchange format, is read and
+  written. The build is read as a printer sees it: every placed object,
+  a mesh outright or an
+  assembly through its components, each transform composed and applied,
+  a mirroring one reversing the winding; each object's triangles are an
+  element tag group of its name. A triangle's base material or colour
+  is ``element_attrs["colors"]``, RGBA in 0..1; the model's ``unit``
+  and its ``metadata`` are ``global_attrs``. On write a quad, polygon or
+  strip is split into triangles and anything with no triangle dropped
+  with a warning; every tag group goes out as an object of its name,
+  the colours as one ``basematerials``, the unit from ``unit=`` or the
+  mesh. The package is written with fixed timestamps, so two writes of
+  one mesh are byte-identical. Nothing beyond the standard library.
 
 - Optional packages have one rule, ``polyxios._optpkg.optional_package``:
   a module when it imports, and otherwise a stand-in that raises
