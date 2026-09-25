@@ -63,8 +63,9 @@ _COLOR_KEY: str = "colors"
 # float one runs 0..1.
 _INT_COLOR_MAX: float = 255.0
 _HEX_COLOR = re.compile(r"^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
-# XML 1.0 admits no control character but tab, newline and return.
-_XML_FORBIDDEN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
+# XML 1.0 admits no control character but tab, newline and return; a lone
+# surrogate has no UTF-8 spelling at all.
+_XML_FORBIDDEN = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff￾￿]")
 
 _TRIANGLE: int = ELEMENT_TYPES["triangle"]
 _QUAD: int = ELEMENT_TYPES["quad"]
@@ -166,15 +167,16 @@ def write(
     unit
         The model's unit of length: ``micron``, ``millimeter``,
         ``centimeter``, ``inch``, ``foot`` or ``meter``. Falls back to
-        ``global_attrs["unit"]``, then to millimetres.
+        ``global_attrs["unit"]``, then to millimetres; a mesh unit the
+        format lacks is written as millimetres with a warning.
 
     Raises
     ------
     CodecError
         When the mesh has elements but none of them is a surface, a vertex
         a triangle uses is not finite, a tag group name or metadata value
-        holds a control character, or the unit is not one the format
-        defines.
+        holds a character XML cannot carry, or ``unit`` is not one the
+        format defines.
     """
     unit = _pick_unit(poly, unit)
     tris, source = _triangles(poly)
@@ -277,7 +279,14 @@ def _model_part(package: zipfile.ZipFile, name: str) -> str:
 
 def _read_model(root: ET.Element, name: str) -> PolyData:
     """Assemble the build of a parsed ``<model>``."""
-    global_attrs: dict[str, Any] = {"unit": root.get("unit", _DEFAULT_UNIT)}
+    unit = root.get("unit", _DEFAULT_UNIT)
+    if unit not in _UNITS:
+        warnings.warn(
+            f"{name!r}: unit {unit!r} is not one 3MF defines"
+            f" ({', '.join(sorted(_UNITS))}); it is kept as read.",
+            stacklevel=3,
+        )
+    global_attrs: dict[str, Any] = {"unit": unit}
     objects: dict[int, ET.Element] = {}
     properties: dict[int, np.ndarray | None] = {}
     for child in root:
@@ -596,13 +605,26 @@ def _assemble(parts: list[_Part], global_attrs: dict[str, Any]) -> PolyData:
 
 
 def _pick_unit(poly: PolyData, unit: str | None) -> str:
-    """Return the unit to write, from the argument, the mesh, or the default."""
-    if unit is None:
-        unit = (poly.global_attrs or {}).get("unit", _DEFAULT_UNIT)
+    """Return the unit to write, from the argument, the mesh, or the default.
+
+    An explicit ``unit`` the format lacks is refused; one the mesh carries
+    from another format is replaced by millimetres with a warning, so a
+    mesh read elsewhere can still be written.
+    """
+    if unit is not None:
+        if unit not in _UNITS:
+            raise CodecError(
+                f".3mf: {unit!r} is not a 3MF unit; one of {sorted(_UNITS)} is."
+            )
+        return unit
+    unit = (poly.global_attrs or {}).get("unit", _DEFAULT_UNIT)
     if unit not in _UNITS:
-        raise CodecError(
-            f".3mf: {unit!r} is not a 3MF unit; one of {sorted(_UNITS)} is."
+        warnings.warn(
+            f".3mf: global_attrs['unit'] {unit!r} is not a 3MF unit; written"
+            f" as {_DEFAULT_UNIT!r}. Pass unit= to choose one of {sorted(_UNITS)}.",
+            stacklevel=3,
         )
+        return _DEFAULT_UNIT
     return unit
 
 

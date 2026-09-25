@@ -681,6 +681,13 @@ def test_a_name_with_a_control_character_is_refused_on_write(tmp_path: Path) -> 
         write(poly, tmp_path / "out.3mf")
 
 
+def test_a_lone_surrogate_is_refused_on_write(tmp_path: Path) -> None:
+    """UTF-8 cannot encode it, so the writer refuses instead of raising mid-ZIP."""
+    poly = _tet_poly(element_tags={"a\ud800b": np.arange(4, dtype=np.int32)})
+    with pytest.raises(CodecError, match="holds a control"):
+        write(poly, tmp_path / "out.3mf")
+
+
 def test_a_tag_named_like_the_untagged_object_is_warned_about(tmp_path: Path) -> None:
     """The rest goes out as object 2, which reads back as 'object_2' too."""
     poly = _tet_poly(element_tags={"object_2": np.array([0, 1], dtype=np.int32)})
@@ -770,6 +777,25 @@ def test_the_unit_is_taken_from_the_argument_then_the_mesh(tmp_path: Path) -> No
 def test_a_unit_the_format_lacks_is_refused(tmp_path: Path) -> None:
     with pytest.raises(CodecError, match="'furlong' is not a 3MF unit"):
         write(_tet_poly(), tmp_path / "out.3mf", unit="furlong")
+
+
+def test_a_mesh_unit_the_format_lacks_is_written_as_millimetres(
+    tmp_path: Path,
+) -> None:
+    """A unit another reader left behind must not make the mesh unwritable."""
+    path = tmp_path / "out.3mf"
+    with pytest.warns(UserWarning, match="'mm' is not a 3MF unit; written as"):
+        write(_tet_poly(global_attrs={"unit": "mm"}), path)
+    assert read(path).global_attrs["unit"] == "millimeter"
+
+
+def test_a_unit_the_format_lacks_is_kept_on_read_with_a_warning(
+    tmp_path: Path,
+) -> None:
+    path = _tet_file(tmp_path, unit="mm")
+    with pytest.warns(UserWarning, match="unit 'mm' is not one 3MF defines"):
+        mesh = read(path)
+    assert mesh.global_attrs["unit"] == "mm"
 
 
 def test_known_metadata_is_written_and_the_rest_left_out(tmp_path: Path) -> None:
