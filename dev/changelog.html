@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=b8a1a98d"></script>
+    <script src="_static/documentation_options.js?v=235c76b4"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-24"/>
+    <meta name="docbuild:last-update" content="2026-09-25"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -429,6 +429,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/avs.html">AVS-UCD</a></li>
@@ -647,6 +648,19 @@ numbering is checked against the manual’s table. Blocks are chosen on
 write from the tag groups that partition the mesh by type, the rest per
 type. The codec needs netCDF4, the new <code class="docutils literal notranslate"><span class="pre">polyxios[netcdf]</span></code> extra, and
 refuses with the install line without it.</p></li>
+<li><p>3MF (<code class="docutils literal notranslate"><span class="pre">.3mf</span></code>), the 3D-printing interchange format, is read and
+written. The build is read as a printer sees it: every placed object,
+a mesh outright or an
+assembly through its components, each transform composed and applied,
+a mirroring one reversing the winding; each object’s triangles are an
+element tag group of its name. A triangle’s base material or colour
+is <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code>, RGBA in 0..1; the model’s <code class="docutils literal notranslate"><span class="pre">unit</span></code>
+and its <code class="docutils literal notranslate"><span class="pre">metadata</span></code> are <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. On write a quad, polygon or
+strip is split into triangles and anything with no triangle dropped
+with a warning; every tag group goes out as an object of its name,
+the colours as one <code class="docutils literal notranslate"><span class="pre">basematerials</span></code>, the unit from <code class="docutils literal notranslate"><span class="pre">unit=</span></code> or the
+mesh. The package is written with fixed timestamps, so two writes of
+one mesh are byte-identical. Nothing beyond the standard library.</p></li>
 <li><p>Optional packages have one rule, <code class="docutils literal notranslate"><span class="pre">polyxios._optpkg.optional_package</span></code>:
 a module when it imports, and otherwise a stand-in that raises
 <code class="docutils literal notranslate"><span class="pre">MissingPackageError</span></code> - an <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> and an
@@ -2270,7 +2284,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-24.
+  Last updated on 2026-09-25.
   <br/>
 </p></div>
       

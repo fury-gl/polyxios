@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 37 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 38 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-seven - and raises instead of quietly corrupting
+        writes all thirty-eight - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>37</b><span>formats</span></div>
+        <div><b>38</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -111,6 +111,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/obj.html"><span>Wavefront OBJ</span><span class="px-ext">.obj</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/ply.html"><span>Stanford PLY</span><span class="px-ext">.ply</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
       <a class="px-tr" href="formats/stl.html"><span>STL</span><span class="px-ext">.stl</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/3mf.html"><span>3MF</span><span class="px-ext">.3mf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">objects: tags</span></a>
       <a class="px-tr" href="formats/off.html"><span>OFF</span><span class="px-ext">.off</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/abaqus.html"><span>Abaqus</span><span class="px-ext">.inp</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/avs.html"><span>AVS-UCD</span><span class="px-ext">.avs</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -142,7 +143,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
-      <p class="px-tfoot">} // 37 codecs, the 46 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <p class="px-tfoot">} // 38 codecs, the 47 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -223,7 +224,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a thirty-seventh format.
+    <p class="px-sub">Any third-party package can teach polyxios a thirty-ninth format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -570,7 +571,7 @@ and needs nothing.
 
 Where to go next
 
-formats/index - the thirty-seven supported formats, one page each
+formats/index - the thirty-eight supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -586,7 +587,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships thirty-seven codecs across forty-seven extensions - the forty-six
+polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -595,7 +596,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The thirty-seven format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-eight format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -661,6 +662,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="stl.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://www.fabbers.com/tech/STL_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">3MF <span class="px-fmtext">.3mf</span></p>
+    <p class="px-fmtdesc">The slicer's file: a ZIP of XML objects, assemblies
+      placed by transform, materials as colours, a unit on the model.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="3mf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/3MFConsortium/spec_core/blob/master/3MF%20Core%20Specification.md">full spec &#8599;</a>
     </p>
   </div>
 
@@ -1607,6 +1618,118 @@ A binary facet’s attribute word carries its colour, five bits per channel - bu
 Facets that claim a colour land in element_attrs["colors"] as RGB in 0..1; the ones that do not stay NaN, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all. On write a floating point column is taken as 0..1 and an integer one as 0..255, the way every image format counts.
 
 Colours are written back on a binary write. ASCII STL has no field for one, so an ASCII write reports that they were dropped rather than losing them quietly.
+
+index - the full format table.
+
+## 3MF
+
+Source: https://polyxios.org/stable/formats/3mf.html
+
+3MF
+
+.3mf read + write eager
+
+Summary of the specification
+
+3MF - the 3D Manufacturing Format of the 3MF Consortium - is the file a slicer takes in place of an STL. It is a ZIP package in the Open Packaging Conventions layout: [Content_Types].xml names the part types, _rels/.rels points at the model part, and the model part - 3D/3dmodel.model by convention - is one XML document. Its <resources> hold <object> elements, each either a <mesh> of <vertex x y z> and <triangle v1 v2 v3> entries or a <components> assembly of other objects placed under a transform; <basematerials> names the materials and their display colours. The <build> says which objects are printed and where, one <item objectid transform> each. The model carries a unit - millimetres unless it says otherwise - and a handful of named <metadata> entries. Every slicer reads it, Windows and macOS preview it, and Cura, PrusaSlicer and Bambu Studio save their projects in it.
+
+Specification at a glance
+
+
+
+
+
+container
+
+ZIP; _rels/.rels relates the package to its model part, [Content_Types].xml types the parts
+
+model part
+
+<model unit xml:lang> in http://schemas.microsoft.com/3dmanufacturing/core/2015/02
+
+geometry
+
+<object id type name> → <mesh> → <vertices> of <vertex x y z>, <triangles> of <triangle v1 v2 v3 pid p1 p2 p3>
+
+assemblies
+
+<object> → <components> → <component objectid transform>, nested to any depth
+
+transform
+
+twelve numbers, a 4x3 affine matrix in row-vector order; the last three are the translation
+
+materials
+
+<basematerials id> of <base name displaycolor>, #RRGGBB or #RRGGBBAA; the materials extension adds <colorgroup> and textures
+
+build
+
+<build> of <item objectid transform>; an object of type other is never built
+
+units
+
+micron, millimeter, centimeter, inch, foot, meter
+
+3MF core specification ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("part.3mf")
+mesh.element_tags                         # one group per built object
+mesh.element_attrs["colors"]              # RGBA per triangle, NaN where none
+mesh.global_attrs["unit"]                 # "millimeter"
+
+The build is read the way a printer would see it: every item’s object, a mesh outright or an assembly through its components, with each transform composed on the way down and applied to the vertices. A transform that mirrors turns each triangle inside out, so the winding of a mirrored placement is reversed to keep the surface facing outward. Each mesh object’s triangles become an element tag group named by the object’s name, or object_<id> when it has none; an object placed twice - two components of one part - contributes twice under the one name. An object the build never places is not read.
+
+A triangle’s material is its colour: a pid/p1 naming a <basematerials> entry or a materials-extension <colorgroup> entry reads into element_attrs["colors"] as RGBA in 0..1, the object’s pid/pindex standing in for a triangle that names none, NaN on the triangles with no colour at all. A texture, composite or multi-property is not a colour and reads as NaN. The model’s unit and every <metadata> entry land in global_attrs under their own names. lazy=True raises LazyReadError: a ZIP member has to be inflated before it can be parsed.
+
+The model part is found through _rels/.rels; a package without one is read through the conventional 3D/3dmodel.model. A file that is not a ZIP, a package with no model part, a triangle naming a vertex the object does not hold, an item naming an object the model does not hold, an object that contains itself, and a transform that is not twelve numbers each raise CodecError naming the fault.
+
+Writing
+
+px.write(mesh, "out.3mf")
+px.write(mesh, "out.3mf", unit="inch")
+
+3MF holds triangles, so the writer works in them: a triangle goes out as it is, a quad, pixel, polygon or triangle strip is split into triangles, and a quadratic surface element keeps its corners. Lines, vertices and volume elements have no triangle to be written as and are dropped with a warning; a mesh with elements and no surface at all is refused. Every element tag group goes out as an <object> of its name, in the order of the groups, and the triangles no group claims as one last unnamed object. A 3MF object owns its triangles, so an element in two groups stays with the first and the second is told so; each object also carries its own vertex list, so a vertex two objects share is written to both. element_attrs["colors"] - three or four columns, 0..1 as floats or 0..255 as integers - becomes one <basematerials> with a <base> per distinct colour, each triangle naming its own; a NaN row names none. The unit is the unit= argument, else global_attrs["unit"], else millimetres; a mesh unit the format lacks - mm from another reader, say - is written as millimetres with a warning, while a unit= the format lacks is refused. A global attribute named as the specification names its metadata - Title, Designer, Description, Copyright, LicenseTerms, Rating, CreationDate, ModificationDate, Application - is written as <metadata>. Every other attribute has no place in the format and is not written. Two writes of one mesh are byte-identical: the ZIP entries carry a fixed timestamp.
+
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+unit
+
+None
+
+On write: the model’s unit of length, one of micron,
+millimeter, centimeter, inch, foot, meter. Falls
+back to global_attrs["unit"], then to millimeter.
+
+Quirks worth knowing
+
+Objects come back as tags. A mesh written with no tags reads back with one group, object_1, because the file holds an object and the reader reports what the file holds. A mesh whose tags partition it goes out under those names and comes back under them.
+
+Transforms are applied, not kept. A part placed three times reads as three copies of its triangles; the placements are not recoverable from what comes back, and a rewrite holds three objects’ worth of triangles in one.
+
+One colour per triangle. 3MF lets a triangle name a property per corner (p1, p2, p3); only p1 is read, since a colour per corner has no element to land on. The material’s name is not kept, only its colour.
+
+Coordinates are written in full. Each coordinate is written as the shortest decimal that reads back to the same double, so a round trip through the file changes nothing.
+
+Buffers. A file object is read and written like a path: the whole package is read into memory, and a .gz name is compressed on the way out and read on the way in like any other format.
+
+The materials and production extensions are read only as far as <colorgroup>; a beam lattice, a slice stack or a texture is not geometry the reader returns.
 
 index - the full format table.
 
@@ -5993,6 +6116,20 @@ write from the tag groups that partition the mesh by type, the rest per
 type. The codec needs netCDF4, the new polyxios[netcdf] extra, and
 refuses with the install line without it.
 
+3MF (.3mf), the 3D-printing interchange format, is read and
+written. The build is read as a printer sees it: every placed object,
+a mesh outright or an
+assembly through its components, each transform composed and applied,
+a mirroring one reversing the winding; each object’s triangles are an
+element tag group of its name. A triangle’s base material or colour
+is element_attrs["colors"], RGBA in 0..1; the model’s unit
+and its metadata are global_attrs. On write a quad, polygon or
+strip is split into triangles and anything with no triangle dropped
+with a warning; every tag group goes out as an object of its name,
+the colours as one basematerials, the unit from unit= or the
+mesh. The package is written with fixed timestamps, so two writes of
+one mesh are byte-identical. Nothing beyond the standard library.
+
 Optional packages have one rule, polyxios._optpkg.optional_package:
 a module when it imports, and otherwise a stand-in that raises
 MissingPackageError - an UnsupportedFormatError and an
@@ -6121,7 +6258,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:235: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:248: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -6192,7 +6329,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:299: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:312: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -6430,7 +6567,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:523: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:536: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -6468,7 +6605,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:559: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:572: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -7433,7 +7570,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1419: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1432: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -7517,7 +7654,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1487: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1500: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -7565,7 +7702,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1518: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1531: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -7580,7 +7717,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1530: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1543: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -7686,7 +7823,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1603: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1616: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

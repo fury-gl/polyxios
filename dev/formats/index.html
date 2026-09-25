@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="The thirty-seven 3D mesh and geometry formats polyxios reads and writes, across forty-seven extensions - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each." name="description" />
+<meta content="The thirty-eight 3D mesh and geometry formats polyxios reads and writes, across forty-eight extensions - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each." name="description" />
 <meta property="og:title" content="Supported formats" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios ships thirty-seven codecs across forty-seven extensions - the forty-six below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the righ..." />
+<meta property="og:description" content="polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the ri..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_dd6ffb25.png" />
-<meta property="og:image:alt" content="polyxios ships thirty-seven codecs across forty-seven extensions - the forty-six below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the righ..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_2fc05146.png" />
+<meta property="og:image:alt" content="polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the ri..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=b8a1a98d"></script>
+    <script src="../_static/documentation_options.js?v=235c76b4"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-24"/>
+    <meta name="docbuild:last-update" content="2026-09-25"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -429,6 +429,7 @@
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -555,14 +556,14 @@
                   
   <section id="supported-formats">
 <span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
-<p>polyxios ships thirty-seven codecs across forty-seven extensions - the forty-six
+<p>polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven
 below plus <code class="docutils literal notranslate"><span class="pre">.plt</span></code>, which is recognised but not read. Each is registered by
 extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
 <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
 <p>Every page below summarises the format’s specification, notes where polyxios extends or
 deviates from it, and links to the authoritative document.</p>
 <!--
-  The thirty-seven format cards, pulled into formats/index.rst by a raw:: html
+  The thirty-eight format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -628,6 +629,16 @@ deviates from it, and links to the authoritative document.</p>
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="stl.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://www.fabbers.com/tech/STL_Format">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">3MF <span class="px-fmtext">.3mf</span></p>
+    <p class="px-fmtdesc">The slicer's file: a ZIP of XML objects, assemblies
+      placed by transform, materials as colours, a unit on the model.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="3mf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://github.com/3MFConsortium/spec_core/blob/master/3MF%20Core%20Specification.md">full spec &#8599;</a>
     </p>
   </div>
 
@@ -1070,7 +1081,7 @@ file is not supported.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-24.
+  Last updated on 2026-09-25.
   <br/>
 </p></div>
       
