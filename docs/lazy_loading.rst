@@ -108,6 +108,9 @@ a buffer or a compressed file like any other read.
 
 The mapping lives as long as any array viewing it does, and goes when the
 last one does. Nothing is closed behind your back and nothing needs closing.
+A mapping does keep its own descriptor open for that long, so a thousand
+lazy meshes held at once are a thousand open files; drop the arrays to
+release them.
 
 .. seealso::
 

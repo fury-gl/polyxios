@@ -80,7 +80,9 @@ mapped instead of loaded:
 The vertices, connectivity and every point and cell array are read-only
 views of the mapping, in the dtype and byte order the file holds. The offsets
 and element types are derived from the file rather than stored in it, so
-those two are built in memory. A file of several pieces, or a piece holding
+those two are built in memory, as is a connectivity the file declares as
+floats: an index is a whole number, so it is cast to integers the way an
+eager read casts it. A file of several pieces, or a piece holding
 more than one of ``Verts``, ``Lines``, ``Strips`` and ``Polys``, is joined by
 copying. A file that keeps its arrays inline, base64-encoded or
 zlib-compressed has no bytes on disk in the shape an array needs, and

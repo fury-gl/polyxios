@@ -5,7 +5,7 @@ VTK Legacy
 
 .. rst-class:: px-badges
 
-``.vtk`` ``read + write`` ``lazy: binary v5.1 zero-copy, v4.2 points``
+``.vtk`` ``read + write`` ``lazy: binary v5.1 zero-copy, v4.2 all but cells``
 
 Summary of the specification
 ----------------------------

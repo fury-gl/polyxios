@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import mmap
+import io
 import struct
 import tempfile
 import warnings
@@ -18,6 +18,7 @@ from polyxios._types import PolyData
 from polyxios.codecs._ply import read, write
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.fetcher import fetch
+from tests.codecs._lazy import mapped
 
 
 def _synthetic_mesh() -> object:
@@ -46,15 +47,6 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def _mapped(arr: np.ndarray) -> bool:
-    base = arr
-    while isinstance(base, np.ndarray):
-        base = base.base
-    if isinstance(base, memoryview):
-        base = base.obj
-    return isinstance(base, mmap.mmap)
-
-
 def test_roundtrip_lazy(tmp_path) -> None:
     """The vertex block is one run of records, so the coordinates and every
     scalar vertex property view the mapping; a face list is prefixed by its
@@ -74,16 +66,16 @@ def test_roundtrip_lazy(tmp_path) -> None:
     np.testing.assert_array_equal(
         poly_lazy.vertex_attrs["intensity"], poly.vertex_attrs["intensity"]
     )
-    assert _mapped(poly_lazy.vertices)
-    assert _mapped(poly_lazy.vertex_attrs["intensity"])
+    assert mapped(poly_lazy.vertices)
+    assert mapped(poly_lazy.vertex_attrs["intensity"])
     assert not poly_lazy.vertices.flags.writeable
     assert poly_lazy.vertices.shape == (4, 3)
-    assert not _mapped(poly_lazy.connectivity)
+    assert not mapped(poly_lazy.connectivity)
 
     eager = read(tmp)
     assert eager.vertices.flags.writeable
     assert eager.vertices.dtype == np.float64
-    assert not _mapped(eager.vertices)
+    assert not mapped(eager.vertices)
 
 
 def test_vertex_attrs() -> None:
@@ -868,3 +860,148 @@ def test_the_types_a_mesh_loses_are_counted_not_listed(tmp_path) -> None:
     )
     with pytest.warns(UserWarning, match=r"tetra \(2\) -> quad\.$"):
         write(poly, tmp_path / "counted.ply")
+
+
+# --- lazy reads view the vertex block, or copy what no view describes --------
+
+
+def test_lazy_refuses_an_in_memory_buffer(tmp_path) -> None:
+    poly = _synthetic_mesh()
+    tmp = tmp_path / "mesh.ply"
+    write(poly, tmp, binary=True)
+    with pytest.raises(LazyReadError, match="no file descriptor"):
+        read(io.BytesIO(tmp.read_bytes()), lazy=True)
+
+
+def test_a_big_endian_file_is_viewed_in_its_own_byte_order(tmp_path) -> None:
+    """The view keeps the file's dtype, byte order included, and reads the
+    same numbers the eager decode does."""
+    path = tmp_path / "big.ply"
+    path.write_bytes(
+        b"ply\nformat binary_big_endian 1.0\n"
+        b"element vertex 2\nproperty float x\nproperty float y\n"
+        b"property float z\nproperty uchar red\n"
+        b"end_header\n"
+        + struct.pack(">3fB", 0, 0, 0, 7)
+        + struct.pack(">3fB", 1, 0, 0, 9)
+    )
+    lazy = read(path, lazy=True)
+    eager = read(path)
+
+    assert lazy.vertices.dtype == np.dtype(">f4")
+    assert mapped(lazy.vertices)
+    assert mapped(lazy.vertex_attrs["red"])
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    np.testing.assert_array_equal(lazy.vertex_attrs["red"], eager.vertex_attrs["red"])
+    assert eager.vertices.dtype == np.float64
+
+
+def test_an_empty_vertex_block_whose_x_is_not_first_reads_lazily(tmp_path) -> None:
+    """A view starting past the end of a zero-length buffer is one numpy
+    refuses, whatever the shape asked for; eager hands back ``(0, 3)``."""
+    path = tmp_path / "empty.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 0\nproperty uchar red\nproperty float x\n"
+            "property float y\nproperty float z\n",
+            b"",
+        )
+    )
+    lazy = read(path, lazy=True)
+    assert lazy.vertices.shape == (0, 3)
+    assert lazy.vertices.dtype == np.float32
+    assert lazy.vertex_attrs["red"].shape == (0,)
+    assert read(path).vertices.shape == (0, 3)
+
+
+@pytest.mark.parametrize(
+    ("props", "body"),
+    [
+        pytest.param(
+            "property int x\nproperty int y\nproperty int z\nproperty uchar red\n",
+            struct.pack("<3iB", 1, 2, 3, 7) + struct.pack("<3iB", 4, 5, 6, 9),
+            id="integer-coordinates",
+        ),
+        pytest.param(
+            "property float x\nproperty uchar red\nproperty float y\n"
+            "property float z\n",
+            struct.pack("<fBff", 1, 7, 2, 3) + struct.pack("<fBff", 4, 9, 5, 6),
+            id="coordinates-apart",
+        ),
+        pytest.param(
+            "property float x\nproperty double y\nproperty double z\n"
+            "property uchar red\n",
+            struct.pack("<fddB", 1, 2, 3, 7) + struct.pack("<fddB", 4, 5, 6, 9),
+            id="differing-types",
+        ),
+    ],
+)
+def test_a_layout_no_view_describes_is_copied_to_float64(tmp_path, props, body) -> None:
+    """A PolyData's vertices are float64, so an integer column is converted
+    rather than viewed, and coordinates apart or of differing types have no
+    one stride to view through; a scalar property beside them still views
+    the mapping."""
+    path = tmp_path / "layout.ply"
+    path.write_bytes(_binary_ply("element vertex 2\n" + props, body))
+    lazy = read(path, lazy=True)
+    eager = read(path)
+
+    assert lazy.vertices.dtype == np.float64
+    assert not mapped(lazy.vertices)
+    np.testing.assert_array_equal(lazy.vertices, [[1, 2, 3], [4, 5, 6]])
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    assert mapped(lazy.vertex_attrs["red"])
+    np.testing.assert_array_equal(lazy.vertex_attrs["red"], [7, 9])
+    np.testing.assert_array_equal(lazy.vertex_attrs["red"], eager.vertex_attrs["red"])
+
+
+def test_a_vertex_element_carrying_a_list_property_is_copied_lazily(
+    tmp_path,
+) -> None:
+    """A record whose width depends on a count inside it has no stride to
+    view through, so the whole block - coordinates and scalars - is walked
+    into copies, the values matching the eager decode."""
+    path = tmp_path / "vertex_list.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 2\nproperty float x\nproperty float y\n"
+            "property float z\nproperty list uchar int extra\nproperty uchar red\n",
+            struct.pack("<3f", 0, 0, 0)
+            + struct.pack("<BII", 2, 7, 8)
+            + struct.pack("<B", 5)
+            + struct.pack("<3f", 1, 0, 0)
+            + struct.pack("<BI", 1, 9)
+            + struct.pack("<B", 6),
+        )
+    )
+    lazy = read(path, lazy=True)
+    eager = read(path)
+
+    np.testing.assert_array_equal(lazy.vertices, [[0, 0, 0], [1, 0, 0]])
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    assert lazy.vertices.dtype == np.float64
+    assert not mapped(lazy.vertices)
+    np.testing.assert_array_equal(lazy.vertex_attrs["red"], [5, 6])
+    np.testing.assert_array_equal(lazy.vertex_attrs["red"], eager.vertex_attrs["red"])
+    assert not mapped(lazy.vertex_attrs["red"])
+
+
+@pytest.mark.parametrize("element", ["vertex", "edge"])
+@pytest.mark.parametrize("lazy", [False, True])
+def test_a_negative_element_count_is_a_codec_error(tmp_path, element, lazy) -> None:
+    """numpy reads a count of -1 as every record left, which swallows the
+    blocks after it, and a negative vertex count escaped as a bare ValueError."""
+    counts = {"vertex": 2, "edge": 1}
+    counts[element] = -1
+    path = tmp_path / "negative.ply"
+    path.write_bytes(
+        _binary_ply(
+            f"element vertex {counts['vertex']}\nproperty float x\n"
+            "property float y\nproperty float z\n"
+            f"element edge {counts['edge']}\nproperty int vertex1\n"
+            "property int vertex2\n",
+            struct.pack("<6f", 0, 0, 0, 1, 0, 0) + struct.pack("<ii", 0, 1),
+        )
+    )
+    with pytest.raises(CodecError, match="negative count"):
+        read(path, lazy=lazy)

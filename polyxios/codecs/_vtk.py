@@ -206,7 +206,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     lazy
         Map a binary UNSTRUCTURED_GRID and hand back arrays that view it,
         read-only, in the big-endian dtypes the file holds. The points and
-        every point and cell array are views whatever the file's version.
+        every point and cell array are views whatever the file's version,
+        except a TENSORS array, which is expanded to one 3x3 per entity
+        and so is a float64 copy either way, as a COLOR_SCALARS array is.
         The cells are views only in the v5.1 layout, which stores OFFSETS
         and CONNECTIVITY as two blocks; the v4.2 ``CELLS`` block interleaves
         each cell's count with its indices, so nothing on disk is the
@@ -1779,7 +1781,7 @@ def _parse_binary_polydata_body(
             if next_line.upper().startswith("OFFSETS"):
                 # v5.1, as every VTK release since 9.0 writes it.
                 conn_v51, off_v51, pos = _parse_v51_cells_binary(
-                    mm, mv, next_end + 1, n_cells, file_size
+                    mm, mv, next_end + 1, n_cells, file_size, total=total_vals
                 )
                 base = all_offs[-1]
                 all_conn.append(conn_v51.astype(np.int32))
@@ -1797,15 +1799,12 @@ def _parse_binary_polydata_body(
             pos += n_bytes_cells
             pos = _skip_newline(mv, pos, file_size)
 
-            idx = 0
-            for _ in range(n_cells):
-                cnt = int(raw_cells[idx])
-                idx += 1
-                cell = raw_cells[idx : idx + cnt]
-                idx += cnt
-                all_conn.append(cell)
-                all_offs.append(all_offs[-1] + cnt)
-                all_types.append(_polydata_cell_type(kind, cnt))
+            conn_list, widths = _walk_cell_stream(
+                raw_cells.tolist(), n_cells, kind, short="is too short to hold"
+            )
+            all_conn.append(np.array(conn_list, dtype=np.int32))
+            all_offs.extend(accumulate(widths, initial=all_offs[-1]))
+            all_types.extend(_polydata_cell_type(kind, cnt) for cnt in widths)
             n_elems += n_cells
 
         elif upper.startswith("POINT_DATA"):
@@ -3077,8 +3076,22 @@ def _read_binary(path: Source, *, lazy: bool) -> PolyData:
         for _ in range(4):
             pos = mm.find(b"\n", pos) + 1
 
-        poly = _parse_binary_body(mm, mv, pos, file_size, copy=not lazy)
-        del mv  # release the view before the mapping goes
+        try:
+            poly = _parse_binary_body(mm, mv, pos, file_size, copy=not lazy)
+        except BaseException:
+            # open_block leaves a mapping it was asked to keep open, since
+            # the arrays of a finished read view it; a read that failed
+            # before building any leaves nothing behind to hold it open.
+            # Released rather than deleted: the traceback still holds the
+            # frames that reference the view.
+            mv.release()
+            if isinstance(mm, mmap.mmap):
+                try:
+                    mm.close()
+                except BufferError:
+                    pass
+            raise
+        mv.release()
 
     return poly
 
@@ -3228,7 +3241,13 @@ def _parse_binary_body(
 
             if "OFFSETS" in next_line:
                 connectivity, offsets_arr, pos = _parse_v51_cells_binary(
-                    mm, mv, line_end2 + 1, n_elems, file_size, copy=copy
+                    mm,
+                    mv,
+                    line_end2 + 1,
+                    n_elems,
+                    file_size,
+                    total=total_size,
+                    copy=copy,
                 )
                 n_elems = len(offsets_arr) - 1
             else:
@@ -3330,7 +3349,8 @@ def _parse_v51_cells_binary(
     declared: int,
     file_size: int,
     *,
-    copy: bool,
+    total: int,
+    copy: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Read a binary v5.1 OFFSETS + CONNECTIVITY pair.
 
@@ -3346,6 +3366,10 @@ def _parse_v51_cells_binary(
         The first number on the section's header line.
     file_size
         Size of the file.
+    total
+        The second number on the section's header line: the values the
+        CONNECTIVITY block holds, which is what VTK's own reader sizes the
+        block by.
     copy
         Convert both blocks to native int64. Otherwise they view the
         mapping as the big-endian int64 the file holds.
@@ -3355,6 +3379,15 @@ def _parse_v51_cells_binary(
     tuple[numpy.ndarray, numpy.ndarray, int]
         Connectivity, offsets, and the byte offset just past the section.
         The section holds one cell fewer than the offsets array has values.
+
+    Raises
+    ------
+    CodecError
+        If the offsets run backwards, or their last value - the one that
+        sizes the connectivity - is not the header's total. Sized by the
+        offsets alone, a block shorter than they claim was read on into
+        the section after it, and one longer left the tail of it to be
+        parsed as the next keyword line.
     """
     n_off = _v51_offset_count(mm, mv, pos, declared, file_size)
     n_bytes_off = n_off * 8
@@ -3363,6 +3396,14 @@ def _parse_v51_cells_binary(
     pos = _next_binary_header(
         mm, mv, _skip_newline(mv, pos + n_bytes_off, file_size), file_size
     )
+    if offsets_arr[0] < 0 or bool(np.any(offsets_arr[1:] < offsets_arr[:-1])):
+        raise CodecError(".vtk: a v5.1 cell section's OFFSETS run backwards.")
+    n_conn = int(offsets_arr[-1])
+    if n_conn != total:
+        raise CodecError(
+            f".vtk: a v5.1 cell section's OFFSETS end at {n_conn} but its"
+            f" header declares {total} connectivity values."
+        )
 
     # skip CONNECTIVITY keyword line
     conn_kw_end = mm.find(b"\n", pos)
@@ -3372,7 +3413,6 @@ def _parse_v51_cells_binary(
             " follows them."
         )
     pos = conn_kw_end + 1
-    n_conn = int(offsets_arr[-1])
     _check_block(pos, n_conn * 8, file_size, name="CONNECTIVITY")
     connectivity = _block(mm, pos, ">i8", n_conn, copy=copy, as_=np.int64)
     pos = _skip_newline(mv, pos + n_conn * 8, file_size)
@@ -3495,8 +3535,14 @@ def _check_block(pos: int, n_bytes: int, file_size: int, *, name: str) -> None:
     Raises
     ------
     CodecError
-        If the block runs past the end of the file.
+        If the block runs past the end of the file, or declares a negative
+        size - a count numpy reads as "to the end of the file", after which
+        the cursor steps backwards by it.
     """
+    if n_bytes < 0:
+        raise CodecError(
+            f".vtk: array {name!r} declares {n_bytes} bytes, which is no size."
+        )
     if pos + n_bytes > file_size:
         raise CodecError(
             f".vtk: array {name!r} declares {n_bytes} bytes but only"

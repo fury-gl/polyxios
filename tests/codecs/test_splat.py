@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import mmap
 import tempfile
 
 import numpy as np
@@ -10,6 +9,7 @@ import pytest
 from polyxios._types import PolyData
 from polyxios.codecs._splat import read, write
 from polyxios.exceptions import CodecError, LazyReadError
+from tests.codecs._lazy import mapped
 
 
 def _synthetic_splats(n: int = 4) -> PolyData:
@@ -61,15 +61,6 @@ def test_roundtrip() -> None:
         np.testing.assert_array_equal(poly2.vertex_attrs[name], poly.vertex_attrs[name])
 
 
-def _mapped(arr: np.ndarray) -> bool:
-    base = arr
-    while isinstance(base, np.ndarray):
-        base = base.base
-    if isinstance(base, memoryview):
-        base = base.obj
-    return isinstance(base, mmap.mmap)
-
-
 def test_lazy_arrays_view_the_records(tmp_path) -> None:
     """A .splat is a run of 32-byte records, so every array is a strided
     view of the mapping: float32 positions three columns wide, one column
@@ -84,15 +75,15 @@ def test_lazy_arrays_view_the_records(tmp_path) -> None:
     assert back.vertices.shape == (8, 3)
     for name, arr in poly.vertex_attrs.items():
         np.testing.assert_array_equal(back.vertex_attrs[name], arr)
-        assert _mapped(back.vertex_attrs[name])
+        assert mapped(back.vertex_attrs[name])
         assert not back.vertex_attrs[name].flags.writeable
-    assert _mapped(back.vertices)
+    assert mapped(back.vertices)
     assert not back.vertices.flags.writeable
 
     eager = read(tmp)
     assert eager.vertices.dtype == np.float64
     assert eager.vertices.flags.writeable
-    assert not _mapped(eager.vertices)
+    assert not mapped(eager.vertices)
 
 
 def test_lazy_refuses_an_in_memory_buffer(tmp_path) -> None:
@@ -111,6 +102,22 @@ def test_file_size_32_bytes_per_splat() -> None:
     import os
 
     assert os.path.getsize(tmp) == 5 * 32
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+def test_an_empty_file_is_a_cloud_of_no_splats(tmp_path, lazy: bool) -> None:
+    """Zero bytes is a multiple of 32, so the file is valid and holds no
+    record; mmap refuses to map it, which must not become a codec error."""
+    tmp = tmp_path / "none.splat"
+    tmp.write_bytes(b"")
+    poly = read(tmp, lazy=lazy)
+
+    assert poly.vertices.shape == (0, 3)
+    assert poly.vertices.dtype == (np.float32 if lazy else np.float64)
+    assert len(poly.element_types) == 0
+    for name in ("scale_0", "color_r", "opacity", "rot_3"):
+        assert poly.vertex_attrs[name].shape == (0,)
+    assert read(io.BytesIO(b"")).vertices.shape == (0, 3)
 
 
 def test_read_wrong_size_raises() -> None:

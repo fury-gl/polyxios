@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import mmap
 import tempfile
 
 import numpy as np
@@ -9,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._vtp import read, write
 from polyxios.exceptions import CodecError, LazyReadError
+from tests.codecs._lazy import mapped
 
 
 def _synthetic_mesh() -> object:
@@ -35,16 +35,6 @@ def test_roundtrip_binary() -> None:
     poly2 = read(tmp)
     np.testing.assert_allclose(poly2.vertices, poly.vertices, atol=1e-8)
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
-
-
-def _mapped(arr: np.ndarray) -> bool:
-    """Whether the array, through however many views, sits on a mapping."""
-    base = arr
-    while isinstance(base, np.ndarray):
-        base = base.base
-    if isinstance(base, memoryview):
-        base = base.obj
-    return isinstance(base, mmap.mmap)
 
 
 def _mixed_polys() -> object:
@@ -79,7 +69,7 @@ def test_roundtrip_appended(tmp_path) -> None:
         back.element_attrs["stress"], poly.element_attrs["stress"]
     )
     assert back.vertices.flags.writeable
-    assert not _mapped(back.vertices)
+    assert not mapped(back.vertices)
 
 
 def test_lazy_arrays_view_the_mapping(tmp_path) -> None:
@@ -96,7 +86,7 @@ def test_lazy_arrays_view_the_mapping(tmp_path) -> None:
         back.vertex_attrs["pressure"], poly.vertex_attrs["pressure"]
     )
     for arr in (back.vertices, back.connectivity, back.vertex_attrs["pressure"]):
-        assert _mapped(arr)
+        assert mapped(arr)
         assert not arr.flags.writeable
     assert back.connectivity.dtype == back.offsets.dtype
 
@@ -247,3 +237,16 @@ def test_field_data_on_a_piece_is_read(tmp_path) -> None:
     path.write_text(_polydata_file("0 0 0 1 0 0 0 1 0", 3, extra))
 
     np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [3.5])
+
+
+def test_a_file_with_no_polydata_element_names_the_format(tmp_path) -> None:
+    """A root holding no dataset used to raise a bare ValueError."""
+    path = tmp_path / "hollow.vtp"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">\n'
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match=r"\.vtp: .*no <PolyData>"):
+        read(path)

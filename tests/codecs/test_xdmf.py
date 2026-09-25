@@ -8,7 +8,6 @@ refusal names the extra that installs it.
 from __future__ import annotations
 
 import io
-import mmap
 from pathlib import Path
 import subprocess
 import sys
@@ -28,6 +27,7 @@ from polyxios.exceptions import (
     UnknownElementTypeError,
     UnsupportedFormatError,
 )
+from tests.codecs._lazy import mapped
 
 _TRI = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=np.float64)
 
@@ -396,13 +396,12 @@ def test_lazy_refuses_inline_values(tmp_path: Path) -> None:
         read(_write_doc(tmp_path, _SQUARE_GRID), lazy=True)
 
 
-def _mapped(arr: np.ndarray) -> bool:
+def _mapping_of(arr: np.ndarray) -> object:
+    """The object at the bottom of the array's chain of views."""
     base = arr
     while isinstance(base, np.ndarray):
         base = base.base
-    if isinstance(base, memoryview):
-        base = base.obj
-    return isinstance(base, mmap.mmap)
+    return base.obj if isinstance(base, memoryview) else base
 
 
 def _assert_lazy_views(back, poly) -> None:
@@ -412,9 +411,12 @@ def _assert_lazy_views(back, poly) -> None:
     np.testing.assert_array_equal(back.element_types, poly.element_types)
     np.testing.assert_array_equal(back.vertex_attrs["s"], poly.vertex_attrs["s"])
     for arr in (back.vertices, back.connectivity, back.vertex_attrs["s"]):
-        assert _mapped(arr)
+        assert mapped(arr)
         assert not arr.flags.writeable
-    assert back.connectivity.dtype == back.offsets.dtype
+    assert back.offsets.dtype == poly.offsets.dtype
+    # One sidecar, one mapping: every array of the mesh views the same one.
+    assert _mapping_of(back.vertices) is _mapping_of(back.connectivity)
+    assert _mapping_of(back.vertices) is _mapping_of(back.vertex_attrs["s"])
 
 
 def test_lazy_views_a_binary_sidecar(tmp_path: Path) -> None:
@@ -445,6 +447,144 @@ def test_lazy_refuses_a_compressed_hdf5_dataset(tmp_path: Path) -> None:
     np.testing.assert_array_equal(
         read(path).connectivity, _two_triangles().connectivity
     )
+
+
+def test_lazy_refuses_an_externally_stored_hdf5_dataset(tmp_path: Path) -> None:
+    """External storage is contiguous, in another file: the refusal must not
+    call it non-contiguous, and the eager read still goes through h5py."""
+    h5py = pytest.importorskip("h5py")
+    coords = np.arange(12.0)
+    raw = tmp_path / "xyz.raw"
+    coords.tofile(raw)
+    with h5py.File(tmp_path / "m.h5", "w") as f:
+        f.create_dataset("/xyz", shape=(4, 3), dtype="f8", external=[(str(raw), 0, 96)])
+        f.create_dataset("/tri", data=np.array([[0, 1, 2], [1, 3, 2]], dtype=np.int32))
+    body = """
+<Grid Name="g" GridType="Uniform">
+  <Geometry GeometryType="XYZ"><DataItem Dimensions="4 3" Format="HDF">m.h5:/xyz</DataItem></Geometry>
+  <Topology TopologyType="Triangle" NumberOfElements="2"><DataItem Dimensions="2 3" Format="HDF">m.h5:/tri</DataItem></Topology>
+</Grid>"""
+    path = _write_doc(tmp_path, body)
+    np.testing.assert_array_equal(read(path).vertices, coords.reshape(4, 3))
+    with pytest.raises(LazyReadError, match="in this file"):
+        read(path, lazy=True)
+
+
+def _narrow_index_doc(
+    tmp_path: Path, *, number_type: str, dtype: str, n_cells: int, mixed: bool
+) -> Path:
+    """A grid whose connectivity sidecar holds a narrow integer type.
+
+    The cells are triangles over a hundred points, so the indices fit a
+    byte while the offsets, which run to three per cell, do not.
+    """
+    n_pts = 100
+    coords = np.arange(3 * n_pts, dtype="<f8")
+    tris = (np.arange(3 * n_cells) % n_pts).reshape(n_cells, 3)
+    if mixed:
+        stream = np.hstack([np.full((n_cells, 1), 4), tris]).ravel()
+        topo = f'TopologyType="Mixed" NumberOfElements="{n_cells}"'
+        dims = str(stream.size)
+    else:
+        stream = tris.ravel()
+        topo = f'TopologyType="Triangle" NumberOfElements="{n_cells}"'
+        dims = f"{n_cells} 3"
+    (tmp_path / "m.bin").write_bytes(coords.tobytes() + stream.astype(dtype).tobytes())
+    endian = "Big" if dtype.startswith(">") else "Little"
+    width = np.dtype(dtype).itemsize
+    body = f"""
+<Grid Name="g" GridType="Uniform">
+  <Geometry GeometryType="XYZ">
+    <DataItem Dimensions="{n_pts} 3" NumberType="Float" Precision="8" Format="Binary" Endian="Little">m.bin</DataItem>
+  </Geometry>
+  <Topology {topo}>
+    <DataItem Dimensions="{dims}" NumberType="{number_type}" Precision="{width}" Format="Binary" Endian="{endian}" Seek="{coords.nbytes}">m.bin</DataItem>
+  </Topology>
+</Grid>"""
+    return _write_doc(tmp_path, body)
+
+
+@pytest.mark.parametrize("mixed", [False, True])
+@pytest.mark.parametrize(
+    ("number_type", "dtype", "n_cells"),
+    [("UInt", "<u1", 100), ("Int", "<i2", 20000), ("Int", ">i2", 20000)],
+)
+def test_lazy_offsets_are_sized_on_their_own_not_on_the_connectivity(
+    tmp_path: Path, number_type: str, dtype: str, n_cells: int, mixed: bool
+) -> None:
+    """A lazy read keeps the sidecar's connectivity dtype; the offsets are
+    derived and used to inherit it, so a byte-wide or big-endian topology
+    handed back offsets that wrapped or were byte-swapped."""
+    path = _narrow_index_doc(
+        tmp_path, number_type=number_type, dtype=dtype, n_cells=n_cells, mixed=mixed
+    )
+    eager = read(path)
+    back = read(path, lazy=True)
+    assert back.connectivity.dtype == np.dtype(dtype)
+    np.testing.assert_array_equal(back.connectivity, eager.connectivity)
+    np.testing.assert_array_equal(back.offsets, eager.offsets)
+    assert back.offsets.dtype == eager.offsets.dtype == np.int32
+    assert back.offsets.dtype.isnative
+    assert int(back.offsets[-1]) == 3 * n_cells
+
+
+def test_lazy_maps_a_sidecar_once_for_every_item_in_it(tmp_path: Path) -> None:
+    """Points, cells and six attributes in one .bin used to map it eight times."""
+    poly = _two_triangles(
+        vertex_attrs={f"v{i}": np.arange(4.0) + i for i in range(3)},
+        element_attrs={f"e{i}": np.arange(2.0) + i for i in range(3)},
+    )
+    path = tmp_path / "m.xdmf"
+    write(poly, path, data_format="binary")
+    back = read(path, lazy=True)
+    arrays = [back.vertices, back.connectivity]
+    arrays += list(back.vertex_attrs.values()) + list(back.element_attrs.values())
+    assert len(arrays) == 8
+    mappings = {id(_mapping_of(arr)) for arr in arrays}
+    assert len(mappings) == 1
+    assert mapped(back.vertices)
+
+
+@pytest.mark.parametrize("data_format", ["hdf", "binary"])
+def test_lazy_reads_an_empty_mesh_and_an_empty_set(
+    tmp_path: Path, data_format: str
+) -> None:
+    """An empty dataset has no storage and so no offset, and an empty .bin
+    cannot be mapped; neither is a reason to refuse a mesh the writer
+    itself emits."""
+    if data_format == "hdf":
+        pytest.importorskip("h5py")
+    empty = polyxios.PolyData(
+        vertices=np.empty((0, 3)),
+        connectivity=np.array([], dtype=np.int32),
+        offsets=np.zeros(1, dtype=np.int32),
+        element_types=np.array([], dtype=np.uint8),
+    )
+    path = tmp_path / "e.xdmf"
+    write(empty, path, data_format=data_format)
+    back = read(path, lazy=True)
+    assert back.vertices.shape == (0, 3)
+    assert len(back.element_types) == 0
+    poly = _two_triangles(element_tags={"none": np.array([], dtype=np.int32)})
+    path = tmp_path / "s.xdmf"
+    write(poly, path, data_format=data_format)
+    back = read(path, lazy=True)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    assert back.element_tags["none"].size == 0
+
+
+def test_a_negative_seek_is_refused(tmp_path: Path) -> None:
+    (tmp_path / "m.bin").write_bytes(np.arange(12.0).tobytes())
+    body = _SQUARE_GRID.replace(
+        """<DataItem Dimensions="4 3" NumberType="Float" Precision="8" Format="XML">
+      0 0 0  1 0 0  0 1 0  1 1 0
+    </DataItem>""",
+        """<DataItem Dimensions="4 3" NumberType="Float" Precision="8" Format="Binary" Seek="-8">m.bin</DataItem>""",
+    )
+    path = _write_doc(tmp_path, body)
+    for lazy in (False, True):
+        with pytest.raises(CodecError, match="Seek='-8' is negative"):
+            read(path, lazy=lazy)
 
 
 def test_an_unknown_read_option_is_warned_about(tmp_path: Path) -> None:

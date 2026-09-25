@@ -64,7 +64,8 @@ compressed dataset, or values spelled inline as text, have no such run and
 raise :class:`~polyxios.exceptions.LazyReadError` naming which. Arrays the
 file does not store but implies - a uniform topology's offsets, the element
 types, a mixed topology's gathered connectivity, coordinates padded from two
-columns to three - are built in memory.
+columns to three - are built in memory; the offsets are int32, or int64 when
+they need it, whatever dtype the connectivity keeps.
 
 The HDF5 flavour needs `h5py <https://www.h5py.org/>`_, which is optional - ``pip install "polyxios[hdf5]"``. Without it the inline and binary flavours still read, and a file naming an HDF5 sidecar raises :class:`~polyxios.exceptions.UnsupportedFormatError` spelling that command.
 

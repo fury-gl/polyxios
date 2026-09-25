@@ -84,11 +84,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         Map a binary file and hand back its vertex block as read-only views
         of the mapping, in the file's own dtype: the coordinates as one
         ``(n, 3)`` array striding from record to record, when ``x``, ``y``
-        and ``z`` sit side by side in one type, and every other scalar
-        vertex property as a column of its own. Faces and edges are decoded
-        either way, since a face list is prefixed by its count and nothing
-        on disk is the connectivity. Not supported for ASCII PLY (raises
-        LazyReadError).
+        and ``z`` sit side by side in one floating type, and every other
+        scalar vertex property as a column of its own. A file spelling its
+        coordinates as integers, or laying the three out apart or in
+        differing types, has them converted to float64 the way an eager read
+        does, and a vertex element carrying a list property has no fixed
+        record width, so the whole block is decoded into copies. Faces and
+        edges are decoded either way, since a face list is prefixed by its
+        count and nothing on disk is the connectivity. Every view shares the
+        one mapping of the file, which stays open until the last of them
+        goes; copying one column out does not release it. Not supported for
+        ASCII PLY (raises LazyReadError).
 
     Returns
     -------
@@ -1351,7 +1357,9 @@ def _coordinate_view(rec: np.ndarray, dt: np.dtype) -> np.ndarray | None:
     -------
     numpy.ndarray or None
         The strided view, or None when the fields are missing, differ in
-        type, or do not sit side by side.
+        type, do not sit side by side, or are not floating: a PolyData's
+        vertices are floating point, so integer coordinates are converted
+        rather than viewed, the way an eager read converts them.
     """
     fields = dt.fields
     if any(name not in fields for name in ("x", "y", "z")):
@@ -1362,10 +1370,14 @@ def _coordinate_view(rec: np.ndarray, dt: np.dtype) -> np.ndarray | None:
         fields["z"][:2],
     )
     step = x_dt.itemsize
-    if not (
+    if x_dt.kind != "f" or not (
         x_dt == y_dt == z_dt and y_off == x_off + step and z_off == x_off + 2 * step
     ):
         return None
+    if rec.shape[0] == 0:
+        # numpy refuses a view starting past the end of its buffer, and a
+        # block of no records ends before the first coordinate's offset.
+        return np.empty((0, 3), dtype=x_dt)
     return np.ndarray(
         (rec.shape[0], 3),
         dtype=x_dt,
@@ -1966,6 +1978,13 @@ def _parse_header(fh: object) -> tuple[dict, int]:
                     f".ply: element {parts[1]!r} declares a count that is not"
                     f" a number, in the header line {line!r}."
                 ) from exc
+            if count < 0:
+                # numpy reads a count of -1 as "every record left", which
+                # would swallow the blocks after it and walk the offset back.
+                raise CodecError(
+                    f".ply: element {parts[1]!r} declares a negative count,"
+                    f" in the header line {line!r}."
+                )
             current_elem = {"name": parts[1], "count": count, "properties": []}
             header["elements"].append(current_elem)
         elif kw == "property" and current_elem is not None:

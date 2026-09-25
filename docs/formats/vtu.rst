@@ -82,7 +82,9 @@ The vertices, connectivity and every point and cell array are read-only
 views of the mapping, in the dtype and byte order the file holds - a
 ``Float32`` points array stays ``float32``. The offsets and element types are
 derived from the file rather than stored in it, so those two are built in
-memory. A file of several pieces is joined by copying. A file that keeps its
+memory, as is a connectivity the file declares as floats: an index is a whole
+number, so it is cast to integers the way an eager read casts it. A file of
+several pieces is joined by copying. A file that keeps its
 arrays inline, base64-encoded or zlib-compressed has no bytes on disk in the
 shape an array needs, and ``lazy=True`` raises
 :class:`~polyxios.exceptions.LazyReadError` naming which.

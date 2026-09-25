@@ -8,11 +8,15 @@ from polyxios._io import Source, write_bytes, write_text
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
+    Parsed,
+    appended_header_type,
     appended_section,
+    attr_nbytes,
     decode_da,
     format_attr_da,
     format_da,
     format_field_data,
+    header_type_attr,
     join_cells,
     join_piece_attrs,
     parse_xml,
@@ -21,6 +25,7 @@ from polyxios.codecs._vtk_xml import (
     piece_field_data,
     polygon_types,
     read_field_data,
+    release_appended,
     shaped_da,
     spellable_arrays,
     undecodable_type,
@@ -55,6 +60,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         Piece holding a single cell section the vertices, connectivity and
         every attribute view the mapping; the offsets and element types are
         derived and so are copies. Pieces and sections are joined by copying.
+        A connectivity the file declares as floats is cast to the integers
+        an eager read gives, and is a copy too.
 
     Returns
     -------
@@ -67,21 +74,38 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         If ``lazy`` is set and the source cannot be mapped, or the file keeps
         its arrays inline, base64-encoded or zlib-compressed.
     CodecError
-        If a section declares offsets that run backwards or past the end of
-        its connectivity.
+        If the file holds no ``<PolyData>``; if a section declares offsets
+        that run backwards or past the end of its connectivity; or if a
+        binary block holds bytes that are not a whole number of the values
+        its array declares.
     """
     # The size comes back from the read itself: measuring the source
     # separately costs a whole decompression pass over a compressed one,
     # and a stream that cannot seek cannot be measured at all.
-    (
-        root,
-        appended,
-        header_type,
-        big_endian,
-        compressed,
-        is_base64,
-        file_size,
-    ) = parse_xml(path, lazy=lazy, fmt=EXTENSION)
+    parsed = parse_xml(path, lazy=lazy, fmt=EXTENSION)
+    try:
+        return _assemble(parsed, lazy=lazy)
+    except BaseException:
+        release_appended(parsed[1])
+        raise
+
+
+def _assemble(parsed: Parsed, *, lazy: bool) -> PolyData:
+    """Build the mesh of a parsed file.
+
+    Parameters
+    ----------
+    parsed
+        What :func:`parse_xml` handed back.
+    lazy
+        Whether the arrays view the mapping rather than copy out of it.
+
+    Returns
+    -------
+    PolyData
+        The mesh.
+    """
+    root, appended, header_type, big_endian, compressed, is_base64, file_size = parsed
 
     def _decode(elem):
         return decode_da(
@@ -105,7 +129,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     pd_elem = root.find("PolyData")
     if pd_elem is None:
-        raise ValueError("No <PolyData> element found in VTP file.")
+        raise CodecError(".vtp: the file holds no <PolyData> element.")
 
     all_vertices: list[np.ndarray] = []
     n_joined_points = 0
@@ -276,48 +300,9 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
 
-    lines: list[str] = []
-    lines.append('<?xml version="1.0"?>')
-    lines.append('<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">')
-    lines.append("  <PolyData>")
-    lines.extend(
-        format_field_data(
-            globals_for_write(poly, fmt=EXTENSION, text=True),
-            text=text_for_write(poly),
-            binary=binary,
-            indent=4,
-            fmt=EXTENSION,
-        )
-    )
-
-    n_polys = n_elems  # write all as Polys for generality
-
-    lines.append(
-        f'    <Piece NumberOfPoints="{n_verts}" NumberOfVerts="0" '
-        f'NumberOfLines="0" NumberOfStrips="0" NumberOfPolys="{n_polys}">'
-    )
-
-    lines.append("      <Points>")
-    lines.append(
-        _da(
-            "",
-            poly.vertices.ravel().astype(np.float64),
-            "Float64",
-            binary,
-            3,
-            10,
-            blocks,
-        )
-    )
-    lines.append("      </Points>")
-
+    points = poly.vertices.ravel().astype(np.float64)
     conn = poly.connectivity.astype(np.int32)
     off = poly.offsets[1:].astype(np.int32)
-
-    lines.append("      <Polys>")
-    lines.append(_da("connectivity", conn, "Int32", binary, 1, 10, blocks))
-    lines.append(_da("offsets", off, "Int32", binary, 1, 10, blocks))
-    lines.append("      </Polys>")
 
     # A tag group travels as one column of ones and zeros named for it: the
     # channel holds one value per entity, and an element in two groups is
@@ -345,11 +330,67 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         kind="cell",
     )
 
+    field_arrays = globals_for_write(poly, fmt=EXTENSION, text=True)
+
+    # Decided before any array is rendered: the width of every block's byte
+    # count is declared once on the root element and every offset counts it.
+    header_type = appended_header_type(
+        sizes=[
+            points.nbytes,
+            conn.nbytes,
+            off.nbytes,
+            *(attr_nbytes(arr=arr) for arr in point_arrays.values()),
+            *(attr_nbytes(arr=arr) for arr in cell_arrays.values()),
+            *(attr_nbytes(arr=arr) for arr in field_arrays.values()),
+        ]
+    )
+
+    lines: list[str] = []
+    lines.append('<?xml version="1.0"?>')
+    lines.append(
+        '<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian"'
+        f"{header_type_attr(header_type=header_type)}>"
+    )
+    lines.append("  <PolyData>")
+    lines.extend(
+        format_field_data(
+            field_arrays,
+            text=text_for_write(poly),
+            binary=binary,
+            indent=4,
+            fmt=EXTENSION,
+            header_type=header_type,
+        )
+    )
+
+    n_polys = n_elems  # write all as Polys for generality
+
+    lines.append(
+        f'    <Piece NumberOfPoints="{n_verts}" NumberOfVerts="0" '
+        f'NumberOfLines="0" NumberOfStrips="0" NumberOfPolys="{n_polys}">'
+    )
+
+    lines.append("      <Points>")
+    lines.append(_da("", points, "Float64", binary, 3, 10, blocks, header_type))
+    lines.append("      </Points>")
+
+    lines.append("      <Polys>")
+    lines.append(_da("connectivity", conn, "Int32", binary, 1, 10, blocks, header_type))
+    lines.append(_da("offsets", off, "Int32", binary, 1, 10, blocks, header_type))
+    lines.append("      </Polys>")
+
     if point_arrays:
         lines.append("      <PointData>")
         for name, arr in point_arrays.items():
             lines.append(
-                format_attr_da(name, arr, binary=binary, indent=10, appended=blocks)
+                format_attr_da(
+                    name,
+                    arr,
+                    binary=binary,
+                    indent=10,
+                    appended=blocks,
+                    header_type=header_type,
+                )
             )
         lines.append("      </PointData>")
 
@@ -357,7 +398,14 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         lines.append("      <CellData>")
         for name, arr in cell_arrays.items():
             lines.append(
-                format_attr_da(name, arr, binary=binary, indent=10, appended=blocks)
+                format_attr_da(
+                    name,
+                    arr,
+                    binary=binary,
+                    indent=10,
+                    appended=blocks,
+                    header_type=header_type,
+                )
             )
         lines.append("      </CellData>")
 
@@ -380,6 +428,7 @@ def _da(
     n_comp: int,
     indent: int,
     appended: list[bytes] | None = None,
+    header_type: str = "UInt32",
 ) -> str:
     """Render one ``<DataArray>`` element.
 
@@ -401,6 +450,8 @@ def _da(
         Spaces to prefix the line with.
     appended
         Block list to write the bytes to instead, as for ``format_da``.
+    header_type
+        Width of every block's byte count, as for ``format_da``.
 
     Returns
     -------
@@ -416,4 +467,5 @@ def _da(
         n_comp=n_comp,
         indent=indent,
         appended=appended,
+        header_type=header_type,
     )

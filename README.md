@@ -194,7 +194,7 @@ their vertices and decode their cells, whose on-disk form interleaves counts
 or references with the indices. Binary STL's `lazy=True` skips vertex
 deduplication instead - three vertices per triangle, copied - because a
 50-byte STL record cannot be viewed as coordinates. Everything encoded
-(ASCII, base64, zlib, ZIP) raises `LazyReadError` or, for the text formats,
+(ASCII, base64, zlib, ZIP) raises `LazyReadError` or, for some text formats,
 warns and loads eagerly.
 
 `mmap` maps a file descriptor from byte zero, so a lazy read needs a real,
@@ -224,7 +224,7 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
-| VTK Legacy | `.vtk` | ✓ | ✓ | lazy: binary v5.1 zero-copy, v4.2 points only |
+| VTK Legacy | `.vtk` | ✓ | ✓ | lazy: binary v5.1 zero-copy, v4.2 all but cells |
 | VTK PolyData | `.vtp` | ✓ | ✓ | points, lines, polygons, strips; lazy: raw appended, `appended=True` writes it |
 | Wavefront OBJ | `.obj` | ✓ | ✓ | `vt`/`vn` round trip, groups → element tags |
 | Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary vertices; faces decoded |

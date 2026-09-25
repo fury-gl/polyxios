@@ -317,8 +317,10 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
         chunked or compressed dataset, or values spelled inline as text,
         have no such run and raise. Derived arrays - the offsets of a
         uniform topology, the element types, a mixed topology's gathered
-        connectivity, coordinates padded from two columns to three - are
-        built in memory.
+        connectivity, coordinates padded from two columns to three, and
+        what a ``HyperSlab`` or ``Function`` DataItem computes - are
+        built in memory; the offsets are int32, or int64 when they need
+        it, whatever dtype the connectivity keeps.
     **opts
         ``step`` picks the time step of a temporal collection, counted from
         zero and negative from the end the way a list is; the first is read
@@ -430,7 +432,7 @@ def _open_document(path: Source, *, lazy: bool = False) -> dict[str, Any]:
         "file_size": len(raw),
         "lazy": lazy,
         "h5_files": {},
-        "h5_maps": {},
+        "maps": {},
         "holders": None,
         "shared_items": set(),
         "item_cache": None,
@@ -442,7 +444,7 @@ def _open_document(path: Source, *, lazy: bool = False) -> dict[str, Any]:
 
 
 def _close_document(ctx: dict[str, Any]) -> None:
-    # The mappings in h5_maps are not closed: the arrays a lazy read handed
+    # The sidecar mappings are not closed: the arrays a lazy read handed
     # back view them, and each goes when its last view does.
     for handle in ctx["h5_files"].values():
         handle.close()
@@ -1036,9 +1038,24 @@ def _read_topology(
         flat = flat[: n_declared * per_cell]
         n_cells = n_declared
     connectivity = _as_indices(flat, n_verts, where, narrow=not ctx["lazy"])
-    offsets = np.arange(0, (n_cells + 1) * per_cell, per_cell, dtype=connectivity.dtype)
+    offsets = np.arange(
+        0,
+        (n_cells + 1) * per_cell,
+        per_cell,
+        dtype=_offsets_dtype(n_cells * per_cell),
+    )
     element_types = np.full(n_cells, ELEMENT_TYPES[ptype], dtype=np.uint8)
     return connectivity, offsets, element_types, None
+
+
+def _offsets_dtype(last: int) -> type[np.signedinteger]:
+    """The dtype to build offsets in: int32 when the last one fits, else int64.
+
+    Offsets are derived, never read, so they are sized on their own value
+    in native byte order; a lazy read's connectivity keeps the sidecar's
+    dtype, which may be a byte wide and could not count the offsets.
+    """
+    return np.int32 if last <= np.iinfo(np.int32).max else np.int64
 
 
 def _empty_topology() -> tuple[np.ndarray, np.ndarray, np.ndarray, None]:
@@ -1149,7 +1166,8 @@ def _read_mixed(
     )
     flat = stream[np.repeat(cell_starts, cell_sizes) + local]
     connectivity = _as_indices(flat, n_verts, where, narrow=not ctx["lazy"])
-    offsets = np.zeros(len(counts) + 1, dtype=connectivity.dtype)
+    last = int(ends[-1]) if ends.size else 0
+    offsets = np.zeros(len(counts) + 1, dtype=_offsets_dtype(last))
     offsets[1:] = ends
     mask = None if all(kept) else np.asarray(kept, dtype=bool)
     return connectivity, offsets, np.asarray(types, dtype=np.uint8), mask
@@ -1729,26 +1747,41 @@ def _hdf_view(node: Any, where: str, ctx: dict[str, Any]) -> np.ndarray:
     Raises
     ------
     LazyReadError
-        If the dataset is chunked, filtered, or has no offset to map.
+        If the dataset is chunked, filtered, or has no offset to map - one
+        stored externally or in the object header, or never allocated.
     """
+    # HDF5 allocates nothing for an empty dataset, so it has no offset; there
+    # is nothing to view either.
+    if node.size == 0:
+        return np.zeros(node.shape, dtype=node.dtype)
     offset = node.id.get_offset()
     if node.chunks is not None or node.compression is not None or offset is None:
         how = "chunked" if node.chunks is not None else "compressed"
         if offset is None and node.chunks is None and node.compression is None:
-            how = "not stored contiguously"
+            how = "not stored as one contiguous block in this file"
         raise LazyReadError(
             f"'{ctx['name']}': {where} is {how}, so its values are not one"
             " run of bytes a mapping can be viewed as. Read it eagerly"
             " (lazy=False), or write it without chunking or compression."
         )
-    mapping = ctx["h5_maps"].get(node.file.filename)
-    if mapping is None:
-        mapping = ctx["h5_maps"][node.file.filename] = map_read(
-            node.file.filename, fmt=EXTENSION
-        )
+    mapping = _mapping(Path(node.file.filename), ctx)
     return np.frombuffer(
         mapping, dtype=node.dtype, count=node.size, offset=offset
     ).reshape(node.shape)
+
+
+def _mapping(path: Path, ctx: dict[str, Any]) -> Any:
+    """The read-only mapping of a sidecar, made once per document.
+
+    Every DataItem of a file views the one mapping: a mesh whose points,
+    cells and attributes all sit in one sidecar maps it once, not once
+    per array.
+    """
+    key = os.fspath(path)
+    mapping = ctx["maps"].get(key)
+    if mapping is None:
+        mapping = ctx["maps"][key] = map_read(path, fmt=EXTENSION)
+    return mapping
 
 
 def _plain_hdf_item(item: ET.Element) -> bool:
@@ -1776,6 +1809,8 @@ def _binary_values(
             f"'{ctx['name']}': Endian '{item.get('Endian')}' is not known."
         )
     seek = 0 if item.get("Seek") is None else _as_int(item.get("Seek"), ctx, "Seek")
+    if seek < 0:
+        raise CodecError(f"'{ctx['name']}': Seek='{item.get('Seek')}' is negative.")
     path = _sidecar(text, ctx, "the binary file")
     if dims is None:
         raise CodecError(f"'{ctx['name']}': a Binary DataItem needs Dimensions.")
@@ -1794,12 +1829,14 @@ def _binary_values(
             f" byte {needed}."
         )
     if ctx["lazy"]:
+        # An empty block has nothing to view, and the sidecar it names may
+        # be empty too, which cannot be mapped at all.
+        if count == 0:
+            return np.zeros(0, dtype=dtype)
         # The block is a run of values at a known offset, which is exactly
         # what a mapping can be viewed as; the view keeps the file's byte
         # order, since swapping it would be the copy the caller declined.
-        return np.frombuffer(
-            map_read(path, fmt=EXTENSION), dtype=dtype, count=count, offset=seek
-        )
+        return np.frombuffer(_mapping(path, ctx), dtype=dtype, count=count, offset=seek)
     values = np.fromfile(path, dtype=dtype, count=count, offset=seek)
     # Back to the machine's own byte order, so a swapped block from the file
     # never travels on in the mesh.

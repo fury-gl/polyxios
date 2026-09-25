@@ -2,7 +2,16 @@ from typing import Any
 
 import numpy as np
 
-from polyxios._io import Source, open_block, source_name, write_bytes
+from polyxios._io import (
+    Source,
+    can_seek,
+    is_buffer,
+    is_gzip,
+    open_block,
+    source_name,
+    source_size,
+    write_bytes,
+)
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
@@ -67,7 +76,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         Point-cloud PolyData with E=0.  Per-Gaussian attributes are stored
         in vertex_attrs: scale_0/1/2, color_r/g/b, opacity, rot_0/1/2/3.
         Eagerly the positions are float64; lazily they keep the file's
-        float32.
+        float32. A file of no bytes is a cloud of no splats, whichever way
+        it is read.
 
     Raises
     ------
@@ -76,6 +86,15 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     LazyReadError
         If ``lazy`` is set and the source cannot be mapped.
     """
+    if _holds_no_bytes(path):
+        # A zero-length file is a valid .splat and one mmap refuses to map.
+        return _cloud(
+            vertices=np.empty((0, 3), dtype="<f4" if lazy else np.float64),
+            vertex_attrs={
+                name: np.empty(0, dtype=_SPLAT_DTYPE[name]) for name in _ATTR_NAMES
+            },
+        )
+
     # The size is the length of what was read, not a separate measurement of
     # the source: measuring a compressed one costs a whole decompression pass
     # that the read about to follow would only repeat, and a stream that
@@ -118,6 +137,45 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             # cannot close while an array still points into it.
             del raw
 
+    return _cloud(vertices=vertices, vertex_attrs=vertex_attrs)
+
+
+def _holds_no_bytes(src: Source) -> bool:
+    """Whether the source is a zero-length file, which a mapping cannot hold.
+
+    Parameters
+    ----------
+    src
+        Path or open binary file object.
+
+    Returns
+    -------
+    bool
+        True when the source measures zero bytes. A gzip source is not
+        measured, since that costs a decompression pass and a mapping is
+        refused for it anyway, and a stream that cannot seek cannot be
+        measured at all; both answer False and are read as they are.
+    """
+    if is_gzip(src) or (is_buffer(src) and not can_seek(src)):
+        return False
+    return source_size(src) == 0
+
+
+def _cloud(*, vertices: np.ndarray, vertex_attrs: dict[str, np.ndarray]) -> PolyData:
+    """Return a point-cloud PolyData with no elements.
+
+    Parameters
+    ----------
+    vertices
+        The positions, ``(n, 3)``.
+    vertex_attrs
+        One column per per-Gaussian attribute.
+
+    Returns
+    -------
+    PolyData
+        The cloud, with empty connectivity and element types.
+    """
     return PolyData(
         vertices=vertices,
         connectivity=np.array([], dtype=np.int32),

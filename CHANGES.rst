@@ -17,7 +17,8 @@ New features
   every array a format stores as one run of bytes in the shape the mesh
   needs. VTU and VTP files with a raw appended section map their points,
   connectivity and attributes; the writers gain ``appended=True`` to emit
-  that layout, a third smaller than base64. XDMF maps a binary sidecar, and
+  that layout, a third smaller than base64, and declare
+  ``header_type="UInt64"`` when a block passes four gigabytes. XDMF maps a binary sidecar, and
   an HDF5 dataset stored contiguously without a filter through the offset
   h5py reports. ``.splat`` maps everything, a binary legacy VTK v5.1 file
   every block and a v4.2 file its points and attributes, and binary PLY and
@@ -227,6 +228,38 @@ Behaviour changes
 Bug fixes
 ~~~~~~~~~
 
+- A 3MF whose model part inflates past a gigabyte - ten million vertices -
+  is read. The part was inflated whole and handed to the XML parser in one
+  buffer, which expat refuses past that size with ``out of memory``, and
+  the tree it built held an Element per vertex and per triangle, thirty
+  times the memory of the numbers. The part is now fed to the parser as it
+  inflates, and each ``<vertex>`` and ``<triangle>`` goes straight into a
+  numeric buffer instead of the tree.
+- A VTK XML file declaring ``header_type="UInt64"`` has its inline binary
+  arrays read past an eight-byte block header; the reader assumed four
+  there and handed back values shifted by half a word.
+- A count a file spells as negative - a PLY ``element`` line, a legacy VTK
+  ``POINTS`` or ``CELLS`` header, an XDMF ``Seek`` - raises ``CodecError``
+  naming it. numpy reads a negative count as "everything left", so the
+  block swallowed what followed it and the parser walked backwards from
+  there.
+- A legacy VTK v5.1 binary file whose ``OFFSETS`` run backwards or end past
+  the ``CELLS`` total, a VTU whose ``types`` array miscounts its cells, a
+  VTK XML block whose bytes are not a whole number of values, that declares
+  more bytes than its section holds, or whose ``offset`` is not one, a raw
+  appended section with no ``_`` marker, a VTK XML head that is not
+  well-formed, and a Medit ``.meshb`` shorter than its header are each
+  refused with ``CodecError`` where they read a broken mesh or raised a
+  bare ``ValueError`` or ``ParseError``.
+- A VTU or VTP file of several pieces shifts each piece's indices by the
+  points before it in an integer type that holds the sum. Added in the
+  file's own dtype, a one- or two-byte connectivity wrapped, or numpy
+  refused the shift outright. The offsets of a lazy read are native int32,
+  or int64 when they need it, whatever unsigned or big-endian dtype the
+  file's connectivity keeps.
+- A 3MF object or metadata name holding a tab, newline or return is written
+  as character references and reads back unchanged; XML normalises the
+  literal characters to spaces inside an attribute.
 - A TetGen pair in a directory the process cannot search is reported as the
   permission error it is on Python 3.14 too. The codec asked
   ``Path.exists``, which answered False there rather than propagating the

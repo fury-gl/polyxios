@@ -10,6 +10,7 @@ objects and the colours the materials.
 
 from __future__ import annotations
 
+import array
 import io
 import re
 from typing import Any
@@ -17,6 +18,7 @@ import urllib.parse
 import warnings
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 
 import numpy as np
 
@@ -123,9 +125,9 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     LazyReadError
         If ``lazy=True``.
     CodecError
-        When the package is not a ZIP, holds no model part, or the model
-        names a vertex or an object it does not hold, or gives two
-        resources one id.
+        When the package is not a ZIP, holds no model part or one that
+        does not inflate, or the model names a vertex or an object it does
+        not hold, or gives two resources one id.
     """
     if lazy:
         raise LazyReadError("3MF is a ZIP package and cannot be memory-mapped.")
@@ -137,18 +139,153 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
         raise CodecError(f"{name!r} is not a ZIP package: {exc}") from exc
     with package:
         model_part = _model_part(package, name)
+        target = _ModelTarget(name)
+        parser = ET.XMLParser(target=target)
         try:
-            root = ET.fromstring(package.read(model_part))
+            with package.open(model_part) as member:
+                for chunk in iter(lambda: member.read(_PARSE_CHUNK), b""):
+                    parser.feed(chunk)
+            root = parser.close()
         except ET.ParseError as exc:
             raise CodecError(
                 f"{name!r}: {model_part} is not well-formed XML: {exc}"
             ) from exc
+        except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+            raise CodecError(f"{name!r}: {model_part} does not inflate: {exc}") from exc
     if _local(root.tag) != "model":
         raise CodecError(
             f"{name!r}: {model_part} holds a <{_local(root.tag)}> where a"
             " <model> was expected."
         )
-    return _read_model(root, name)
+    return _read_model(root, target.meshes, name)
+
+
+# How much of the model part is handed to expat at a time. Fed the whole
+# part at once, expat grows one buffer to hold it and cannot grow it past
+# 1 GiB - a mesh of ten million vertices - so it is fed as it is inflated.
+_PARSE_CHUNK: int = 1 << 20
+
+# A triangle's own material: its index in the mesh, its ``pid`` and its
+# ``p1``, either of which it may leave to the object.
+_Material = tuple[int, str | None, str | None]
+
+
+class _RawMesh:
+    """The numbers of one ``<mesh>``, gathered as its elements are parsed.
+
+    Parameters
+    ----------
+    oid
+        The ``id`` of the ``<object>`` the mesh belongs to, for messages.
+    """
+
+    __slots__ = ("coords", "indices", "materials", "oid")
+
+    def __init__(self, oid: str | None) -> None:
+        self.oid = oid
+        self.coords = array.array("d")
+        self.indices = array.array("q")
+        self.materials: list[_Material] = []
+
+
+class _ModelTarget:
+    """A parser target that keeps the model's tree but not its geometry.
+
+    A ``<vertex>`` or ``<triangle>`` is one Element and one attribute dict
+    apiece in a parsed tree, and a mesh of ten million vertices has thirty
+    million of them - more memory than the file inflated. Those two elements
+    are read off the parser as they close and their numbers appended to the
+    enclosing mesh's buffers instead; everything else is built into the tree
+    as usual, so the model is walked the way it always was. Only the layout
+    the specification gives is read - ``<vertex>`` straight under
+    ``<vertices>`` straight under ``<mesh>``, and the triangles likewise -
+    the way a walk of the tree read them; one nested in an extension
+    element is left in the tree and not counted.
+
+    Parameters
+    ----------
+    name
+        The source, for messages.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._builder = ET.TreeBuilder()
+        # One entry per open element: its local name, or None for a vertex
+        # or triangle read off the parser, which the builder never saw and
+        # must not be told to end.
+        self._stack: list[str | None] = []
+        self._oid: str | None = None
+        self._mesh: _RawMesh | None = None
+        self.meshes: dict[int, _RawMesh] = {}
+
+    def start(self, tag: str, attrs: dict[str, str]) -> None:
+        local = _local(tag)
+        mesh = self._mesh
+        if (
+            mesh is not None
+            and local == "vertex"
+            and self._stack[-2:] == ["mesh", "vertices"]
+        ):
+            try:
+                mesh.coords.extend(
+                    (float(attrs["x"]), float(attrs["y"]), float(attrs["z"]))
+                )
+            except (KeyError, ValueError) as exc:
+                raise CodecError(
+                    f"{self._name!r}: object {mesh.oid} has a vertex that is"
+                    " not three numbers."
+                ) from exc
+            self._stack.append(None)
+            return
+        if (
+            mesh is not None
+            and local == "triangle"
+            and self._stack[-2:] == ["mesh", "triangles"]
+        ):
+            try:
+                mesh.indices.extend(
+                    (int(attrs["v1"]), int(attrs["v2"]), int(attrs["v3"]))
+                )
+            except (KeyError, ValueError) as exc:
+                raise CodecError(
+                    f"{self._name!r}: object {mesh.oid} has a triangle that is"
+                    " not three vertex indices."
+                ) from exc
+            pid, p1 = attrs.get("pid"), attrs.get("p1")
+            if pid is not None or p1 is not None:
+                mesh.materials.append((len(mesh.indices) // 3 - 1, pid, p1))
+            self._stack.append(None)
+            return
+        if local == "object":
+            self._oid = attrs.get("id")
+        elem = self._builder.start(tag, attrs)
+        if local == "mesh":
+            self._mesh = self.meshes[id(elem)] = _RawMesh(self._oid)
+        self._stack.append(local)
+
+    def end(self, tag: str) -> None:
+        local = self._stack.pop()
+        if local is None:
+            return
+        self._builder.end(tag)
+        if local == "mesh":
+            self._mesh = None
+
+    def data(self, text: str) -> None:
+        # The whitespace between ten million vertices is ten million strings
+        # the builder would hold until </vertices> closed; nothing in a
+        # vertex, a triangle or the block around them is text worth keeping.
+        if self._mesh is not None and self._stack[-1] in (
+            None,
+            "vertices",
+            "triangles",
+        ):
+            return
+        self._builder.data(text)
+
+    def close(self) -> ET.Element:
+        return self._builder.close()
 
 
 def write(
@@ -277,8 +414,18 @@ def _model_part(package: zipfile.ZipFile, name: str) -> str:
     return target
 
 
-def _read_model(root: ET.Element, name: str) -> PolyData:
-    """Assemble the build of a parsed ``<model>``."""
+def _read_model(root: ET.Element, raw: dict[int, _RawMesh], name: str) -> PolyData:
+    """Assemble the build of a parsed ``<model>``.
+
+    Parameters
+    ----------
+    root
+        The ``<model>`` element, its meshes stripped of their geometry.
+    raw
+        Each mesh's geometry, keyed by the id of its ``<mesh>`` element.
+    name
+        The source, for messages.
+    """
     unit = root.get("unit", _DEFAULT_UNIT)
     if unit not in _UNITS:
         warnings.warn(
@@ -326,7 +473,7 @@ def _read_model(root: ET.Element, name: str) -> PolyData:
                 continue
             oid = _int(item.get("objectid"), f"{name!r}: a build item's objectid")
             matrix = _transform(item.get("transform"), name)
-            _place(oid, matrix, objects, properties, meshes, parts, name, ())
+            _place(oid, matrix, objects, properties, meshes, parts, name, (), raw)
 
     return _assemble(parts, global_attrs)
 
@@ -358,6 +505,7 @@ def _place(
     parts: list[_Part],
     name: str,
     stack: tuple[int, ...],
+    raw: dict[int, _RawMesh],
 ) -> None:
     """Place object ``oid`` under ``matrix``, recursing through its components."""
     if oid in stack:
@@ -371,7 +519,7 @@ def _place(
         if tag == "mesh":
             mesh = meshes.get(oid)
             if mesh is None:
-                mesh = _read_mesh(child, obj, properties, name)
+                mesh = _read_mesh(raw[id(child)], obj, properties, name)
                 meshes[oid] = mesh
             label = obj.get("name") or f"object_{oid}"
             parts.append((label, *_placed(mesh, matrix)))
@@ -390,6 +538,7 @@ def _place(
                     parts,
                     name,
                     (*stack, oid),
+                    raw,
                 )
 
 
@@ -412,44 +561,15 @@ def _placed(
 
 
 def _read_mesh(
-    mesh: ET.Element,
+    raw: _RawMesh,
     obj: ET.Element,
     properties: dict[int, np.ndarray | None],
     name: str,
 ) -> _Mesh:
-    """Parse one ``<mesh>``: its vertices, triangles and per-triangle colour."""
+    """Shape one ``<mesh>``'s gathered numbers into vertices, triangles and colours."""
     oid = obj.get("id")
-    vertex_rows: list[tuple[str | None, str | None, str | None]] = []
-    tri_rows: list[tuple[str | None, str | None, str | None]] = []
-    pids: list[str | None] = []
-    p1s: list[str | None] = []
-    for child in mesh:
-        tag = _local(child.tag)
-        if tag == "vertices":
-            vertex_rows = [
-                (v.get("x"), v.get("y"), v.get("z"))
-                for v in child
-                if _local(v.tag) == "vertex"
-            ]
-        elif tag == "triangles":
-            for t in child:
-                if _local(t.tag) != "triangle":
-                    continue
-                tri_rows.append((t.get("v1"), t.get("v2"), t.get("v3")))
-                pids.append(t.get("pid"))
-                p1s.append(t.get("p1"))
-    try:
-        vertices = np.array(vertex_rows, dtype=np.float64).reshape(-1, 3)
-    except (TypeError, ValueError) as exc:
-        raise CodecError(
-            f"{name!r}: object {oid} has a vertex that is not three numbers."
-        ) from exc
-    try:
-        triangles = np.array(tri_rows, dtype=np.int64).reshape(-1, 3)
-    except (TypeError, ValueError) as exc:
-        raise CodecError(
-            f"{name!r}: object {oid} has a triangle that is not three vertex indices."
-        ) from exc
+    vertices = np.frombuffer(raw.coords, dtype=np.float64).reshape(-1, 3)
+    triangles = np.frombuffer(raw.indices, dtype=np.int64).reshape(-1, 3)
     if triangles.size and (triangles.min() < 0 or triangles.max() >= len(vertices)):
         bad = int(
             triangles.max() if triangles.max() >= len(vertices) else triangles.min()
@@ -457,14 +577,14 @@ def _read_mesh(
         raise CodecError(
             f"{name!r}: object {oid} names vertex {bad} but holds {len(vertices)}."
         )
-    colors = _triangle_colors(obj, pids, p1s, properties, name)
+    colors = _triangle_colors(obj, len(triangles), raw.materials, properties, name)
     return _Mesh(vertices, triangles, colors)
 
 
 def _triangle_colors(
     obj: ET.Element,
-    pids: list[str | None],
-    p1s: list[str | None],
+    n_tris: int,
+    materials: list[_Material],
     properties: dict[int, np.ndarray | None],
     name: str,
 ) -> np.ndarray | None:
@@ -475,36 +595,67 @@ def _triangle_colors(
     composite defines is not a colour and reads as NaN. Only ``p1`` is read:
     3MF lets a triangle name three properties, one per corner, and a colour
     per corner has no element to land on.
+
+    Parameters
+    ----------
+    obj
+        The ``<object>`` the mesh belongs to.
+    n_tris
+        Triangles in the mesh.
+    materials
+        The ``pid`` and ``p1`` of each triangle that spells either, with
+        the triangle's index; a triangle that spells neither is not listed.
+    properties
+        Each property group's colour table, None for a group with none.
+    name
+        The source, for messages.
     """
-    if not pids:
+    if n_tris == 0:
         return None
     obj_pid, obj_pindex = obj.get("pid"), obj.get("pindex")
-    colors = np.full((len(pids), 4), np.nan)
+    colors = np.full((n_tris, 4), np.nan)
     any_color = False
-    for i, (pid, p1) in enumerate(zip(pids, p1s, strict=True)):
-        if pid is None:
-            pid = obj_pid
-        if p1 is None:
-            p1 = obj_pindex
-        if pid is None or p1 is None:
-            continue
-        group = _int(pid, f"{name!r}: a triangle's pid")
-        index = _int(p1, f"{name!r}: a triangle's p1")
-        if group not in properties:
-            raise CodecError(
-                f"{name!r} names property group {group}, which it does not hold."
-            )
-        table = properties[group]
-        if table is None:
-            continue
-        if index < 0 or index >= len(table):
-            raise CodecError(
-                f"{name!r}: property group {group} holds {len(table)} entries;"
-                f" p1={index} names none of them."
-            )
-        colors[i] = table[index]
-        any_color = True
+    if len(materials) < n_tris:
+        default = _color_of(obj_pid, obj_pindex, properties, name)
+        if default is not None:
+            colors[:] = default
+            any_color = True
+    for index, pid, p1 in materials:
+        row = _color_of(
+            obj_pid if pid is None else pid,
+            obj_pindex if p1 is None else p1,
+            properties,
+            name,
+        )
+        colors[index] = np.nan if row is None else row
+        any_color = any_color or row is not None
     return colors if any_color else None
+
+
+def _color_of(
+    pid: str | None,
+    p1: str | None,
+    properties: dict[int, np.ndarray | None],
+    name: str,
+) -> np.ndarray | None:
+    """Return the RGBA a ``pid``/``p1`` pair names, or None when it names no colour."""
+    if pid is None or p1 is None:
+        return None
+    group = _int(pid, f"{name!r}: a triangle's pid")
+    index = _int(p1, f"{name!r}: a triangle's p1")
+    if group not in properties:
+        raise CodecError(
+            f"{name!r} names property group {group}, which it does not hold."
+        )
+    table = properties[group]
+    if table is None:
+        return None
+    if index < 0 or index >= len(table):
+        raise CodecError(
+            f"{name!r}: property group {group} holds {len(table)} entries;"
+            f" p1={index} names none of them."
+        )
+    return table[index]
 
 
 def _read_colors(group: ET.Element, kind: str, name: str) -> np.ndarray:
@@ -824,7 +975,11 @@ def _object_xml(
 
 
 def _escape(text: str, what: str) -> str:
-    """Return ``text`` with the four characters XML reserves as entities.
+    """Return ``text`` with the characters XML reserves or normalizes as entities.
+
+    A literal tab, newline or return inside an attribute value is read back
+    as a space, and a literal return anywhere as a newline; as character
+    references they come back as themselves.
 
     Raises
     ------
@@ -841,6 +996,9 @@ def _escape(text: str, what: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace('"', "&quot;")
+        .replace("\t", "&#9;")
+        .replace("\n", "&#10;")
+        .replace("\r", "&#13;")
     )
 
 

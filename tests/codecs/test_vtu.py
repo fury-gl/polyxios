@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import base64
 import io
-import mmap
 import tempfile
 import warnings
 
@@ -9,9 +9,14 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata
+from polyxios._element_types import ELEMENT_TYPES
+from polyxios.codecs import _vtk_xml
+from polyxios.codecs._vtk_xml import appended_header_type, format_da, np_to_vtk_type
+from polyxios.codecs._vtp import read as vtp_read
 from polyxios.codecs._vtu import read, write
-from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.exceptions import CodecError, LazyReadError, UnsupportedFormatError
 from polyxios.fetcher import fetch
+from tests.codecs._lazy import mapped
 
 
 def _tet_mesh() -> object:
@@ -38,16 +43,6 @@ def test_roundtrip_binary() -> None:
     poly2 = read(tmp)
     np.testing.assert_allclose(poly2.vertices, poly.vertices, atol=1e-8)
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
-
-
-def _mapped(arr: np.ndarray) -> bool:
-    """Whether the array, through however many views, sits on a mapping."""
-    base = arr
-    while isinstance(base, np.ndarray):
-        base = base.base
-    if isinstance(base, memoryview):
-        base = base.obj
-    return isinstance(base, mmap.mmap)
 
 
 def _attr_mesh() -> object:
@@ -83,7 +78,7 @@ def test_roundtrip_appended(tmp_path) -> None:
         back.element_attrs["stress"], poly.element_attrs["stress"]
     )
     assert back.vertices.flags.writeable
-    assert not _mapped(back.vertices)
+    assert not mapped(back.vertices)
 
 
 def test_appended_is_smaller_than_base64(tmp_path) -> None:
@@ -122,7 +117,7 @@ def test_lazy_arrays_view_the_mapping(tmp_path) -> None:
         back.vertex_attrs["normal"],
         back.element_attrs["stress"],
     ):
-        assert _mapped(arr)
+        assert mapped(arr)
         assert not arr.flags.writeable
     assert back.vertex_attrs["normal"].dtype == np.float32
     assert back.connectivity.dtype == back.offsets.dtype
@@ -135,7 +130,7 @@ def test_lazy_over_a_handle_at_its_start(tmp_path) -> None:
     with tmp.open("rb") as fh:
         back = read(fh, lazy=True)
     np.testing.assert_array_equal(back.connectivity, poly.connectivity)
-    assert _mapped(back.vertices)
+    assert mapped(back.vertices)
 
 
 @pytest.mark.parametrize("opts", ({}, {"binary": False}))
@@ -1064,3 +1059,574 @@ def test_the_dataset_field_data_still_wins_over_a_piece(tmp_path) -> None:
     )
 
     np.testing.assert_array_equal(read(path).global_attrs["run"], [7])
+
+
+# ---------------------------------------------------------------------------
+# Hand-built raw appended sections: layouts polyxios' own writer never emits
+# ---------------------------------------------------------------------------
+
+
+def _raw_da(
+    blocks: list[bytes],
+    name: str,
+    arr: np.ndarray,
+    *,
+    byte_order: str,
+    header_type: str,
+    n_comp: int = 1,
+    n_bytes: int | None = None,
+) -> str:
+    """Append one block and render the element that points at it.
+
+    ``n_bytes`` overrides the byte count the header declares, for a block
+    that lies about itself.
+    """
+    endian = ">" if byte_order == "BigEndian" else "<"
+    h_dt = np.dtype(endian + ("u8" if header_type == "UInt64" else "u4"))
+    raw = np.ascontiguousarray(arr).astype(arr.dtype.newbyteorder(endian)).tobytes()
+    offset = sum(len(block) for block in blocks)
+    declared = len(raw) if n_bytes is None else n_bytes
+    blocks.append(np.array([declared], dtype=h_dt).tobytes() + raw)
+    vtk_type = np_to_vtk_type(arr.dtype)[0]
+    name_attr = f' Name="{name}"' if name else ""
+    comp_attr = f' NumberOfComponents="{n_comp}"' if n_comp > 1 else ""
+    return (
+        f'<DataArray type="{vtk_type}"{name_attr}{comp_attr}'
+        f' format="appended" offset="{offset}"/>'
+    )
+
+
+def _raw_piece(
+    blocks: list[bytes],
+    *,
+    points: np.ndarray,
+    sections: dict[str, dict[str, np.ndarray]],
+    point_data: dict[str, np.ndarray],
+    cell_data: dict[str, np.ndarray],
+    byte_order: str,
+    header_type: str,
+    ragged: str | None = None,
+    overlong: str | None = None,
+) -> str:
+    """Render one Piece whose every array sits in the appended section.
+
+    ``sections`` is ``{'Cells': {...}}`` for a grid and ``{'Lines': {...},
+    'Polys': {...}}`` for polydata; each holds the named arrays the section
+    carries. ``ragged`` names a point array whose block declares three
+    bytes fewer than it holds, ``overlong`` one declaring eight more.
+    """
+    layout = {"byte_order": byte_order, "header_type": header_type}
+    counts = "".join(
+        f' NumberOf{"Cells" if tag == "Cells" else tag}="{len(arrays["offsets"])}"'
+        for tag, arrays in sections.items()
+    )
+    lines = [
+        f'  <Piece NumberOfPoints="{len(points)}"{counts}>',
+        "   <Points>",
+        "    " + _raw_da(blocks, "", points, n_comp=3, **layout),
+        "   </Points>",
+    ]
+    for tag, arrays in sections.items():
+        lines.append(f"   <{tag}>")
+        lines.extend(
+            "    " + _raw_da(blocks, name, arr, **layout)
+            for name, arr in arrays.items()
+        )
+        lines.append(f"   </{tag}>")
+    for tag, arrays in (("PointData", point_data), ("CellData", cell_data)):
+        if not arrays:
+            continue
+        lines.append(f"   <{tag}>")
+        for name, arr in arrays.items():
+            short = None
+            if name == ragged:
+                short = arr.nbytes - 3
+            elif name == overlong:
+                short = arr.nbytes + 8
+            lines.append(
+                "    "
+                + _raw_da(
+                    blocks,
+                    name,
+                    arr,
+                    n_comp=1 if arr.ndim == 1 else arr.shape[1],
+                    n_bytes=short,
+                    **layout,
+                )
+            )
+        lines.append(f"   </{tag}>")
+    lines.append("  </Piece>")
+    return "\n".join(lines) + "\n"
+
+
+def _raw_file(
+    *, kind: str, pieces: str, blocks: list[bytes], byte_order: str, header_type: str
+) -> bytes:
+    head = (
+        '<?xml version="1.0"?>\n'
+        f'<VTKFile type="{kind}" version="1.0" byte_order="{byte_order}"'
+        f' header_type="{header_type}">\n'
+        f" <{kind}>\n{pieces} </{kind}>\n"
+    )
+    return (
+        head.encode()
+        + b'  <AppendedData encoding="raw">\n   _'
+        + b"".join(blocks)
+        + b"\n  </AppendedData>\n</VTKFile>\n"
+    )
+
+
+_TET_POINTS = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+
+
+def _hand_built_vtu(
+    path,
+    *,
+    byte_order: str = "LittleEndian",
+    header_type: str = "UInt32",
+    n_pieces: int = 1,
+    conn_dtype: type = np.int32,
+    ragged: str | None = None,
+    overlong: str | None = None,
+    n_points: int = 4,
+):
+    """Write a triangle and a tetrahedron per Piece, with three attributes.
+
+    ``n_points`` pads each Piece's points past the four its cells index,
+    so a second Piece starts that far into the joined points.
+    """
+    blocks: list[bytes] = []
+    pieces = "".join(
+        _raw_piece(
+            blocks,
+            points=np.resize(_TET_POINTS, (n_points, 3)) + index,
+            sections={
+                "Cells": {
+                    "connectivity": np.array([0, 1, 2, 0, 1, 2, 3], dtype=conn_dtype),
+                    "offsets": np.array([3, 7], dtype=np.int32),
+                    "types": np.array([5, 10], dtype=np.uint8),
+                }
+            },
+            point_data={
+                "pressure": np.arange(float(n_points)) + 10 * index,
+                "normal": np.full((n_points, 3), index, dtype=np.float32),
+            },
+            cell_data={"stress": np.array([1.0, 2.0]) + index},
+            byte_order=byte_order,
+            header_type=header_type,
+            ragged=ragged,
+            overlong=overlong,
+        )
+        for index in range(n_pieces)
+    )
+    path.write_bytes(
+        _raw_file(
+            kind="UnstructuredGrid",
+            pieces=pieces,
+            blocks=blocks,
+            byte_order=byte_order,
+            header_type=header_type,
+        )
+    )
+    return path
+
+
+def _hand_built_vtp(path):
+    """Write a polyline beside a triangle and a quad, in two sections."""
+    blocks: list[bytes] = []
+    points = np.array(
+        [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [2, 0, 0]], dtype=np.float32
+    )
+    pieces = _raw_piece(
+        blocks,
+        points=points,
+        sections={
+            "Lines": {
+                "connectivity": np.array([0, 1, 4], dtype=np.int64),
+                "offsets": np.array([3], dtype=np.int64),
+            },
+            "Polys": {
+                "connectivity": np.array([0, 1, 2, 0, 1, 2, 3], dtype=np.int64),
+                "offsets": np.array([3, 7], dtype=np.int64),
+            },
+        },
+        point_data={"pressure": np.arange(5.0)},
+        cell_data={"stress": np.array([1.0, 2.0, 3.0])},
+        byte_order="LittleEndian",
+        header_type="UInt32",
+    )
+    path.write_bytes(
+        _raw_file(
+            kind="PolyData",
+            pieces=pieces,
+            blocks=blocks,
+            byte_order="LittleEndian",
+            header_type="UInt32",
+        )
+    )
+    return path
+
+
+def _assert_same_mesh(lazy, eager) -> None:
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    np.testing.assert_array_equal(lazy.connectivity, eager.connectivity)
+    np.testing.assert_array_equal(lazy.offsets, eager.offsets)
+    np.testing.assert_array_equal(lazy.element_types, eager.element_types)
+    assert lazy.vertex_attrs.keys() == eager.vertex_attrs.keys()
+    assert lazy.element_attrs.keys() == eager.element_attrs.keys()
+    for name, arr in eager.vertex_attrs.items():
+        np.testing.assert_array_equal(lazy.vertex_attrs[name], arr)
+    for name, arr in eager.element_attrs.items():
+        np.testing.assert_array_equal(lazy.element_attrs[name], arr)
+
+
+# Builder, reader, and whether the points (one Piece) and the connectivity
+# (one Piece of one cell section) come back as views rather than joins.
+_HAND_BUILT = {
+    "little_endian": (lambda p: _hand_built_vtu(p), read, True, True),
+    "big_endian": (
+        lambda p: _hand_built_vtu(p, byte_order="BigEndian"),
+        read,
+        True,
+        True,
+    ),
+    "uint64_header": (
+        lambda p: _hand_built_vtu(p, header_type="UInt64"),
+        read,
+        True,
+        True,
+    ),
+    "two_pieces": (lambda p: _hand_built_vtu(p, n_pieces=2), read, False, False),
+    "vtp_lines_and_polys": (_hand_built_vtp, vtp_read, True, False),
+}
+
+
+@pytest.mark.parametrize("layout", sorted(_HAND_BUILT))
+def test_a_hand_built_appended_section_reads_lazily(tmp_path, layout: str) -> None:
+    """Layouts polyxios' own writer never emits - big-endian bytes, eight-byte
+    block headers, several pieces, several cell sections - read lazily to
+    the mesh an eager read gives; a single piece views the mapping, and a
+    single piece of a single section views it for its cells too."""
+    build, reader, points_view, cells_view = _HAND_BUILT[layout]
+    path = build(tmp_path / "hand.vtx")
+
+    eager = reader(path)
+    lazy = reader(path, lazy=True)
+
+    assert len(eager.element_types) >= 2
+    assert "pressure" in eager.vertex_attrs and "stress" in eager.element_attrs
+    _assert_same_mesh(lazy, eager)
+    assert mapped(lazy.vertices) is points_view
+    assert mapped(lazy.connectivity) is cells_view
+    for arr in (lazy.vertices, *lazy.vertex_attrs.values()):
+        assert mapped(arr) is points_view
+        assert arr.flags.writeable is not points_view
+    if layout == "big_endian":
+        assert lazy.vertices.dtype.byteorder == ">"
+
+
+def test_a_two_piece_hand_built_file_shifts_the_second_piece(tmp_path) -> None:
+    eager = read(_hand_built_vtu(tmp_path / "two.vtu", n_pieces=2))
+    assert eager.vertices.shape == (8, 3)
+    np.testing.assert_array_equal(eager.connectivity[7:10], [4, 5, 6])
+    np.testing.assert_array_equal(eager.vertex_attrs["pressure"][4:], [10, 11, 12, 13])
+
+
+def test_a_vtp_of_lines_and_polys_types_each_section(tmp_path) -> None:
+    eager = vtp_read(_hand_built_vtp(tmp_path / "hand.vtp"))
+    np.testing.assert_array_equal(
+        eager.element_types,
+        [ELEMENT_TYPES["line"], ELEMENT_TYPES["triangle"], ELEMENT_TYPES["quad"]],
+    )
+    np.testing.assert_array_equal(eager.offsets, [0, 3, 6, 10])
+
+
+def test_the_header_widens_only_for_a_block_past_four_gigabytes() -> None:
+    """A block's byte count has to fit its header; one that does not needs
+    the eight-byte header, and the width is declared once for the file."""
+    assert appended_header_type(sizes=[24, 2**32 - 1]) == "UInt32"
+    assert appended_header_type(sizes=[24, 2**32]) == "UInt64"
+    assert appended_header_type(sizes=[]) == "UInt32"
+
+
+@pytest.mark.parametrize("opts", ({"appended": True}, {"binary": True}))
+def test_a_file_needing_wide_headers_declares_them_and_reads_back(
+    tmp_path, monkeypatch, opts
+) -> None:
+    """The writer sizes every block before rendering any; a block the
+    four-byte header cannot count widens every header and says so on the
+    root element. Stood in for rather than allocated, four gigabytes being
+    what it takes to reach for real."""
+    monkeypatch.setattr(
+        "polyxios.codecs._vtu.appended_header_type", lambda *, sizes: "UInt64"
+    )
+    poly = _attr_mesh()
+    tmp = tmp_path / "wide.vtu"
+    write(poly, tmp, **opts)
+
+    head = tmp.read_bytes()[:512]
+    assert b'header_type="UInt64"' in head
+    back = read(tmp)
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["normal"], poly.vertex_attrs["normal"]
+    )
+    if "appended" in opts:
+        lazy = read(tmp, lazy=True)
+        _assert_same_mesh(lazy, back)
+        assert mapped(lazy.vertices)
+
+
+def test_wide_headers_are_eight_bytes_in_the_appended_section() -> None:
+    blocks: list[bytes] = []
+    format_da(
+        "x",
+        np.arange(3, dtype=np.int32),
+        vtk_type="Int32",
+        dtype=np.dtype("<i4"),
+        binary=False,
+        n_comp=1,
+        indent=0,
+        appended=blocks,
+        header_type="UInt64",
+    )
+    assert len(blocks[0]) == 8 + 12
+    assert int(np.frombuffer(blocks[0], dtype="<u8", count=1)[0]) == 12
+
+
+def test_unsigned_offsets_running_backwards_are_refused(tmp_path) -> None:
+    """On an unsigned offsets array a step backwards wraps to a large
+    positive difference, which a differenced check never saw."""
+    cells = (
+        '    <DataArray type="Int32" Name="connectivity" format="ascii">'
+        "0 1 2 0 1 3</DataArray>\n"
+        '    <DataArray type="UInt32" Name="offsets" format="ascii">3 2</DataArray>\n'
+        '    <DataArray type="UInt8" Name="types" format="ascii">5 5</DataArray>\n'
+    )
+    path = tmp_path / "unsigned.vtu"
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0 0 0 1", 4, cells, 2)))
+    with pytest.raises(CodecError, match="run backwards"):
+        read(path)
+
+
+def test_a_float_connectivity_reads_lazily_as_it_does_eagerly(tmp_path) -> None:
+    """An index is a whole number, so a connectivity of floats has no
+    dtype worth keeping; the lazy read casts it as the eager one does
+    instead of asking numpy for the integer range of a float."""
+    path = _hand_built_vtu(tmp_path / "float.vtu", conn_dtype=np.float32)
+    eager = read(path)
+    lazy = read(path, lazy=True)
+    _assert_same_mesh(lazy, eager)
+    assert lazy.connectivity.dtype == eager.connectivity.dtype
+    assert lazy.offsets.dtype == eager.offsets.dtype
+    assert np.issubdtype(lazy.connectivity.dtype, np.integer)
+
+
+@pytest.mark.parametrize("lazy", (False, True))
+def test_a_block_of_ragged_bytes_names_its_array(tmp_path, lazy: bool) -> None:
+    path = _hand_built_vtu(tmp_path / "ragged.vtu", ragged="pressure")
+    with pytest.raises(CodecError, match="DataArray 'pressure'.*29 bytes"):
+        read(path, lazy=lazy)
+
+
+def test_an_inline_block_of_ragged_bytes_names_its_array(tmp_path) -> None:
+    payload = base64.b64encode(np.array([5], dtype="<u4").tobytes() + bytes(5))
+    extra = (
+        "   <PointData>\n"
+        f'    <DataArray type="Float64" Name="pressure" format="binary">'
+        f"{payload.decode()}</DataArray>\n"
+        "   </PointData>\n"
+    )
+    path = tmp_path / "ragged.vtu"
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)))
+    with pytest.raises(CodecError, match="DataArray 'pressure'.*5 bytes"):
+        read(path)
+
+
+def test_an_inline_block_with_a_wide_header_is_read_past_it(tmp_path) -> None:
+    """A file declaring header_type="UInt64" puts eight bytes before every
+    inline block too; a reader skipping four reads the count as values."""
+    values = np.array([1.5, 2.5, 3.5])
+    payload = base64.b64encode(np.array([24], dtype="<u8").tobytes() + values.tobytes())
+    extra = (
+        "   <PointData>\n"
+        f'    <DataArray type="Float64" Name="pressure" format="binary">'
+        f"{payload.decode()}</DataArray>\n"
+        "   </PointData>\n"
+    )
+    path = tmp_path / "wide.vtu"
+    path.write_text(
+        _vtu(_piece("0 0 0 1 0 0 0 1 0", 3, _TRI_CELLS, 1, extra)).replace(
+            'byte_order="LittleEndian"',
+            'byte_order="LittleEndian" header_type="UInt64"',
+        )
+    )
+    np.testing.assert_array_equal(read(path).vertex_attrs["pressure"], values)
+
+
+def test_a_file_with_no_grid_element_names_the_format(tmp_path) -> None:
+    """A root holding no dataset used to raise a bare ValueError."""
+    path = tmp_path / "hollow.vtu"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian">\n'
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match=r"\.vtu: .*no <UnstructuredGrid>"):
+        read(path)
+
+
+@pytest.mark.parametrize("offset", ("abc", "-5"))
+def test_an_offset_that_is_no_byte_offset_names_the_array(tmp_path, offset) -> None:
+    """int() answered a word with a ValueError naming nothing, and a negative
+    offset read the XML before the section as the block's own header."""
+    path = _hand_built_vtu(tmp_path / "offset.vtu")
+    raw = path.read_bytes()
+    marker = b'Name="pressure" format="appended" offset="'
+    assert marker in raw
+    head, tail = raw.split(marker, 1)
+    rest = tail.split(b'"', 1)[1]
+    path.write_bytes(head + marker + offset.encode() + b'"' + rest)
+
+    with pytest.raises(
+        CodecError, match=f"DataArray 'pressure' declares offset='{offset}'"
+    ):
+        read(path)
+
+
+@pytest.mark.parametrize("n_types", (1, 3))
+def test_a_types_array_that_miscounts_the_cells_is_refused(tmp_path, n_types) -> None:
+    """The types array is the one cell array nothing else in the Piece sizes;
+    read unchecked, a mesh came back typing more or fewer cells than its
+    offsets cut, and every cell attribute was sized against the wrong count."""
+    cells = (
+        '    <DataArray type="Int32" Name="connectivity" format="ascii">'
+        "0 1 2 0 1 3</DataArray>\n"
+        '    <DataArray type="Int32" Name="offsets" format="ascii">3 6</DataArray>\n'
+        f'    <DataArray type="UInt8" Name="types" format="ascii">{"5 " * n_types}'
+        "</DataArray>\n"
+    )
+    path = tmp_path / "miscounted.vtu"
+    path.write_text(_vtu(_piece("0 0 0 1 0 0 0 1 0 0 0 1", 4, cells, 2)))
+
+    with pytest.raises(
+        CodecError, match=f"cut 2 cells and the types array holds {n_types}"
+    ):
+        read(path)
+
+
+def test_a_refused_lazy_read_closes_its_mapping(tmp_path, monkeypatch) -> None:
+    """Nothing views the mapping a refusal leaves behind, so it is closed
+    rather than left to hold the file until the collector finds it."""
+    made: list[object] = []
+    real = _vtk_xml.map_read
+
+    def spy(src, *, fmt):
+        mapping = real(src, fmt=fmt)
+        made.append(mapping)
+        return mapping
+
+    monkeypatch.setattr(_vtk_xml, "map_read", spy)
+    tmp = tmp_path / "inline.vtu"
+    write(_tet_mesh(), tmp)
+    with pytest.raises(LazyReadError):
+        read(tmp, lazy=True)
+    assert len(made) == 1
+    assert made[0].closed
+
+
+@pytest.mark.parametrize("conn_dtype", [np.uint8, np.int8, np.int16])
+def test_a_second_piece_shifts_a_narrow_connectivity_without_wrapping(
+    tmp_path, conn_dtype
+) -> None:
+    """The points before a Piece are added to its indices in an integer
+    type that holds the sum, not in the file's own: added in a one-byte
+    dtype, three hundred either wraps or is refused by numpy outright."""
+    path = _hand_built_vtu(
+        tmp_path / "narrow.vtu", n_pieces=2, conn_dtype=conn_dtype, n_points=300
+    )
+    eager = read(path)
+    assert eager.vertices.shape == (600, 3)
+    np.testing.assert_array_equal(eager.connectivity[7:10], [300, 301, 302])
+    np.testing.assert_array_equal(eager.connectivity[:7], [0, 1, 2, 0, 1, 2, 3])
+    _assert_same_mesh(read(path, lazy=True), eager)
+
+
+@pytest.mark.parametrize(
+    ("layout", "conn_dtype"),
+    [({"conn_dtype": np.uint8}, np.uint8), ({"byte_order": "BigEndian"}, ">i4")],
+)
+def test_lazy_offsets_are_native_int32_whatever_the_connectivity_holds(
+    tmp_path, layout, conn_dtype
+) -> None:
+    """The offsets are derived, never read, so the file's index dtype stays
+    on the connectivity alone: unsigned offsets would wrap under a step
+    backwards, and big-endian ones swap on every use."""
+    lazy = read(_hand_built_vtu(tmp_path / "narrow.vtu", **layout), lazy=True)
+    assert lazy.connectivity.dtype == np.dtype(conn_dtype)
+    assert lazy.offsets.dtype == np.int32
+    np.testing.assert_array_equal(lazy.offsets, [0, 3, 7])
+
+
+def test_a_block_declaring_more_bytes_than_the_section_holds_is_refused(
+    tmp_path,
+) -> None:
+    """A block's header counting past the end of the section is refused,
+    not read short: cut to what is left it can still hold a whole number
+    of values and pass every later check."""
+    path = _hand_built_vtu(tmp_path / "long.vtu", overlong="stress")
+    with pytest.raises(CodecError, match="'stress' declares 24 bytes"):
+        read(path)
+    with pytest.raises(CodecError, match="'stress' declares 24 bytes"):
+        read(path, lazy=True)
+
+
+def _no_grid(path):
+    return _hand_built_vtu(path)
+
+
+def _not_well_formed(path):
+    _hand_built_vtu(path)
+    path.write_bytes(path.read_bytes().replace(b"</UnstructuredGrid>", b"", 1))
+    return path
+
+
+@pytest.mark.parametrize(
+    ("build", "reader", "error", "message"),
+    [
+        (_no_grid, vtp_read, UnsupportedFormatError, "declares type="),
+        (_not_well_formed, read, CodecError, "not well-formed XML"),
+    ],
+)
+def test_a_read_refused_after_mapping_closes_its_mapping(
+    tmp_path, monkeypatch, build, reader, error, message
+) -> None:
+    """A file that maps but is refused before any array views the mapping
+    leaves nothing to hold it open, so it is closed rather than left to
+    whoever holds the traceback."""
+    made: list[object] = []
+    real = _vtk_xml.map_read
+
+    def spy(src, *, fmt):
+        mapping = real(src, fmt=fmt)
+        made.append(mapping)
+        return mapping
+
+    monkeypatch.setattr(_vtk_xml, "map_read", spy)
+    path = build(tmp_path / "refused.vtx")
+    with pytest.raises(error, match=message):
+        reader(path, lazy=True)
+    assert len(made) == 1
+    assert made[0].closed
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+def test_a_raw_section_with_no_marker_is_refused(tmp_path, lazy) -> None:
+    """Without the ``_`` the offsets count from nowhere; read from the tag's
+    end the XML became a block header declaring a couple of gigabytes."""
+    path = _hand_built_vtu(tmp_path / "nomark.vtu")
+    path.write_bytes(path.read_bytes().replace(b"\n   _", b"\n   ", 1))
+    with pytest.raises(CodecError, match="no '_' marker"):
+        read(path, lazy=lazy)

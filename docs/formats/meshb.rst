@@ -58,8 +58,10 @@ open and hands back the vertices as a view of it:
 Each vertex record is its coordinates then a reference, so the coordinates
 are one ``(n, 3)`` array striding from record to record, in the file's own
 dtype. The elements are decoded into a copy whichever way the file is read:
-the format numbers vertices from one and CSR needs them from zero. A
-``Dimension 2`` file is padded to three columns, which is a copy too.
+the format numbers vertices from one and CSR needs them from zero. So are
+the vertex references, one native ``int32`` column whatever byte order the
+file is in. A ``Dimension 2`` file is padded to three columns, which is a
+copy too.
 
 Writing
 -------

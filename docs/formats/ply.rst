@@ -56,11 +56,15 @@ A binary body's vertex block can be memory-mapped instead of loaded:
 
 The vertex block is one run of fixed-width records, so the coordinates are
 one ``(n, 3)`` array striding from record to record - when ``x``, ``y`` and
-``z`` sit side by side in one type, which is how every writer lays them out -
-and every other scalar vertex property is a strided column of its own, all
-read-only views of the mapping in the dtype the file holds. Faces and edges
-are decoded either way: a face list is prefixed by its own count, so nothing
-on disk is the flat connectivity.
+``z`` sit side by side in one floating type, which is how every writer lays
+them out - and every other scalar vertex property is a strided column of its
+own, all read-only views of the mapping in the dtype the file holds. A file
+spelling its coordinates as integers, or laying the three out apart or in
+differing types, has them converted to float64 the way an eager read does,
+and a vertex element carrying a list property has no fixed record width, so
+its whole block is decoded into copies. Faces and edges are decoded either
+way: a face list is prefixed by its own count, so nothing on disk is the
+flat connectivity.
 
 Writing
 -------

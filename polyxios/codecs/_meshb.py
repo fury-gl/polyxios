@@ -118,9 +118,10 @@ def read(*, path: Source, lazy: bool = False) -> PolyData:
         coordinates then a reference, so the coordinates are one strided
         ``(n, 3)`` array over the records. The elements are copied either
         way, since the file numbers vertices from one and CSR needs them
-        from zero. A ``Dimension 2`` file is padded to three columns, which
-        is a copy too. Needs a path or a handle over a regular file at its
-        start.
+        from zero, and so are the vertex references, one native ``int32``
+        column whichever byte order the file is in. A ``Dimension 2`` file
+        is padded to three columns, which is a copy too. Needs a path or a
+        handle over a regular file at its start.
 
     Returns
     -------
@@ -389,7 +390,8 @@ def _write_i32(fh, v: int) -> None:
 
 def _parse_header(mm: mmap.mmap | bytes) -> tuple[int, int, str]:
     """Read magic, version, endian from mmap. Returns (version, dim, endian_char)."""
-    if len(mm) < 8:
+    # Four words: version keyword and value, dimension keyword and value.
+    if len(mm) < 16:
         raise CodecError("File too short for .meshb header.")
 
     kw = struct.unpack_from("<i", mm, 0)[0]
@@ -527,7 +529,7 @@ def _decode(mm: mmap.mmap | bytes, *, lazy: bool = False) -> PolyData:
             vertices = verts_arr["xyz"]
         else:
             vertices = pad_to_3d(verts_arr["xyz"], dim)
-        vrefs = verts_arr["ref"] if lazy else verts_arr["ref"].astype(np.int32)
+        vrefs = verts_arr["ref"].astype(np.int32)
         if vrefs.any():
             vertex_attrs["ref"] = vrefs
 
