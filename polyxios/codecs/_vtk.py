@@ -204,8 +204,16 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     path
         Path to the .vtk file.
     lazy
-        If True and the file is binary, return arrays backed by mmap (OS-lazy pages).
-        Raises LazyReadError for ASCII files.
+        Map a binary UNSTRUCTURED_GRID and hand back arrays that view it,
+        read-only, in the big-endian dtypes the file holds. The points and
+        every point and cell array are views whatever the file's version,
+        except a TENSORS array, which is expanded to one 3x3 per entity
+        and so is a float64 copy either way, as a COLOR_SCALARS array is.
+        The cells are views only in the v5.1 layout, which stores OFFSETS
+        and CONNECTIVITY as two blocks; the v4.2 ``CELLS`` block interleaves
+        each cell's count with its indices, so nothing on disk is the
+        connectivity and it is decoded either way. Needs a path or a handle
+        over a regular file at its start.
 
     Returns
     -------
@@ -215,7 +223,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     LazyReadError
-        If lazy=True and the file uses ASCII data sections.
+        If lazy=True and the file uses ASCII data sections, is a dataset
+        other than UNSTRUCTURED_GRID, or cannot be mapped.
     CodecError
         On unsupported dataset type or malformed data.
     UnknownElementTypeError
@@ -1772,7 +1781,7 @@ def _parse_binary_polydata_body(
             if next_line.upper().startswith("OFFSETS"):
                 # v5.1, as every VTK release since 9.0 writes it.
                 conn_v51, off_v51, pos = _parse_v51_cells_binary(
-                    mm, mv, next_end + 1, n_cells, file_size
+                    mm, mv, next_end + 1, n_cells, file_size, total=total_vals
                 )
                 base = all_offs[-1]
                 all_conn.append(conn_v51.astype(np.int32))
@@ -1790,15 +1799,12 @@ def _parse_binary_polydata_body(
             pos += n_bytes_cells
             pos = _skip_newline(mv, pos, file_size)
 
-            idx = 0
-            for _ in range(n_cells):
-                cnt = int(raw_cells[idx])
-                idx += 1
-                cell = raw_cells[idx : idx + cnt]
-                idx += cnt
-                all_conn.append(cell)
-                all_offs.append(all_offs[-1] + cnt)
-                all_types.append(_polydata_cell_type(kind, cnt))
+            conn_list, widths = _walk_cell_stream(
+                raw_cells.tolist(), n_cells, kind, short="is too short to hold"
+            )
+            all_conn.append(np.array(conn_list, dtype=np.int32))
+            all_offs.extend(accumulate(widths, initial=all_offs[-1]))
+            all_types.extend(_polydata_cell_type(kind, cnt) for cnt in widths)
             n_elems += n_cells
 
         elif upper.startswith("POINT_DATA"):
@@ -3044,10 +3050,23 @@ def _looks_like_keyword(token: str) -> bool:
 
 
 def _read_binary(path: Source, *, lazy: bool) -> PolyData:
-    """Read binary VTK file, using mmap (lazy) or direct reads."""
-    # A lazy read hands back arrays that view the block, so it has to be a
-    # mapping: reading a file object into memory would answer the call with
-    # the copy the caller asked not to make.
+    """Read a binary UNSTRUCTURED_GRID, mapping the file for a lazy read.
+
+    Parameters
+    ----------
+    path
+        Path or open file object.
+    lazy
+        Hand back arrays viewing the mapping rather than copies. The file
+        has to be mappable for that: a file object with nothing behind it
+        is refused rather than read into the copy the caller asked not to
+        make.
+
+    Returns
+    -------
+    PolyData
+        The mesh.
+    """
     with open_block(path, fmt=".vtk", require_map=lazy) as mm:
         file_size = len(mm)
         mv = memoryview(mm)
@@ -3057,27 +3076,63 @@ def _read_binary(path: Source, *, lazy: bool) -> PolyData:
         for _ in range(4):
             pos = mm.find(b"\n", pos) + 1
 
-        poly = _parse_binary_body(mm, mv, pos, file_size)
-        del mv  # release the view before the mapping goes
-        if not lazy:
-            poly = _materialize(poly)
+        try:
+            poly = _parse_binary_body(mm, mv, pos, file_size, copy=not lazy)
+        except BaseException:
+            # open_block leaves a mapping it was asked to keep open, since
+            # the arrays of a finished read view it; a read that failed
+            # before building any leaves nothing behind to hold it open.
+            # Released rather than deleted: the traceback still holds the
+            # frames that reference the view.
+            mv.release()
+            if isinstance(mm, mmap.mmap):
+                try:
+                    mm.close()
+                except BufferError:
+                    pass
+            raise
+        mv.release()
 
     return poly
 
 
-def _materialize(poly: PolyData) -> PolyData:
-    """Convert mmap-backed arrays to in-memory copies."""
-    import dataclasses
+def _block(
+    mm: mmap.mmap | bytes,
+    pos: int,
+    dtype: str | np.dtype,
+    count: int,
+    *,
+    copy: bool,
+    as_: type | None = np.float64,
+) -> np.ndarray:
+    """One binary block, as the file holds it or converted.
 
-    return dataclasses.replace(
-        poly,
-        vertices=np.array(poly.vertices),
-        connectivity=np.array(poly.connectivity),
-        offsets=np.array(poly.offsets),
-        element_types=np.array(poly.element_types),
-        vertex_attrs={k: np.array(v) for k, v in poly.vertex_attrs.items()},
-        element_attrs={k: np.array(v) for k, v in poly.element_attrs.items()},
-    )
+    Parameters
+    ----------
+    mm
+        The mapping or buffer.
+    pos
+        Byte offset of the block's first value.
+    dtype
+        The on-disk dtype, byte order included.
+    count
+        Values in the block.
+    copy
+        Convert to ``as_`` in fresh memory. Otherwise the block is read in
+        place: a view of the mapping, in the file's own dtype and byte
+        order, read-only when the mapping is.
+    as_
+        The dtype an eager read converts to; None keeps the file's.
+
+    Returns
+    -------
+    numpy.ndarray
+        The values, 1-D.
+    """
+    raw = np.frombuffer(mm, dtype=dtype, count=count, offset=pos)
+    if not copy:
+        return raw
+    return raw.astype(as_ or np.dtype(dtype).newbyteorder("="))
 
 
 def _parse_binary_body(
@@ -3085,8 +3140,34 @@ def _parse_binary_body(
     mv: memoryview,
     start_pos: int,
     file_size: int,
+    *,
+    copy: bool,
 ) -> PolyData:
-    """Parse binary data sections from an mmap object."""
+    """Parse the binary data sections of an UNSTRUCTURED_GRID.
+
+    Parameters
+    ----------
+    mm
+        The mapping or buffer.
+    mv
+        A memoryview of the same bytes, for slicing header lines.
+    start_pos
+        Byte offset just past the four header lines.
+    file_size
+        Size of the file.
+    copy
+        Convert every block into fresh memory - float64 coordinates and
+        attributes, native-order indices. Otherwise the points, a v5.1
+        cell section and every attribute view the mapping in the file's
+        own dtype and byte order; a v4.2 ``CELLS`` block interleaves each
+        cell's count with its indices, so nothing on disk is the
+        connectivity and that block is decoded either way.
+
+    Returns
+    -------
+    PolyData
+        The mesh.
+    """
     pos = start_pos
     vertices = np.zeros((0, 3), dtype=np.float64)
     connectivity = np.array([], dtype=np.int32)
@@ -3138,8 +3219,9 @@ def _parse_binary_body(
             # running off the end; a short slice reshapes into a ValueError
             # that names neither the array nor the file.
             _check_block(pos, n_bytes, file_size, name=parts[0])
-            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt)
-            vertices = raw.astype(np.float64).reshape(n_verts, 3)
+            vertices = _block(mm, pos, np_dt, n_verts * 3, copy=copy).reshape(
+                n_verts, 3
+            )
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
 
@@ -3159,16 +3241,20 @@ def _parse_binary_body(
 
             if "OFFSETS" in next_line:
                 connectivity, offsets_arr, pos = _parse_v51_cells_binary(
-                    mm, mv, line_end2 + 1, n_elems, file_size
+                    mm,
+                    mv,
+                    line_end2 + 1,
+                    n_elems,
+                    file_size,
+                    total=total_size,
+                    copy=copy,
                 )
                 n_elems = len(offsets_arr) - 1
             else:
                 # v4.2: interleaved [count, idx0, ...] int32
                 n_bytes_cells = total_size * 4
                 _check_block(pos, n_bytes_cells, file_size, name="CELLS")
-                raw = np.frombuffer(
-                    bytes(mv[pos : pos + n_bytes_cells]), dtype=">i4"
-                ).astype(np.int32)
+                raw = _block(mm, pos, ">i4", total_size, copy=True, as_=np.int32)
                 pos += n_bytes_cells
                 pos = _skip_newline(mv, pos, file_size)
                 connectivity, offsets_arr = _unpack_v42_cells(raw, n_elems)
@@ -3177,29 +3263,21 @@ def _parse_binary_body(
             n_ct = _attr_count(parts, 1, f"byte {line_start}")
             n_bytes_ct = n_ct * 4
             _check_block(pos, n_bytes_ct, file_size, name="CELL_TYPES")
-            raw_ct = np.frombuffer(
-                bytes(mv[pos : pos + n_bytes_ct]), dtype=">i4"
-            ).astype(np.int32)
+            raw_ct = np.frombuffer(mm, dtype=">i4", count=n_ct, offset=pos)
             pos += n_bytes_ct
             pos = _skip_newline(mv, pos, file_size)
-            type_codes: list[int] = []
-            for vtk_code in raw_ct:
-                vtk_code_int = int(vtk_code)
-                if vtk_code_int not in VTK_TO_POLYXIOS:
-                    raise UnknownElementTypeError("vtk", vtk_code_int)
-                type_codes.append(ELEMENT_TYPES[VTK_TO_POLYXIOS[vtk_code_int]])
-            element_types_arr = np.array(type_codes, dtype=np.uint8)
+            element_types_arr = _cell_types(raw_ct)
 
         elif upper.startswith("POINT_DATA"):
             n_pd = _attr_count(parts, 1, f"byte {line_start}")
             pos, vertex_attrs = _parse_binary_attrs(
-                mm, mv, pos, n_pd, file_size, expected=n_verts, kind="point"
+                mm, mv, pos, n_pd, file_size, expected=n_verts, kind="point", copy=copy
             )
 
         elif upper.startswith("CELL_DATA"):
             n_cd = _attr_count(parts, 1, f"byte {line_start}")
             pos, element_attrs = _parse_binary_attrs(
-                mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell"
+                mm, mv, pos, n_cd, file_size, expected=n_elems, kind="cell", copy=copy
             )
 
     # A column named for a tag group is that group's membership rather than an
@@ -3227,8 +3305,52 @@ def _skip_newline(mv: memoryview, pos: int, file_size: int) -> int:
     return pos
 
 
+# Whether each VTK cell code names an element type polyxios has, and which,
+# so a CELL_TYPES block is checked and translated in one indexing pass
+# rather than a dict lookup per cell.
+_VTK_CODE_KNOWN: Final[np.ndarray] = np.zeros(256, dtype=bool)
+_VTK_CODE_KNOWN[list(VTK_TO_POLYXIOS)] = True
+_POLYXIOS_BY_VTK_CODE: Final[np.ndarray] = np.array(
+    [ELEMENT_TYPES.get(VTK_TO_POLYXIOS.get(code, ""), 0) for code in range(256)],
+    dtype=np.uint8,
+)
+
+
+def _cell_types(raw_ct: np.ndarray) -> np.ndarray:
+    """Map a ``CELL_TYPES`` block to polyxios element codes.
+
+    Parameters
+    ----------
+    raw_ct
+        The VTK cell codes, in whatever integer dtype the file holds.
+
+    Returns
+    -------
+    numpy.ndarray
+        uint8 polyxios codes.
+
+    Raises
+    ------
+    UnknownElementTypeError
+        If a code names no VTK cell type polyxios has, naming the first.
+    """
+    codes = raw_ct.astype(np.intp, copy=False)
+    known = (codes >= 0) & (codes < _VTK_CODE_KNOWN.size)
+    known[known] = _VTK_CODE_KNOWN[codes[known]]
+    if not known.all():
+        raise UnknownElementTypeError("vtk", int(codes[~known][0]))
+    return _POLYXIOS_BY_VTK_CODE[codes]
+
+
 def _parse_v51_cells_binary(
-    mm: mmap.mmap | bytes, mv: memoryview, pos: int, declared: int, file_size: int
+    mm: mmap.mmap | bytes,
+    mv: memoryview,
+    pos: int,
+    declared: int,
+    file_size: int,
+    *,
+    total: int,
+    copy: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Read a binary v5.1 OFFSETS + CONNECTIVITY pair.
 
@@ -3244,22 +3366,44 @@ def _parse_v51_cells_binary(
         The first number on the section's header line.
     file_size
         Size of the file.
+    total
+        The second number on the section's header line: the values the
+        CONNECTIVITY block holds, which is what VTK's own reader sizes the
+        block by.
+    copy
+        Convert both blocks to native int64. Otherwise they view the
+        mapping as the big-endian int64 the file holds.
 
     Returns
     -------
     tuple[numpy.ndarray, numpy.ndarray, int]
         Connectivity, offsets, and the byte offset just past the section.
         The section holds one cell fewer than the offsets array has values.
+
+    Raises
+    ------
+    CodecError
+        If the offsets run backwards, or their last value - the one that
+        sizes the connectivity - is not the header's total. Sized by the
+        offsets alone, a block shorter than they claim was read on into
+        the section after it, and one longer left the tail of it to be
+        parsed as the next keyword line.
     """
     n_off = _v51_offset_count(mm, mv, pos, declared, file_size)
     n_bytes_off = n_off * 8
     _check_block(pos, n_bytes_off, file_size, name="OFFSETS")
-    offsets_arr = np.frombuffer(bytes(mv[pos : pos + n_bytes_off]), dtype=">i8").astype(
-        np.int64
-    )
+    offsets_arr = _block(mm, pos, ">i8", n_off, copy=copy, as_=np.int64)
     pos = _next_binary_header(
         mm, mv, _skip_newline(mv, pos + n_bytes_off, file_size), file_size
     )
+    if offsets_arr[0] < 0 or bool(np.any(offsets_arr[1:] < offsets_arr[:-1])):
+        raise CodecError(".vtk: a v5.1 cell section's OFFSETS run backwards.")
+    n_conn = int(offsets_arr[-1])
+    if n_conn != total:
+        raise CodecError(
+            f".vtk: a v5.1 cell section's OFFSETS end at {n_conn} but its"
+            f" header declares {total} connectivity values."
+        )
 
     # skip CONNECTIVITY keyword line
     conn_kw_end = mm.find(b"\n", pos)
@@ -3269,12 +3413,9 @@ def _parse_v51_cells_binary(
             " follows them."
         )
     pos = conn_kw_end + 1
-    n_bytes_conn = int(offsets_arr[-1]) * 8
-    _check_block(pos, n_bytes_conn, file_size, name="CONNECTIVITY")
-    connectivity = np.frombuffer(
-        bytes(mv[pos : pos + n_bytes_conn]), dtype=">i8"
-    ).astype(np.int64)
-    pos = _skip_newline(mv, pos + n_bytes_conn, file_size)
+    _check_block(pos, n_conn * 8, file_size, name="CONNECTIVITY")
+    connectivity = _block(mm, pos, ">i8", n_conn, copy=copy, as_=np.int64)
+    pos = _skip_newline(mv, pos + n_conn * 8, file_size)
     return connectivity, offsets_arr, pos
 
 
@@ -3394,8 +3535,14 @@ def _check_block(pos: int, n_bytes: int, file_size: int, *, name: str) -> None:
     Raises
     ------
     CodecError
-        If the block runs past the end of the file.
+        If the block runs past the end of the file, or declares a negative
+        size - a count numpy reads as "to the end of the file", after which
+        the cursor steps backwards by it.
     """
+    if n_bytes < 0:
+        raise CodecError(
+            f".vtk: array {name!r} declares {n_bytes} bytes, which is no size."
+        )
     if pos + n_bytes > file_size:
         raise CodecError(
             f".vtk: array {name!r} declares {n_bytes} bytes but only"
@@ -3488,6 +3635,7 @@ def _parse_binary_attrs(
     *,
     expected: int,
     kind: str,
+    copy: bool = True,
 ) -> tuple[int, dict[str, np.ndarray]]:
     """Parse binary POINT_DATA or CELL_DATA attribute sections.
 
@@ -3510,6 +3658,10 @@ def _parse_binary_attrs(
         belongs to none of them and is dropped rather than attached.
     kind
         ``'point'`` or ``'cell'``, for the warning.
+    copy
+        Convert every array to float64 in fresh memory. Otherwise an array
+        views the mapping in the file's own dtype and byte order, except
+        ``COLOR_SCALARS``, whose bytes are scaled onto 0..1 either way.
 
     Returns
     -------
@@ -3555,9 +3707,7 @@ def _parse_binary_attrs(
             pos = _skip_lookup_table(mm, mv, pos, file_size)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
-            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
-                np.float64
-            )
+            raw = _block(mm, pos, np_dt, n_items * n_comp, copy=copy)
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw
@@ -3573,12 +3723,7 @@ def _parse_binary_attrs(
             n_comp = _attr_count(parts, 2, where, default=1)
             n_bytes = n_items * n_comp
             _check_block(pos, n_bytes, file_size, name=name)
-            raw = (
-                np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np.uint8).astype(
-                    np.float64
-                )
-                / _COLOR_SCALE
-            )
+            raw = _block(mm, pos, np.uint8, n_bytes, copy=True) / _COLOR_SCALE
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw
@@ -3589,9 +3734,7 @@ def _parse_binary_attrs(
             np_dt = _binary_dtype(parts, 2, where)
             n_bytes = n_items * 3 * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
-            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
-                np.float64
-            )
+            raw = _block(mm, pos, np_dt, n_items * 3, copy=copy)
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, 3)
@@ -3603,9 +3746,7 @@ def _parse_binary_attrs(
             np_dt = _binary_dtype(parts, 3, where)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
-            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
-                np.float64
-            )
+            raw = _block(mm, pos, np_dt, n_items * n_comp, copy=copy)
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw
@@ -3629,9 +3770,7 @@ def _parse_binary_attrs(
             n_comp = _tensor_tuple_size(parts[0])
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
-            raw = np.frombuffer(bytes(mv[pos : pos + n_bytes]), dtype=np_dt).astype(
-                np.float64
-            )
+            raw = _block(mm, pos, np_dt, n_items * n_comp, copy=copy)
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = _full_tensors(raw, n_items, n_comp=n_comp)
@@ -3662,9 +3801,7 @@ def _parse_binary_attrs(
                 np_dt_f = _binary_dtype(hparts, 3, fwhere)
                 n_bytes_f = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
                 _check_block(pos, n_bytes_f, file_size, name=arr_name)
-                raw_f = np.frombuffer(
-                    bytes(mv[pos : pos + n_bytes_f]), dtype=np_dt_f
-                ).astype(np.float64)
+                raw_f = _block(mm, pos, np_dt_f, n_tuples_f * n_comp_f, copy=copy)
                 pos += n_bytes_f
                 pos = _skip_newline(mv, pos, file_size)
                 attrs[arr_name] = (

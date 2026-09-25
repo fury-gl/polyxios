@@ -5,7 +5,7 @@ XDMF
 
 .. rst-class:: px-badges
 
-``.xdmf`` ``.xmf`` ``read + write`` ``eager`` ``time series``
+``.xdmf`` ``.xmf`` ``read + write`` ``lazy: binary and contiguous HDF5`` ``time series``
 
 Summary of the specification
 ----------------------------
@@ -52,7 +52,20 @@ Reading
     from polyxios import helper
     times, meshes = helper.read_time_series("result.xdmf")
 
-:func:`polyxios.read` hands back one mesh, always. Every uniform grid at the chosen step is read - a spatial collection flat, several grids beside one another merged - and where there are several, each grid's elements are tagged with the grid's ``Name``, so a domain split into parts keeps saying which was which. A temporal collection is read at one step, the first without ``step=``; :func:`polyxios.helper.read_time_series` reads them all. ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`: the arrays live wherever the file says, and are decoded whole.
+:func:`polyxios.read` hands back one mesh, always. Every uniform grid at the chosen step is read - a spatial collection flat, several grids beside one another merged - and where there are several, each grid's elements are tagged with the grid's ``Name``, so a domain split into parts keeps saying which was which. A temporal collection is read at one step, the first without ``step=``; :func:`polyxios.helper.read_time_series` reads them all.
+
+``lazy=True`` maps the sidecars instead of reading them, and hands back
+arrays that view the mappings, read-only, in the dtype and byte order the
+sidecar holds. A ``Binary`` DataItem is one run of values at an offset; so is
+an HDF5 dataset stored contiguously without a filter, which is what
+``write`` emits unless asked for ``compression`` - h5py finds where the
+dataset sits and the ``.h5`` file is mapped around it. A chunked or
+compressed dataset, or values spelled inline as text, have no such run and
+raise :class:`~polyxios.exceptions.LazyReadError` naming which. Arrays the
+file does not store but implies - a uniform topology's offsets, the element
+types, a mixed topology's gathered connectivity, coordinates padded from two
+columns to three - are built in memory; the offsets are int32, or int64 when
+they need it, whatever dtype the connectivity keeps.
 
 The HDF5 flavour needs `h5py <https://www.h5py.org/>`_, which is optional - ``pip install "polyxios[hdf5]"``. Without it the inline and binary flavours still read, and a file naming an HDF5 sidecar raises :class:`~polyxios.exceptions.UnsupportedFormatError` spelling that command.
 

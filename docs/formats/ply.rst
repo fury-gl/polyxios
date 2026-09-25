@@ -5,7 +5,7 @@ Stanford PLY
 
 .. rst-class:: px-badges
 
-``.ply`` ``read + write`` ``lazy: binary only``
+``.ply`` ``read + write`` ``lazy: binary vertices``
 
 Summary of the specification
 ----------------------------
@@ -47,11 +47,24 @@ Reading
     mesh.vertices          # (n, 3)
     mesh.element_types     # element groups found in the file
 
-Binary bodies can be memory-mapped instead of loaded:
+A binary body's vertex block can be memory-mapped instead of loaded:
 
 .. code-block:: python
 
     mesh = px.read("big.ply", lazy=True)
+    mesh.vertices.flags.writeable   # False: a view of the file, in its own dtype
+
+The vertex block is one run of fixed-width records, so the coordinates are
+one ``(n, 3)`` array striding from record to record - when ``x``, ``y`` and
+``z`` sit side by side in one floating type, which is how every writer lays
+them out - and every other scalar vertex property is a strided column of its
+own, all read-only views of the mapping in the dtype the file holds. A file
+spelling its coordinates as integers, or laying the three out apart or in
+differing types, has them converted to float64 the way an eager read does,
+and a vertex element carrying a list property has no fixed record width, so
+its whole block is decoded into copies. Faces and edges are decoded either
+way: a face list is prefixed by its own count, so nothing on disk is the
+flat connectivity.
 
 Writing
 -------
@@ -83,7 +96,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - Vertex properties beyond x/y/z - colour, normals, confidence, intensity - are preserved as named vertex attributes rather than dropped.
-- Lazy loading applies to binary bodies only; an ASCII file must be parsed in full before any value is available.
+- Lazy loading applies to a binary body's vertex block only; faces are decoded, and an ASCII file must be parsed in full before any value is available.
 - Index widths are checked against the declared vertex count, so a mesh too large for the header's list type raises instead of truncating.
 - Line elements travel as ``element edge`` with ``vertex1`` / ``vertex2``, the spelling the spec gives them, rather than as a two-vertex face list a reader would take for a degenerate polygon. On read, ``vertex_index1`` / ``vertex_index2`` and a bare pair of integer properties are accepted too, and the edges land after the faces so a per-face attribute keeps lining up with its faces, whatever order the header declares the two elements in. An element block is read in the order the header names it, since that is the order it sits in the file; one this codec has no place for costs its own records and nothing else.
 - An ``element edge`` record carries the same element properties a face does, so a value the mesh held on a line survives the trip both ways. A property only one of the two elements declares is NaN over the other, the format spelling no missing value.

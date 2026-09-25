@@ -8,6 +8,7 @@ import pytest
 from polyxios import make_polydata
 from polyxios.codecs._vtp import read, write
 from polyxios.exceptions import CodecError, LazyReadError
+from tests.codecs._lazy import mapped
 
 
 def _synthetic_mesh() -> object:
@@ -36,17 +37,67 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_roundtrip_lazy() -> None:
-    """VTP lazy raises LazyReadError; eager read gives correct data."""
+def _mixed_polys() -> object:
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [2, 0, 0], [2, 1, 0]],
+        dtype=np.float64,
+    )
+    return make_polydata(
+        verts,
+        [
+            ("triangle", np.array([[0, 1, 2]])),
+            ("quad", np.array([[0, 1, 2, 3]])),
+            ("polygon", np.array([[1, 4, 5, 2, 3]])),
+        ],
+        vertex_attrs={"pressure": np.arange(6.0)},
+        element_attrs={"stress": np.array([10.0, 20.0, 30.0])},
+    )
+
+
+def test_roundtrip_appended(tmp_path) -> None:
+    """A raw appended section reads back eagerly like any other layout,
+    and the Polys section types its cells by their point count."""
+    poly = _mixed_polys()
+    tmp = tmp_path / "mesh.vtp"
+    write(poly, tmp, appended=True)
+    back = read(tmp)
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.element_attrs["stress"], poly.element_attrs["stress"]
+    )
+    assert back.vertices.flags.writeable
+    assert not mapped(back.vertices)
+
+
+def test_lazy_arrays_view_the_mapping(tmp_path) -> None:
+    poly = _mixed_polys()
+    tmp = tmp_path / "mesh.vtp"
+    write(poly, tmp, appended=True)
+    back = read(tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["pressure"], poly.vertex_attrs["pressure"]
+    )
+    for arr in (back.vertices, back.connectivity, back.vertex_attrs["pressure"]):
+        assert mapped(arr)
+        assert not arr.flags.writeable
+    assert back.connectivity.dtype == back.offsets.dtype
+
+
+def test_lazy_refuses_inline_arrays(tmp_path) -> None:
     poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtp", delete=False) as f:
-        tmp = f.name
+    tmp = tmp_path / "mesh.vtp"
     write(poly, tmp, binary=True)
-    with pytest.raises(LazyReadError):
+    with pytest.raises(LazyReadError, match="inline"):
         read(tmp, lazy=True)
-    # Eager read still works
-    poly2 = read(tmp, lazy=False)
-    np.testing.assert_allclose(poly2.vertices, poly.vertices, atol=1e-8)
+    np.testing.assert_allclose(read(tmp).vertices, poly.vertices)
 
 
 def test_vertex_attrs() -> None:
@@ -79,16 +130,6 @@ def test_element_attrs() -> None:
     poly2 = read(tmp)
     assert "stress" in poly2.element_attrs
     np.testing.assert_allclose(poly2.element_attrs["stress"], stress, atol=1e-6)
-
-
-def test_unsupported_lazy() -> None:
-    poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtp", delete=False) as f:
-        tmp = f.name
-    write(poly, tmp)
-    # VTP lazy not supported with frozen PolyData - raises LazyReadError
-    with pytest.raises(LazyReadError):
-        read(tmp, lazy=True)
 
 
 # ---------------------------------------------------------------------------
@@ -196,3 +237,16 @@ def test_field_data_on_a_piece_is_read(tmp_path) -> None:
     path.write_text(_polydata_file("0 0 0 1 0 0 0 1 0", 3, extra))
 
     np.testing.assert_allclose(read(path).global_attrs["TimeValue"], [3.5])
+
+
+def test_a_file_with_no_polydata_element_names_the_format(tmp_path) -> None:
+    """A root holding no dataset used to raise a bare ValueError."""
+    path = tmp_path / "hollow.vtp"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">\n'
+        "</VTKFile>\n"
+    )
+
+    with pytest.raises(CodecError, match=r"\.vtp: .*no <PolyData>"):
+        read(path)

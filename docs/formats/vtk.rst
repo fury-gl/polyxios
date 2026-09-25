@@ -5,7 +5,7 @@ VTK Legacy
 
 .. rst-class:: px-badges
 
-``.vtk`` ``read + write`` ``lazy: binary only``
+``.vtk`` ``read + write`` ``lazy: binary v5.1 zero-copy, v4.2 all but cells``
 
 Summary of the specification
 ----------------------------
@@ -45,11 +45,22 @@ Reading
     mesh.vertices          # (n, 3)
     mesh.element_types     # element groups found in the file
 
-Binary bodies can be memory-mapped instead of loaded:
+A binary ``UNSTRUCTURED_GRID`` can be memory-mapped instead of loaded:
 
 .. code-block:: python
 
     mesh = px.read("big.vtk", lazy=True)
+    mesh.vertices.dtype             # >f4 or >f8: the file's own big-endian bytes
+    mesh.vertices.flags.writeable   # False
+
+The points and every point and cell array are read-only views of the
+mapping, in the big-endian dtype the file holds. Whether the cells are too
+depends on the file's version: the v5.1 layout stores ``OFFSETS`` and
+``CONNECTIVITY`` as two blocks and both are viewed, while the v4.2 ``CELLS``
+block interleaves each cell's count with its indices, so nothing on disk is
+the connectivity and it is decoded either way. ``write(..., vtk_version="5.1",
+binary=True)`` produces the mappable layout. ASCII files, and the ``POLYDATA``
+and structured datasets, raise :class:`~polyxios.exceptions.LazyReadError`.
 
 Writing
 -------
@@ -81,7 +92,7 @@ Quirks worth knowing
 - A ``FIELD FieldData`` block between the ``DATASET`` line and the geometry belongs to the mesh rather than to its points or cells, and is read into ``global_attrs``; ``write`` puts one back there. Unlike a point or cell array, which is written as a double, a field array keeps the type it is held in, so an integer comes home an integer. A ``FIELD`` inside a ``POINT_DATA`` or ``CELL_DATA`` section still names arrays over the points or the cells, and is read as attributes. A ``STRUCTURED_POINTS``, ``RECTILINEAR_GRID`` or ``STRUCTURED_GRID`` file reads a dataset-level block too, which is where VTK's own writer puts a time value.
 - A value no numeric array holds - a string, a mapping - is dropped with a warning naming the key; the XML family's ``<FieldData>`` holds text and this block does not. The ``vtk_*`` grid entries a structured read recorded do travel in the block: this writer spells an ``UNSTRUCTURED_GRID`` and rebuilds no grid, so holding them back would drop them without a word. A structured read takes the grid it rebuilt over anything a field block names, so carrying them costs the next read nothing.
 - ``POINTS`` and a v4.2 ``CELLS`` block are a run of numbers the header counts, not a line apiece. One row to a vertex or a cell is what VTK's own writer emits and what this reads first; a block wrapped some other way is read again as that run, so a file no reader of rows could take is read as the mesh it holds.
-- Binary files can be memory-mapped with ``lazy=True``; ASCII files must be parsed end to end before any value is available.
+- A binary ``UNSTRUCTURED_GRID`` can be memory-mapped with ``lazy=True`` - fully in the v5.1 layout, points and attributes only in v4.2; ASCII files must be parsed end to end before any value is available.
 - Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.
 - Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.
 - ``SCALARS``, ``VECTORS``, ``NORMALS``, ``TENSORS``, ``COLOR_SCALARS``, ``TEXTURE_COORDINATES`` and ``FIELD`` sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A ``LOOKUP_TABLE`` definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. ``COLOR_SCALARS`` is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.

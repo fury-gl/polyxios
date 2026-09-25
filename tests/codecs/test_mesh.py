@@ -45,12 +45,13 @@ def test_roundtrip_tetra() -> None:
 
 
 def test_lazy_ignored() -> None:
-    """lazy=True is silently accepted (mesh is always read eagerly)."""
+    """lazy=True warns and reads eagerly, like every other text format."""
     poly = _tri_mesh()
     with tempfile.NamedTemporaryFile(suffix=".mesh", delete=False) as f:
         tmp = f.name
     write(poly, tmp)
-    poly2 = read(tmp, lazy=True)
+    with pytest.warns(UserWarning, match="lazy=True ignored"):
+        poly2 = read(tmp, lazy=True)
     assert len(poly2.vertices) == 4
 
 

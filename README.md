@@ -168,36 +168,39 @@ pxios viz stanford-bunny.obj
 
 ---
 
-## Lazy loading - work with large files without filling RAM
+## Lazy loading - read large files without copying them
 
 See the [lazy loading guide](https://polyxios.org/stable/lazy_loading.html) for the full picture.
 
-For large meshes (gigabytes of binary data), pass `lazy=True`. polyxios
-memory-maps the file and only loads the pages you actually touch - the rest
-stays on disk until needed.
+For a large binary mesh, pass `lazy=True`. polyxios maps the file and,
+wherever the file stores an array as one run of bytes in the shape the array
+needs, hands back a read-only view of the mapping in the file's own dtype -
+nothing decoded, nothing copied, pages coming in as they are touched.
 
 ```python
-# File is opened but data is not loaded into RAM yet
-mesh = px.read("huge_brain.vtk", lazy=True)
+mesh = px.read("huge.vtu", lazy=True)
 
-# Only the vertices are pulled from disk here
-first_vertex = mesh.vertices[0]
-
-# Element connectivity is still on disk until you access it
+mesh.vertices.flags.writeable  # False: these are the file's bytes
+mesh.vertices.dtype  # whatever the file holds - float32 stays float32
+mesh.vertices[0]  # the first page comes in here
 ```
 
-`lazy=True` is honoured for binary `.vtk`, `.ply` and `.stl` files. ASCII
-formats load eagerly (the whole file must be parsed to extract values). Binary
-STL lazy mode skips vertex deduplication - vertices are returned as-is (3 per
-triangle), avoiding the extra pass over the data. `.meshb` needs no flag: a
-path is always memory-mapped, so `lazy=True` there warns and changes nothing.
+Which arrays can be views depends on how the format lays them out. `.vtu`
+and `.vtp` with a raw appended section (VTK's default output, and
+`write(..., appended=True)`), `.xdmf` over a binary or contiguous-HDF5
+sidecar, `.splat`, and binary `.vtk` in the v5.1 layout map their vertices,
+connectivity and attributes; binary `.ply`, `.meshb` and v4.2 `.vtk` map
+their vertices and decode their cells, whose on-disk form interleaves counts
+or references with the indices. Binary STL's `lazy=True` skips vertex
+deduplication instead - three vertices per triangle, copied - because a
+50-byte STL record cannot be viewed as coordinates. Everything encoded
+(ASCII, base64, zlib, ZIP) raises `LazyReadError` or, for some text formats,
+warns and loads eagerly.
 
-`mmap` maps a file descriptor from byte zero, so the formats whose lazy read
-hands back arrays viewing the mapping need a real, uncompressed file standing
-at its start: an `io.BytesIO`, a handle part-way into a file, or a gzipped one
-raises `LazyReadError` naming the reason rather than quietly loading eagerly.
-Binary STL's lazy mode only skips work, so it takes a buffer or a compressed
-file like any other read.
+`mmap` maps a file descriptor from byte zero, so a lazy read needs a real,
+uncompressed file standing at its start: an `io.BytesIO`, a handle part-way
+into a file, or a gzipped one raises `LazyReadError` naming the reason rather
+than quietly loading eagerly.
 
 ---
 
@@ -221,18 +224,18 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
-| VTK Legacy | `.vtk` | ✓ | ✓ | lazy: binary |
-| VTK PolyData | `.vtp` | ✓ | ✓ | points, lines, polygons, strips |
+| VTK Legacy | `.vtk` | ✓ | ✓ | lazy: binary v5.1 zero-copy, v4.2 all but cells |
+| VTK PolyData | `.vtp` | ✓ | ✓ | points, lines, polygons, strips; lazy: raw appended, `appended=True` writes it |
 | Wavefront OBJ | `.obj` | ✓ | ✓ | `vt`/`vn` round trip, groups → element tags |
-| Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary |
-| STL | `.stl` | ✓ | ✓ | lazy: binary, which skips vertex deduplication |
+| Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary vertices; faces decoded |
+| STL | `.stl` | ✓ | ✓ | lazy: binary, which skips vertex deduplication and copies |
 | 3MF | `.3mf` | ✓ | ✓ | objects → element tags, assemblies placed by transform, materials → `colors`, `unit` in `global_attrs` |
 | OFF | `.off` | ✓ | ✓ | ASCII + big-endian binary, `ST`/`C`/`N` variants → vertex/face attrs |
 | AVS-UCD | `.avs` | ✓ | ✓ | node/cell/model data → attrs |
-| Medit binary | `.meshb` | ✓ | ✓ | a path is always mmapped; no `lazy=` needed |
+| Medit binary | `.meshb` | ✓ | ✓ | lazy: vertices; elements decoded |
 | Medit ASCII | `.mesh`* `.medit` | ✓ | ✓ | reference integers → tags; write with `fmt=".medit"` |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
-| Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only |
+| Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only; lazy: zero-copy |
 
 ### Volume, grid & simulation
 
@@ -419,7 +422,7 @@ For the full release workflow see the [development guide](https://polyxios.org/s
 - **No silent data corruption** - large mesh indices raise an error instead of truncating
 - **All element groups preserved** - a face belonging to multiple tags stays in all of them
 - **Safe on untrusted files** - header counts validated before any memory allocation
-- **Memory-efficient** - lazy mmap loading for large binary files
+- **Memory-efficient** - `lazy=True` maps a binary file and hands back views of it where the layout allows, copies nothing where it does not, and says which
 - **Paths, buffers and gzip alike** - one API over files, streams and `.gz`
 - **Works without a compiler** - pure Python fallbacks included; Cython hot-paths optional
 

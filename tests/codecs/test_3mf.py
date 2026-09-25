@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+import tracemalloc
 import warnings
 import zipfile
 
@@ -324,6 +325,71 @@ def test_lazy_is_refused(tmp_path: Path) -> None:
         read(_tet_file(tmp_path), lazy=True)
 
 
+def test_a_large_model_is_parsed_as_a_stream(tmp_path: Path) -> None:
+    """The model part used to be inflated whole and parsed into a tree with
+    one Element per vertex and per triangle. Past a gigabyte of XML - ten
+    million vertices - expat refused the single buffer, and well before that
+    the tree cost thirty times the numbers it held. The part is now fed to
+    the parser as it inflates, and each vertex and triangle goes straight
+    into a numeric buffer; this guards the second half, the first being too
+    large a file for a test."""
+    n = 150
+    ys, xs = np.mgrid[0:n, 0:n]
+    verts = np.column_stack([xs.ravel(), ys.ravel(), np.zeros(n * n)]).astype(float)
+    idx = np.arange(n * n).reshape(n, n)
+    a, b, c, d = (
+        idx[:-1, :-1].ravel(),
+        idx[:-1, 1:].ravel(),
+        idx[1:, :-1].ravel(),
+        idx[1:, 1:].ravel(),
+    )
+    faces = np.concatenate([np.column_stack([a, b, c]), np.column_stack([b, d, c])])
+    poly = make_polydata(verts, [("triangle", faces)])
+    path = tmp_path / "grid.3mf"
+    write(poly, path)
+
+    tracemalloc.start()
+    try:
+        back = read(path)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    np.testing.assert_array_equal(back.vertices, verts)
+    payload = verts.nbytes + faces.nbytes
+    # Nine times the payload today; thirty before the stream.
+    assert peak < 15 * payload, f"peak {peak / 1e6:.1f} MB for {payload / 1e6:.1f} MB"
+
+
+@pytest.mark.parametrize(
+    "stray",
+    [
+        '<vertex x="9" y="9" z="9"/>',
+        '<triangle v1="0" v2="0" v3="0"/>',
+        '<vertex x="9" y="9" z="9"><vertex x="8" y="8" z="8"/></vertex>',
+        '<ext:lattice xmlns:ext="urn:x"><vertices><vertex x="9" y="9" z="9"/>'
+        "</vertices></ext:lattice>",
+    ],
+)
+def test_a_stray_vertex_or_triangle_under_mesh_is_ignored(
+    tmp_path: Path, stray: str
+) -> None:
+    """Only a <vertex> under <vertices> straight under <mesh>, and a
+    <triangle> under <triangles> likewise, are read off the parser; one
+    anywhere else in a <mesh> - stray, or inside an extension element - goes
+    into the tree like any other element, the way a walk of the tree left
+    it. The stream parser used to end neither in the tree, which put every
+    later element under the wrong parent and read the build as empty."""
+    plain = f'<object id="1" type="model" name="tet">{_tet_mesh_xml()}</object>'
+    with_stray = plain.replace("<mesh>", f"<mesh>{stray}")
+    build = '<item objectid="1"/>'
+    expected = read(_package(tmp_path / "plain.3mf", _model(plain, build)))
+    mesh = read(_package(tmp_path / "stray.3mf", _model(with_stray, build)))
+    np.testing.assert_array_equal(mesh.vertices, expected.vertices)
+    np.testing.assert_array_equal(mesh.connectivity, expected.connectivity)
+    assert list(mesh.element_tags) == ["tet"]
+
+
 @pytest.mark.parametrize(
     ("resources", "build", "message"),
     [
@@ -432,6 +498,24 @@ def test_a_model_that_is_not_xml_is_refused(tmp_path: Path) -> None:
     path = _package(tmp_path / "bad.3mf", "<model><resources>")
     with pytest.raises(CodecError, match="not well-formed"):
         read(path)
+
+
+def test_a_model_part_that_does_not_inflate_is_refused(tmp_path: Path) -> None:
+    """A corrupt deflate stream used to escape as zlib's own error."""
+    path = tmp_path / "ok.3mf"
+    write(_tet_poly(), path)
+    raw = bytearray(path.read_bytes())
+    with zipfile.ZipFile(io.BytesIO(bytes(raw))) as z:
+        info = z.getinfo("3D/3dmodel.model")
+    # The local header is 30 bytes, then the name and the extra field, then
+    # the compressed bytes; flipping some of those breaks the stream.
+    start = info.header_offset + 30 + len(info.filename) + len(info.extra)
+    for i in range(start + 10, start + 40):
+        raw[i] ^= 0xFF
+    bad = tmp_path / "bad.3mf"
+    bad.write_bytes(bytes(raw))
+    with pytest.raises(CodecError, match="does not inflate"):
+        read(bad)
 
 
 def test_a_model_part_that_is_not_a_model_is_refused(tmp_path: Path) -> None:
@@ -669,6 +753,24 @@ def test_an_object_name_is_escaped(tmp_path: Path) -> None:
     path = tmp_path / "out.3mf"
     write(poly, path)
     assert list(read(path).element_tags) == ['a<b>&"c"']
+
+
+def test_a_name_with_whitespace_controls_survives_the_round_trip(
+    tmp_path: Path,
+) -> None:
+    """XML reads a literal tab, newline or return in an attribute as a space,
+    and a return in text as a newline; written as character references they
+    come back as themselves."""
+    label = "a\nb\tc\rd"
+    poly = _tet_poly(
+        element_tags={label: np.arange(4, dtype=np.int32)},
+        global_attrs={"Title": "x\ny\rz"},
+    )
+    path = tmp_path / "out.3mf"
+    write(poly, path)
+    back = read(path)
+    assert list(back.element_tags) == [label]
+    assert back.global_attrs["Title"] == "x\ny\rz"
 
 
 def test_a_name_with_a_control_character_is_refused_on_write(tmp_path: Path) -> None:

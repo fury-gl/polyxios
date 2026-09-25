@@ -17,6 +17,7 @@ from polyxios.exceptions import (
     UnknownElementTypeError,
 )
 from polyxios.validate import validate
+from tests.codecs._lazy import mapped
 
 
 def _synthetic_mesh() -> object:
@@ -45,15 +46,60 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_roundtrip_lazy() -> None:
+def test_roundtrip_lazy(tmp_path) -> None:
+    """A v4.2 file interleaves each cell's count with its indices, so the
+    cells are decoded; the points still view the mapping, big-endian."""
     poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
-        tmp = f.name
+    tmp = tmp_path / "mesh.vtk"
     write(poly, tmp, binary=True)
     poly_lazy = read(tmp, lazy=True)
-    # Force access to load pages
     np.testing.assert_allclose(poly_lazy.vertices, poly.vertices, atol=1e-8)
     np.testing.assert_array_equal(poly_lazy.connectivity, poly.connectivity)
+    assert mapped(poly_lazy.vertices)
+    assert not poly_lazy.vertices.flags.writeable
+    assert poly_lazy.vertices.dtype.byteorder == ">"
+    assert not mapped(poly_lazy.connectivity)
+
+
+def test_a_v51_file_reads_lazily_as_views(tmp_path) -> None:
+    """OFFSETS and CONNECTIVITY are two blocks on disk, so with the points
+    and the attributes every array of the mesh views the mapping."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        vertex_attrs={"pressure": np.arange(4.0)},
+        element_attrs={"stress": np.array([10.0, 20.0])},
+    )
+    tmp = tmp_path / "mesh.vtk"
+    write(poly, tmp, binary=True, vtk_version="5.1")
+    back = read(tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["pressure"], poly.vertex_attrs["pressure"]
+    )
+    np.testing.assert_array_equal(
+        back.element_attrs["stress"], poly.element_attrs["stress"]
+    )
+    for arr in (
+        back.vertices,
+        back.connectivity,
+        back.offsets,
+        back.vertex_attrs["pressure"],
+        back.element_attrs["stress"],
+    ):
+        assert mapped(arr)
+        assert not arr.flags.writeable
+
+    eager = read(tmp)
+    assert eager.vertices.flags.writeable
+    assert eager.vertices.dtype == np.float64
+    assert eager.connectivity.dtype.byteorder in ("=", "|")
+    np.testing.assert_array_equal(eager.connectivity, poly.connectivity)
 
 
 def test_vertex_attrs() -> None:
@@ -212,6 +258,138 @@ def test_binary_polydata_lazy_raises() -> None:
     tmp = _write_tmp(_make_binary_polydata_lines())
     with pytest.raises(LazyReadError):
         read(tmp, lazy=True)
+
+
+@pytest.mark.parametrize(
+    "header, values, match",
+    [
+        ("POLYGONS 2 4", [3, 0, 1, 2], "block ends after 1"),
+        ("POLYGONS 1 3", [5, 0, 1], "cell 0 declares 5 vertices"),
+    ],
+)
+def test_a_binary_polydata_cell_running_past_its_block_is_refused(
+    header: str, values: list[int], match: str
+) -> None:
+    """The ASCII and the UNSTRUCTURED_GRID readers walk a v4.2 block through
+    one guarded walk; the binary POLYDATA reader indexed the array itself,
+    which answered a short block with an IndexError and a cell claiming more
+    vertices than the block holds with offsets that outran its connectivity."""
+    content = (
+        b"# vtk DataFile Version 3.0\npolys\nBINARY\nDATASET POLYDATA\n"
+        + b"POINTS 5 float\n"
+        + np.zeros(15, dtype=">f4").tobytes()
+        + b"\n"
+        + f"{header}\n".encode()
+        + np.array(values, dtype=">i4").tobytes()
+        + b"\n"
+    )
+    with pytest.raises(CodecError, match=match):
+        read(_write_tmp(content))
+
+
+_BINARY_GRID_HEADER = (
+    b"# vtk DataFile Version 3.0\ngrid\nBINARY\nDATASET UNSTRUCTURED_GRID\n"
+)
+
+
+def _v42_grid(
+    *,
+    points: str = "POINTS 3 float",
+    cells: str = "CELLS 1 4",
+    types: str = "CELL_TYPES 1",
+) -> bytes:
+    return (
+        _BINARY_GRID_HEADER
+        + f"{points}\n".encode()
+        + np.zeros(9, dtype=">f4").tobytes()
+        + b"\n"
+        + f"{cells}\n".encode()
+        + np.array([3, 0, 1, 2], dtype=">i4").tobytes()
+        + b"\n"
+        + f"{types}\n".encode()
+        + np.array([5], dtype=">i4").tobytes()
+        + b"\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        {"points": "POINTS -1 float"},
+        {"cells": "CELLS 1 -1"},
+        {"types": "CELL_TYPES -1"},
+    ],
+)
+@pytest.mark.parametrize("lazy", (False, True))
+def test_a_negative_header_count_is_refused(tmp_path, header, lazy: bool) -> None:
+    """numpy reads a negative count as "to the end of the file", so the
+    block was the rest of the file - a ValueError about buffer sizes when
+    that did not divide, and a silent read of the sections after it, with
+    the cursor stepped backwards, when it did."""
+    path = tmp_path / "negative.vtk"
+    path.write_bytes(_v42_grid(**header))
+    with pytest.raises(CodecError, match=r"declares -\d+ bytes, which is no size"):
+        read(path, lazy=lazy)
+
+
+def _v51_grid(*, header: str, offsets: list[int], conn: list[int]) -> bytes:
+    return (
+        _BINARY_GRID_HEADER
+        + b"POINTS 4 float\n"
+        + np.zeros(12, dtype=">f4").tobytes()
+        + b"\n"
+        + f"{header}\n".encode()
+        + b"OFFSETS vtktypeint64\n"
+        + np.array(offsets, dtype=">i8").tobytes()
+        + b"\nCONNECTIVITY vtktypeint64\n"
+        + np.array(conn, dtype=">i8").tobytes()
+        + b"\nCELL_TYPES 2\n"
+        + np.array([5, 5], dtype=">i4").tobytes()
+        + b"\nCELL_DATA 2\nSCALARS s float 1\nLOOKUP_TABLE default\n"
+        + np.zeros(2, dtype=">f4").tobytes()
+        + b"\n"
+    )
+
+
+@pytest.mark.parametrize("lazy", (False, True))
+def test_v51_offsets_ending_past_the_header_total_are_refused(tmp_path, lazy) -> None:
+    """The connectivity was sized by the last offset alone, so offsets
+    ending past the total the header declares read the section after the
+    block as indices, without a word."""
+    path = tmp_path / "overrun.vtk"
+    path.write_bytes(_v51_grid(header="CELLS 3 3", offsets=[0, 3, 6], conn=[0, 1, 2]))
+    with pytest.raises(CodecError, match="end at 6 but its header declares 3"):
+        read(path, lazy=lazy)
+
+
+@pytest.mark.parametrize("lazy", (False, True))
+def test_v51_offsets_running_backwards_are_refused(tmp_path, lazy: bool) -> None:
+    path = tmp_path / "backwards.vtk"
+    path.write_bytes(_v51_grid(header="CELLS 3 1", offsets=[0, 3, 1], conn=[0]))
+    with pytest.raises(CodecError, match="OFFSETS run backwards"):
+        read(path, lazy=lazy)
+
+
+def test_a_failed_lazy_read_closes_its_mapping(tmp_path, monkeypatch) -> None:
+    """A read that fails before building any array leaves nothing to hold
+    the mapping open, so it is closed rather than left to the collector."""
+    from polyxios import _io
+
+    made: list[object] = []
+    real = _io.map_read
+
+    def spy(src, *, fmt):
+        mapping = real(src, fmt=fmt)
+        made.append(mapping)
+        return mapping
+
+    monkeypatch.setattr(_io, "map_read", spy)
+    path = tmp_path / "short.vtk"
+    path.write_bytes(_BINARY_GRID_HEADER + b"POINTS 3 float\n" + bytes(8))
+    with pytest.raises(CodecError):
+        read(path, lazy=True)
+    assert len(made) == 1
+    assert made[0].closed
 
 
 def test_rectilinear_grid_ascii() -> None:

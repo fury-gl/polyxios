@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import io
 import struct
 
 import numpy as np
@@ -10,7 +11,40 @@ from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.codecs._meshb import read, write
-from polyxios.exceptions import CodecError
+from polyxios.exceptions import CodecError, LazyReadError
+from tests.codecs._lazy import mapped
+
+
+def test_lazy_vertices_view_the_mapping(tmp_path) -> None:
+    """A vertex record is its coordinates then a reference, so the
+    coordinates are one strided view over the records; the elements number
+    vertices from one and are decoded into a copy."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))])
+    tmp = tmp_path / "mesh.meshb"
+    write(poly=poly, path=tmp)
+    back = read(path=tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    assert mapped(back.vertices)
+    assert not back.vertices.flags.writeable
+    assert back.vertices.shape == (4, 3)
+    assert not mapped(back.connectivity)
+
+    eager = read(path=tmp)
+    assert eager.vertices.flags.writeable
+    assert not mapped(eager.vertices)
+
+
+def test_lazy_refuses_an_in_memory_buffer(tmp_path) -> None:
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+    poly = make_polydata(verts, [("triangle", np.array([[0, 1, 2]]))])
+    tmp = tmp_path / "mesh.meshb"
+    write(poly=poly, path=tmp)
+    with pytest.raises(LazyReadError, match="no file descriptor"):
+        read(path=io.BytesIO(tmp.read_bytes()), lazy=True)
 
 
 def _tet_mesh():
@@ -357,16 +391,31 @@ def test_a_section_running_past_the_end_of_the_file_is_a_codec_error(
         read(path=path)
 
 
-def _flat_meshb(dim: int) -> bytes:
-    """Hand-build a one-triangle .meshb of the given Dimension."""
+def _flat_meshb(
+    dim: int, *, version: int = 2, endian: str = "<", refs: tuple[int, ...] = (0, 0, 0)
+) -> bytes:
+    """Hand-build a one-triangle .meshb of the given Dimension.
+
+    Parameters
+    ----------
+    dim
+        The ``Dimension`` the file declares, 2 or 3.
+    version
+        The GmFlib version, 1 for float32 coordinates, 2 for float64.
+    endian
+        The struct byte-order character every word is packed with.
+    refs
+        One reference per vertex.
+    """
     xy = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]
-    out = struct.pack("<iiii", 1, 2, 3, dim)
-    out += struct.pack("<ii", 4, len(xy))
-    for x, y in xy:
+    real = "f" if version == 1 else "d"
+    out = struct.pack(f"{endian}iiii", 1, version, 3, dim)
+    out += struct.pack(f"{endian}ii", 4, len(xy))
+    for (x, y), ref in zip(xy, refs, strict=True):
         coords = (x, y) if dim == 2 else (x, y, 0.0)
-        out += struct.pack(f"<{dim}di", *coords, 0)
-    out += struct.pack("<ii", 6, 1) + struct.pack("<4i", 1, 2, 3, 0)
-    out += struct.pack("<i", 54)
+        out += struct.pack(f"{endian}{dim}{real}i", *coords, ref)
+    out += struct.pack(f"{endian}ii", 6, 1) + struct.pack(f"{endian}4i", 1, 2, 3, 0)
+    out += struct.pack(f"{endian}i", 54)
     return out
 
 
@@ -414,3 +463,67 @@ def test_a_lifted_two_dimensional_mesh_is_written_in_three(tmp_path) -> None:
 
     assert struct.unpack_from("<i", out.read_bytes(), 12)[0] == 3
     np.testing.assert_allclose(read(path=out).vertices, lifted.vertices)
+
+
+# --- lazy reads view the records, in whatever the file spells ---------------
+
+
+def test_a_two_dimensional_file_read_lazily_is_padded_into_a_copy(tmp_path) -> None:
+    """Two columns on disk cannot be viewed as three, so the padding is a
+    copy either way, and the lazy read says as much."""
+    tmp = tmp_path / "flat.meshb"
+    tmp.write_bytes(_flat_meshb(2))
+    lazy = read(path=tmp, lazy=True)
+    eager = read(path=tmp)
+
+    assert lazy.vertices.shape == (3, 3)
+    assert lazy.vertices.dtype == np.float64
+    assert not mapped(lazy.vertices)
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    assert lazy.global_attrs["was_2d"] is True
+
+
+def test_a_version_one_file_is_viewed_as_float32(tmp_path) -> None:
+    """Version 1 spells its coordinates in single precision, and the view
+    keeps that where the eager read widens to float64."""
+    tmp = tmp_path / "single.meshb"
+    tmp.write_bytes(_flat_meshb(3, version=1))
+    lazy = read(path=tmp, lazy=True)
+    eager = read(path=tmp)
+
+    assert lazy.vertices.dtype == np.float32
+    assert mapped(lazy.vertices)
+    assert not lazy.vertices.flags.writeable
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    assert eager.vertices.dtype == np.float64
+
+
+def test_a_big_endian_file_is_viewed_in_its_byte_order_with_native_refs(
+    tmp_path,
+) -> None:
+    """The coordinates keep the file's byte order, as the view promises; the
+    reference column is one int32 in native order whichever way the file is
+    read, so a lazy ``ref`` compares and indexes like an eager one."""
+    tmp = tmp_path / "big.meshb"
+    tmp.write_bytes(_flat_meshb(3, endian=">", refs=(7, 8, 9)))
+    lazy = read(path=tmp, lazy=True)
+    eager = read(path=tmp)
+
+    assert lazy.vertices.dtype == np.dtype(">f8")
+    assert mapped(lazy.vertices)
+    np.testing.assert_array_equal(lazy.vertices, eager.vertices)
+    assert lazy.vertex_attrs["ref"].dtype == np.dtype(np.int32)
+    assert lazy.vertex_attrs["ref"].dtype.isnative
+    assert eager.vertex_attrs["ref"].dtype == np.dtype(np.int32)
+    np.testing.assert_array_equal(lazy.vertex_attrs["ref"], [7, 8, 9])
+    np.testing.assert_array_equal(lazy.vertex_attrs["ref"], eager.vertex_attrs["ref"])
+
+
+@pytest.mark.parametrize("size", [8, 12])
+def test_a_file_shorter_than_its_header_is_a_codec_error(tmp_path, size) -> None:
+    """The header is four words; a file holding two or three of them used to
+    escape as a bare struct error."""
+    tmp = tmp_path / "short.meshb"
+    tmp.write_bytes(_flat_meshb(3)[:size])
+    with pytest.raises(CodecError, match="too short"):
+        read(path=tmp)

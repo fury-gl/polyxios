@@ -81,8 +81,20 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     path
         Path to the .ply file.
     lazy
-        If True, header is parsed eagerly but binary data section is mmap-backed.
-        Not supported for ASCII PLY (raises LazyReadError).
+        Map a binary file and hand back its vertex block as read-only views
+        of the mapping, in the file's own dtype: the coordinates as one
+        ``(n, 3)`` array striding from record to record, when ``x``, ``y``
+        and ``z`` sit side by side in one floating type, and every other
+        scalar vertex property as a column of its own. A file spelling its
+        coordinates as integers, or laying the three out apart or in
+        differing types, has them converted to float64 the way an eager read
+        does, and a vertex element carrying a list property has no fixed
+        record width, so the whole block is decoded into copies. Faces and
+        edges are decoded either way, since a face list is prefixed by its
+        count and nothing on disk is the connectivity. Every view shares the
+        one mapping of the file, which stays open until the last of them
+        goes; copying one column out does not release it. Not supported for
+        ASCII PLY (raises LazyReadError).
 
     Returns
     -------
@@ -1326,6 +1338,55 @@ def _read_binary(
     return poly
 
 
+def _coordinate_view(rec: np.ndarray, dt: np.dtype) -> np.ndarray | None:
+    """View a vertex record block's x, y, z as one ``(n, 3)`` array.
+
+    A PLY vertex record puts its coordinates wherever the header declares
+    them; when the three sit side by side in one type, which is how every
+    writer lays them out, an ``(n, 3)`` array striding from record to
+    record is the coordinates without a copy.
+
+    Parameters
+    ----------
+    rec
+        The records, a structured array over the mapping.
+    dt
+        Their dtype.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        The strided view, or None when the fields are missing, differ in
+        type, do not sit side by side, or are not floating: a PolyData's
+        vertices are floating point, so integer coordinates are converted
+        rather than viewed, the way an eager read converts them.
+    """
+    fields = dt.fields
+    if any(name not in fields for name in ("x", "y", "z")):
+        return None
+    (x_dt, x_off), (y_dt, y_off), (z_dt, z_off) = (
+        fields["x"][:2],
+        fields["y"][:2],
+        fields["z"][:2],
+    )
+    step = x_dt.itemsize
+    if x_dt.kind != "f" or not (
+        x_dt == y_dt == z_dt and y_off == x_off + step and z_off == x_off + 2 * step
+    ):
+        return None
+    if rec.shape[0] == 0:
+        # numpy refuses a view starting past the end of its buffer, and a
+        # block of no records ends before the first coordinate's offset.
+        return np.empty((0, 3), dtype=x_dt)
+    return np.ndarray(
+        (rec.shape[0], 3),
+        dtype=x_dt,
+        buffer=rec,
+        offset=x_off,
+        strides=(dt.itemsize, step),
+    )
+
+
 def _read_binary_lazy(
     path: Source, header: dict, header_end_offset: int, little_endian: bool
 ) -> PolyData:
@@ -1334,7 +1395,7 @@ def _read_binary_lazy(
     # mapped pages, which the OS loads on demand.
     mm = map_read(path, fmt=".ply")
     mv = memoryview(mm)
-    poly = _decode_binary(mv, header, header_end_offset, little_endian)
+    poly = _decode_binary(mv, header, header_end_offset, little_endian, lazy=True)
     # mm is kept alive by the arrays that view it, and unmapped once they go.
     return poly
 
@@ -1344,6 +1405,8 @@ def _decode_binary(
     header: dict,
     header_end_offset: int,
     little_endian: bool,
+    *,
+    lazy: bool = False,
 ) -> PolyData:
     endian = "<" if little_endian else ">"
     pos = header_end_offset
@@ -1375,21 +1438,25 @@ def _decode_binary(
                     raise CodecError(
                         f".ply: the file ends inside its {count} vertex record(s)."
                     )
-                rec: Any = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=dt)
+                rec: Any = np.frombuffer(mv, dtype=dt, count=count, offset=pos)
                 pos += nbytes
             else:
                 rec, pos = _read_mixed_records(mv, pos, count, props, endian, "vertex")
 
-            coords = np.zeros((count, 3), dtype=np.float64)
-            coord_map = {"x": 0, "y": 1, "z": 2}
+            coords = None if not lazy or dt is None else _coordinate_view(rec, dt)
+            if coords is None:
+                scalars = {
+                    pname for pname, ptype in props if not isinstance(ptype, tuple)
+                }
+                coords = np.zeros((count, 3), dtype=np.float64)
+                for axis, pname in enumerate(("x", "y", "z")):
+                    if pname in scalars:
+                        coords[:, axis] = rec[pname].astype(np.float64)
             for pname, ptype in props:
-                if isinstance(ptype, tuple):
+                if isinstance(ptype, tuple) or pname in ("x", "y", "z"):
                     # A list property has no column to become an attribute.
                     continue
-                if pname in coord_map:
-                    coords[:, coord_map[pname]] = rec[pname].astype(np.float64)
-                else:
-                    vertex_attrs[pname] = np.array(rec[pname])
+                vertex_attrs[pname] = rec[pname] if lazy else np.array(rec[pname])
             vertices = coords
 
         elif ename == "face":
@@ -1409,7 +1476,7 @@ def _decode_binary(
                     raise CodecError(
                         f".ply: the file ends inside its {count} edge record(s)."
                     )
-                ends: Any = np.frombuffer(bytes(mv[pos : pos + nbytes]), dtype=edge_dt)
+                ends: Any = np.frombuffer(mv, dtype=edge_dt, count=count, offset=pos)
                 pos += nbytes
             else:
                 ends, pos = _read_mixed_records(mv, pos, count, props, endian, "edge")
@@ -1911,6 +1978,13 @@ def _parse_header(fh: object) -> tuple[dict, int]:
                     f".ply: element {parts[1]!r} declares a count that is not"
                     f" a number, in the header line {line!r}."
                 ) from exc
+            if count < 0:
+                # numpy reads a count of -1 as "every record left", which
+                # would swallow the blocks after it and walk the offset back.
+                raise CodecError(
+                    f".ply: element {parts[1]!r} declares a negative count,"
+                    f" in the header line {line!r}."
+                )
             current_elem = {"name": parts[1], "count": count, "properties": []}
             header["elements"].append(current_elem)
         elif kw == "property" and current_elem is not None:

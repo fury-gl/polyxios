@@ -5,7 +5,7 @@ Medit binary
 
 .. rst-class:: px-badges
 
-``.meshb`` ``read + write`` ``always mmapped``
+``.meshb`` ``read + write`` ``lazy: vertices``
 
 Summary of the specification
 ----------------------------
@@ -47,12 +47,21 @@ Reading
     mesh.vertices          # (n, 3)
     mesh.element_types     # element groups found in the file
 
-A path is memory-mapped rather than loaded, always - there is no eager mode
-to ask for and no ``lazy=`` to pass:
+A path is read through a memory map either way; ``lazy=True`` keeps the map
+open and hands back the vertices as a view of it:
 
 .. code-block:: python
 
-    mesh = px.read("big.meshb")
+    mesh = px.read("big.meshb", lazy=True)
+    mesh.vertices.flags.writeable   # False: a strided view over the records
+
+Each vertex record is its coordinates then a reference, so the coordinates
+are one ``(n, 3)`` array striding from record to record, in the file's own
+dtype. The elements are decoded into a copy whichever way the file is read:
+the format numbers vertices from one and CSR needs them from zero. So are
+the vertex references, one native ``int32`` column whatever byte order the
+file is in. A ``Dimension 2`` file is padded to three columns, which is a
+copy too.
 
 Writing
 -------
@@ -74,7 +83,7 @@ Quirks worth knowing
 - ``Edges``, ``Prisms`` and ``Pyramids`` are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.
 - The higher-order sections (``TrianglesP2``, ``TetrahedraP2``, ``HexahedraQ2``, ...) are stepped over. The format fixes no node ordering for high-order elements - libMeshb's own documentation defers it to a companion ``*Ordering`` section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.
 - Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.
-- A path is mapped and a file object read into memory, whichever ``lazy=`` says, so ``lazy=True`` warns and changes nothing while ``lazy=False`` is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.
+- An eager read maps a path too, decodes everything and closes the map; ``lazy=True`` needs a source that can be mapped - a path, or a handle over a regular file at its start - and refuses an in-memory buffer or a gzipped file with :class:`~polyxios.exceptions.LazyReadError`.
 
 .. seealso::
 
