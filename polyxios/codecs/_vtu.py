@@ -3,31 +3,33 @@ from typing import Any
 import numpy as np
 
 from polyxios._element_types import (
-    ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
     POLYXIOS_TO_VTK,
-    VTK_TO_POLYXIOS,
 )
 from polyxios._globals import globals_for_write, text_for_write
-from polyxios._io import Source, write_text
+from polyxios._io import Source, write_bytes, write_text
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
+    appended_section,
     decode_da,
     format_attr_da,
     format_da,
     format_field_data,
+    join_cells,
     join_piece_attrs,
     parse_xml,
+    piece_cells,
     piece_count,
     piece_field_data,
     read_field_data,
     shaped_da,
     spellable_arrays,
     undecodable_type,
+    vtk_code_types,
     vtk_type_to_np,
 )
-from polyxios.exceptions import CodecError, LazyReadError
+from polyxios.exceptions import CodecError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtu"
@@ -41,7 +43,13 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     path
         Path to the .vtu file.
     lazy
-        Deferred decoding is not supported; raises LazyReadError when True.
+        Map the file and hand back arrays that view it, in the dtype and
+        byte order the file holds, read-only. Only a raw, uncompressed
+        appended section (what VTK writes by default, and what
+        ``write(..., appended=True)`` writes) can be viewed. With a single
+        Piece the vertices, connectivity and every attribute view the
+        mapping; the offsets and element types are derived and so are
+        copies. Pieces are joined by copying.
 
     Returns
     -------
@@ -51,11 +59,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     Raises
     ------
     LazyReadError
-        If lazy=True.
+        If ``lazy`` is set and the source cannot be mapped, or the file keeps
+        its arrays inline, base64-encoded or zlib-compressed.
+    CodecError
+        If a Piece declares offsets that run backwards or past the end of
+        its connectivity.
     """
-    if lazy:
-        raise LazyReadError("VTU lazy reads are not supported with frozen PolyData.")
-
     # The size comes back from the read itself: measuring the source
     # separately costs a whole decompression pass over a compressed one,
     # and a stream that cannot seek cannot be measured at all.
@@ -67,7 +76,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         compressed,
         is_base64,
         file_size,
-    ) = parse_xml(path)
+    ) = parse_xml(path, lazy=lazy, fmt=EXTENSION)
 
     def _decode(elem):
         return decode_da(
@@ -77,6 +86,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             header_type=header_type,
             compressed=compressed,
             is_base64=is_base64,
+            copy=not lazy,
         )
 
     ug = root.find("UnstructuredGrid")
@@ -86,8 +96,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     all_vertices: list[np.ndarray] = []
     n_joined_points = 0
     all_connectivity: list[np.ndarray] = []
-    all_offsets: list[int] = [0]
-    all_types: list[int] = []
+    n_joined_conn = 0
+    # Cell ends per piece, already shifted to where the piece's connectivity
+    # lands in the joined array, behind the leading zero of the CSR offsets.
+    all_offsets: list[np.ndarray] = [np.zeros(1, dtype=np.int64)]
+    all_types: list[np.ndarray] = []
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
     # Whole-mesh metadata. VTK puts the block on the dataset and some writers
@@ -133,8 +146,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     f" its Points array holds {flat.size} values, which is"
                     f" not {n_points} tuples of three or more."
                 )
-            verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
-            all_vertices.append(verts)
+            verts = flat.reshape(n_points, -1)[:, :3]
+            all_vertices.append(verts if lazy else verts.astype(np.float64))
             n_joined_points += n_points
 
         cells_elem = piece.find("Cells")
@@ -144,21 +157,19 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             types_da = cells_elem.find("DataArray[@Name='types']")
 
             if conn_da is not None and off_da is not None and types_da is not None:
-                conn = _decode(conn_da).astype(np.int32) + vert_offset
-                vtk_offsets = _decode(off_da).astype(np.int32)
-                vtk_codes = _decode(types_da).astype(np.uint8)
-
-                prev = all_offsets[-1]
-                for i, end in enumerate(vtk_offsets):
-                    start_local = int(vtk_offsets[i - 1]) if i > 0 else 0
-                    end_local = int(end)
-                    all_connectivity.append(conn[start_local:end_local])
-                    prev = prev + (end_local - start_local)
-                    all_offsets.append(prev)
-
-                for code in vtk_codes:
-                    name = VTK_TO_POLYXIOS.get(int(code), "empty_cell")
-                    all_types.append(ELEMENT_TYPES.get(name, 0))
+                conn = _decode(conn_da)
+                vtk_offsets = _decode(off_da)
+                conn, ends = piece_cells(
+                    conn,
+                    vtk_offsets,
+                    vert_offset,
+                    n_joined_conn,
+                    where=f".vtu Piece {index}",
+                )
+                all_connectivity.append(conn if lazy else conn.astype(np.int32))
+                all_offsets.append(ends)
+                all_types.append(vtk_code_types(_decode(types_da)))
+                n_joined_conn += conn.size
 
         pd_data = piece.find("PointData")
         if pd_data is not None:
@@ -182,18 +193,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     global_attrs |= read_field_data(ug, _decode)
 
-    vertices = (
-        np.concatenate(all_vertices)
-        if all_vertices
-        else np.zeros((0, 3), dtype=np.float64)
+    vertices, connectivity, offsets, element_types = join_cells(
+        all_vertices, all_connectivity, all_offsets, all_types, lazy=lazy
     )
-    connectivity = (
-        np.concatenate(all_connectivity).astype(np.int32)
-        if all_connectivity
-        else np.array([], dtype=np.int32)
-    )
-    offsets = np.array(all_offsets, dtype=np.int32)
-    element_types = np.array(all_types, dtype=np.uint8)
 
     validate_header(
         vertices.shape[0],
@@ -239,8 +241,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         Output file path.
     binary
         If True (default), encode arrays as base64 binary.
+    appended
+        If True, write the arrays as one raw appended section after the XML
+        instead of inline. A third smaller than base64, and the one layout
+        ``read(..., lazy=True)`` can map. Field data stays inline.
     """
     binary: bool = bool(opts.get("binary", True))
+    blocks: list[bytes] | None = [] if opts.get("appended", False) else None
 
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
@@ -273,16 +280,32 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines.append("      <Points>")
     lines.append(
-        _da("", poly.vertices.ravel().astype(np.float64), "Float64", binary, 3, 10)
+        _da(
+            "",
+            poly.vertices.ravel().astype(np.float64),
+            "Float64",
+            binary,
+            3,
+            10,
+            blocks,
+        )
     )
     lines.append("      </Points>")
 
     lines.append("      <Cells>")
     lines.append(
-        _da("connectivity", poly.connectivity.astype(np.int32), "Int32", binary, 1, 10)
+        _da(
+            "connectivity",
+            poly.connectivity.astype(np.int32),
+            "Int32",
+            binary,
+            1,
+            10,
+            blocks,
+        )
     )
-    lines.append(_da("offsets", vtk_offsets, "Int32", binary, 1, 10))
-    lines.append(_da("types", vtk_types, "UInt8", binary, 1, 10))
+    lines.append(_da("offsets", vtk_offsets, "Int32", binary, 1, 10, blocks))
+    lines.append(_da("types", vtk_types, "UInt8", binary, 1, 10, blocks))
     lines.append("      </Cells>")
 
     # A tag group travels as one column of ones and zeros named for it: the
@@ -314,20 +337,28 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if point_arrays:
         lines.append("      <PointData>")
         for name, arr in point_arrays.items():
-            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
+            lines.append(
+                format_attr_da(name, arr, binary=binary, indent=10, appended=blocks)
+            )
         lines.append("      </PointData>")
 
     if cell_arrays:
         lines.append("      <CellData>")
         for name, arr in cell_arrays.items():
-            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
+            lines.append(
+                format_attr_da(name, arr, binary=binary, indent=10, appended=blocks)
+            )
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
     lines.append("  </UnstructuredGrid>")
-    lines.append("</VTKFile>")
 
-    write_text(path, "\n".join(lines), encoding="utf-8")
+    if blocks is None:
+        lines.append("</VTKFile>")
+        write_text(path, "\n".join(lines), encoding="utf-8")
+        return
+    head = ("\n".join(lines) + "\n").encode("utf-8")
+    write_bytes(path, head + appended_section(blocks, tail="</VTKFile>"))
 
 
 def _da(
@@ -337,6 +368,7 @@ def _da(
     binary: bool,
     n_comp: int,
     indent: int,
+    appended: list[bytes] | None = None,
 ) -> str:
     """Render one ``<DataArray>`` element.
 
@@ -356,6 +388,8 @@ def _da(
         Components per tuple.
     indent
         Spaces to prefix the line with.
+    appended
+        Block list to write the bytes to instead, as for ``format_da``.
 
     Returns
     -------
@@ -370,4 +404,5 @@ def _da(
         binary=binary,
         n_comp=n_comp,
         indent=indent,
+        appended=appended,
     )

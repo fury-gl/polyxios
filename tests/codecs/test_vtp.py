@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mmap
 import tempfile
 
 import numpy as np
@@ -36,17 +37,77 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_roundtrip_lazy() -> None:
-    """VTP lazy raises LazyReadError; eager read gives correct data."""
+def _mapped(arr: np.ndarray) -> bool:
+    """Whether the array, through however many views, sits on a mapping."""
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def _mixed_polys() -> object:
+    verts = np.array(
+        [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [2, 0, 0], [2, 1, 0]],
+        dtype=np.float64,
+    )
+    return make_polydata(
+        verts,
+        [
+            ("triangle", np.array([[0, 1, 2]])),
+            ("quad", np.array([[0, 1, 2, 3]])),
+            ("polygon", np.array([[1, 4, 5, 2, 3]])),
+        ],
+        vertex_attrs={"pressure": np.arange(6.0)},
+        element_attrs={"stress": np.array([10.0, 20.0, 30.0])},
+    )
+
+
+def test_roundtrip_appended(tmp_path) -> None:
+    """A raw appended section reads back eagerly like any other layout,
+    and the Polys section types its cells by their point count."""
+    poly = _mixed_polys()
+    tmp = tmp_path / "mesh.vtp"
+    write(poly, tmp, appended=True)
+    back = read(tmp)
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.element_attrs["stress"], poly.element_attrs["stress"]
+    )
+    assert back.vertices.flags.writeable
+    assert not _mapped(back.vertices)
+
+
+def test_lazy_arrays_view_the_mapping(tmp_path) -> None:
+    poly = _mixed_polys()
+    tmp = tmp_path / "mesh.vtp"
+    write(poly, tmp, appended=True)
+    back = read(tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["pressure"], poly.vertex_attrs["pressure"]
+    )
+    for arr in (back.vertices, back.connectivity, back.vertex_attrs["pressure"]):
+        assert _mapped(arr)
+        assert not arr.flags.writeable
+    assert back.connectivity.dtype == back.offsets.dtype
+
+
+def test_lazy_refuses_inline_arrays(tmp_path) -> None:
     poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtp", delete=False) as f:
-        tmp = f.name
+    tmp = tmp_path / "mesh.vtp"
     write(poly, tmp, binary=True)
-    with pytest.raises(LazyReadError):
+    with pytest.raises(LazyReadError, match="inline"):
         read(tmp, lazy=True)
-    # Eager read still works
-    poly2 = read(tmp, lazy=False)
-    np.testing.assert_allclose(poly2.vertices, poly.vertices, atol=1e-8)
+    np.testing.assert_allclose(read(tmp).vertices, poly.vertices)
 
 
 def test_vertex_attrs() -> None:
@@ -79,16 +140,6 @@ def test_element_attrs() -> None:
     poly2 = read(tmp)
     assert "stress" in poly2.element_attrs
     np.testing.assert_allclose(poly2.element_attrs["stress"], stress, atol=1e-6)
-
-
-def test_unsupported_lazy() -> None:
-    poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtp", delete=False) as f:
-        tmp = f.name
-    write(poly, tmp)
-    # VTP lazy not supported with frozen PolyData - raises LazyReadError
-    with pytest.raises(LazyReadError):
-        read(tmp, lazy=True)
 
 
 # ---------------------------------------------------------------------------

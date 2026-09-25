@@ -4,34 +4,40 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._globals import globals_for_write, text_for_write
-from polyxios._io import Source, write_text
+from polyxios._io import Source, write_bytes, write_text
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
+    appended_section,
     decode_da,
     format_attr_da,
     format_da,
     format_field_data,
+    join_cells,
     join_piece_attrs,
     parse_xml,
+    piece_cells,
     piece_count,
     piece_field_data,
+    polygon_types,
     read_field_data,
     shaped_da,
     spellable_arrays,
     undecodable_type,
     vtk_type_to_np,
 )
-from polyxios.exceptions import (
-    CodecError,
-    LazyReadError,
-    UnsupportedFormatError,
-)
+from polyxios.exceptions import CodecError, UnsupportedFormatError
 from polyxios.validate import validate_header
 
 EXTENSION: str = ".vtp"
 
 _SECTION_TYPES = ("Verts", "Lines", "Strips", "Polys")
+# Polys is absent: its cells are typed by their point count.
+_SECTION_CODES = {
+    "Verts": ELEMENT_TYPES["vertex"],
+    "Lines": ELEMENT_TYPES["line"],
+    "Strips": ELEMENT_TYPES["triangle_strip"],
+}
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
@@ -42,19 +48,28 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     path
         Path to the .vtp file.
     lazy
-        If True, XML tree is parsed eagerly but array data decoded on access.
-        NOTE: Not fully supported with frozen PolyData; currently ignored (eager).
+        Map the file and hand back arrays that view it, in the dtype and
+        byte order the file holds, read-only. Only a raw, uncompressed
+        appended section (what VTK writes by default, and what
+        ``write(..., appended=True)`` writes) can be viewed. With a single
+        Piece holding a single cell section the vertices, connectivity and
+        every attribute view the mapping; the offsets and element types are
+        derived and so are copies. Pieces and sections are joined by copying.
 
     Returns
     -------
     PolyData
         Parsed mesh data combining Verts/Lines/Strips/Polys sections.
-    """
-    if lazy:
-        raise LazyReadError(
-            "VTP lazy reads require mutable array proxies; not supported with frozen PolyData."
-        )
 
+    Raises
+    ------
+    LazyReadError
+        If ``lazy`` is set and the source cannot be mapped, or the file keeps
+        its arrays inline, base64-encoded or zlib-compressed.
+    CodecError
+        If a section declares offsets that run backwards or past the end of
+        its connectivity.
+    """
     # The size comes back from the read itself: measuring the source
     # separately costs a whole decompression pass over a compressed one,
     # and a stream that cannot seek cannot be measured at all.
@@ -66,7 +81,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         compressed,
         is_base64,
         file_size,
-    ) = parse_xml(path)
+    ) = parse_xml(path, lazy=lazy, fmt=EXTENSION)
 
     def _decode(elem):
         return decode_da(
@@ -76,6 +91,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             header_type=header_type,
             compressed=compressed,
             is_base64=is_base64,
+            copy=not lazy,
         )
 
     vtk_type = root.get("type", "PolyData")
@@ -94,8 +110,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     all_vertices: list[np.ndarray] = []
     n_joined_points = 0
     all_connectivity: list[np.ndarray] = []
-    all_offsets: list[int] = [0]
-    all_types: list[int] = []
+    n_joined_conn = 0
+    # Cell ends per section, already shifted to where the section's
+    # connectivity lands in the joined array, behind the leading zero of the
+    # CSR offsets.
+    all_offsets: list[np.ndarray] = [np.zeros(1, dtype=np.int64)]
+    all_types: list[np.ndarray] = []
     all_vertex_attrs: dict[str, list[np.ndarray]] = {}
     all_element_attrs: dict[str, list[np.ndarray]] = {}
     # Whole-mesh metadata. VTK puts the block on the dataset and some writers
@@ -141,8 +161,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     f" its Points array holds {flat.size} values, which is"
                     f" not {n_points} tuples of three or more."
                 )
-            verts = flat.reshape(n_points, -1)[:, :3].astype(np.float64)
-            all_vertices.append(verts)
+            verts = flat.reshape(n_points, -1)[:, :3]
+            all_vertices.append(verts if lazy else verts.astype(np.float64))
             n_joined_points += n_points
 
         for section in _SECTION_TYPES:
@@ -154,38 +174,26 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             if conn_da is None or off_da is None:
                 continue
 
-            conn = _decode(conn_da).astype(np.int32) + vert_offset
-            piece_offsets = _decode(off_da).astype(np.int32)
+            section_ends = _decode(off_da)
+            conn, ends = piece_cells(
+                _decode(conn_da),
+                section_ends,
+                vert_offset,
+                n_joined_conn,
+                where=f".vtp Piece {index} {section}",
+            )
+            all_connectivity.append(conn if lazy else conn.astype(np.int32))
+            all_offsets.append(ends)
+            n_joined_conn += conn.size
 
-            if section == "Verts":
-                code = ELEMENT_TYPES["vertex"]
-            elif section == "Lines":
-                code = ELEMENT_TYPES["line"]
-            elif section == "Strips":
-                code = ELEMENT_TYPES["triangle_strip"]
-            else:  # Polys
-                code = None  # determined per-element
-
-            prev_off = all_offsets[-1]
-            for i, end in enumerate(piece_offsets):
-                start_local = int(piece_offsets[i - 1]) if i > 0 else 0
-                end_local = int(end)
-                n_nodes = end_local - start_local
-                local_conn = conn[start_local:end_local]
-                all_connectivity.append(local_conn)
-                new_off = prev_off + n_nodes
-                all_offsets.append(new_off)
-                prev_off = new_off
-
-                if code is not None:
-                    all_types.append(code)
-                else:
-                    if n_nodes == 3:
-                        all_types.append(ELEMENT_TYPES["triangle"])
-                    elif n_nodes == 4:
-                        all_types.append(ELEMENT_TYPES["quad"])
-                    else:
-                        all_types.append(ELEMENT_TYPES["polygon"])
+            code = _SECTION_CODES.get(section)
+            if code is None:
+                # Polys: the point count is the only thing that tells a
+                # triangle from a quad from a polygon.
+                n_nodes = np.diff(section_ends, prepend=0)
+                all_types.append(polygon_types(n_nodes))
+            else:
+                all_types.append(np.full(ends.shape, code, dtype=np.uint8))
 
         pd_data = piece.find("PointData")
         if pd_data is not None:
@@ -207,18 +215,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 arr = shaped_da(da, arr)
                 all_element_attrs.setdefault(name, []).append(arr)
 
-    vertices = (
-        np.concatenate(all_vertices)
-        if all_vertices
-        else np.zeros((0, 3), dtype=np.float64)
+    vertices, connectivity, offsets, element_types = join_cells(
+        all_vertices, all_connectivity, all_offsets, all_types, lazy=lazy
     )
-    connectivity = (
-        np.concatenate(all_connectivity).astype(np.int32)
-        if all_connectivity
-        else np.array([], dtype=np.int32)
-    )
-    offsets = np.array(all_offsets, dtype=np.int32)
-    element_types = np.array(all_types, dtype=np.uint8)
 
     validate_header(
         vertices.shape[0],
@@ -266,10 +265,13 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         Output file path.
     binary
         If True (default), encode arrays as base64 binary.
-    compressed
-        If True (default: False), compress binary data with zlib.
+    appended
+        If True, write the arrays as one raw appended section after the XML
+        instead of inline. A third smaller than base64, and the one layout
+        ``read(..., lazy=True)`` can map. Field data stays inline.
     """
     binary: bool = bool(opts.get("binary", True))
+    blocks: list[bytes] | None = [] if opts.get("appended", False) else None
 
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
@@ -297,7 +299,15 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
 
     lines.append("      <Points>")
     lines.append(
-        _da("", poly.vertices.ravel().astype(np.float64), "Float64", binary, 3, 10)
+        _da(
+            "",
+            poly.vertices.ravel().astype(np.float64),
+            "Float64",
+            binary,
+            3,
+            10,
+            blocks,
+        )
     )
     lines.append("      </Points>")
 
@@ -305,8 +315,8 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     off = poly.offsets[1:].astype(np.int32)
 
     lines.append("      <Polys>")
-    lines.append(_da("connectivity", conn, "Int32", binary, 1, 10))
-    lines.append(_da("offsets", off, "Int32", binary, 1, 10))
+    lines.append(_da("connectivity", conn, "Int32", binary, 1, 10, blocks))
+    lines.append(_da("offsets", off, "Int32", binary, 1, 10, blocks))
     lines.append("      </Polys>")
 
     # A tag group travels as one column of ones and zeros named for it: the
@@ -338,20 +348,28 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     if point_arrays:
         lines.append("      <PointData>")
         for name, arr in point_arrays.items():
-            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
+            lines.append(
+                format_attr_da(name, arr, binary=binary, indent=10, appended=blocks)
+            )
         lines.append("      </PointData>")
 
     if cell_arrays:
         lines.append("      <CellData>")
         for name, arr in cell_arrays.items():
-            lines.append(format_attr_da(name, arr, binary=binary, indent=10))
+            lines.append(
+                format_attr_da(name, arr, binary=binary, indent=10, appended=blocks)
+            )
         lines.append("      </CellData>")
 
     lines.append("    </Piece>")
     lines.append("  </PolyData>")
-    lines.append("</VTKFile>")
 
-    write_text(path, "\n".join(lines), encoding="utf-8")
+    if blocks is None:
+        lines.append("</VTKFile>")
+        write_text(path, "\n".join(lines), encoding="utf-8")
+        return
+    head = ("\n".join(lines) + "\n").encode("utf-8")
+    write_bytes(path, head + appended_section(blocks, tail="</VTKFile>"))
 
 
 def _da(
@@ -361,6 +379,7 @@ def _da(
     binary: bool,
     n_comp: int,
     indent: int,
+    appended: list[bytes] | None = None,
 ) -> str:
     """Render one ``<DataArray>`` element.
 
@@ -380,6 +399,8 @@ def _da(
         Components per tuple.
     indent
         Spaces to prefix the line with.
+    appended
+        Block list to write the bytes to instead, as for ``format_da``.
 
     Returns
     -------
@@ -394,4 +415,5 @@ def _da(
         binary=binary,
         n_comp=n_comp,
         indent=indent,
+        appended=appended,
     )

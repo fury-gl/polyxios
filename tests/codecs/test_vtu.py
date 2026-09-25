@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import mmap
 import tempfile
 import warnings
 
@@ -38,15 +40,136 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_roundtrip_lazy() -> None:
+def _mapped(arr: np.ndarray) -> bool:
+    """Whether the array, through however many views, sits on a mapping."""
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def _attr_mesh() -> object:
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    return make_polydata(
+        verts,
+        [
+            ("triangle", np.array([[0, 1, 2], [0, 1, 3]])),
+            ("tetra", np.array([[0, 1, 2, 3]])),
+        ],
+        vertex_attrs={
+            "pressure": np.arange(4.0),
+            "normal": np.ones((4, 3), np.float32),
+        },
+        element_attrs={"stress": np.array([10.0, 20.0, 30.0])},
+    )
+
+
+def test_roundtrip_appended(tmp_path) -> None:
+    """A raw appended section reads back eagerly like any other layout."""
+    poly = _attr_mesh()
+    tmp = tmp_path / "mesh.vtu"
+    write(poly, tmp, appended=True)
+    back = read(tmp)
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["normal"], poly.vertex_attrs["normal"]
+    )
+    np.testing.assert_array_equal(
+        back.element_attrs["stress"], poly.element_attrs["stress"]
+    )
+    assert back.vertices.flags.writeable
+    assert not _mapped(back.vertices)
+
+
+def test_appended_is_smaller_than_base64(tmp_path) -> None:
+    poly = _attr_mesh()
+    write(poly, tmp_path / "b64.vtu")
+    write(poly, tmp_path / "raw.vtu", appended=True)
+    assert (tmp_path / "raw.vtu").stat().st_size < (tmp_path / "b64.vtu").stat().st_size
+
+
+def test_lazy_arrays_view_the_mapping(tmp_path) -> None:
+    """lazy=True hands back the file's own bytes: read-only views on the
+    mapping, in the dtype the file holds, and equal to an eager read."""
+    poly = _attr_mesh()
+    tmp = tmp_path / "mesh.vtu"
+    write(poly, tmp, appended=True)
+    back = read(tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["pressure"], poly.vertex_attrs["pressure"]
+    )
+    np.testing.assert_array_equal(
+        back.vertex_attrs["normal"], poly.vertex_attrs["normal"]
+    )
+    np.testing.assert_array_equal(
+        back.element_attrs["stress"], poly.element_attrs["stress"]
+    )
+
+    for arr in (
+        back.vertices,
+        back.connectivity,
+        back.vertex_attrs["pressure"],
+        back.vertex_attrs["normal"],
+        back.element_attrs["stress"],
+    ):
+        assert _mapped(arr)
+        assert not arr.flags.writeable
+    assert back.vertex_attrs["normal"].dtype == np.float32
+    assert back.connectivity.dtype == back.offsets.dtype
+
+
+def test_lazy_over_a_handle_at_its_start(tmp_path) -> None:
+    poly = _attr_mesh()
+    tmp = tmp_path / "mesh.vtu"
+    write(poly, tmp, appended=True)
+    with tmp.open("rb") as fh:
+        back = read(fh, lazy=True)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    assert _mapped(back.vertices)
+
+
+@pytest.mark.parametrize("opts", ({}, {"binary": False}))
+def test_lazy_refuses_inline_arrays(tmp_path, opts) -> None:
+    """Base64 and ASCII arrays are not the bytes they encode, so there is
+    nothing to map; the refusal says so instead of loading eagerly."""
     poly = _tet_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtu", delete=False) as f:
-        tmp = f.name
-    write(poly, tmp)
-    with pytest.raises(LazyReadError):
+    tmp = tmp_path / "mesh.vtu"
+    write(poly, tmp, **opts)
+    with pytest.raises(LazyReadError, match="inline"):
         read(tmp, lazy=True)
-    poly2 = read(tmp, lazy=False)
-    np.testing.assert_allclose(poly2.vertices, poly.vertices, atol=1e-8)
+    np.testing.assert_allclose(read(tmp).vertices, poly.vertices)
+
+
+def test_lazy_refuses_an_in_memory_buffer(tmp_path) -> None:
+    poly = _tet_mesh()
+    tmp = tmp_path / "mesh.vtu"
+    write(poly, tmp, appended=True)
+    with pytest.raises(LazyReadError, match="no file descriptor"):
+        read(io.BytesIO(tmp.read_bytes()), lazy=True)
+
+
+def test_offsets_running_backwards_are_refused(tmp_path) -> None:
+    """A Piece whose offsets decrease describes no cells; the reader used
+    to hand back empty slices and a mesh that silently lost them."""
+    poly = _tet_mesh()
+    tmp = tmp_path / "mesh.vtu"
+    write(poly, tmp, binary=False)
+    text = tmp.read_text()
+    good = 'Name="offsets" format="ascii">4<'
+    assert good in text
+    tmp.write_text(text.replace(good, 'Name="offsets" format="ascii">-1<'))
+    with pytest.raises(CodecError, match="run backwards"):
+        read(tmp)
 
 
 def test_vertex_attrs() -> None:

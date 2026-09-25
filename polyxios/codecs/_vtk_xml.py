@@ -10,8 +10,10 @@ For appended data:
 
 import base64
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 import math
-from typing import Any
+import mmap
+from typing import Any, Final
 import warnings
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
@@ -19,9 +21,38 @@ import zlib
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES
-from polyxios._io import Source, read_bytes
-from polyxios.exceptions import CodecError
+from polyxios._element_types import ELEMENT_TYPES, VTK_TO_POLYXIOS
+from polyxios._io import Source, map_read, read_bytes, source_name
+from polyxios.exceptions import CodecError, LazyReadError
+
+# Polyxios code for every VTK cell type in one uint8 table, so a file's
+# ``types`` array maps in a single indexing pass rather than a dict lookup
+# per cell. A VTK code polyxios has no name for lands on ``empty_cell``.
+VTK_CODE_LUT: Final[np.ndarray] = np.array(
+    [
+        ELEMENT_TYPES.get(VTK_TO_POLYXIOS.get(code, "empty_cell"), 0)
+        for code in range(256)
+    ],
+    dtype=np.uint8,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Appended:
+    """The appended section of a VTK XML file, addressed without copying.
+
+    Parameters
+    ----------
+    buf
+        The whole file, as bytes or as a read-only mapping of it.
+    start
+        Index in ``buf`` of the first byte after the ``_`` marker; the
+        ``offset`` a ``DataArray`` declares counts from here.
+    """
+
+    buf: bytes | mmap.mmap
+    start: int
+
 
 _VTK_TO_NP: dict[str, str] = {
     "Float32": "f4",
@@ -163,6 +194,7 @@ def format_da(
     n_comp: int,
     indent: int,
     n_tuples: int | None = None,
+    appended: list[bytes] | None = None,
 ) -> str:
     """Render one ``<DataArray>`` element.
 
@@ -190,6 +222,12 @@ def format_da(
         array needs no such declaration - the Piece header already said how
         many there are - but a field array is bound to nothing that counts
         it, so it has to carry its own count.
+    appended
+        Where the bytes go instead of the element: the block (a UInt32 byte
+        count then the values) is added to this list and the element
+        declares ``format="appended"`` with its byte offset into the joined
+        blocks. Raw appended data is the one layout a lazy read can map, and
+        it is a third smaller than base64. Takes precedence over ``binary``.
 
     Returns
     -------
@@ -202,6 +240,14 @@ def format_da(
     tuple_attr = "" if n_tuples is None else f' NumberOfTuples="{n_tuples}"'
     values = np.ascontiguousarray(arr, dtype=dtype)
 
+    if appended is not None:
+        raw = values.tobytes()
+        offset = sum(len(block) for block in appended)
+        appended.append(np.array([len(raw)], dtype="<u4").tobytes() + raw)
+        return (
+            f'{pad}<DataArray type="{vtk_type}"{name_attr}{comp_attr}'
+            f'{tuple_attr} format="appended" offset="{offset}"/>'
+        )
     if binary:
         raw = values.tobytes()
         header = np.array([len(raw)], dtype="<u4").tobytes()
@@ -216,7 +262,38 @@ def format_da(
     )
 
 
-def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> str:
+def appended_section(blocks: list[bytes], *, tail: str) -> bytes:
+    """Serialise the ``<AppendedData>`` section that closes a VTK XML file.
+
+    Parameters
+    ----------
+    blocks
+        The blocks ``format_da`` collected, in offset order.
+    tail
+        The closing lines the XML head ends with, up to and including
+        ``</VTKFile>``; they are moved after the section.
+
+    Returns
+    -------
+    bytes
+        The section, ``_`` marker and blocks included, followed by ``tail``.
+    """
+    return (
+        b'  <AppendedData encoding="raw">\n   _'
+        + b"".join(blocks)
+        + b"\n  </AppendedData>\n"
+        + tail.encode("utf-8")
+    )
+
+
+def format_attr_da(
+    name: str,
+    arr: np.ndarray,
+    *,
+    binary: bool,
+    indent: int,
+    appended: list[bytes] | None = None,
+) -> str:
     """Render a point or cell attribute in the type the array is held in.
 
     An attribute is whatever a caller put in ``vertex_attrs`` or
@@ -238,6 +315,8 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
         Base64 the raw bytes instead of spelling the numbers.
     indent
         Spaces to prefix the line with.
+    appended
+        Block list to write the bytes to instead, as for ``format_da``.
 
     Returns
     -------
@@ -261,6 +340,7 @@ def format_attr_da(name: str, arr: np.ndarray, *, binary: bool, indent: int) -> 
             binary=binary,
             n_comp=components(arr),
             indent=indent,
+            appended=appended,
         )
     except (TypeError, ValueError) as exc:
         raise CodecError(
@@ -1317,7 +1397,10 @@ def vtk_type_to_np(vtk_type: str) -> str | None:
 
 def parse_xml(
     path: Source,
-) -> tuple[ET.Element, bytes | None, str, bool, bool, bool, int]:
+    *,
+    lazy: bool = False,
+    fmt: str = "VTK XML",
+) -> tuple[ET.Element, bytes | Appended | None, str, bool, bool, bool, int]:
     """Read a VTK XML file and return parsed state.
 
     Handles both inline and appended data sections, including raw-binary
@@ -1327,6 +1410,14 @@ def parse_xml(
     ----------
     path
         Path or open file object holding the VTK XML file.
+    lazy
+        Map the file instead of reading it, so the arrays a reader decodes
+        from the appended section can view the mapping. Only a raw,
+        uncompressed appended section can be viewed: inline, base64 and
+        zlib-compressed arrays have no bytes on disk in the shape an array
+        needs, so those files are refused.
+    fmt
+        Extension a refusal should name, dot included.
 
     Returns
     -------
@@ -1334,8 +1425,9 @@ def parse_xml(
         ``(root, appended, header_type, big_endian, compressed, is_base64,
         size)``
 
-        * *appended* - raw base64 text (bytes) when ``is_base64=True``, or raw
-          binary bytes when ``is_base64=False``, or ``None`` for inline-only files.
+        * *appended* - raw base64 text (bytes) when ``is_base64=True``, an
+          ``Appended`` over the file when ``is_base64=False``, or ``None``
+          for inline-only files.
         * *header_type* - ``"UInt32"`` or ``"UInt64"``.
         * *compressed* - ``True`` when a vtkZLibDataCompressor is declared.
         * *is_base64* - ``True`` when the appended section uses base64 encoding.
@@ -1343,8 +1435,14 @@ def parse_xml(
           declared count against the file it came from wants. It is handed
           back rather than measured again, because measuring a compressed
           source costs a whole decompression pass that this read already paid.
+
+    Raises
+    ------
+    LazyReadError
+        If ``lazy`` is set and the source cannot be mapped, or the file keeps
+        its arrays somewhere other than a raw appended section.
     """
-    raw = read_bytes(path)
+    raw: bytes | mmap.mmap = map_read(path, fmt=fmt) if lazy else read_bytes(path)
     size = len(raw)
 
     preamble = raw[:512]
@@ -1354,6 +1452,12 @@ def parse_xml(
 
     app_pos = raw.find(b"<AppendedData")
     if app_pos == -1:
+        if lazy:
+            raise LazyReadError(
+                f"{fmt}: '{source_name(path)}' keeps its arrays inline, and"
+                " only a raw appended section can be mapped. Read it eagerly"
+                " (lazy=False)."
+            )
         return (
             ET.fromstring(raw.decode("utf-8")),
             None,
@@ -1371,6 +1475,14 @@ def parse_xml(
     app_tag = raw[app_pos : app_tag_end + 1].decode("ascii", errors="replace")
     use_base64 = 'encoding="base64"' in app_tag
 
+    if lazy and (use_base64 or compressed):
+        how = "base64-encoded" if use_base64 else "zlib-compressed"
+        raise LazyReadError(
+            f"{fmt}: '{source_name(path)}' has a {how} appended section, whose"
+            " bytes are not the arrays they encode. Read it eagerly"
+            " (lazy=False)."
+        )
+
     if use_base64:
         app_close = raw.find(b"</AppendedData>", app_tag_end)
         b64_text = raw[app_tag_end + 1 : app_close].strip()
@@ -1381,7 +1493,7 @@ def parse_xml(
     underscore = raw.find(b"_", app_tag_end)
     return (
         root,
-        raw[underscore + 1 :],
+        Appended(raw, underscore + 1),
         header_type,
         big_endian,
         compressed,
@@ -1484,35 +1596,71 @@ def _read_b64_block(
 
 
 def _read_raw_block(
-    raw_bytes: bytes,
+    appended: Appended,
     byte_offset: int,
     dtype_str: str,
     *,
     h_dt: np.dtype,
     compressed: bool,
     endian: str,
+    copy: bool,
 ) -> np.ndarray:
-    """Read one data block from raw appended bytes at byte offset."""
+    """Read one data block from the raw appended section at a byte offset.
+
+    The block is addressed in place: slicing the section would copy its
+    whole tail for every array, and would copy the pages out of a mapping
+    that a lazy read means the array to keep viewing.
+
+    Parameters
+    ----------
+    appended
+        The section, over the whole file.
+    byte_offset
+        The array's declared ``offset``, counted from after the ``_`` marker.
+    dtype_str
+        Numpy dtype string for the element data.
+    h_dt
+        Numpy dtype for the block header (uint32 or uint64).
+    compressed
+        If True, block uses vtkZLibDataCompressor format.
+    endian
+        Endianness prefix for numpy dtype (``"<"`` or ``">"``).
+    copy
+        Hand back a copy rather than a view of the section. A compressed
+        block is decompressed into new memory either way.
+
+    Returns
+    -------
+    numpy.ndarray
+        The values, 1-D. A view is read-only when the section is a mapping.
+    """
     h_size = h_dt.itemsize
-    view = raw_bytes[byte_offset:]
+    dt = np.dtype(endian + dtype_str)
+    buf = appended.buf
+    pos = appended.start + byte_offset
+    if len(buf) - pos < h_size:
+        return np.array([], dtype=dt)
 
     if not compressed:
-        if len(view) < h_size:
-            return np.array([], dtype=endian + dtype_str)
-        n_bytes = int(np.frombuffer(view[:h_size], dtype=h_dt)[0])
-        return np.frombuffer(
-            view[h_size : h_size + n_bytes], dtype=endian + dtype_str
-        ).copy()
+        n_bytes = int(np.frombuffer(buf, dtype=h_dt, count=1, offset=pos)[0])
+        n_bytes = min(n_bytes, len(buf) - pos - h_size)
+        if n_bytes % dt.itemsize:
+            raise ValueError(
+                f"appended block at offset {byte_offset} holds {n_bytes} bytes,"
+                f" not a whole number of {dt.itemsize}-byte values"
+            )
+        arr = np.frombuffer(
+            buf, dtype=dt, count=n_bytes // dt.itemsize, offset=pos + h_size
+        )
+        return arr.copy() if copy else arr
 
-    if len(view) < h_size:
-        return np.array([], dtype=endian + dtype_str)
-
-    n_blocks = int(np.frombuffer(view[:h_size], dtype=h_dt)[0])
+    view = memoryview(buf)[pos:]
+    n_blocks = int(np.frombuffer(view, dtype=h_dt, count=1)[0])
     if n_blocks == 0:
-        return np.array([], dtype=endian + dtype_str)
+        return np.array([], dtype=dt)
 
     total_header_bytes = (3 + n_blocks) * h_size
-    comp_sizes = np.frombuffer(view[3 * h_size : total_header_bytes], dtype=h_dt)
+    comp_sizes = np.frombuffer(view, dtype=h_dt, count=n_blocks, offset=3 * h_size)
 
     data_pos = total_header_bytes
     parts: list[bytes] = []
@@ -1523,7 +1671,7 @@ def _read_raw_block(
         parts.append(zlib.decompress(view[data_pos : data_pos + cs_int]))
         data_pos += cs_int
 
-    return np.frombuffer(b"".join(parts), dtype=endian + dtype_str).copy()
+    return np.frombuffer(b"".join(parts), dtype=dt).copy()
 
 
 def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
@@ -1593,10 +1741,11 @@ def decode_da(
     elem: ET.Element,
     *,
     big_endian: bool,
-    appended: bytes | None,
+    appended: bytes | Appended | None,
     header_type: str,
     compressed: bool,
     is_base64: bool = False,
+    copy: bool = True,
 ) -> np.ndarray:
     """Decode a VTK ``<DataArray>`` element to a 1-D numpy array.
 
@@ -1607,7 +1756,7 @@ def decode_da(
     big_endian
         True if the file declares ``byte_order="BigEndian"``.
     appended
-        Raw base64 text (when ``is_base64=True``) or raw binary bytes
+        Raw base64 text (when ``is_base64=True``) or the ``Appended`` section
         (when ``is_base64=False``), or None for inline-only files.
     header_type
         ``"UInt32"`` or ``"UInt64"`` - governs block-header size.
@@ -1615,6 +1764,10 @@ def decode_da(
         True when vtkZLibDataCompressor is active.
     is_base64
         True when the appended section uses ``encoding="base64"``.
+    copy
+        Copy a raw appended block out of the section. A lazy read passes
+        False and gets an array viewing the file's mapping instead, in the
+        dtype and byte order the file holds.
 
     Returns
     -------
@@ -1652,6 +1805,7 @@ def decode_da(
                 compressed=compressed,
                 endian=endian,
             )
+        assert isinstance(appended, Appended)
         return _read_raw_block(
             appended,
             offset,
@@ -1659,6 +1813,7 @@ def decode_da(
             h_dt=h_dt,
             compressed=compressed,
             endian=endian,
+            copy=copy,
         )
 
     text = (elem.text or "").strip()
@@ -1918,7 +2073,9 @@ def join_piece_attrs(
     joined: dict[str, np.ndarray] = {}
     for name, arrays in parts.items():
         try:
-            joined[name] = np.concatenate(arrays)
+            # A single piece's array is the joined array; concatenating it
+            # would copy a lazy read's view out of the mapping.
+            joined[name] = arrays[0] if len(arrays) == 1 else np.concatenate(arrays)
         except ValueError:
             warnings.warn(
                 f"VTK XML: {kind} array '{name}' is shaped differently from"
@@ -1928,6 +2085,152 @@ def join_piece_attrs(
                 stacklevel=4,
             )
     return sized_attrs(joined, expected=expected, kind=kind, stacklevel=5)
+
+
+def piece_cells(
+    conn: np.ndarray,
+    ends: np.ndarray,
+    vert_offset: int,
+    base: int,
+    *,
+    where: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Check one cell section's arrays and place them in the joined mesh.
+
+    VTK stores a cell section as a flat connectivity run and, per cell, the
+    index one past its last entry. Whole, the run *is* the CSR connectivity
+    of the section, so it is handed back as it came - a lazy read's view
+    stays a view - rather than re-sliced cell by cell.
+
+    Parameters
+    ----------
+    conn
+        The section's connectivity, indexing the Piece's own points.
+    ends
+        Its offsets array: one past the last connectivity entry of each cell.
+    vert_offset
+        Points preceding this Piece in the joined mesh.
+    base
+        Connectivity entries preceding this section in the joined mesh.
+    where
+        What an error should name, such as ``.vtu Piece 2``.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        The connectivity covering exactly the cells, indexing the joined
+        points, and the cell ends shifted to the joined connectivity, int64.
+
+    Raises
+    ------
+    CodecError
+        If the offsets run backwards or past the end of the connectivity.
+    """
+    if ends.size == 0:
+        return conn[:0], np.zeros(0, dtype=np.int64)
+    if ends[0] < 0 or np.any(np.diff(ends) < 0):
+        raise CodecError(f"{where}: cell offsets run backwards.")
+    n_conn = int(ends[-1])
+    if n_conn > conn.size:
+        raise CodecError(
+            f"{where}: cell offsets reach {n_conn} connectivity entries, but"
+            f" the array holds {conn.size}."
+        )
+    conn = conn[:n_conn]
+    if vert_offset:
+        conn = conn + vert_offset
+    shifted = ends.astype(np.int64, copy=False)
+    return conn, shifted + base if base else shifted
+
+
+def join_cells(
+    vertices: list[np.ndarray],
+    connectivity: list[np.ndarray],
+    ends: list[np.ndarray],
+    types: list[np.ndarray],
+    *,
+    lazy: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Join the per-section arrays of a file into one mesh.
+
+    Parameters
+    ----------
+    vertices
+        Per-Piece point arrays, each ``(n, 3)``.
+    connectivity
+        Per-section connectivity, already indexing the joined points.
+    ends
+        The leading ``[0]`` of the CSR offsets followed by every section's
+        cell ends, already shifted to the joined connectivity.
+    types
+        Per-section polyxios element codes.
+    lazy
+        Keep the file's dtypes. The offsets are derived rather than read, so
+        they are cast to the connectivity's dtype when its range holds them;
+        eagerly, indices are int32 unless the mesh needs int64.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(vertices, connectivity, offsets, element_types)``. A list of one
+        array is that array, not a copy of it.
+    """
+    verts = _join(vertices, np.zeros((0, 3), dtype=np.float64))
+    conn = _join(connectivity, np.array([], dtype=np.int32))
+    offsets = np.concatenate(ends)
+    etypes = _join(types, np.array([], dtype=np.uint8))
+    if lazy:
+        if conn.dtype != offsets.dtype and offsets[-1] <= np.iinfo(conn.dtype).max:
+            offsets = offsets.astype(conn.dtype)
+    else:
+        idx = np.int64 if offsets[-1] >= 2**31 else np.int32
+        conn = conn.astype(idx, copy=False)
+        offsets = offsets.astype(idx, copy=False)
+    return verts, conn, offsets, etypes
+
+
+def _join(arrays: list[np.ndarray], empty: np.ndarray) -> np.ndarray:
+    if not arrays:
+        return empty
+    return arrays[0] if len(arrays) == 1 else np.concatenate(arrays)
+
+
+def vtk_code_types(codes: np.ndarray) -> np.ndarray:
+    """Map a ``types`` array of VTK cell codes to polyxios element codes.
+
+    Parameters
+    ----------
+    codes
+        The decoded array, in whatever integer dtype the file declared.
+
+    Returns
+    -------
+    numpy.ndarray
+        uint8 polyxios codes, ``empty_cell`` for a code polyxios has no
+        name for.
+    """
+    idx = codes.astype(np.intp, copy=False)
+    idx = np.where((idx >= 0) & (idx < VTK_CODE_LUT.size), idx, 0)
+    return VTK_CODE_LUT[idx]
+
+
+def polygon_types(n_nodes: np.ndarray) -> np.ndarray:
+    """Element codes for a ``Polys`` section, by how many points each has.
+
+    Parameters
+    ----------
+    n_nodes
+        Points per polygon.
+
+    Returns
+    -------
+    numpy.ndarray
+        uint8 codes: triangle for three, quad for four, polygon otherwise.
+    """
+    out = np.full(n_nodes.shape, ELEMENT_TYPES["polygon"], dtype=np.uint8)
+    out[n_nodes == 3] = ELEMENT_TYPES["triangle"]
+    out[n_nodes == 4] = ELEMENT_TYPES["quad"]
+    return out
 
 
 def sized_attrs(
