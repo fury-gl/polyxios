@@ -236,6 +236,8 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 | Medit ASCII | `.mesh`* `.medit` | ✓ | ✓ | reference integers → tags; write with `fmt=".medit"` |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 | Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only; lazy: zero-copy |
+| PCD (Point Cloud Library) | `.pcd` | ✓ | ✓ | ascii, binary and LZF `binary_compressed`; fields → vertex attrs, packed `rgb` → `colors`, organised grid and viewpoint kept; lazy: binary views |
+| ASCII point cloud | `.xyz` `.pts` `.ptx` | ✓ | ✓ | columns named by count and kind (intensity, colours, normals); `.pts` count line; `.ptx` scans transformed by their pose and tagged |
 
 ### Volume, grid & simulation
 
@@ -291,7 +293,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**38 formats supported** across the 47 extensions in the tables, plus `.plt`, which
+**40 formats supported** across the 51 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---
