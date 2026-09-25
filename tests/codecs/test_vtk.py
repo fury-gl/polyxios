@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import mmap
 from pathlib import Path
 import tempfile
 
@@ -45,15 +46,69 @@ def test_roundtrip_binary() -> None:
     np.testing.assert_array_equal(poly2.connectivity, poly.connectivity)
 
 
-def test_roundtrip_lazy() -> None:
+def _mapped(arr: np.ndarray) -> bool:
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def test_roundtrip_lazy(tmp_path) -> None:
+    """A v4.2 file interleaves each cell's count with its indices, so the
+    cells are decoded; the points still view the mapping, big-endian."""
     poly = _synthetic_mesh()
-    with tempfile.NamedTemporaryFile(suffix=".vtk", delete=False) as f:
-        tmp = f.name
+    tmp = tmp_path / "mesh.vtk"
     write(poly, tmp, binary=True)
     poly_lazy = read(tmp, lazy=True)
-    # Force access to load pages
     np.testing.assert_allclose(poly_lazy.vertices, poly.vertices, atol=1e-8)
     np.testing.assert_array_equal(poly_lazy.connectivity, poly.connectivity)
+    assert _mapped(poly_lazy.vertices)
+    assert not poly_lazy.vertices.flags.writeable
+    assert poly_lazy.vertices.dtype.byteorder == ">"
+    assert not _mapped(poly_lazy.connectivity)
+
+
+def test_a_v51_file_reads_lazily_as_views(tmp_path) -> None:
+    """OFFSETS and CONNECTIVITY are two blocks on disk, so with the points
+    and the attributes every array of the mesh views the mapping."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+    poly = make_polydata(
+        verts,
+        [("triangle", np.array([[0, 1, 2], [0, 1, 3]]))],
+        vertex_attrs={"pressure": np.arange(4.0)},
+        element_attrs={"stress": np.array([10.0, 20.0])},
+    )
+    tmp = tmp_path / "mesh.vtk"
+    write(poly, tmp, binary=True, vtk_version="5.1")
+    back = read(tmp, lazy=True)
+
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(
+        back.vertex_attrs["pressure"], poly.vertex_attrs["pressure"]
+    )
+    np.testing.assert_array_equal(
+        back.element_attrs["stress"], poly.element_attrs["stress"]
+    )
+    for arr in (
+        back.vertices,
+        back.connectivity,
+        back.offsets,
+        back.vertex_attrs["pressure"],
+        back.element_attrs["stress"],
+    ):
+        assert _mapped(arr)
+        assert not arr.flags.writeable
+
+    eager = read(tmp)
+    assert eager.vertices.flags.writeable
+    assert eager.vertices.dtype == np.float64
+    assert eager.connectivity.dtype.byteorder in ("=", "|")
+    np.testing.assert_array_equal(eager.connectivity, poly.connectivity)
 
 
 def test_vertex_attrs() -> None:

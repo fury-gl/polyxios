@@ -43,6 +43,7 @@ from polyxios._globals import as_text, globals_for_write, text_for_write
 from polyxios._io import (
     Source,
     is_buffer,
+    map_read,
     read_bytes,
     require_path,
     source_name,
@@ -308,7 +309,16 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
         the sidecar is found beside it; one holding its arrays inline reads
         from anything.
     lazy
-        Not supported; raises LazyReadError when True.
+        Map the sidecars instead of reading them, and hand back arrays that
+        view the mappings, read-only, in the dtype and byte order the
+        sidecar holds. A Binary DataItem is one run of values at an offset,
+        and so is an HDF5 dataset stored contiguously without a filter -
+        h5py finds where it sits and the file is mapped around it. A
+        chunked or compressed dataset, or values spelled inline as text,
+        have no such run and raise. Derived arrays - the offsets of a
+        uniform topology, the element types, a mixed topology's gathered
+        connectivity, coordinates padded from two columns to three - are
+        built in memory.
     **opts
         ``step`` picks the time step of a temporal collection, counted from
         zero and negative from the end the way a list is; the first is read
@@ -326,7 +336,9 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     Raises
     ------
     LazyReadError
-        If ``lazy`` is set.
+        If ``lazy`` is set and a DataItem holds its values inline, in a
+        chunked or compressed HDF5 dataset, or in a sidecar that cannot be
+        mapped.
     CodecError
         If the file is not XDMF, a grid lacks its topology or geometry, a
         ``DataItem`` declares a size it does not hold, an HDF5 or binary
@@ -338,14 +350,9 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     UnknownElementTypeError
         If a mixed topology carries a cell code XDMF does not define.
     """
-    if lazy:
-        raise LazyReadError(
-            f"'{source_name(path)}': XDMF lazy reads are not supported; the"
-            " arrays live in the sidecar the file names and are decoded whole."
-        )
     step = opts.pop("step", None)
     _warn_unknown_opts(opts, "read")
-    ctx = _open_document(path)
+    ctx = _open_document(path, lazy=lazy)
     try:
         return _read_document(ctx, step=step)
     finally:
@@ -392,8 +399,17 @@ def _warn_unknown_opts(opts: dict[str, Any], what: str) -> None:
         )
 
 
-def _open_document(path: Source) -> dict[str, Any]:
-    """Parse the XML and gather what every DataItem lookup needs."""
+def _open_document(path: Source, *, lazy: bool = False) -> dict[str, Any]:
+    """Parse the XML and gather what every DataItem lookup needs.
+
+    Parameters
+    ----------
+    path
+        The XDMF document.
+    lazy
+        Map every sidecar the document names and hand back arrays viewing
+        the mappings, rather than reading the arrays into memory.
+    """
     raw = read_bytes(path)
     try:
         root = ET.fromstring(raw)
@@ -412,7 +428,9 @@ def _open_document(path: Source) -> dict[str, Any]:
         "name": source_name(path),
         "base_dir": base_dir,
         "file_size": len(raw),
+        "lazy": lazy,
         "h5_files": {},
+        "h5_maps": {},
         "holders": None,
         "shared_items": set(),
         "item_cache": None,
@@ -424,6 +442,8 @@ def _open_document(path: Source) -> dict[str, Any]:
 
 
 def _close_document(ctx: dict[str, Any]) -> None:
+    # The mappings in h5_maps are not closed: the arrays a lazy read handed
+    # back view them, and each goes when its last view does.
     for handle in ctx["h5_files"].values():
         handle.close()
     ctx["h5_files"].clear()
@@ -933,6 +953,10 @@ def _read_geometry(
             f"{where}: GeometryType '{geo_type}' is not read for an"
             " unstructured topology."
         )
+    if ctx["lazy"] and dim == 3 and coords.dtype.kind == "f":
+        # Already three columns of floats: padding would copy the view out
+        # of its mapping to widen it by nothing.
+        return coords, mark_2d(dim)
     return pad_to_3d(coords, dim), mark_2d(dim)
 
 
@@ -1011,7 +1035,7 @@ def _read_topology(
         )
         flat = flat[: n_declared * per_cell]
         n_cells = n_declared
-    connectivity = _as_indices(flat, n_verts, where)
+    connectivity = _as_indices(flat, n_verts, where, narrow=not ctx["lazy"])
     offsets = np.arange(0, (n_cells + 1) * per_cell, per_cell, dtype=connectivity.dtype)
     element_types = np.full(n_cells, ELEMENT_TYPES[ptype], dtype=np.uint8)
     return connectivity, offsets, element_types, None
@@ -1124,15 +1148,30 @@ def _read_mixed(
         ends - cell_sizes, cell_sizes
     )
     flat = stream[np.repeat(cell_starts, cell_sizes) + local]
-    connectivity = _as_indices(flat, n_verts, where)
+    connectivity = _as_indices(flat, n_verts, where, narrow=not ctx["lazy"])
     offsets = np.zeros(len(counts) + 1, dtype=connectivity.dtype)
     offsets[1:] = ends
     mask = None if all(kept) else np.asarray(kept, dtype=bool)
     return connectivity, offsets, np.asarray(types, dtype=np.uint8), mask
 
 
-def _as_indices(flat: np.ndarray, n_verts: int, where: str) -> np.ndarray:
-    """Check a connectivity block against the point count, and size its dtype."""
+def _as_indices(
+    flat: np.ndarray, n_verts: int, where: str, *, narrow: bool = True
+) -> np.ndarray:
+    """Check a connectivity block against the point count, and size its dtype.
+
+    Parameters
+    ----------
+    flat
+        The indices as the file holds them.
+    n_verts
+        Points the geometry holds.
+    where
+        What an error should name.
+    narrow
+        Cast to int32 when the indices fit it. A lazy read passes False and
+        keeps the file's own dtype, since the cast would copy the view.
+    """
     if flat.size == 0:
         return np.zeros(0, dtype=np.int32)
     flat = _whole_numbers(flat, where, "the topology")
@@ -1143,6 +1182,8 @@ def _as_indices(flat: np.ndarray, n_verts: int, where: str) -> np.ndarray:
             f"{where}: the topology indexes point {low if low < 0 else high},"
             f" and the geometry holds {n_verts} point(s)."
         )
+    if not narrow:
+        return flat
     dtype = np.int32 if high < 2**31 else np.int64
     return flat.astype(dtype, copy=False)
 
@@ -1547,6 +1588,12 @@ def _uniform_item(item: ET.Element, ctx: dict[str, Any]) -> np.ndarray:
 
 
 def _xml_values(item: ET.Element, dtype: np.dtype, ctx: dict[str, Any]) -> np.ndarray:
+    if ctx["lazy"]:
+        raise LazyReadError(
+            f"'{ctx['name']}': a DataItem spells its values inline as text,"
+            " which has to be parsed before it holds numbers. Read it eagerly"
+            " (lazy=False)."
+        )
     tokens = (item.text or "").split()
     try:
         if dtype.kind == "f":
@@ -1649,10 +1696,59 @@ def _hdf_values(
                 f"'{ctx['name']}': {where} holds {node.size} values and the"
                 f" DataItem declares {wanted}."
             )
+    if ctx["lazy"]:
+        return _hdf_view(node, where, ctx)
     values = np.asarray(node[()])
     # Read in the dataset's own byte order; back to the machine's, so a
     # swapped block never travels on in the mesh.
     return values.astype(values.dtype.newbyteorder("="), copy=False)
+
+
+def _hdf_view(node: Any, where: str, ctx: dict[str, Any]) -> np.ndarray:
+    """View an HDF5 dataset's bytes in place, through a mapping of its file.
+
+    A dataset laid out contiguously and stored without a filter is one run
+    of values at an offset HDF5 can name, so the file can be mapped and the
+    run viewed like any raw block; h5py is used to find it, not to read it.
+    A chunked or compressed dataset has no such run.
+
+    Parameters
+    ----------
+    node
+        The h5py dataset.
+    where
+        What an error should name.
+    ctx
+        The document context.
+
+    Returns
+    -------
+    numpy.ndarray
+        A read-only view of the mapping, in the dataset's dtype and shape.
+
+    Raises
+    ------
+    LazyReadError
+        If the dataset is chunked, filtered, or has no offset to map.
+    """
+    offset = node.id.get_offset()
+    if node.chunks is not None or node.compression is not None or offset is None:
+        how = "chunked" if node.chunks is not None else "compressed"
+        if offset is None and node.chunks is None and node.compression is None:
+            how = "not stored contiguously"
+        raise LazyReadError(
+            f"'{ctx['name']}': {where} is {how}, so its values are not one"
+            " run of bytes a mapping can be viewed as. Read it eagerly"
+            " (lazy=False), or write it without chunking or compression."
+        )
+    mapping = ctx["h5_maps"].get(node.file.filename)
+    if mapping is None:
+        mapping = ctx["h5_maps"][node.file.filename] = map_read(
+            node.file.filename, fmt=EXTENSION
+        )
+    return np.frombuffer(
+        mapping, dtype=node.dtype, count=node.size, offset=offset
+    ).reshape(node.shape)
 
 
 def _plain_hdf_item(item: ET.Element) -> bool:
@@ -1696,6 +1792,13 @@ def _binary_values(
             f"'{ctx['name']}': the binary file '{text}' holds {available}"
             f" bytes and the DataItem asks for {count} values ending at"
             f" byte {needed}."
+        )
+    if ctx["lazy"]:
+        # The block is a run of values at a known offset, which is exactly
+        # what a mapping can be viewed as; the view keeps the file's byte
+        # order, since swapping it would be the copy the caller declined.
+        return np.frombuffer(
+            map_read(path, fmt=EXTENSION), dtype=dtype, count=count, offset=seek
         )
     values = np.fromfile(path, dtype=dtype, count=count, offset=seek)
     # Back to the machine's own byte order, so a swapped block from the file

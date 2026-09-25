@@ -8,6 +8,7 @@ refusal names the extra that installs it.
 from __future__ import annotations
 
 import io
+import mmap
 from pathlib import Path
 import subprocess
 import sys
@@ -389,9 +390,61 @@ def test_a_file_that_is_not_xdmf_is_refused(tmp_path: Path) -> None:
         read(path)
 
 
-def test_lazy_is_refused(tmp_path: Path) -> None:
-    with pytest.raises(LazyReadError):
+def test_lazy_refuses_inline_values(tmp_path: Path) -> None:
+    """Text has to be parsed before it holds numbers; there is nothing to map."""
+    with pytest.raises(LazyReadError, match="inline"):
         read(_write_doc(tmp_path, _SQUARE_GRID), lazy=True)
+
+
+def _mapped(arr: np.ndarray) -> bool:
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def _assert_lazy_views(back, poly) -> None:
+    np.testing.assert_array_equal(back.vertices, poly.vertices)
+    np.testing.assert_array_equal(back.connectivity, poly.connectivity)
+    np.testing.assert_array_equal(back.offsets, poly.offsets)
+    np.testing.assert_array_equal(back.element_types, poly.element_types)
+    np.testing.assert_array_equal(back.vertex_attrs["s"], poly.vertex_attrs["s"])
+    for arr in (back.vertices, back.connectivity, back.vertex_attrs["s"]):
+        assert _mapped(arr)
+        assert not arr.flags.writeable
+    assert back.connectivity.dtype == back.offsets.dtype
+
+
+def test_lazy_views_a_binary_sidecar(tmp_path: Path) -> None:
+    """A Binary DataItem is a run of values at an offset in a raw file: the
+    file is mapped and each array is a view of it."""
+    poly = _two_triangles(vertex_attrs={"s": np.arange(4.0)})
+    path = tmp_path / "m.xdmf"
+    write(poly, path, data_format="binary")
+    _assert_lazy_views(read(path, lazy=True), poly)
+
+
+def test_lazy_views_a_contiguous_hdf5_dataset(tmp_path: Path) -> None:
+    """A dataset stored contiguously without a filter sits at an offset HDF5
+    can name, so the .h5 file is mapped and the dataset viewed in place."""
+    pytest.importorskip("h5py")
+    poly = _two_triangles(vertex_attrs={"s": np.arange(4.0)})
+    path = tmp_path / "m.xdmf"
+    write(poly, path)
+    _assert_lazy_views(read(path, lazy=True), poly)
+
+
+def test_lazy_refuses_a_compressed_hdf5_dataset(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    path = tmp_path / "m.xdmf"
+    write(_two_triangles(), path, compression="gzip")
+    with pytest.raises(LazyReadError, match="chunked|compressed"):
+        read(path, lazy=True)
+    np.testing.assert_array_equal(
+        read(path).connectivity, _two_triangles().connectivity
+    )
 
 
 def test_an_unknown_read_option_is_warned_about(tmp_path: Path) -> None:

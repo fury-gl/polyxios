@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import mmap
 import tempfile
 
 import numpy as np
@@ -7,7 +9,7 @@ import pytest
 
 from polyxios._types import PolyData
 from polyxios.codecs._splat import read, write
-from polyxios.exceptions import CodecError
+from polyxios.exceptions import CodecError, LazyReadError
 
 
 def _synthetic_splats(n: int = 4) -> PolyData:
@@ -57,6 +59,48 @@ def test_roundtrip() -> None:
         "rot_3",
     ):
         np.testing.assert_array_equal(poly2.vertex_attrs[name], poly.vertex_attrs[name])
+
+
+def _mapped(arr: np.ndarray) -> bool:
+    base = arr
+    while isinstance(base, np.ndarray):
+        base = base.base
+    if isinstance(base, memoryview):
+        base = base.obj
+    return isinstance(base, mmap.mmap)
+
+
+def test_lazy_arrays_view_the_records(tmp_path) -> None:
+    """A .splat is a run of 32-byte records, so every array is a strided
+    view of the mapping: float32 positions three columns wide, one column
+    per attribute, nothing copied."""
+    poly = _synthetic_splats(8)
+    tmp = tmp_path / "cloud.splat"
+    write(poly, tmp)
+    back = read(tmp, lazy=True)
+
+    np.testing.assert_allclose(back.vertices, poly.vertices, atol=1e-6)
+    assert back.vertices.dtype == np.float32
+    assert back.vertices.shape == (8, 3)
+    for name, arr in poly.vertex_attrs.items():
+        np.testing.assert_array_equal(back.vertex_attrs[name], arr)
+        assert _mapped(back.vertex_attrs[name])
+        assert not back.vertex_attrs[name].flags.writeable
+    assert _mapped(back.vertices)
+    assert not back.vertices.flags.writeable
+
+    eager = read(tmp)
+    assert eager.vertices.dtype == np.float64
+    assert eager.vertices.flags.writeable
+    assert not _mapped(eager.vertices)
+
+
+def test_lazy_refuses_an_in_memory_buffer(tmp_path) -> None:
+    poly = _synthetic_splats(2)
+    tmp = tmp_path / "cloud.splat"
+    write(poly, tmp)
+    with pytest.raises(LazyReadError, match="no file descriptor"):
+        read(io.BytesIO(tmp.read_bytes()), lazy=True)
 
 
 def test_file_size_32_bytes_per_splat() -> None:
