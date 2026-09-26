@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="Kratos MDPA" />
+<meta property="og:title" content="LAS / LAZ (ASPRS LiDAR)" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/mdpa.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/las.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".mdpa read + write eager Summary of the specification: A Kratos.mdpa file is a flat list of Begin &lt;Section&gt;/ End &lt;Section&gt; blocks, and everything the format holds lives in one of them. ..." />
+<meta property="og:description" content=".las.laz read + write lazy: .las Summary of the specification: LAS is the ASPRS exchange format for LiDAR point clouds and the one every airborne, mobile and terrestrial scanning pipeline can produ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_mdpa_149c906d.png" />
-<meta property="og:image:alt" content=".mdpa read + write eager Summary of the specification: A Kratos.mdpa file is a flat list of Begin &lt;Section&gt;/ End &lt;Section&gt; blocks, and everything the format holds lives in one of them. ..." />
-<meta name="description" content=".mdpa read + write eager Summary of the specification: A Kratos.mdpa file is a flat list of Begin &lt;Section&gt;/ End &lt;Section&gt; blocks, and everything the format holds lives in one of them. ..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_las_241c040c.png" />
+<meta property="og:image:alt" content=".las.laz read + write lazy: .las Summary of the specification: LAS is the ASPRS exchange format for LiDAR point clouds and the one every airborne, mobile and terrestrial scanning pipeline can produ..." />
+<meta name="description" content=".las.laz read + write lazy: .las Summary of the specification: LAS is the ASPRS exchange format for LiDAR point clouds and the one every airborne, mobile and terrestrial scanning pipeline can produ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>Kratos MDPA &#8212; polyxios</title>
+    <title>LAS / LAZ (ASPRS LiDAR) &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/mdpa';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/las';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/mdpa.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/las.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="PERMAS" href="permas.html" />
-    <link rel="prev" title="ASCII point clouds: XYZ, PTS, PTX" href="xyz.html" />
+    <link rel="next" title="ASCII point clouds: XYZ, PTS, PTX" href="xyz.html" />
+    <link rel="prev" title="PCD (Point Cloud Library)" href="pcd.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -452,9 +452,9 @@
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">LAS / LAZ (ASPRS LiDAR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
@@ -543,7 +543,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Kratos MDPA</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">LAS / LAZ (ASPRS LiDAR)</span></li>
   </ul>
 </nav>
 </div>
@@ -560,13 +560,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="kratos-mdpa">
-<span id="format-mdpa"></span><h1>Kratos MDPA<a class="headerlink" href="#kratos-mdpa" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.mdpa</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+  <section id="las-laz-asprs-lidar">
+<span id="format-las"></span><h1>LAS / LAZ (ASPRS LiDAR)<a class="headerlink" href="#las-laz-asprs-lidar" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.las</span></code> <code class="docutils literal notranslate"><span class="pre">.laz</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">.las</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>A Kratos <code class="docutils literal notranslate"><span class="pre">.mdpa</span></code> file is a flat list of <code class="docutils literal notranslate"><span class="pre">Begin</span> <span class="pre">&lt;Section&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">End</span> <span class="pre">&lt;Section&gt;</span></code> blocks, and everything the format holds lives in one of them. Nothing is counted in a header, so a block runs until its <code class="docutils literal notranslate"><span class="pre">End</span></code>. <code class="docutils literal notranslate"><span class="pre">Nodes</span></code> carries <code class="docutils literal notranslate"><span class="pre">id</span> <span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span></code>, one node per line, numbered freely. An <code class="docutils literal notranslate"><span class="pre">Elements</span></code> block is headed by a Kratos <em>element class</em> - <code class="docutils literal notranslate"><span class="pre">Begin</span> <span class="pre">Elements</span> <span class="pre">Element3D4N</span></code> - and each line spells <code class="docutils literal notranslate"><span class="pre">id</span> <span class="pre">property_id</span> <span class="pre">&lt;nodes&gt;</span></code>; a <code class="docutils literal notranslate"><span class="pre">Conditions</span></code> block has the same shape and its own numbering. <code class="docutils literal notranslate"><span class="pre">Properties</span></code> blocks carry material and solver settings, <code class="docutils literal notranslate"><span class="pre">NodalData</span></code> and <code class="docutils literal notranslate"><span class="pre">ElementalData</span></code> carry one variable per block keyed by entity id, <code class="docutils literal notranslate"><span class="pre">ModelPartData</span></code> carries whole-mesh values, and a <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code> names the nodes, elements and conditions of a group - and may nest other parts inside itself.</p>
-<p>The element class name is a registered Kratos class rather than a geometry. The generic spelling is <code class="docutils literal notranslate"><span class="pre">Element&lt;space</span> <span class="pre">dim&gt;D&lt;node</span> <span class="pre">count&gt;N</span></code>, and an application registers its own element behind the same suffix: <code class="docutils literal notranslate"><span class="pre">SmallDisplacementElement3D4N</span></code>, <code class="docutils literal notranslate"><span class="pre">SurfaceLoadCondition3D3N</span></code>, <code class="docutils literal notranslate"><span class="pre">VMS3D4N</span></code>. Kratos also uses explicit geometry names in its own tables - <code class="docutils literal notranslate"><span class="pre">Tetrahedra3D4</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilateral3D4</span></code>, <code class="docutils literal notranslate"><span class="pre">Prism3D6</span></code>.</p>
+<p>LAS is the ASPRS exchange format for LiDAR point clouds and the one every airborne, mobile and terrestrial scanning pipeline can produce or consume; LAZ is the same file with its point records compressed by LASzip. A 227-byte public header (235 in 1.3, 375 in 1.4) names the version, the point data record format, the record length, the point count, the <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">Y</span> <span class="pre">Z</span></code> scale factors and offsets that turn the stored <code class="docutils literal notranslate"><span class="pre">int32</span></code> coordinates into coordinates, and a bounding box. Variable length records (VLRs) follow it: the coordinate reference system as GeoTIFF keys or, from 1.4, OGC WKT; an “extra bytes” descriptor naming the fields a writer appended to each record; the LASzip parameters of a <code class="docutils literal notranslate"><span class="pre">.laz</span></code>. Then the point records, one fixed-size struct each, in one of eleven formats: 0 to 5 with 3-bit return counts and a 5-bit classification, 6 to 10 with 4 bits and a full byte, <code class="docutils literal notranslate"><span class="pre">gps_time</span></code>, <code class="docutils literal notranslate"><span class="pre">red</span> <span class="pre">green</span> <span class="pre">blue</span></code>, <code class="docutils literal notranslate"><span class="pre">nir</span></code> and a wave packet added by format. LAS 1.4 puts extended VLRs after the points.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -576,72 +575,81 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>structure</p></td>
-<td><p>Begin &lt;Section&gt; … End &lt;Section&gt;, no counts</p></td>
+<tr class="row-odd"><td><p>header</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LASF</span></code>, version 1.0-1.4, point format 0-10, record length, point count (64-bit in 1.4), scale and offset per axis, bounding box</p></td>
 </tr>
-<tr class="row-even"><td><p>node record</p></td>
-<td><p>id x y z</p></td>
+<tr class="row-even"><td><p>coordinates</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int32</span></code> <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">Y</span> <span class="pre">Z</span></code>; <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">X</span> <span class="pre">*</span> <span class="pre">scale</span> <span class="pre">+</span> <span class="pre">offset</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>cell record</p></td>
-<td><p>id property_id &lt;nodes&gt;</p></td>
+<tr class="row-odd"><td><p>point formats</p></td>
+<td><p>0 base · 1 +gps · 2 +rgb · 3 +gps+rgb · 4 +gps+wave · 5 +gps+rgb+wave · 6 new base +gps · 7 +rgb · 8 +rgb+nir · 9 +wave · 10 +rgb+nir+wave</p></td>
 </tr>
-<tr class="row-even"><td><p>cell blocks</p></td>
-<td><p>Elements &lt;class&gt;, Conditions &lt;class&gt;</p></td>
+<tr class="row-even"><td><p>extra bytes</p></td>
+<td><p>bytes past the format’s record, described by the <code class="docutils literal notranslate"><span class="pre">LASF_Spec</span></code> / 4 VLR: name, type, scale, offset</p></td>
 </tr>
-<tr class="row-odd"><td><p>indices</p></td>
-<td><p>1-based, free numbering</p></td>
+<tr class="row-odd"><td><p>CRS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LASF_Projection</span></code> VLRs 34735/34736/34737 (GeoTIFF keys) or 2112 (OGC WKT)</p></td>
 </tr>
-<tr class="row-even"><td><p>data blocks</p></td>
-<td><p>NodalData, ElementalData, ModelPartData</p></td>
+<tr class="row-even"><td><p>compression</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.laz</span></code>: point format bit 7 set, a <code class="docutils literal notranslate"><span class="pre">laszip</span> <span class="pre">encoded</span></code> VLR, LASzip chunks</p></td>
 </tr>
-<tr class="row-odd"><td><p>groups</p></td>
-<td><p>SubModelPart, nestable</p></td>
-</tr>
-<tr class="row-even"><td><p>comments</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">//</span></code> to end of line</p></td>
+<tr class="row-odd"><td><p>connectivity</p></td>
+<td><p>none</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://github.com/KratosMultiphysics/Kratos/wiki/Input-data">Kratos Multiphysics input data ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://www.asprs.org/divisions-committees/lidar-division/laser-las-file-format-exchange-activities">Full specification ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.mdpa"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_tags</span>                        <span class="c1"># one entry per SubModelPart</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"original_ids"</span><span class="p">]</span>        <span class="c1"># the node ids the file spelled</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_attrs</span><span class="p">[</span><span class="s2">"mdpa_property_id"</span><span class="p">]</span>   <span class="c1"># the Properties block each cell points at</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span>                        <span class="c1"># the ModelPartData entries</span>
+<span class="n">cloud</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"tile.las"</span><span class="p">)</span>                  <span class="c1"># or tile.laz, with polyxios[laz]</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertices</span>                               <span class="c1"># (n, 3) float64, scaled and offset</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"intensity"</span><span class="p">]</span>              <span class="c1"># uint16, as the file holds it</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"classification"</span><span class="p">]</span>         <span class="c1"># uint8</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"return_number"</span><span class="p">]</span>          <span class="c1"># uint8, from the packed bits</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"gps_time"</span><span class="p">]</span>               <span class="c1"># float64, formats 1, 3-10</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"colors"</span><span class="p">]</span>                 <span class="c1"># (n, 3) floats in 0..1, formats 2, 3, 5, 7, 8, 10</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"las_scale"</span><span class="p">]</span>              <span class="c1"># (3,) with las_offset, las_version, las_point_format</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">global_attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"crs_wkt"</span><span class="p">)</span>            <span class="c1"># from an OGC WKT VLR</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">global_attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"las_geokeys"</span><span class="p">)</span>        <span class="c1"># {key id: value} from the GeoTIFF VLRs</span>
 </pre></div>
 </div>
+<p>The stored <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">Y</span> <span class="pre">Z</span></code> become the vertices through the header’s scale and offset. Every field of the point record is a vertex attribute in the file’s own dtype: <code class="docutils literal notranslate"><span class="pre">intensity</span></code>, <code class="docutils literal notranslate"><span class="pre">user_data</span></code>, <code class="docutils literal notranslate"><span class="pre">point_source_id</span></code>, <code class="docutils literal notranslate"><span class="pre">gps_time</span></code>, <code class="docutils literal notranslate"><span class="pre">nir</span></code>, and each bit of the packed bytes as a <code class="docutils literal notranslate"><span class="pre">uint8</span></code> of its own - <code class="docutils literal notranslate"><span class="pre">return_number</span></code>, <code class="docutils literal notranslate"><span class="pre">number_of_returns</span></code>, <code class="docutils literal notranslate"><span class="pre">scan_direction_flag</span></code>, <code class="docutils literal notranslate"><span class="pre">edge_of_flight_line</span></code>, <code class="docutils literal notranslate"><span class="pre">classification</span></code>, <code class="docutils literal notranslate"><span class="pre">synthetic</span></code>, <code class="docutils literal notranslate"><span class="pre">key_point</span></code>, <code class="docutils literal notranslate"><span class="pre">withheld</span></code>, plus <code class="docutils literal notranslate"><span class="pre">overlap</span></code> and <code class="docutils literal notranslate"><span class="pre">scanner_channel</span></code> from format 6. The scan angle keeps the format’s spelling: <code class="docutils literal notranslate"><span class="pre">scan_angle_rank</span></code> in whole degrees (<code class="docutils literal notranslate"><span class="pre">int8</span></code>) in formats 0 to 5, <code class="docutils literal notranslate"><span class="pre">scan_angle</span></code> in 0.006-degree steps (<code class="docutils literal notranslate"><span class="pre">int16</span></code>) from 6. <code class="docutils literal notranslate"><span class="pre">red</span> <span class="pre">green</span> <span class="pre">blue</span></code> fold into <code class="docutils literal notranslate"><span class="pre">colors</span></code> as floats in 0..1 over the 16-bit range. The wave packet of formats 4, 5, 9 and 10 reads as <code class="docutils literal notranslate"><span class="pre">wavepacket_index</span></code>, <code class="docutils literal notranslate"><span class="pre">wavepacket_offset</span></code>, <code class="docutils literal notranslate"><span class="pre">wavepacket_size</span></code>, <code class="docutils literal notranslate"><span class="pre">return_point_wave_location</span></code>, <code class="docutils literal notranslate"><span class="pre">x_t</span></code>, <code class="docutils literal notranslate"><span class="pre">y_t</span></code> and <code class="docutils literal notranslate"><span class="pre">z_t</span></code>; the waveform samples themselves, in an EVLR or a <code class="docutils literal notranslate"><span class="pre">.wdp</span></code> sidecar, are not read.</p>
+<p>Extra bytes described by their VLR are attributes of their own name and dtype, two- or three-wide when the descriptor says so, scaled and offset when it says so; bytes past the format’s record that no descriptor names are one <code class="docutils literal notranslate"><span class="pre">extra_bytes</span></code> block of <code class="docutils literal notranslate"><span class="pre">uint8</span></code>. A descriptor whose name is already taken is read with a number appended, with a warning; one with a blank name is read as <code class="docutils literal notranslate"><span class="pre">extra_&lt;i&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">i</span></code> its position among the described fields.</p>
+<p><code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> carries <code class="docutils literal notranslate"><span class="pre">las_version</span></code> (<code class="docutils literal notranslate"><span class="pre">&quot;1.2&quot;</span></code>), <code class="docutils literal notranslate"><span class="pre">las_point_format</span></code>, <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> and <code class="docutils literal notranslate"><span class="pre">las_offset</span></code>, the <code class="docutils literal notranslate"><span class="pre">las_system_identifier</span></code> and <code class="docutils literal notranslate"><span class="pre">las_generating_software</span></code> strings when set, <code class="docutils literal notranslate"><span class="pre">las_file_source_id</span></code>, <code class="docutils literal notranslate"><span class="pre">las_global_encoding</span></code> and <code class="docutils literal notranslate"><span class="pre">las_creation_date</span></code> (<code class="docutils literal notranslate"><span class="pre">(year,</span> <span class="pre">day</span> <span class="pre">of</span> <span class="pre">year)</span></code>) when nonzero; an OGC WKT VLR as <code class="docutils literal notranslate"><span class="pre">crs_wkt</span></code>, the GeoTIFF key directory resolved through its doubles and ASCII twins as <code class="docutils literal notranslate"><span class="pre">las_geokeys</span></code>; and every other VLR or EVLR, raw, in <code class="docutils literal notranslate"><span class="pre">las_vlrs</span></code> as <code class="docutils literal notranslate"><span class="pre">{&quot;user_id&quot;,</span> <span class="pre">&quot;record_id&quot;,</span> <span class="pre">&quot;description&quot;,</span> <span class="pre">&quot;data&quot;}</span></code>.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.mdpa"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.las"</span><span class="p">)</span>                                   <span class="c1"># format from the attributes present</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.laz"</span><span class="p">)</span>                                   <span class="c1"># LASzip, needs polyxios[laz]</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.las"</span><span class="p">,</span> <span class="n">point_format</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s2">"1.4"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.las"</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="p">(</span><span class="mf">400000.0</span><span class="p">,</span> <span class="mf">5000000.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"tile.las"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="s2">"copy.las"</span><span class="p">)</span>          <span class="c1"># stored ints pass through, lossless</span>
 </pre></div>
 </div>
-<p>The writer recognises no options; any that are passed are warned about and ignored.</p>
+<p>The point format is <code class="docutils literal notranslate"><span class="pre">las_point_format</span></code> from <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> when there is one, else the smallest that holds the attributes present: <code class="docutils literal notranslate"><span class="pre">gps_time</span></code> asks for 1, <code class="docutils literal notranslate"><span class="pre">colors</span></code> for 2, both for 3, a wave packet for 4 or 5, and <code class="docutils literal notranslate"><span class="pre">nir</span></code>, <code class="docutils literal notranslate"><span class="pre">scan_angle</span></code>, <code class="docutils literal notranslate"><span class="pre">overlap</span></code> or <code class="docutils literal notranslate"><span class="pre">scanner_channel</span></code> for 6 to 10; <code class="docutils literal notranslate"><span class="pre">point_format=</span></code> overrides it, and an attribute the chosen format has no field for is dropped with a warning. The version is <code class="docutils literal notranslate"><span class="pre">las_version</span></code> raised to what the format and the count need, else the lowest they allow (1.2, 1.3 for a wave packet, 1.4 from format 6 or past 2<sup>32</sup> points); <code class="docutils literal notranslate"><span class="pre">version=</span></code> overrides it, 1.0 and 1.1 are written only when it asks for them, and a format the given version predates is refused. The scale is <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> or 0.001 per axis, the offset <code class="docutils literal notranslate"><span class="pre">las_offset</span></code> or zero when every coordinate then fits an <code class="docutils literal notranslate"><span class="pre">int32</span></code> and the rounded lower corner of the bounding box when not; a coordinate that still does not fit, or a NaN, is refused. Vertices of an integer dtype whose <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> carry both <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> and <code class="docutils literal notranslate"><span class="pre">las_offset</span></code> - what a lazy read hands back - are the stored <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">Y</span> <span class="pre">Z</span></code> themselves: they go out untouched at that scale and offset, so a lazily read file is written back bit for bit, and are rescaled through <code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">*</span> <span class="pre">las_scale</span> <span class="pre">+</span> <span class="pre">las_offset</span></code> when <code class="docutils literal notranslate"><span class="pre">scale=</span></code> or <code class="docutils literal notranslate"><span class="pre">offset=</span></code> asks for another.</p>
+<p>Every standard attribute goes back into its field, <code class="docutils literal notranslate"><span class="pre">return_number</span></code> and <code class="docutils literal notranslate"><span class="pre">number_of_returns</span></code> defaulting to 1 and the rest to 0, a float rounded to the nearest integer; a value its field cannot hold - an <code class="docutils literal notranslate"><span class="pre">intensity</span></code> past 65535, a <code class="docutils literal notranslate"><span class="pre">return_number</span></code> of 8 in formats 0 to 5, a <code class="docutils literal notranslate"><span class="pre">classification</span></code> above 31 there - is refused, as is an attribute that is not one row per vertex. A <code class="docutils literal notranslate"><span class="pre">scan_angle_rank</span></code> written into a format from 6 on, or a <code class="docutils literal notranslate"><span class="pre">scan_angle</span></code> into one before, is converted between degrees and 0.006-degree steps. <code class="docutils literal notranslate"><span class="pre">colors</span></code> as floats in 0..1 scale to 16 bits, as <code class="docutils literal notranslate"><span class="pre">uint16</span></code> are written as they are, and as any other integer count 0..255 spread over the 16. Every other numeric vertex attribute of one to three columns and a name of 1 to 32 printable ASCII bytes (trailing whitespace stripped, as a reader strips it) goes out as an extra bytes field of its own name and dtype, with the descriptor VLR to match, and an <code class="docutils literal notranslate"><span class="pre">extra_bytes</span></code> block of <code class="docutils literal notranslate"><span class="pre">uint8</span></code> columns goes back undescribed; one that does not fit, or is named like a raw dimension (<code class="docutils literal notranslate"><span class="pre">X</span></code>, <code class="docutils literal notranslate"><span class="pre">red</span></code>, <code class="docutils literal notranslate"><span class="pre">flags</span></code>, …), is dropped with a warning. <code class="docutils literal notranslate"><span class="pre">crs_wkt</span></code> writes the OGC WKT VLR and sets the header’s WKT bit, which is cleared when there is no <code class="docutils literal notranslate"><span class="pre">crs_wkt</span></code>; <code class="docutils literal notranslate"><span class="pre">las_geokeys</span></code> writes the three GeoTIFF VLRs, a key or value it cannot spell dropped with a warning, and <code class="docutils literal notranslate"><span class="pre">las_vlrs</span></code> its entries as they are - one over 65535 bytes as an EVLR in 1.4, dropped with a warning before, as is one the writer builds itself. The generating software defaults to <code class="docutils literal notranslate"><span class="pre">polyxios</span></code>, and it and the system identifier are cut to their 32 ASCII bytes, or at a NUL, with a warning; the creation date is left blank unless <code class="docutils literal notranslate"><span class="pre">las_creation_date</span></code> is given.</p>
+<p>A destination named <code class="docutils literal notranslate"><span class="pre">.laz</span></code> is compressed and any other is not; <code class="docutils literal notranslate"><span class="pre">compress=</span></code> overrides the name, and a nameless buffer is written plain unless it is passed.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>The class name and the geometry do not identify each other: <code class="docutils literal notranslate"><span class="pre">Element3D4N</span></code> is a tetrahedron, and a quadrilateral sitting in space would want the same name. polyxios writes the class name with the element’s <em>topological</em> dimension - a quadrilateral is <code class="docutils literal notranslate"><span class="pre">Element2D4N</span></code> whatever plane it lies in - which makes the pair unique and keeps a round trip exact. Reading is wider than writing: the <code class="docutils literal notranslate"><span class="pre">&lt;n&gt;D&lt;m&gt;N</span></code> suffix is read off whatever name carries it, and the explicit geometry names are recognised too.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Conditions</span></code> are read as elements, after the elements, because they are cells of the same mesh. That merges two id spaces, so a file whose condition id repeats an element id comes back without <code class="docutils literal notranslate"><span class="pre">original_ids</span></code> - a numbering with a duplicate in it is one no writer can spell back. Conditions are written under <code class="docutils literal notranslate"><span class="pre">Elements</span></code>: which cells a solver should treat as boundary is a modelling choice the mesh does not carry.</p></li>
-<li><p>Node ordering follows Kratos, which numbers its higher-order nodes the way GiD does. That agrees with polyxios for every type but two: a 20-node hexahedron and a 15-node wedge list their vertical mid-edge nodes before the ones on the top face, and both are permuted on the way in and back on the way out.</p></li>
-<li><p>An element of a type Kratos has no unambiguous class name for - a 3-node line, whose <code class="docutils literal notranslate"><span class="pre">Element2D3N</span></code> is how a triangle is spelled - is dropped on write with a warning, as is one whose node count does not match its type. A tag naming a dropped element leaves it out of its <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code>: Kratos refuses to load a file whose part names an element the file never declared.</p></li>
-<li><p>A data block spells a vector two ways and both are read: a <code class="docutils literal notranslate"><span class="pre">Variable&lt;Vector&gt;</span></code> declares its length (<code class="docutils literal notranslate"><span class="pre">[3]</span> <span class="pre">(1.0,2.0,3.0)</span></code>), while an <code class="docutils literal notranslate"><span class="pre">array_1d&lt;double,3&gt;</span></code> - what <code class="docutils literal notranslate"><span class="pre">DISPLACEMENT</span></code>, <code class="docutils literal notranslate"><span class="pre">VELOCITY</span></code> and the rest are - does not. A matrix (<code class="docutils literal notranslate"><span class="pre">[3,3]</span> <span class="pre">((…),(…),(…))</span></code>) is more than one value per entity, which no attribute column holds, so its block is passed over with a warning.</p></li>
-<li><p>Each <code class="docutils literal notranslate"><span class="pre">SubModelPart</span></code> becomes a <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> and/or <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> entry named after it, nested parts included. Kratos asks only that siblings differ, so two parts under different parents may carry one name; the second gets a <code class="docutils literal notranslate"><span class="pre">_2</span></code> suffix and a warning rather than its members poured into the first. A part contributing no member of its own - one that only groups its children - claims no name and becomes no tag.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;mdpa_property_id&quot;]</span></code> appears only when some cell points at something other than property 0; a file using one property says nothing a writer could not reproduce. The contents of a <code class="docutils literal notranslate"><span class="pre">Properties</span></code> block do not travel - only the id.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">ModelPartData</span></code> value carries no type of its own, so one spelling a number or <code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code> comes back as one: a mesh that wrote the string <code class="docutils literal notranslate"><span class="pre">&quot;42&quot;</span></code> reads it back as the integer 42.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">NodalData</span></code> or <code class="docutils literal notranslate"><span class="pre">ElementalData</span></code> block naming a variable polyxios keeps for itself - <code class="docutils literal notranslate"><span class="pre">original_ids</span></code>, <code class="docutils literal notranslate"><span class="pre">mdpa_property_id</span></code> - is read under a <code class="docutils literal notranslate"><span class="pre">_2</span></code> suffix and warned about, rather than buried under the key or left posing as it. A block naming no variable at all is read as <code class="docutils literal notranslate"><span class="pre">unnamed</span></code>, also with a warning.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Geometries</span></code>, <code class="docutils literal notranslate"><span class="pre">ConditionalData</span></code> and <code class="docutils literal notranslate"><span class="pre">Tables</span></code> blocks are not read, and each is warned about.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly; the format is ASCII.</p></li>
+<li><p>Elements are not part of the format: a mesh’s faces are dropped with a warning, and every file reads back with no elements at all.</p></li>
+<li><p>Which of <code class="docutils literal notranslate"><span class="pre">.las</span></code> and <code class="docutils literal notranslate"><span class="pre">.laz</span></code> a file is comes from its header, not its name: a compressed file under either name is decompressed, needing lazrs (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[laz]&quot;</span></code>), and a plain one under <code class="docutils literal notranslate"><span class="pre">.laz</span></code> reads as it is. A <code class="docutils literal notranslate"><span class="pre">.laz</span></code> cannot be read lazily.</p></li>
+<li><p>Coordinates are quantised on write: at the default scale of 0.001 a coordinate keeps a millimetre. Pass <code class="docutils literal notranslate"><span class="pre">scale=</span></code> for finer, or read back <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> from a file to write it at its own.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps an uncompressed file and hands back views of it, read-only and in the file’s own dtypes: the vertices are the <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> <code class="docutils literal notranslate"><span class="pre">int32</span></code> the file stores, for you to scale by <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> and shift by <code class="docutils literal notranslate"><span class="pre">las_offset</span></code>, <code class="docutils literal notranslate"><span class="pre">colors</span></code> the <code class="docutils literal notranslate"><span class="pre">uint16</span></code> triples, every other field and extra byte a view of its column. The bit fields are decoded into small arrays of their own, and an extra byte carrying a scale or offset is left raw with a warning naming it.</p></li>
+<li><p>Every header field the reader relies on is checked before anything is allocated: the signature, version and point format, a header shorter than its version needs, an offset to point data inside the VLRs, a record shorter than its format, a count of points past the end of the file or, in a <code class="docutils literal notranslate"><span class="pre">.laz</span></code>, past what its chunk table can hold, an extra bytes VLR describing more bytes than the record holds, an EVLR placed outside the file. A <code class="docutils literal notranslate"><span class="pre">.laz</span></code> is then expanded one chunk at a time, so a count the chunk table allows but the stream does not hold is refused having cost one chunk of memory, not the records it claimed.</p></li>
+<li><p>The waveform samples of formats 4, 5, 9 and 10 are not read or written; the per-point wave packet fields are.</p></li>
+<li><p>LAS 1.4 asks a file in formats 6 to 10 to carry its CRS as OGC WKT with the header’s WKT bit set. The writer sets the bit and writes the VLR only when <code class="docutils literal notranslate"><span class="pre">crs_wkt</span></code> is given; a cloud without one goes out in those formats with neither, which a reference implementation reads as it does every file polyxios writes: the test suite checks, when that implementation is installed, that it reads back the coordinates, colours, <code class="docutils literal notranslate"><span class="pre">gps_time</span></code>, extra bytes, WKT and GeoTIFF keys of a written <code class="docutils literal notranslate"><span class="pre">.las</span></code> and <code class="docutils literal notranslate"><span class="pre">.laz</span></code>, and that polyxios reads what it writes.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
+<p><a class="reference internal" href="pcd.html"><span class="doc">PCD (Point Cloud Library)</span></a> - the Point Cloud Library’s own format.
+<a class="reference internal" href="xyz.html"><span class="doc">ASCII point clouds: XYZ, PTS, PTX</span></a> - the ASCII column formats scanners export.
+<a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
 </section>
@@ -657,20 +665,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="xyz.html"
+       href="pcd.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">ASCII point clouds: XYZ, PTS, PTX</p>
+        <p class="prev-next-title">PCD (Point Cloud Library)</p>
       </div>
     </a>
     <a class="right-next"
-       href="permas.html"
+       href="xyz.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">PERMAS</p>
+        <p class="prev-next-title">ASCII point clouds: XYZ, PTS, PTX</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -705,7 +713,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/mdpa.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/las.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=9364ba6c"></script>
+    <script src="_static/documentation_options.js?v=5ed58ef6"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -452,6 +452,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
@@ -577,6 +578,25 @@ organised cloud keeps <code class="docutils literal notranslate"><span class="pr
 picks the body with <code class="docutils literal notranslate"><span class="pre">data_format=</span></code> and <code class="docutils literal notranslate"><span class="pre">F</span> <span class="pre">8</span></code> coordinates with
 <code class="docutils literal notranslate"><span class="pre">double=True</span></code>. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps a binary file: coordinates, normals
 and every field are views of it in the file’s own dtypes.</p></li>
+<li><p>LAS (<code class="docutils literal notranslate"><span class="pre">.las</span></code>), the ASPRS LiDAR exchange format, is read and written in
+versions 1.0 to 1.4 and point formats 0 to 10, and <code class="docutils literal notranslate"><span class="pre">.laz</span></code>, its
+LASzip-compressed twin, through lazrs behind the new <code class="docutils literal notranslate"><span class="pre">laz</span></code> extra. The
+scaled integer coordinates become float64 vertices; <code class="docutils literal notranslate"><span class="pre">intensity</span></code>, the
+return and classification bit fields, the scan angle (<code class="docutils literal notranslate"><span class="pre">scan_angle_rank</span></code>
+in degrees before format 6, <code class="docutils literal notranslate"><span class="pre">scan_angle</span></code> in 0.006-degree steps from
+it), <code class="docutils literal notranslate"><span class="pre">user_data</span></code>, <code class="docutils literal notranslate"><span class="pre">point_source_id</span></code>, <code class="docutils literal notranslate"><span class="pre">gps_time</span></code>, <code class="docutils literal notranslate"><span class="pre">nir</span></code> and the
+wave packet fields are vertex attributes in the file’s own dtypes,
+<code class="docutils literal notranslate"><span class="pre">red</span> <span class="pre">green</span> <span class="pre">blue</span></code> fold into <code class="docutils literal notranslate"><span class="pre">colors</span></code> in 0..1, and extra bytes read by
+the name and type their VLR gives them, scaled and offset when it says
+so. An OGC WKT VLR is <code class="docutils literal notranslate"><span class="pre">crs_wkt</span></code>, the GeoTIFF key VLRs <code class="docutils literal notranslate"><span class="pre">las_geokeys</span></code>,
+every other VLR or EVLR raw in <code class="docutils literal notranslate"><span class="pre">las_vlrs</span></code>; the scale, offset, version,
+point format and header strings are <code class="docutils literal notranslate"><span class="pre">las_*</span></code> globals. Write picks the
+point format from the attributes present or takes <code class="docutils literal notranslate"><span class="pre">point_format=</span></code>,
+the version from the format or <code class="docutils literal notranslate"><span class="pre">version=</span></code>, <code class="docutils literal notranslate"><span class="pre">scale=</span></code> and <code class="docutils literal notranslate"><span class="pre">offset=</span></code>
+from the globals or the cloud, and sends every other numeric attribute
+out as an extra bytes field. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps an uncompressed file:
+the vertices are the int32 the file holds, the colours its <code class="docutils literal notranslate"><span class="pre">uint16</span></code>
+and every field a view of its column.</p></li>
 <li><p>ASCII point clouds (<code class="docutils literal notranslate"><span class="pre">.xyz</span></code>, Leica <code class="docutils literal notranslate"><span class="pre">.pts</span></code> and <code class="docutils literal notranslate"><span class="pre">.ptx</span></code>) are read and
 written. Columns past the coordinates are named by count and kind - an
 intensity, three whole numbers in 0..255 as <code class="docutils literal notranslate"><span class="pre">colors</span></code>, three others as

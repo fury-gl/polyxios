@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="Read large mesh files in Python without copying them. polyxios maps a binary VTK, VTU, VTP, XDMF, PLY, PCD, Medit or splat file with lazy=True and hands back arrays that view the file's own bytes." name="description" />
+<meta content="Read large mesh files in Python without copying them. polyxios maps a binary VTK, VTU, VTP, XDMF, PLY, PCD, LAS, Medit or splat file with lazy=True and hands back arrays that view the file's own bytes." name="description" />
 <meta property="og:title" content="Lazy loading" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/lazy_loading.html" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=9364ba6c"></script>
+    <script src="_static/documentation_options.js?v=5ed58ef6"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -452,6 +452,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
@@ -636,31 +637,41 @@ normals come back as three plain fields, split coordinates raise.
 Every other field is a view of its own column. A packed <code class="docutils literal notranslate"><span class="pre">rgb</span></code> is decoded
 into <code class="docutils literal notranslate"><span class="pre">colors</span></code>. <code class="docutils literal notranslate"><span class="pre">ascii</span></code> and <code class="docutils literal notranslate"><span class="pre">binary_compressed</span></code> raise.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.ply</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.las</span></code></p></td>
+<td><p>vertices, every field, extra bytes</p></td>
+<td><p>Uncompressed only. The vertices are the file’s <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> int32,
+to be scaled by <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> and shifted by <code class="docutils literal notranslate"><span class="pre">las_offset</span></code> from
+<code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>; the colours are the <code class="docutils literal notranslate"><span class="pre">uint16</span></code> triples; every
+other field and extra byte a view of its own column. The bit fields
+of the returns and flags bytes are decoded into small arrays, and an
+extra byte carrying a scale or offset is left raw with a warning. A
+<code class="docutils literal notranslate"><span class="pre">.laz</span></code> raises.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.ply</span></code></p></td>
 <td><p>vertices, vertex properties</p></td>
 <td><p>Binary only. Coordinates are one strided view when <code class="docutils literal notranslate"><span class="pre">x</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>,
 <code class="docutils literal notranslate"><span class="pre">z</span></code> sit side by side in one type. A face list is prefixed by its
 count, so faces are decoded.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code></p></td>
 <td><p>vertices</p></td>
 <td><p>Each record is coordinates then a reference, so the coordinates are
 one strided view. Elements number vertices from one and are decoded.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.stl</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.stl</span></code></p></td>
 <td><p>none</p></td>
 <td><p>A 50-byte record cannot be viewed as <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> coordinates. Binary
 STL’s <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> skips vertex deduplication instead, returning
 three vertices per triangle, and copies what it reads.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code> <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> <code class="docutils literal notranslate"><span class="pre">.vts</span></code> <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> <code class="docutils literal notranslate"><span class="pre">.glb</span></code> <code class="docutils literal notranslate"><span class="pre">.obj</span></code> <code class="docutils literal notranslate"><span class="pre">.wkt</span></code>, HDF5
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code> <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> <code class="docutils literal notranslate"><span class="pre">.vts</span></code> <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> <code class="docutils literal notranslate"><span class="pre">.glb</span></code> <code class="docutils literal notranslate"><span class="pre">.obj</span></code> <code class="docutils literal notranslate"><span class="pre">.wkt</span></code>, HDF5
 formats, Exodus</p></td>
 <td><p>none</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>
 naming why: implicit points, a ZIP member, a scene, text, or a
 library that reads the arrays whole.</p></td>
 </tr>
-<tr class="row-odd"><td><p>the text formats</p></td>
+<tr class="row-even"><td><p>the text formats</p></td>
 <td><p>none</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly; a number spelled as text has
 to be parsed before it is a number.</p></td>

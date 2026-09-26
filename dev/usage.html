@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=9364ba6c"></script>
+    <script src="_static/documentation_options.js?v=5ed58ef6"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -452,6 +452,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
@@ -606,8 +607,8 @@ seek is still read, except by the formats that need to measure a file before
 parsing it and by the extensions several formats share, both of which say so
 rather than guess.</p>
 <p>Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - VTU, VTP, XDMF, splat, PCD, binary VTK, PLY
-and Medit, see <a class="reference internal" href="lazy_loading.html"><span class="doc">Lazy loading</span></a> - since <code class="docutils literal notranslate"><span class="pre">mmap</span></code> maps a file descriptor: an
+come back view the file itself - VTU, VTP, XDMF, splat, PCD, LAS, binary VTK,
+PLY and Medit, see <a class="reference internal" href="lazy_loading.html"><span class="doc">Lazy loading</span></a> - since <code class="docutils literal notranslate"><span class="pre">mmap</span></code> maps a file descriptor: an
 <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code> raises <code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> rather than quietly loading eagerly.
 It also needs the handle to stand at the start of that file - a mapping
 addresses a file from byte zero - so a handle part-way into one is refused
@@ -809,7 +810,7 @@ and needs nothing.</p>
 <section id="where-to-go-next">
 <h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the thirty-eight supported formats, one page each</p></li>
+<li><p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the forty-one supported formats, one page each</p></li>
 <li><p><a class="reference internal" href="lazy_loading.html"><span class="doc">Lazy loading</span></a> - reading files larger than RAM</p></li>
 <li><p><a class="reference internal" href="transforms.html"><span class="doc">Transforms</span></a> - filtering, cleaning and merging meshes</p></li>
 <li><p><a class="reference internal" href="cli.html"><span class="doc">Command line interface (pxios)</span></a> - the <code class="docutils literal notranslate"><span class="pre">pxios</span></code> command line</p></li>

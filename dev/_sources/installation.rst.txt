@@ -53,3 +53,7 @@ Optional:
 - netCDF4 >= 1.6, for :doc:`Exodus II <formats/exodus>` files -
   ``pip install "polyxios[netcdf]"``. Without it the format raises
   :class:`~polyxios.exceptions.UnsupportedFormatError` naming the extra.
+- lazrs >= 0.5, for LAZ-compressed :doc:`LAS <formats/las>` files -
+  ``pip install "polyxios[laz]"``. A plain ``.las`` needs nothing; a
+  compressed one raises :class:`~polyxios.exceptions.MissingPackageError`
+  naming the extra.

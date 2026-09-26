@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 40 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 41 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, LAS, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-eight - and raises instead of quietly corrupting
+        writes all forty-one - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>40</b><span>formats</span></div>
+        <div><b>41</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -134,6 +134,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: all</span></a>
       <a class="px-tr" href="formats/pcd.html"><span>PCD (Point Cloud Library)</span><span class="px-ext">.pcd</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/las.html"><span>LAS / LAZ (LiDAR)</span><span class="px-ext">.las .laz</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: .las</span></a>
       <a class="px-tr" href="formats/xyz.html"><span>ASCII point cloud</span><span class="px-ext">.xyz .pts .ptx</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -145,7 +146,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
-      <p class="px-tfoot">} // 40 codecs, the 51 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <p class="px-tfoot">} // 41 codecs, the 53 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -226,7 +227,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a forty-first format.
+    <p class="px-sub">Any third-party package can teach polyxios a forty-second format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -302,6 +303,11 @@ netCDF4 >= 1.6, for Exodus II files -
 pip install "polyxios[netcdf]". Without it the format raises
 UnsupportedFormatError naming the extra.
 
+lazrs >= 0.5, for LAZ-compressed LAS files -
+pip install "polyxios[laz]". A plain .las needs nothing; a
+compressed one raises MissingPackageError
+naming the extra.
+
 ## Usage
 
 Source: https://polyxios.org/stable/usage.html
@@ -356,8 +362,8 @@ parsing it and by the extensions several formats share, both of which say so
 rather than guess.
 
 Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - VTU, VTP, XDMF, splat, PCD, binary VTK, PLY
-and Medit, see lazy_loading - since mmap maps a file descriptor: an
+come back view the file itself - VTU, VTP, XDMF, splat, PCD, LAS, binary VTK,
+PLY and Medit, see lazy_loading - since mmap maps a file descriptor: an
 io.BytesIO raises LazyReadError rather than quietly loading eagerly.
 It also needs the handle to stand at the start of that file - a mapping
 addresses a file from byte zero - so a handle part-way into one is refused
@@ -574,7 +580,7 @@ and needs nothing.
 
 Where to go next
 
-formats/index - the thirty-eight supported formats, one page each
+formats/index - the forty-one supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -590,7 +596,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships forty codecs across fifty-two extensions - the fifty-one
+polyxios ships forty-one codecs across fifty-four extensions - the fifty-three
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -599,7 +605,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The thirty-eight format cards, pulled into formats/index.rst by a raw:: html
+  The forty-one format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -895,6 +901,16 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="pcd.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://pointclouds.org/documentation/tutorials/pcd_file_format.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">LAS / LAZ <span class="px-fmtext">.las .laz</span></p>
+    <p class="px-fmtdesc">The LiDAR exchange format: scaled integer coordinates,
+      point formats 0 to 10, extra bytes, a CRS in WKT or GeoTIFF keys, LAZ compression.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="las.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://www.asprs.org/divisions-committees/lidar-division/laser-las-file-format-exchange-activities">full spec &#8599;</a>
     </p>
   </div>
 
@@ -3690,6 +3706,109 @@ POINTS is checked against the file size before anything is allocated; a header p
 xyz - the ASCII column formats scanners export.
 index - the full format table.
 
+## LAS / LAZ (ASPRS LiDAR)
+
+Source: https://polyxios.org/stable/formats/las.html
+
+LAS / LAZ (ASPRS LiDAR)
+
+.las .laz read + write lazy: .las
+
+Summary of the specification
+
+LAS is the ASPRS exchange format for LiDAR point clouds and the one every airborne, mobile and terrestrial scanning pipeline can produce or consume; LAZ is the same file with its point records compressed by LASzip. A 227-byte public header (235 in 1.3, 375 in 1.4) names the version, the point data record format, the record length, the point count, the X Y Z scale factors and offsets that turn the stored int32 coordinates into coordinates, and a bounding box. Variable length records (VLRs) follow it: the coordinate reference system as GeoTIFF keys or, from 1.4, OGC WKT; an “extra bytes” descriptor naming the fields a writer appended to each record; the LASzip parameters of a .laz. Then the point records, one fixed-size struct each, in one of eleven formats: 0 to 5 with 3-bit return counts and a 5-bit classification, 6 to 10 with 4 bits and a full byte, gps_time, red green blue, nir and a wave packet added by format. LAS 1.4 puts extended VLRs after the points.
+
+Specification at a glance
+
+
+
+
+
+header
+
+LASF, version 1.0-1.4, point format 0-10, record length, point count (64-bit in 1.4), scale and offset per axis, bounding box
+
+coordinates
+
+int32 X Y Z; x = X * scale + offset
+
+point formats
+
+0 base · 1 +gps · 2 +rgb · 3 +gps+rgb · 4 +gps+wave · 5 +gps+rgb+wave · 6 new base +gps · 7 +rgb · 8 +rgb+nir · 9 +wave · 10 +rgb+nir+wave
+
+extra bytes
+
+bytes past the format’s record, described by the LASF_Spec / 4 VLR: name, type, scale, offset
+
+CRS
+
+LASF_Projection VLRs 34735/34736/34737 (GeoTIFF keys) or 2112 (OGC WKT)
+
+compression
+
+.laz: point format bit 7 set, a laszip encoded VLR, LASzip chunks
+
+connectivity
+
+none
+
+Full specification ↗
+
+Reading
+
+import polyxios as px
+
+cloud = px.read("tile.las")                  # or tile.laz, with polyxios[laz]
+cloud.vertices                               # (n, 3) float64, scaled and offset
+cloud.vertex_attrs["intensity"]              # uint16, as the file holds it
+cloud.vertex_attrs["classification"]         # uint8
+cloud.vertex_attrs["return_number"]          # uint8, from the packed bits
+cloud.vertex_attrs["gps_time"]               # float64, formats 1, 3-10
+cloud.vertex_attrs["colors"]                 # (n, 3) floats in 0..1, formats 2, 3, 5, 7, 8, 10
+cloud.global_attrs["las_scale"]              # (3,) with las_offset, las_version, las_point_format
+cloud.global_attrs.get("crs_wkt")            # from an OGC WKT VLR
+cloud.global_attrs.get("las_geokeys")        # {key id: value} from the GeoTIFF VLRs
+
+The stored X Y Z become the vertices through the header’s scale and offset. Every field of the point record is a vertex attribute in the file’s own dtype: intensity, user_data, point_source_id, gps_time, nir, and each bit of the packed bytes as a uint8 of its own - return_number, number_of_returns, scan_direction_flag, edge_of_flight_line, classification, synthetic, key_point, withheld, plus overlap and scanner_channel from format 6. The scan angle keeps the format’s spelling: scan_angle_rank in whole degrees (int8) in formats 0 to 5, scan_angle in 0.006-degree steps (int16) from 6. red green blue fold into colors as floats in 0..1 over the 16-bit range. The wave packet of formats 4, 5, 9 and 10 reads as wavepacket_index, wavepacket_offset, wavepacket_size, return_point_wave_location, x_t, y_t and z_t; the waveform samples themselves, in an EVLR or a .wdp sidecar, are not read.
+
+Extra bytes described by their VLR are attributes of their own name and dtype, two- or three-wide when the descriptor says so, scaled and offset when it says so; bytes past the format’s record that no descriptor names are one extra_bytes block of uint8. A descriptor whose name is already taken is read with a number appended, with a warning; one with a blank name is read as extra_<i>, i its position among the described fields.
+
+global_attrs carries las_version ("1.2"), las_point_format, las_scale and las_offset, the las_system_identifier and las_generating_software strings when set, las_file_source_id, las_global_encoding and las_creation_date ((year, day of year)) when nonzero; an OGC WKT VLR as crs_wkt, the GeoTIFF key directory resolved through its doubles and ASCII twins as las_geokeys; and every other VLR or EVLR, raw, in las_vlrs as {"user_id", "record_id", "description", "data"}.
+
+Writing
+
+px.write(cloud, "out.las")                                   # format from the attributes present
+px.write(cloud, "out.laz")                                   # LASzip, needs polyxios[laz]
+px.write(cloud, "out.las", point_format=6, version="1.4")
+px.write(cloud, "out.las", scale=0.01, offset=(400000.0, 5000000.0, 0.0))
+px.write(px.read("tile.las", lazy=True), "copy.las")          # stored ints pass through, lossless
+
+The point format is las_point_format from global_attrs when there is one, else the smallest that holds the attributes present: gps_time asks for 1, colors for 2, both for 3, a wave packet for 4 or 5, and nir, scan_angle, overlap or scanner_channel for 6 to 10; point_format= overrides it, and an attribute the chosen format has no field for is dropped with a warning. The version is las_version raised to what the format and the count need, else the lowest they allow (1.2, 1.3 for a wave packet, 1.4 from format 6 or past 232 points); version= overrides it, 1.0 and 1.1 are written only when it asks for them, and a format the given version predates is refused. The scale is las_scale or 0.001 per axis, the offset las_offset or zero when every coordinate then fits an int32 and the rounded lower corner of the bounding box when not; a coordinate that still does not fit, or a NaN, is refused. Vertices of an integer dtype whose global_attrs carry both las_scale and las_offset - what a lazy read hands back - are the stored X Y Z themselves: they go out untouched at that scale and offset, so a lazily read file is written back bit for bit, and are rescaled through int * las_scale + las_offset when scale= or offset= asks for another.
+
+Every standard attribute goes back into its field, return_number and number_of_returns defaulting to 1 and the rest to 0, a float rounded to the nearest integer; a value its field cannot hold - an intensity past 65535, a return_number of 8 in formats 0 to 5, a classification above 31 there - is refused, as is an attribute that is not one row per vertex. A scan_angle_rank written into a format from 6 on, or a scan_angle into one before, is converted between degrees and 0.006-degree steps. colors as floats in 0..1 scale to 16 bits, as uint16 are written as they are, and as any other integer count 0..255 spread over the 16. Every other numeric vertex attribute of one to three columns and a name of 1 to 32 printable ASCII bytes (trailing whitespace stripped, as a reader strips it) goes out as an extra bytes field of its own name and dtype, with the descriptor VLR to match, and an extra_bytes block of uint8 columns goes back undescribed; one that does not fit, or is named like a raw dimension (X, red, flags, …), is dropped with a warning. crs_wkt writes the OGC WKT VLR and sets the header’s WKT bit, which is cleared when there is no crs_wkt; las_geokeys writes the three GeoTIFF VLRs, a key or value it cannot spell dropped with a warning, and las_vlrs its entries as they are - one over 65535 bytes as an EVLR in 1.4, dropped with a warning before, as is one the writer builds itself. The generating software defaults to polyxios, and it and the system identifier are cut to their 32 ASCII bytes, or at a NUL, with a warning; the creation date is left blank unless las_creation_date is given.
+
+A destination named .laz is compressed and any other is not; compress= overrides the name, and a nameless buffer is written plain unless it is passed.
+
+Quirks worth knowing
+
+Elements are not part of the format: a mesh’s faces are dropped with a warning, and every file reads back with no elements at all.
+
+Which of .las and .laz a file is comes from its header, not its name: a compressed file under either name is decompressed, needing lazrs (pip install "polyxios[laz]"), and a plain one under .laz reads as it is. A .laz cannot be read lazily.
+
+Coordinates are quantised on write: at the default scale of 0.001 a coordinate keeps a millimetre. Pass scale= for finer, or read back las_scale from a file to write it at its own.
+
+lazy=True maps an uncompressed file and hands back views of it, read-only and in the file’s own dtypes: the vertices are the (n, 3) int32 the file stores, for you to scale by las_scale and shift by las_offset, colors the uint16 triples, every other field and extra byte a view of its column. The bit fields are decoded into small arrays of their own, and an extra byte carrying a scale or offset is left raw with a warning naming it.
+
+Every header field the reader relies on is checked before anything is allocated: the signature, version and point format, a header shorter than its version needs, an offset to point data inside the VLRs, a record shorter than its format, a count of points past the end of the file or, in a .laz, past what its chunk table can hold, an extra bytes VLR describing more bytes than the record holds, an EVLR placed outside the file. A .laz is then expanded one chunk at a time, so a count the chunk table allows but the stream does not hold is refused having cost one chunk of memory, not the records it claimed.
+
+The waveform samples of formats 4, 5, 9 and 10 are not read or written; the per-point wave packet fields are.
+
+LAS 1.4 asks a file in formats 6 to 10 to carry its CRS as OGC WKT with the header’s WKT bit set. The writer sets the bit and writes the VLR only when crs_wkt is given; a cloud without one goes out in those formats with neither, which a reference implementation reads as it does every file polyxios writes: the test suite checks, when that implementation is installed, that it reads back the coordinates, colours, gps_time, extra bytes, WKT and GeoTIFF keys of a written .las and .laz, and that polyxios reads what it writes.
+
+pcd - the Point Cloud Library’s own format.
+xyz - the ASCII column formats scanners export.
+index - the full format table.
+
 ## ASCII point clouds: XYZ, PTS, PTX
 
 Source: https://polyxios.org/stable/formats/xyz.html
@@ -4722,6 +4841,18 @@ each when their three fields sit side by side in one type; split
 normals come back as three plain fields, split coordinates raise.
 Every other field is a view of its own column. A packed rgb is decoded
 into colors. ascii and binary_compressed raise.
+
+.las
+
+vertices, every field, extra bytes
+
+Uncompressed only. The vertices are the file’s (n, 3) int32,
+to be scaled by las_scale and shifted by las_offset from
+global_attrs; the colours are the uint16 triples; every
+other field and extra byte a view of its own column. The bit fields
+of the returns and flags bytes are decoded into small arrays, and an
+extra byte carrying a scale or offset is left raw with a warning. A
+.laz raises.
 
 .ply
 
@@ -6458,6 +6589,26 @@ picks the body with data_format= and F 8 coordinates with
 double=True. lazy=True maps a binary file: coordinates, normals
 and every field are views of it in the file’s own dtypes.
 
+LAS (.las), the ASPRS LiDAR exchange format, is read and written in
+versions 1.0 to 1.4 and point formats 0 to 10, and .laz, its
+LASzip-compressed twin, through lazrs behind the new laz extra. The
+scaled integer coordinates become float64 vertices; intensity, the
+return and classification bit fields, the scan angle (scan_angle_rank
+in degrees before format 6, scan_angle in 0.006-degree steps from
+it), user_data, point_source_id, gps_time, nir and the
+wave packet fields are vertex attributes in the file’s own dtypes,
+red green blue fold into colors in 0..1, and extra bytes read by
+the name and type their VLR gives them, scaled and offset when it says
+so. An OGC WKT VLR is crs_wkt, the GeoTIFF key VLRs las_geokeys,
+every other VLR or EVLR raw in las_vlrs; the scale, offset, version,
+point format and header strings are las_* globals. Write picks the
+point format from the attributes present or takes point_format=,
+the version from the format or version=, scale= and offset=
+from the globals or the cloud, and sends every other numeric attribute
+out as an extra bytes field. lazy=True maps an uncompressed file:
+the vertices are the int32 the file holds, the colours its uint16
+and every field a view of its column.
+
 ASCII point clouds (.xyz, Leica .pts and .ptx) are read and
 written. Columns past the coordinates are named by count and kind - an
 intensity, three whole numbers in 0..255 as colors, three others as
@@ -6765,7 +6916,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:324: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:343: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -6836,7 +6987,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:388: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:407: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -7074,7 +7225,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:612: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:631: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -7112,7 +7263,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:648: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:667: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -8077,7 +8228,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1508: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1527: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -8161,7 +8312,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1576: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1595: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -8209,7 +8360,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1607: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1626: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -8224,7 +8375,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1619: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1638: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -8330,7 +8481,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1692: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1711: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
