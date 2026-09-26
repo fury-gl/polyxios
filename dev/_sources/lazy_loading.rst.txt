@@ -2,7 +2,7 @@ Lazy loading
 ============
 
 .. meta::
-   :description: Read large mesh files in Python without copying them. polyxios maps a binary VTK, VTU, VTP, XDMF, PLY, Medit or splat file with lazy=True and hands back arrays that view the file's own bytes.
+   :description: Read large mesh files in Python without copying them. polyxios maps a binary VTK, VTU, VTP, XDMF, PLY, PCD, Medit or splat file with lazy=True and hands back arrays that view the file's own bytes.
 
 
 For a large binary mesh, pass ``lazy=True``. polyxios maps the file and,
@@ -71,6 +71,13 @@ Which formats
      - everything
      - 32-byte records: float32 positions and every attribute are strided
        views. Nothing is decoded.
+   * - ``.pcd``
+     - vertices, every field
+     - ``DATA binary`` only. Coordinates and normals are one strided view
+       each when their three fields sit side by side in one type; split
+       normals come back as three plain fields, split coordinates raise.
+       Every other field is a view of its own column. A packed ``rgb`` is decoded
+       into ``colors``. ``ascii`` and ``binary_compressed`` raise.
    * - ``.ply``
      - vertices, vertex properties
      - Binary only. Coordinates are one strided view when ``x``, ``y``,

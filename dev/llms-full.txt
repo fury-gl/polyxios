@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 38 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 40 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>38</b><span>formats</span></div>
+        <div><b>40</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -133,6 +133,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/netgen.html"><span>Netgen</span><span class="px-ext">.vol</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: all</span></a>
+      <a class="px-tr" href="formats/pcd.html"><span>PCD (Point Cloud Library)</span><span class="px-ext">.pcd</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/xyz.html"><span>ASCII point cloud</span><span class="px-ext">.xyz .pts .ptx</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/fluent.html"><span>ANSYS Fluent</span><span class="px-ext">.msh* .fluent</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -143,7 +145,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
-      <p class="px-tfoot">} // 38 codecs, the 47 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <p class="px-tfoot">} // 40 codecs, the 51 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -224,7 +226,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a thirty-ninth format.
+    <p class="px-sub">Any third-party package can teach polyxios a forty-first format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -354,8 +356,8 @@ parsing it and by the extensions several formats share, both of which say so
 rather than guess.
 
 Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - VTU, VTP, XDMF, splat, binary VTK, PLY and
-Medit, see lazy_loading - since mmap maps a file descriptor: an
+come back view the file itself - VTU, VTP, XDMF, splat, PCD, binary VTK, PLY
+and Medit, see lazy_loading - since mmap maps a file descriptor: an
 io.BytesIO raises LazyReadError rather than quietly loading eagerly.
 It also needs the handle to stand at the start of that file - a mapping
 addresses a file from byte zero - so a handle part-way into one is refused
@@ -588,7 +590,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven
+polyxios ships forty codecs across fifty-two extensions - the fifty-one
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -883,6 +885,25 @@ deviates from it, and links to the authoritative document.
     <p class="px-fmtlinks">
       <a class="px-fmtread" href="splat.html">read() &#8594;</a>
       <a class="px-fmtspec" href="https://github.com/antimatter15/splat">reference &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">PCD <span class="px-fmtext">.pcd</span></p>
+    <p class="px-fmtdesc">The Point Cloud Library's format: typed fields per point,
+      ascii, binary or LZF-packed bodies, organised clouds, a sensor viewpoint.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="pcd.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://pointclouds.org/documentation/tutorials/pcd_file_format.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">ASCII point cloud <span class="px-fmtext">.xyz .pts .ptx</span></p>
+    <p class="px-fmtdesc">Columns of numbers: coordinates, intensity, colour, normal.
+      Leica's counted <code>.pts</code> and per-scan <code>.ptx</code> with its pose.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="xyz.html">read() &#8594;</a>
     </p>
   </div>
 
@@ -3584,6 +3605,173 @@ lazy=True maps the file and hands back views of it: the file is a run of 32-byte
 
 index - the full format table.
 
+## PCD (Point Cloud Library)
+
+Source: https://polyxios.org/stable/formats/pcd.html
+
+PCD (Point Cloud Library)
+
+.pcd read + write lazy: binary
+
+Summary of the specification
+
+PCD is the Point Cloud Library’s own file format and, through PCL, ROS and Open3D, the one most robotics and scanning pipelines exchange clouds in. A short ASCII header names the fields of one point record - FIELDS, their SIZE in bytes, TYPE (I signed, U unsigned, F float) and COUNT of components - and the cloud’s WIDTH and HEIGHT, which are a grid for an organised cloud from a depth camera and n by 1 otherwise. VIEWPOINT is the sensor pose as a translation and a quaternion. DATA picks the body: ascii rows, binary records, or binary_compressed, where the fields are laid out one after another and packed with LZF. There is no connectivity of any kind.
+
+Specification at a glance
+
+
+
+
+
+header
+
+VERSION 0.7, FIELDS, SIZE, TYPE, COUNT, WIDTH, HEIGHT, VIEWPOINT, POINTS, DATA
+
+field types
+
+I 1/2/4/8, U 1/2/4/8, F 4/8; COUNT above one is a per-point vector
+
+bodies
+
+ascii one point per line; binary little-endian records; binary_compressed two uint32 sizes then an LZF block of the fields laid out field by field
+
+colour
+
+one rgb field packed 0x00RRGGBB in a float’s bits (rgba in a U 4)
+
+padding
+
+a field named _ holds bytes nothing names
+
+connectivity
+
+none
+
+Full specification ↗
+
+Reading
+
+import polyxios as px
+
+cloud = px.read("scan.pcd")
+cloud.vertices                     # (n, 3) float64, NaN points kept
+cloud.vertex_attrs["colors"]       # (n, 3) floats in 0..1, from a packed rgb
+cloud.vertex_attrs["normals"]      # (n, 3), from normal_x normal_y normal_z
+cloud.vertex_attrs["intensity"]    # every other field under its own name
+cloud.global_attrs.get("pcd_width")  # with pcd_height, for an organised cloud
+
+x, y and z are the vertices. normal_x/y/z fold into normals and a packed rgb or rgba - one scalar of four bytes - into colors; every other field, an rgb of any other width included, is a vertex attribute of its own name and dtype, two-dimensional when its COUNT is above one. In an ascii body an integer field’s nan reads as 0, as PCL reads it, and a fraction float64 can see is refused; a name FIELDS spells twice is read with its position appended, with a warning. A HEIGHT above one keeps pcd_width and pcd_height in global_attrs, a VIEWPOINT other than the identity pcd_viewpoint. Padding fields are skipped.
+
+Writing
+
+px.write(cloud, "out.pcd")                                    # DATA binary
+px.write(cloud, "out.pcd", data_format="binary_compressed")   # LZF, the way PCL packs it
+px.write(cloud, "out.pcd", data_format="ascii", float_fmt=".8g")
+px.write(cloud, "out.pcd", double=True)                       # F 8 coordinates
+
+The vertices go out as x y z, vertex_attrs["normals"] as normal_x normal_y normal_z, vertex_attrs["colors"] (three or four wide; floats in 0..1, or integers already in 0..255) as one packed rgb or rgba, and every other numeric vertex attribute as a field of its own name at its own dtype, a two-dimensional one with its width as COUNT (so a single column reads back one-dimensional). An attribute whose name a folded field already took - rgb, normal_x - is dropped with a warning, as is one whose name is not a bare ASCII token or is the padding name _. pcd_width and pcd_height in global_attrs write an organised cloud when they are whole numbers whose product is the point count, pcd_viewpoint the VIEWPOINT line. Coordinates and normals are F 4 unless double=True, which in an ascii body also spells every float at .17g rather than .10g unless float_fmt is given. A one-column rgb or rgba attribute of four bytes, which every reader would take for a packed colour, is written as eight with a warning so it reads back as its values.
+
+Quirks worth knowing
+
+Elements are not part of the format: a mesh’s faces are dropped with a warning, and every file reads back with no elements at all.
+
+PCL spells a packed rgb in an ascii body as the integer’s decimal value (unsigned today, signed in older releases) and in a binary one as the bits of a float; PCL before 1.8 and a few other writers spell that float itself in ascii (4.2108e+06 in the PCL tutorial cloud). polyxios reads a bare integer token as the decimal value and any other spelling as the float whose bits are the colour, and writes PCL’s, so a colour survives every layout.
+
+binary_compressed needs LZF, which polyxios ships: a compiled module with a pure-Python twin behind it, so the layout reads without any dependency and at full speed on a built wheel.
+
+A vertex attribute that is not numeric, or is more than two-dimensional, has no PCD type and is dropped with a warning naming it. No other global_attrs entry has a line in the header.
+
+F 4 is float32: a coordinate past about 3.4e38 becomes inf - in a binary or binary_compressed body on write, in an ascii body (which spells the source value) on read - with numpy’s overflow RuntimeWarning as the only notice. double=True keeps it.
+
+lazy=True maps a DATA binary file and hands back views of it, read-only and in the file’s own dtypes: the coordinates are one strided view when x, y, z sit side by side in one type (a file where they are not raises), the normals likewise when they are and three plain attributes when not, every other field a view of its own column. A packed colour is decoded into colors either way. An ascii or binary_compressed file raises LazyReadError, as does an in-memory buffer.
+
+POINTS is checked against the file size before anything is allocated; a header promising more points than the file holds is refused with the number it named. A binary_compressed block claiming to expand more than 88-fold, past what LZF can spell, is refused before the expansion is allocated.
+
+xyz - the ASCII column formats scanners export.
+index - the full format table.
+
+## ASCII point clouds: XYZ, PTS, PTX
+
+Source: https://polyxios.org/stable/formats/xyz.html
+
+ASCII point clouds: XYZ, PTS, PTX
+
+.xyz .pts .ptx read + write lazy: no
+
+Summary of the specification
+
+The plainest point-cloud files are columns of numbers, one point per line, and nearly every scanner, photogrammetry package and GIS tool exports one. .xyz has no header at all: three coordinates, then whatever the exporter added - an intensity, a colour as three integers in 0..255, a normal. Leica’s .pts is the same with the point count on a first line and x y z intensity r g b rows, the intensity in -2048..2047. Leica’s .ptx holds one or more scans, each a ten-line header - the grid’s columns and rows, the scanner position and axes, and a 4 x 4 transform in row-vector convention - followed by rows x cols points of x y z intensity or x y z intensity r g b, the intensity in 0..1, with 0 0 0 0.5 marking a grid cell the scanner did not hit.
+
+Specification at a glance
+
+
+
+
+
+.xyz
+
+x y z [i] [r g b | nx ny nz] [nx ny nz] per line; # and // comments; an optional column-label line
+
+.pts
+
+point count on the first line, then x y z i r g b (or any .xyz row)
+
+.ptx
+
+per scan: cols, rows, position, three axes, four rows of a 4 x 4 transform, then rows x cols lines of x y z i [r g b]
+
+separators
+
+whitespace; tabs count, commas do not
+
+connectivity
+
+none
+
+PTX reference ↗
+
+Reading
+
+import polyxios as px
+
+cloud = px.read("scan.xyz")
+cloud.vertices                    # (n, 3)
+cloud.vertex_attrs["intensity"]   # when a fourth column is there
+cloud.vertex_attrs["colors"]      # (n, 3) floats in 0..1, from integers in 0..255
+cloud.vertex_attrs["normals"]     # (n, 3), from three columns that are not colours
+
+station = px.read("station.ptx")
+station.vertex_tags               # scan_0, scan_1, ... when the file holds several
+station.global_attrs["ptx_transforms"]   # (scans, 4, 4), already applied
+
+The layout is told from the content, not the extension: a first line of one integer is a count, a .ptx scan header has a fixed shape, and everything else is bare columns. Columns past the coordinates are named by count and kind: with 1, 4 or 7 of them the first is intensity; three (left) are colors when they are whole numbers in 0..255 with at least one above 1 and normals otherwise; six are colors and normals in whichever order the colour test tells, or one six-wide extra when neither half is a colour; any other width (2, 5, 8 or more) is kept whole as extra, intensity and all. A .ptx file’s scans are transformed by their own matrices into one frame, the invalid points dropped with a warning, each scan tagged when there are several, and the matrices and grid sizes kept in global_attrs as ptx_transforms ((scans, 4, 4)) and ptx_dimensions ((scans, 2), a (rows, cols) pair per scan - the reverse of the header’s cols then rows lines).
+
+Writing
+
+px.write(cloud, "out.xyz")                     # columns as the mesh has them
+px.write(cloud, "out.pts")                     # count line first
+px.write(cloud, "out.ptx")                     # one scan, identity pose
+px.write(cloud, buffer, fmt=".xyz", variant="pts", float_fmt=".6f")
+
+The columns are x y z, then intensity when vertex_attrs holds it, then colors as three integers in 0..255 (from floats in 0..1, or integers already in that range), then normals. .pts prefixes the count, .ptx writes one scan of all the points in a single row with the identity transform and an intensity of 1 where the mesh has none, and no normals. A nameless buffer, or a name with any other suffix, writes xyz columns unless variant= says otherwise.
+
+Quirks worth knowing
+
+Six columns are ambiguous by design - x y z r g b or x y z nx ny nz - and are told apart by whether the last three are whole numbers in 0..255. Columns of nothing but 0 and 1 go to the normal, since a flat scan spells 0 0 1 on every point and a colour that dark is all but black; a normal such as 0 0 255 still reads as a colour. Write it through a format with a header if that matters.
+
+Any vertex attribute other than intensity, colors and normals has no column and is dropped with a warning naming it; no global_attrs entry has a line in any of the three layouts.
+
+Elements are not part of the format: a mesh’s faces are dropped with a warning, and every file reads back with no elements at all.
+
+A .ptx point at exactly the origin with an intensity of exactly 0.5 is the format’s invalid marker and is dropped on read, so it cannot be written and read back.
+
+A UTF-8 byte order mark before the first row is skipped. A row that starts with a number is data whatever follows it, so a trailing comment on a row is refused rather than the row taken for a column header.
+
+lazy=True raises LazyReadError: a number spelled as text has to be parsed before it is a number. The body is handed to numpy in one pass, and only split into lines when a comment mark is in it, so a file without one is never held twice.
+
+pcd - the binary point-cloud format PCL, ROS and Open3D exchange.
+index - the full format table.
+
 ## Kratos MDPA
 
 Source: https://polyxios.org/stable/formats/mdpa.html
@@ -4524,6 +4712,16 @@ everything
 
 32-byte records: float32 positions and every attribute are strided
 views. Nothing is decoded.
+
+.pcd
+
+vertices, every field
+
+DATA binary only. Coordinates and normals are one strided view
+each when their three fields sit side by side in one type; split
+normals come back as three plain fields, split coordinates raise.
+Every other field is a view of its own column. A packed rgb is decoded
+into colors. ascii and binary_compressed raise.
 
 .ply
 
@@ -6245,6 +6443,32 @@ Changelog
 
 New features
 
+PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and
+Open3D exchange clouds in, is read and written in all three of its
+bodies: ascii, binary and binary_compressed, the last packed
+with LZF, which polyxios now ships as a compiled module with a
+pure-Python twin behind it. x y z are the vertices, normal_x/y/z
+fold into normals, a packed rgb or rgba into colors in
+0..1 (in the integer spelling an ascii body uses and the float-bits one
+a binary body does), and every other field is a vertex attribute of its
+own name and dtype, a vector when its COUNT is above one. An
+organised cloud keeps pcd_width and pcd_height, a sensor pose
+pcd_viewpoint; padding fields are skipped and NaN points kept. Write
+picks the body with data_format= and F 8 coordinates with
+double=True. lazy=True maps a binary file: coordinates, normals
+and every field are views of it in the file’s own dtypes.
+
+ASCII point clouds (.xyz, Leica .pts and .ptx) are read and
+written. Columns past the coordinates are named by count and kind - an
+intensity, three whole numbers in 0..255 as colors, three others as
+normals, anything else kept whole as extra - with comment lines
+and a column-label line skipped and the body parsed by numpy in one
+pass. .pts honours and checks its count line. .ptx reads every
+scan, applies each one’s transform, drops the 0 0 0 0.5 invalid
+cells with a warning, tags the scans in vertex_tags when there are
+several and keeps the matrices and grid sizes in global_attrs. A
+nameless buffer takes variant= to say which of the three to write.
+
 read(..., lazy=True) hands back arrays that view the file’s own
 mapping, read-only and in the dtype and byte order the file holds, for
 every array a format stores as one run of bytes in the shape the mesh
@@ -6541,7 +6765,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:300: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:324: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -6612,7 +6836,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:364: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:388: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -6850,7 +7074,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:588: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:612: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -6888,7 +7112,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:624: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:648: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -7853,7 +8077,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1484: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1508: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -7937,7 +8161,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1552: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1576: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -7985,7 +8209,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1583: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1607: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -8000,7 +8224,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1595: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1619: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -8106,7 +8330,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1668: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1692: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.5.0 (upcoming): New features: read(..., lazy=True) hands back arrays that view the file’s own mapping, read-only and in the dtype and byte order the file holds, for every array a format stores as..." />
+<meta property="og:description" content="0.5.0 (upcoming): New features: PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and Open3D exchange clouds in, is read and written in all three of its bodies: ascii, binary and binary_co..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_f8c6e212.png" />
-<meta property="og:image:alt" content="0.5.0 (upcoming): New features: read(..., lazy=True) hands back arrays that view the file’s own mapping, read-only and in the dtype and byte order the file holds, for every array a format stores as..." />
-<meta name="description" content="0.5.0 (upcoming): New features: read(..., lazy=True) hands back arrays that view the file’s own mapping, read-only and in the dtype and byte order the file holds, for every array a format stores as..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_269672b5.png" />
+<meta property="og:image:alt" content="0.5.0 (upcoming): New features: PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and Open3D exchange clouds in, is read and written in all three of its bodies: ascii, binary and binary_co..." />
+<meta name="description" content="0.5.0 (upcoming): New features: PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and Open3D exchange clouds in, is read and written in all three of its bodies: ascii, binary and binary_co..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=69c3cc0a"></script>
+    <script src="_static/documentation_options.js?v=9364ba6c"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-25"/>
+    <meta name="docbuild:last-update" content="2026-09-26"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -451,6 +451,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
@@ -561,6 +563,30 @@
 <section id="new-features">
 <h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>PCD (<code class="docutils literal notranslate"><span class="pre">.pcd</span></code>), the Point Cloud Library’s format that PCL, ROS and
+Open3D exchange clouds in, is read and written in all three of its
+bodies: <code class="docutils literal notranslate"><span class="pre">ascii</span></code>, <code class="docutils literal notranslate"><span class="pre">binary</span></code> and <code class="docutils literal notranslate"><span class="pre">binary_compressed</span></code>, the last packed
+with LZF, which polyxios now ships as a compiled module with a
+pure-Python twin behind it. <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span></code> are the vertices, <code class="docutils literal notranslate"><span class="pre">normal_x/y/z</span></code>
+fold into <code class="docutils literal notranslate"><span class="pre">normals</span></code>, a packed <code class="docutils literal notranslate"><span class="pre">rgb</span></code> or <code class="docutils literal notranslate"><span class="pre">rgba</span></code> into <code class="docutils literal notranslate"><span class="pre">colors</span></code> in
+0..1 (in the integer spelling an ascii body uses and the float-bits one
+a binary body does), and every other field is a vertex attribute of its
+own name and dtype, a vector when its <code class="docutils literal notranslate"><span class="pre">COUNT</span></code> is above one. An
+organised cloud keeps <code class="docutils literal notranslate"><span class="pre">pcd_width</span></code> and <code class="docutils literal notranslate"><span class="pre">pcd_height</span></code>, a sensor pose
+<code class="docutils literal notranslate"><span class="pre">pcd_viewpoint</span></code>; padding fields are skipped and NaN points kept. Write
+picks the body with <code class="docutils literal notranslate"><span class="pre">data_format=</span></code> and <code class="docutils literal notranslate"><span class="pre">F</span> <span class="pre">8</span></code> coordinates with
+<code class="docutils literal notranslate"><span class="pre">double=True</span></code>. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps a binary file: coordinates, normals
+and every field are views of it in the file’s own dtypes.</p></li>
+<li><p>ASCII point clouds (<code class="docutils literal notranslate"><span class="pre">.xyz</span></code>, Leica <code class="docutils literal notranslate"><span class="pre">.pts</span></code> and <code class="docutils literal notranslate"><span class="pre">.ptx</span></code>) are read and
+written. Columns past the coordinates are named by count and kind - an
+intensity, three whole numbers in 0..255 as <code class="docutils literal notranslate"><span class="pre">colors</span></code>, three others as
+<code class="docutils literal notranslate"><span class="pre">normals</span></code>, anything else kept whole as <code class="docutils literal notranslate"><span class="pre">extra</span></code> - with comment lines
+and a column-label line skipped and the body parsed by numpy in one
+pass. <code class="docutils literal notranslate"><span class="pre">.pts</span></code> honours and checks its count line. <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> reads every
+scan, applies each one’s transform, drops the <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0.5</span></code> invalid
+cells with a warning, tags the scans in <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> when there are
+several and keeps the matrices and grid sizes in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. A
+nameless buffer takes <code class="docutils literal notranslate"><span class="pre">variant=</span></code> to say which of the three to write.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">read(...,</span> <span class="pre">lazy=True)</span></code> hands back arrays that view the file’s own
 mapping, read-only and in the dtype and byte order the file holds, for
 every array a format stores as one run of bytes in the shape the mesh
@@ -2336,7 +2362,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-25.
+  Last updated on 2026-09-26.
   <br/>
 </p></div>
       

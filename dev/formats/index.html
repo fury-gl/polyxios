@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="The thirty-eight 3D mesh and geometry formats polyxios reads and writes, across forty-eight extensions - VTK, OBJ, PLY, STL, glTF, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each." name="description" />
+<meta content="The forty 3D mesh and geometry formats polyxios reads and writes, across fifty-two extensions - VTK, OBJ, PLY, STL, glTF, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each." name="description" />
 <meta property="og:title" content="Supported formats" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the ri..." />
+<meta property="og:description" content="polyxios ships forty codecs across fifty-two extensions - the fifty-one below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right reader ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_2fc05146.png" />
-<meta property="og:image:alt" content="polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the ri..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_bb24981f.png" />
+<meta property="og:image:alt" content="polyxios ships forty codecs across fifty-two extensions - the fifty-one below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right reader ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=69c3cc0a"></script>
+    <script src="../_static/documentation_options.js?v=9364ba6c"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-25"/>
+    <meta name="docbuild:last-update" content="2026-09-26"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -451,6 +451,8 @@
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
@@ -556,7 +558,7 @@
                   
   <section id="supported-formats">
 <span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
-<p>polyxios ships thirty-eight codecs across forty-eight extensions - the forty-seven
+<p>polyxios ships forty codecs across fifty-two extensions - the fifty-one
 below plus <code class="docutils literal notranslate"><span class="pre">.plt</span></code>, which is recognised but not read. Each is registered by
 extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
 <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
@@ -853,6 +855,25 @@ deviates from it, and links to the authoritative document.</p>
   </div>
 
   <div class="px-fmtcard">
+    <p class="px-fmtname">PCD <span class="px-fmtext">.pcd</span></p>
+    <p class="px-fmtdesc">The Point Cloud Library's format: typed fields per point,
+      ascii, binary or LZF-packed bodies, organised clouds, a sensor viewpoint.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="pcd.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://pointclouds.org/documentation/tutorials/pcd_file_format.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">ASCII point cloud <span class="px-fmtext">.xyz .pts .ptx</span></p>
+    <p class="px-fmtdesc">Columns of numbers: coordinates, intensity, colour, normal.
+      Leica's counted <code>.pts</code> and per-scan <code>.ptx</code> with its pose.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="xyz.html">read() &#8594;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
     <p class="px-fmtname">Kratos MDPA <span class="px-fmtext">.mdpa</span></p>
     <p class="px-fmtdesc">Begin/End blocks with no counts: nodes, elements named
       by Kratos element class, conditions, data and sub model parts.</p>
@@ -1081,7 +1102,7 @@ file is not supported.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-25.
+  Last updated on 2026-09-26.
   <br/>
 </p></div>
       

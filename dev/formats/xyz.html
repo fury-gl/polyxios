@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="VTK PolyData" />
+<meta property="og:title" content="ASCII point clouds: XYZ, PTS, PTX" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/vtp.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/xyz.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".vtp read + write lazy: raw appended Summary of the specification:.vtp is the VTK XML format for surface and curve geometry. A&lt;Piece&gt; declares its point and cell counts as attributes, then ca..." />
+<meta property="og:description" content=".xyz.pts.ptx read + write lazy: no Summary of the specification: The plainest point-cloud files are columns of numbers, one point per line, and nearly every scanner, photogrammetry package and GIS ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtp_7e6201a3.png" />
-<meta property="og:image:alt" content=".vtp read + write lazy: raw appended Summary of the specification:.vtp is the VTK XML format for surface and curve geometry. A&lt;Piece&gt; declares its point and cell counts as attributes, then ca..." />
-<meta name="description" content=".vtp read + write lazy: raw appended Summary of the specification:.vtp is the VTK XML format for surface and curve geometry. A&lt;Piece&gt; declares its point and cell counts as attributes, then ca..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_xyz_fd1a7cc0.png" />
+<meta property="og:image:alt" content=".xyz.pts.ptx read + write lazy: no Summary of the specification: The plainest point-cloud files are columns of numbers, one point per line, and nearly every scanner, photogrammetry package and GIS ..." />
+<meta name="description" content=".xyz.pts.ptx read + write lazy: no Summary of the specification: The plainest point-cloud files are columns of numbers, one point per line, and nearly every scanner, photogrammetry package and GIS ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>VTK PolyData &#8212; polyxios</title>
+    <title>ASCII point clouds: XYZ, PTS, PTX &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/vtp';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/xyz';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/vtp.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/xyz.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Wavefront OBJ" href="obj.html" />
-    <link rel="prev" title="VTK RectilinearGrid" href="vtr.html" />
+    <link rel="next" title="Kratos MDPA" href="mdpa.html" />
+    <link rel="prev" title="PCD (Point Cloud Library)" href="pcd.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -425,7 +425,7 @@
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="vtk.html">VTK Legacy</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtr.html">VTK RectilinearGrid</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">VTK PolyData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
@@ -452,7 +452,7 @@
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
 <li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
@@ -542,7 +542,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">VTK PolyData</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">ASCII point clouds: XYZ, PTS, PTX</span></li>
   </ul>
 </nav>
 </div>
@@ -559,12 +559,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="vtk-polydata">
-<span id="format-vtp"></span><h1>VTK PolyData<a class="headerlink" href="#vtk-polydata" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtp</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">raw</span> <span class="pre">appended</span></code></p>
+  <section id="ascii-point-clouds-xyz-pts-ptx">
+<span id="format-xyz"></span><h1>ASCII point clouds: XYZ, PTS, PTX<a class="headerlink" href="#ascii-point-clouds-xyz-pts-ptx" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.xyz</span></code> <code class="docutils literal notranslate"><span class="pre">.pts</span></code> <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">no</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">.vtp</span></code> is the VTK XML format for surface and curve geometry. A <code class="docutils literal notranslate"><span class="pre">&lt;Piece&gt;</span></code> declares its point and cell counts as attributes, then carries <code class="docutils literal notranslate"><span class="pre">&lt;Points&gt;</span></code> plus up to four cell containers - <code class="docutils literal notranslate"><span class="pre">&lt;Verts&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Lines&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;Strips&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;Polys&gt;</span></code> - each expressed as a <code class="docutils literal notranslate"><span class="pre">connectivity</span></code> array and an <code class="docutils literal notranslate"><span class="pre">offsets</span></code> array rather than the legacy size-prefixed lists. Attributes travel in <code class="docutils literal notranslate"><span class="pre">&lt;PointData&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;CellData&gt;</span></code> with the same inline, base64 or appended storage choices as the other XML formats.</p>
+<p>The plainest point-cloud files are columns of numbers, one point per line, and nearly every scanner, photogrammetry package and GIS tool exports one. <code class="docutils literal notranslate"><span class="pre">.xyz</span></code> has no header at all: three coordinates, then whatever the exporter added - an intensity, a colour as three integers in 0..255, a normal. Leica’s <code class="docutils literal notranslate"><span class="pre">.pts</span></code> is the same with the point count on a first line and <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">intensity</span> <span class="pre">r</span> <span class="pre">g</span> <span class="pre">b</span></code> rows, the intensity in -2048..2047. Leica’s <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> holds one or more scans, each a ten-line header - the grid’s columns and rows, the scanner position and axes, and a 4 x 4 transform in row-vector convention - followed by <code class="docutils literal notranslate"><span class="pre">rows</span> <span class="pre">x</span> <span class="pre">cols</span></code> points of <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">intensity</span></code> or <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">intensity</span> <span class="pre">r</span> <span class="pre">g</span> <span class="pre">b</span></code>, the intensity in 0..1, with <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0.5</span></code> marking a grid cell the scanner did not hit.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -574,101 +574,67 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>root</p></td>
-<td><p>&lt;VTKFile type=”PolyData”&gt;</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.xyz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">[i]</span> <span class="pre">[r</span> <span class="pre">g</span> <span class="pre">b</span> <span class="pre">|</span> <span class="pre">nx</span> <span class="pre">ny</span> <span class="pre">nz]</span> <span class="pre">[nx</span> <span class="pre">ny</span> <span class="pre">nz]</span></code> per line; <code class="docutils literal notranslate"><span class="pre">#</span></code> and <code class="docutils literal notranslate"><span class="pre">//</span></code> comments; an optional column-label line</p></td>
 </tr>
-<tr class="row-even"><td><p>cell containers</p></td>
-<td><p>Verts, Lines, Strips, Polys</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.pts</span></code></p></td>
+<td><p>point count on the first line, then <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">i</span> <span class="pre">r</span> <span class="pre">g</span> <span class="pre">b</span></code> (or any <code class="docutils literal notranslate"><span class="pre">.xyz</span></code> row)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.ptx</span></code></p></td>
+<td><p>per scan: <code class="docutils literal notranslate"><span class="pre">cols</span></code>, <code class="docutils literal notranslate"><span class="pre">rows</span></code>, position, three axes, four rows of a 4 x 4 transform, then <code class="docutils literal notranslate"><span class="pre">rows</span> <span class="pre">x</span> <span class="pre">cols</span></code> lines of <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">i</span> <span class="pre">[r</span> <span class="pre">g</span> <span class="pre">b]</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>separators</p></td>
+<td><p>whitespace; tabs count, commas do not</p></td>
 </tr>
 <tr class="row-odd"><td><p>connectivity</p></td>
-<td><p>paired connectivity + offsets DataArrays (0-based)</p></td>
-</tr>
-<tr class="row-even"><td><p>storage</p></td>
-<td><p>ascii, base64 binary, or appended raw block</p></td>
-</tr>
-<tr class="row-odd"><td><p>attributes</p></td>
-<td><p>PointData / CellData, one named DataArray each</p></td>
+<td><p>none</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://examples.vtk.org/site/VTKFileFormats/">Read the full VTK PolyData specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://paulbourke.net/dataformats/ptx/">PTX reference ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.vtp"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">cloud</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"scan.xyz"</span><span class="p">)</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertices</span>                    <span class="c1"># (n, 3)</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"intensity"</span><span class="p">]</span>   <span class="c1"># when a fourth column is there</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"colors"</span><span class="p">]</span>      <span class="c1"># (n, 3) floats in 0..1, from integers in 0..255</span>
+<span class="n">cloud</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"normals"</span><span class="p">]</span>     <span class="c1"># (n, 3), from three columns that are not colours</span>
+
+<span class="n">station</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"station.ptx"</span><span class="p">)</span>
+<span class="n">station</span><span class="o">.</span><span class="n">vertex_tags</span>               <span class="c1"># scan_0, scan_1, ... when the file holds several</span>
+<span class="n">station</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"ptx_transforms"</span><span class="p">]</span>   <span class="c1"># (scans, 4, 4), already applied</span>
 </pre></div>
 </div>
+<p>The layout is told from the content, not the extension: a first line of one integer is a count, a <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> scan header has a fixed shape, and everything else is bare columns. Columns past the coordinates are named by count and kind: with 1, 4 or 7 of them the first is <code class="docutils literal notranslate"><span class="pre">intensity</span></code>; three (left) are <code class="docutils literal notranslate"><span class="pre">colors</span></code> when they are whole numbers in 0..255 with at least one above 1 and <code class="docutils literal notranslate"><span class="pre">normals</span></code> otherwise; six are <code class="docutils literal notranslate"><span class="pre">colors</span></code> and <code class="docutils literal notranslate"><span class="pre">normals</span></code> in whichever order the colour test tells, or one six-wide <code class="docutils literal notranslate"><span class="pre">extra</span></code> when neither half is a colour; any other width (2, 5, 8 or more) is kept whole as <code class="docutils literal notranslate"><span class="pre">extra</span></code>, intensity and all. A <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> file’s scans are transformed by their own matrices into one frame, the invalid points dropped with a warning, each scan tagged when there are several, and the matrices and grid sizes kept in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> as <code class="docutils literal notranslate"><span class="pre">ptx_transforms</span></code> (<code class="docutils literal notranslate"><span class="pre">(scans,</span> <span class="pre">4,</span> <span class="pre">4)</span></code>) and <code class="docutils literal notranslate"><span class="pre">ptx_dimensions</span></code> (<code class="docutils literal notranslate"><span class="pre">(scans,</span> <span class="pre">2)</span></code>, a <code class="docutils literal notranslate"><span class="pre">(rows,</span> <span class="pre">cols)</span></code> pair per scan - the reverse of the header’s <code class="docutils literal notranslate"><span class="pre">cols</span></code> then <code class="docutils literal notranslate"><span class="pre">rows</span></code> lines).</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtp"</span><span class="p">)</span>                 <span class="c1"># base64 payloads (default)</span>
-<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtp"</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>   <span class="c1"># inline ASCII</span>
-<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtp"</span><span class="p">,</span> <span class="n">appended</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># raw appended section, mappable</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.xyz"</span><span class="p">)</span>                     <span class="c1"># columns as the mesh has them</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.pts"</span><span class="p">)</span>                     <span class="c1"># count line first</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="s2">"out.ptx"</span><span class="p">)</span>                     <span class="c1"># one scan, identity pose</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cloud</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s2">".xyz"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"pts"</span><span class="p">,</span> <span class="n">float_fmt</span><span class="o">=</span><span class="s2">".6f"</span><span class="p">)</span>
 </pre></div>
 </div>
-<div class="pst-scrollable-table-container"><table class="px-spec-table table">
-<colgroup>
-<col style="width: 22.0%" />
-<col style="width: 78.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>option</p></th>
-<th class="head"><p>meaning</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code> (the default) writes base64-encoded payloads; <code class="docutils literal notranslate"><span class="pre">False</span></code> writes inline ASCII, which is larger but diffable.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">appended</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code> writes every array as one raw <code class="docutils literal notranslate"><span class="pre">&lt;AppendedData</span> <span class="pre">encoding=&quot;raw&quot;&gt;</span></code> section after the XML, the layout VTK itself writes by default: a third smaller than base64, and the one a lazy read can map. Field data stays inline.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-</section>
-<section id="lazy-reading">
-<h2>Lazy reading<a class="headerlink" href="#lazy-reading" title="Link to this heading">#</a></h2>
-<p>A file whose arrays sit in a raw, uncompressed appended section can be
-mapped instead of loaded:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.vtp"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False: the array is the file's own bytes</span>
-</pre></div>
-</div>
-<p>The vertices, connectivity and every point and cell array are read-only
-views of the mapping, in the dtype and byte order the file holds. The offsets
-and element types are derived from the file rather than stored in it, so
-those two are built in memory, as is a connectivity the file declares as
-floats: an index is a whole number, so it is cast to integers the way an
-eager read casts it. A file of several pieces, or a piece holding
-more than one of <code class="docutils literal notranslate"><span class="pre">Verts</span></code>, <code class="docutils literal notranslate"><span class="pre">Lines</span></code>, <code class="docutils literal notranslate"><span class="pre">Strips</span></code> and <code class="docutils literal notranslate"><span class="pre">Polys</span></code>, is joined by
-copying. A file that keeps its arrays inline, base64-encoded or
-zlib-compressed has no bytes on disk in the shape an array needs, and
-<code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming
-which.</p>
+<p>The columns are <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span></code>, then <code class="docutils literal notranslate"><span class="pre">intensity</span></code> when <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> holds it, then <code class="docutils literal notranslate"><span class="pre">colors</span></code> as three integers in 0..255 (from floats in 0..1, or integers already in that range), then <code class="docutils literal notranslate"><span class="pre">normals</span></code>. <code class="docutils literal notranslate"><span class="pre">.pts</span></code> prefixes the count, <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> writes one scan of all the points in a single row with the identity transform and an intensity of 1 where the mesh has none, and no normals. A nameless buffer, or a name with any other suffix, writes <code class="docutils literal notranslate"><span class="pre">xyz</span></code> columns unless <code class="docutils literal notranslate"><span class="pre">variant=</span></code> says otherwise.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>A tag group has no set of its own in this format, so it travels as one <code class="docutils literal notranslate"><span class="pre">PointData</span></code> or <code class="docutils literal notranslate"><span class="pre">CellData</span></code> column of ones and zeros named <code class="docutils literal notranslate"><span class="pre">polyxios_tag_&lt;group&gt;</span></code>. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <code class="docutils literal notranslate"><span class="pre">&lt;Piece&gt;</span></code> alike, and written back from <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> holds a <code class="docutils literal notranslate"><span class="pre">String</span></code> array beside its numeric ones, so a <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.</p></li>
-<li><p>Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.</p></li>
-<li><p>Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.</p></li>
-<li><p>A piece that declares points and does not deliver them raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.</p></li>
-<li><p>A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">Points</span></code> array of a type that holds no numbers - <code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code>, or any type this reader does not know - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the type.</p></li>
-<li><p>Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.</p></li>
-<li><p>Cell offsets that run backwards, or reach past the end of a section’s connectivity, raise <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the piece and section; a file like that describes no cells, and used to come back with some of them silently missing.</p></li>
+<li><p>Six columns are ambiguous by design - <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">r</span> <span class="pre">g</span> <span class="pre">b</span></code> or <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span> <span class="pre">nx</span> <span class="pre">ny</span> <span class="pre">nz</span></code> - and are told apart by whether the last three are whole numbers in 0..255. Columns of nothing but 0 and 1 go to the normal, since a flat scan spells <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span> <span class="pre">1</span></code> on every point and a colour that dark is all but black; a normal such as <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span> <span class="pre">255</span></code> still reads as a colour. Write it through a format with a header if that matters.</p></li>
+<li><p>Any vertex attribute other than <code class="docutils literal notranslate"><span class="pre">intensity</span></code>, <code class="docutils literal notranslate"><span class="pre">colors</span></code> and <code class="docutils literal notranslate"><span class="pre">normals</span></code> has no column and is dropped with a warning naming it; no <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> entry has a line in any of the three layouts.</p></li>
+<li><p>Elements are not part of the format: a mesh’s faces are dropped with a warning, and every file reads back with no elements at all.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> point at exactly the origin with an intensity of exactly 0.5 is the format’s invalid marker and is dropped on read, so it cannot be written and read back.</p></li>
+<li><p>A UTF-8 byte order mark before the first row is skipped. A row that starts with a number is data whatever follows it, so a trailing comment on a row is refused rather than the row taken for a column header.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>: a number spelled as text has to be parsed before it is a number. The body is handed to numpy in one pass, and only split into lines when a comment mark is in it, so a file without one is never held twice.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
+<p><a class="reference internal" href="pcd.html"><span class="doc">PCD (Point Cloud Library)</span></a> - the binary point-cloud format PCL, ROS and Open3D exchange.
+<a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
 </section>
@@ -684,20 +650,20 @@ which.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="vtr.html"
+       href="pcd.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">VTK RectilinearGrid</p>
+        <p class="prev-next-title">PCD (Point Cloud Library)</p>
       </div>
     </a>
     <a class="right-next"
-       href="obj.html"
+       href="mdpa.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Wavefront OBJ</p>
+        <p class="prev-next-title">Kratos MDPA</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -724,7 +690,6 @@ which.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-reading">Lazy reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>
@@ -733,7 +698,7 @@ which.</p>
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/vtp.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/xyz.rst">
       <i class="fa-solid fa-pencil"></i>
       
       
