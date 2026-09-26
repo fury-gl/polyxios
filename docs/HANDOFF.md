@@ -31,7 +31,7 @@ sphinx-docs/
     vtk.rst vtr.rst vtp.rst vtu.rst vts.rst vti.rst obj.rst ply.rst
     stl.rst off.rst abaqus.rst avs.rst meshb.rst mfem.rst dolfin.rst
     flac3d.rst gmsh.rst nastran.rst tecplot.rst su2.rst tetgen.rst
-    wkt.rst netgen.rst ugrid.rst splat.rst pcd.rst xyz.rst
+    wkt.rst netgen.rst ugrid.rst splat.rst pcd.rst las.rst xyz.rst
 ```
 
 Outside `docs/`:

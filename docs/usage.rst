@@ -58,8 +58,8 @@ parsing it and by the extensions several formats share, both of which say so
 rather than guess.
 
 Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - VTU, VTP, XDMF, splat, PCD, binary VTK, PLY
-and Medit, see :doc:`lazy_loading` - since ``mmap`` maps a file descriptor: an
+come back view the file itself - VTU, VTP, XDMF, splat, PCD, LAS, binary VTK,
+PLY and Medit, see :doc:`lazy_loading` - since ``mmap`` maps a file descriptor: an
 ``io.BytesIO`` raises ``LazyReadError`` rather than quietly loading eagerly.
 It also needs the handle to stand at the start of that file - a mapping
 addresses a file from byte zero - so a handle part-way into one is refused
@@ -292,7 +292,7 @@ and needs nothing.
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the thirty-eight supported formats, one page each
+* :doc:`formats/index` - the forty-one supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

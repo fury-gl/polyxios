@@ -17,6 +17,7 @@ py.install_sources(
     '_h5m.py',
     '_hdf5.py',
     '_hmf.py',
+    '_las.py',
     '_lzf_fallback.py',
     '_mdpa.py',
     '_med.py',

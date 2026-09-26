@@ -93,6 +93,11 @@ hdf5 = [
 netcdf = [
     "netCDF4>=1.6",
 ]
+# LAZ, the compressed LAS. A plain .las needs nothing; a compressed one is
+# refused without it, with the install line that fixes it.
+laz = [
+    "lazrs>=0.5",
+]
 
 [project.scripts]
 pxios = "polyxios.cli:main"

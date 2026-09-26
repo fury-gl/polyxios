@@ -40,7 +40,8 @@ pip install "polyxios[hdf5]"
 ```
 
 Exodus II is a netCDF file and needs [netCDF4](https://unidata.github.io/netcdf4-python/)
-the same way - `pip install "polyxios[netcdf]"`.
+the same way - `pip install "polyxios[netcdf]"` - and a LAZ-compressed LAS file needs
+[lazrs](https://github.com/laz-rs/laz-rs-python) - `pip install "polyxios[laz]"`.
 
 ---
 
@@ -237,6 +238,7 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 | Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only; lazy: zero-copy |
 | PCD (Point Cloud Library) | `.pcd` | ✓ | ✓ | ascii, binary and LZF `binary_compressed`; fields → vertex attrs, packed `rgb` → `colors`, organised grid and viewpoint kept; lazy: binary views |
+| LAS / LAZ (LiDAR) | `.las` `.laz` | ✓ | ✓ | 1.0-1.4, point formats 0-10; scaled ints → float64, every field and flag → vertex attrs, `red green blue` → `colors`, extra bytes by name, WKT / GeoTIFF CRS → `crs_wkt` / `las_geokeys`; LAZ via `polyxios[laz]`; lazy: `.las` views |
 | ASCII point cloud | `.xyz` `.pts` `.ptx` | ✓ | ✓ | columns named by count and kind (intensity, colours, normals); `.pts` count line; `.ptx` scans transformed by their pose and tagged |
 
 ### Volume, grid & simulation
@@ -293,7 +295,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**40 formats supported** across the 51 extensions in the tables, plus `.plt`, which
+**41 formats supported** across the 53 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

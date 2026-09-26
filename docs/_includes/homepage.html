@@ -8,7 +8,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 40 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 41 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, LAS, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -41,7 +41,7 @@
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all thirty-eight - and raises instead of quietly corrupting
+        writes all forty-one - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -63,7 +63,7 @@
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>40</b><span>formats</span></div>
+        <div><b>41</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -126,6 +126,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/splat.html"><span>Gaussian splat</span><span class="px-ext">.splat</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: all</span></a>
       <a class="px-tr" href="formats/pcd.html"><span>PCD (Point Cloud Library)</span><span class="px-ext">.pcd</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: binary</span></a>
+      <a class="px-tr" href="formats/las.html"><span>LAS / LAZ (LiDAR)</span><span class="px-ext">.las .laz</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: .las</span></a>
       <a class="px-tr" href="formats/xyz.html"><span>ASCII point cloud</span><span class="px-ext">.xyz .pts .ptx</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/mdpa.html"><span>Kratos MDPA</span><span class="px-ext">.mdpa</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/permas.html"><span>PERMAS</span><span class="px-ext">.dato .post .dat*</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -137,7 +138,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
-      <p class="px-tfoot">} // 40 codecs, the 51 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <p class="px-tfoot">} // 41 codecs, the 53 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -218,7 +219,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a forty-first format.
+    <p class="px-sub">Any third-party package can teach polyxios a forty-second format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">

@@ -52,7 +52,7 @@ jobs:
           pip install "meson-python>=0.15" "Cython>=3.0" "numpy>=1.24" meson ninja
 
       - name: Install polyxios
-        run: pip install --no-build-isolation -e ".[dev,hdf5,netcdf]"
+        run: pip install --no-build-isolation -e ".[dev,hdf5,netcdf,laz]"
 
       - name: Run tests
         run: pytest tests/ -v --durations=10
