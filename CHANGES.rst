@@ -26,6 +26,25 @@ New features
   picks the body with ``data_format=`` and ``F 8`` coordinates with
   ``double=True``. ``lazy=True`` maps a binary file: coordinates, normals
   and every field are views of it in the file's own dtypes.
+- LAS (``.las``), the ASPRS LiDAR exchange format, is read and written in
+  versions 1.0 to 1.4 and point formats 0 to 10, and ``.laz``, its
+  LASzip-compressed twin, through lazrs behind the new ``laz`` extra. The
+  scaled integer coordinates become float64 vertices; ``intensity``, the
+  return and classification bit fields, the scan angle (``scan_angle_rank``
+  in degrees before format 6, ``scan_angle`` in 0.006-degree steps from
+  it), ``user_data``, ``point_source_id``, ``gps_time``, ``nir`` and the
+  wave packet fields are vertex attributes in the file's own dtypes,
+  ``red green blue`` fold into ``colors`` in 0..1, and extra bytes read by
+  the name and type their VLR gives them, scaled and offset when it says
+  so. An OGC WKT VLR is ``crs_wkt``, the GeoTIFF key VLRs ``las_geokeys``,
+  every other VLR or EVLR raw in ``las_vlrs``; the scale, offset, version,
+  point format and header strings are ``las_*`` globals. Write picks the
+  point format from the attributes present or takes ``point_format=``,
+  the version from the format or ``version=``, ``scale=`` and ``offset=``
+  from the globals or the cloud, and sends every other numeric attribute
+  out as an extra bytes field. ``lazy=True`` maps an uncompressed file:
+  the vertices are the int32 the file holds, the colours its ``uint16``
+  and every field a view of its column.
 - ASCII point clouds (``.xyz``, Leica ``.pts`` and ``.ptx``) are read and
   written. Columns past the coordinates are named by count and kind - an
   intensity, three whole numbers in 0..255 as ``colors``, three others as

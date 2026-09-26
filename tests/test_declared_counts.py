@@ -33,6 +33,28 @@ BIG = 2**62
 
 # One file per format, each declaring BIG of something it does not hold.
 CORRUPT: dict[str, str] = {
+    # A LAS 1.4 header of point format 0 whose 64-bit count is BIG; every
+    # byte is below 128, so the text written is the bytes read.
+    ".las": (
+        b"LASF"
+        + bytes(20)
+        + bytes([1, 4])
+        + bytes(64)
+        + bytes(4)
+        + (375).to_bytes(2, "little")
+        + (375).to_bytes(4, "little")
+        + bytes(4)
+        + bytes([0])
+        + (20).to_bytes(2, "little")
+        + bytes(24)
+        + bytes(24)
+        + bytes(72)
+        + bytes(8)
+        + bytes(12)
+        + BIG.to_bytes(8, "little")
+        + bytes(120)
+        + bytes(20)
+    ).decode("ascii"),
     ".pcd": (
         f"VERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\nWIDTH {BIG}\n"
         f"HEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS {BIG}\nDATA ascii\n0 0 0\n"
@@ -293,6 +315,7 @@ def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
         ".xmf": ".xdmf",
         ".exo": ".e",
         ".ex2": ".e",
+        ".laz": ".las",
     }
     outstanding = {
         ext

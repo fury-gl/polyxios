@@ -383,6 +383,70 @@ CAPABILITIES: dict[str, Cap] = {
         " and nothing else: a caller's own attributes have no column, and a"
         " whole-mesh scalar no line.",
     ),
+    ".las": Cap(
+        "points",
+        n_elements=0,
+        geometry=False,
+        vertex_attrs=(
+            "scalar",
+            "vector",
+            "intensity",
+            "return_number",
+            "number_of_returns",
+            "scan_direction_flag",
+            "edge_of_flight_line",
+            "classification",
+            "synthetic",
+            "key_point",
+            "withheld",
+            "scan_angle_rank",
+            "user_data",
+            "point_source_id",
+        ),
+        global_attrs=(
+            "las_version",
+            "las_point_format",
+            "las_scale",
+            "las_offset",
+            "las_generating_software",
+        ),
+        note="LAS is a point cloud: there are no cells, every point record"
+        " carries the format's own fields (read back as attributes whether"
+        " or not they were written), the header keeps the format's own"
+        " globals and no other, and the caller's attributes travel as extra"
+        " bytes.",
+    ),
+    ".laz": Cap(
+        "points",
+        n_elements=0,
+        geometry=False,
+        vertex_attrs=(
+            "scalar",
+            "vector",
+            "intensity",
+            "return_number",
+            "number_of_returns",
+            "scan_direction_flag",
+            "edge_of_flight_line",
+            "classification",
+            "synthetic",
+            "key_point",
+            "withheld",
+            "scan_angle_rank",
+            "user_data",
+            "point_source_id",
+        ),
+        global_attrs=(
+            "las_version",
+            "las_point_format",
+            "las_scale",
+            "las_offset",
+            "las_generating_software",
+        ),
+        requires="lazrs",
+        note="LAZ is LAS with its records compressed; the same fields come"
+        " back and the same globals.",
+    ),
     ".splat": Cap(
         "points",
         n_elements=0,
