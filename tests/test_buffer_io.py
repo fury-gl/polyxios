@@ -402,7 +402,7 @@ def test_a_handle_is_read_from_where_it_stands() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("ext", (".stl", ".ply", ".vtk"))
+@pytest.mark.parametrize("ext", (".stl", ".ply", ".vtk", ".pcd"))
 def test_a_lazy_read_of_a_handle_at_its_start_maps_the_file(tmp_path, ext) -> None:
     """A handle over a real file is as mappable as the path that opened it."""
     poly = CANONICAL["mixed"]()
@@ -415,7 +415,7 @@ def test_a_lazy_read_of_a_handle_at_its_start_maps_the_file(tmp_path, ext) -> No
     _same_mesh(_quietly(polyxios.read, path, fmt=ext, lazy=True), back)
 
 
-@pytest.mark.parametrize("ext", (".ply", ".vtk"))
+@pytest.mark.parametrize("ext", (".ply", ".vtk", ".pcd"))
 def test_a_lazy_read_of_a_handle_part_way_in_is_refused(tmp_path, ext) -> None:
     """mmap addresses a file from byte zero and starts only on an allocation
     boundary, so a handle standing part-way in cannot be mapped from where it
@@ -513,7 +513,7 @@ def test_a_broken_file_reports_itself_and_not_the_mapping(tmp_path) -> None:
     assert str(from_path) == str(from_buffer)
 
 
-@pytest.mark.parametrize("ext", (".stl", ".ply", ".vtk"))
+@pytest.mark.parametrize("ext", (".stl", ".ply", ".vtk", ".pcd"))
 def test_an_eager_read_of_a_handle_part_way_in_still_reads(tmp_path, ext) -> None:
     """Only the mapping needs the top of the file; reading does not."""
     poly = CANONICAL["mixed"]()

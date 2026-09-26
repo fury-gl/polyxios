@@ -33,6 +33,15 @@ BIG = 2**62
 
 # One file per format, each declaring BIG of something it does not hold.
 CORRUPT: dict[str, str] = {
+    ".pcd": (
+        f"VERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\nWIDTH {BIG}\n"
+        f"HEIGHT 1\nVIEWPOINT 0 0 0 1 0 0 0\nPOINTS {BIG}\nDATA ascii\n0 0 0\n"
+    ),
+    ".pts": f"{BIG}\n0 0 0\n",
+    ".ptx": (
+        f"{BIG}\n1\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n1 0 0 0\n0 1 0 0\n0 0 1 0\n0 0 0 1\n"
+        "0 0 0 1\n"
+    ),
     ".avs": f"3 {BIG} 0 0 0\n1 0 0 0\n2 1 0 0\n3 0 1 0\n1 1 tri 1 2 3\n",
     ".mesh": (
         "MFEM mesh v1.0\n\ndimension\n3\n\nelements\n1\n1 4 0 1 2 3\n\n"
@@ -235,6 +244,8 @@ _NO_DECLARED_COUNT: frozenset[str] = frozenset(
         ".post",
         ".stl",
         ".splat",
+        # Bare columns: the count is the line count.
+        ".xyz",
         ".vtm",
         # Every vertex and triangle is an XML element of its own; no count.
         ".3mf",

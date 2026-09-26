@@ -364,6 +364,25 @@ CAPABILITIES: dict[str, Cap] = {
         note="PLY properties are scalar, so a vector splits into one per"
         " component and cannot be rebuilt on the way back.",
     ),
+    ".pcd": Cap(
+        "points",
+        n_elements=0,
+        geometry=False,
+        vertex_attrs=("scalar", "vector"),
+        rtol=1e-6,
+        note="PCD is a point cloud: there are no cells, the coordinates go out"
+        " as float32 the way the point-cloud ecosystem expects them, and a"
+        " whole-mesh scalar has no line in the header.",
+    ),
+    ".xyz": Cap(
+        "points",
+        n_elements=0,
+        geometry=False,
+        warns=(r"no column for vertex attributes scalar, vector",),
+        note="ASCII columns hold coordinates, an intensity, colours and normals"
+        " and nothing else: a caller's own attributes have no column, and a"
+        " whole-mesh scalar no line.",
+    ),
     ".splat": Cap(
         "points",
         n_elements=0,
@@ -598,7 +617,7 @@ CAPABILITIES: dict[str, Cap] = {
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
 _ALIASES: frozenset[str] = frozenset(
-    {".nas", ".fem", ".node", ".post", ".glb", ".xmf", ".exo", ".ex2"}
+    {".nas", ".fem", ".node", ".post", ".glb", ".xmf", ".exo", ".ex2", ".pts", ".ptx"}
 )
 
 # Registered so the error names the format, never to be written. Each is

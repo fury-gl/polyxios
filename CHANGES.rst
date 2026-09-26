@@ -12,6 +12,30 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- PCD (``.pcd``), the Point Cloud Library's format that PCL, ROS and
+  Open3D exchange clouds in, is read and written in all three of its
+  bodies: ``ascii``, ``binary`` and ``binary_compressed``, the last packed
+  with LZF, which polyxios now ships as a compiled module with a
+  pure-Python twin behind it. ``x y z`` are the vertices, ``normal_x/y/z``
+  fold into ``normals``, a packed ``rgb`` or ``rgba`` into ``colors`` in
+  0..1 (in the integer spelling an ascii body uses and the float-bits one
+  a binary body does), and every other field is a vertex attribute of its
+  own name and dtype, a vector when its ``COUNT`` is above one. An
+  organised cloud keeps ``pcd_width`` and ``pcd_height``, a sensor pose
+  ``pcd_viewpoint``; padding fields are skipped and NaN points kept. Write
+  picks the body with ``data_format=`` and ``F 8`` coordinates with
+  ``double=True``. ``lazy=True`` maps a binary file: coordinates, normals
+  and every field are views of it in the file's own dtypes.
+- ASCII point clouds (``.xyz``, Leica ``.pts`` and ``.ptx``) are read and
+  written. Columns past the coordinates are named by count and kind - an
+  intensity, three whole numbers in 0..255 as ``colors``, three others as
+  ``normals``, anything else kept whole as ``extra`` - with comment lines
+  and a column-label line skipped and the body parsed by numpy in one
+  pass. ``.pts`` honours and checks its count line. ``.ptx`` reads every
+  scan, applies each one's transform, drops the ``0 0 0 0.5`` invalid
+  cells with a warning, tags the scans in ``vertex_tags`` when there are
+  several and keeps the matrices and grid sizes in ``global_attrs``. A
+  nameless buffer takes ``variant=`` to say which of the three to write.
 - ``read(..., lazy=True)`` hands back arrays that view the file's own
   mapping, read-only and in the dtype and byte order the file holds, for
   every array a format stores as one run of bytes in the shape the mesh

@@ -17,6 +17,7 @@ py.install_sources(
     '_h5m.py',
     '_hdf5.py',
     '_hmf.py',
+    '_lzf_fallback.py',
     '_mdpa.py',
     '_med.py',
     '_medit.py',
@@ -24,6 +25,8 @@ py.install_sources(
     '_nastran.py',
     '_netgen.py',
     '_off.py',
+    '_pcd.py',
+    '_pointcloud.py',
     '_permas.py',
     '_splat.py',
     '_stl.py',
@@ -47,6 +50,7 @@ py.install_sources(
     '_vtu.py',
     '_wkt.py',
     '_xdmf.py',
+    '_xyz.py',
   ],
   subdir: 'polyxios/codecs',
 )
@@ -55,6 +59,14 @@ py.extension_module(
   '_vtk_parse',
   '_vtk_parse.pyx',
   include_directories: inc_np,
+  dependencies: py_dep,
+  install: true,
+  subdir: 'polyxios/codecs',
+)
+
+py.extension_module(
+  '_lzf',
+  '_lzf.pyx',
   dependencies: py_dep,
   install: true,
   subdir: 'polyxios/codecs',
