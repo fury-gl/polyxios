@@ -16,7 +16,7 @@ Source: https://polyxios.org/stable/index.html
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
-  "description": "polyxios reads and writes 41 3D mesh and geometry file formats in Python through one API - VTK, OBJ, PLY, STL, glTF, LAS, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
+  "description": "polyxios reads and writes 43 3D mesh and geometry file formats in Python through one API - VTK, VTKHDF, OBJ, PLY, STL, glTF, LAS, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
   "url": "https://fury-gl.github.io/polyxios/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
@@ -49,7 +49,7 @@ Source: https://polyxios.org/stable/index.html
       <p class="px-lede">
         Reading 3D meshes in Python normally means installing one library per
         format. polyxios is a single small, maintained package that reads and
-        writes all forty-one - and raises instead of quietly corrupting
+        writes all forty-three - and raises instead of quietly corrupting
         your data.
       </p>
       <div class="px-btnrow">
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>41</b><span>formats</span></div>
+        <div><b>43</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -129,6 +129,8 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/vtu.html"><span>VTK UnstructuredGrid</span><span class="px-ext">.vtu</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">mmap: raw appended</span></a>
       <a class="px-tr" href="formats/vts.html"><span>VTK StructuredGrid</span><span class="px-ext">.vts</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/vti.html"><span>VTK ImageData</span><span class="px-ext">.vti</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
+      <a class="px-tr" href="formats/vtkhdf.html"><span>VTKHDF</span><span class="px-ext">.vtkhdf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
+      <a class="px-tr" href="formats/pvd.html"><span>PVD (ParaView collection)</span><span class="px-ext">.pvd</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
       <a class="px-tr" href="formats/mfem.html"><span>MFEM mesh</span><span class="px-ext">.mesh</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/netgen.html"><span>Netgen</span><span class="px-ext">.vol</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/ugrid.html"><span>UGRID (AFLR)</span><span class="px-ext">.ugrid</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
@@ -146,7 +148,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
       <a class="px-tr" href="formats/h5m.html"><span>H5M (MOAB)</span><span class="px-ext">.h5m</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/hmf.html"><span>HMF</span><span class="px-ext">.hmf</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">- - - -</span></a>
       <a class="px-tr" href="formats/exodus.html"><span>Exodus II</span><span class="px-ext">.e .exo .ex2</span><span class="px-ok">[x]</span><span class="px-ok">[x]</span><span class="px-dim">step= on read</span></a>
-      <p class="px-tfoot">} // 41 codecs, the 53 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
+      <p class="px-tfoot">} // 43 codecs, the 55 extensions above plus .plt, recognised but not read - .svg is written, never read; .mesh is shared by Medit ASCII and MFEM, .msh by Gmsh and Fluent, each resolved by content</p>
     </div>
   </section>
 
@@ -227,7 +229,7 @@ mesh = px.read(<span class="s">"brain.vol.gz"</span>)<span class="px-cursor">&#9
   <section class="px-section">
     <p class="px-secnum"><b>04</b> <span>// plugins</span></p>
     <h2 class="px-h2">register() -&gt; ".abc"</h2>
-    <p class="px-sub">Any third-party package can teach polyxios a forty-second format.
+    <p class="px-sub">Any third-party package can teach polyxios a forty-fourth format.
       Two functions and an entry point - no fork, no pull request, no restart.</p>
     <div class="px-grid2">
       <div class="px-panel">
@@ -292,9 +294,9 @@ Optional:
 Cython >= 3.0 (compiled hot-paths; pure Python fallbacks included)
 
 h5py >= 3.0, for the HDF5 heavy data of XDMF files
-and for the formats that are HDF5 files outright - MED,
-CGNS, H5M and
-HMF - pip install "polyxios[hdf5]". Without it
+and for the formats that are HDF5 files outright - VTKHDF,
+MED, CGNS, H5M
+and HMF - pip install "polyxios[hdf5]". Without it
 XDMF’s inline and binary flavours still read and write, and an HDF5 file or
 reference raises UnsupportedFormatError
 naming the extra.
@@ -565,22 +567,25 @@ things - a fluid domain and a solid one, one part per block - since
 merge() joins them into a mesh that no longer says
 which was which.
 
-A time series - one mesh at several times, which XDMF holds - is the same
+A time series - one mesh at several times, which XDMF,
+VTKHDF and a PVD collection
+hold - is the same
 shape of problem with the same answer: polyxios.read() reads one step,
 the first unless step= says otherwise, and the several live in the helper:
 
-times, meshes = helper.read_time_series("run.xdmf")
+times, meshes = helper.read_time_series("run.xdmf")     # or run.vtkhdf, run.pvd
 helper.write_time_series(((t, solve(t)) for t in times), "run.xdmf")
 
 The writer takes any iterable of (time, mesh) pairs and writes each step as
 it arrives, so a run can stream its results rather than hold them all. The
 usual XDMF layout keeps the arrays in an HDF5 file beside the XML one, which
-needs pip install "polyxios[hdf5]"; data_format="xml" keeps them inline
-and needs nothing.
+needs pip install "polyxios[hdf5]", as does a .vtkhdf;
+data_format="xml" keeps them inline and needs nothing, and a .pvd
+writes one VTK XML file per step beside the index.
 
 Where to go next
 
-formats/index - the forty-one supported formats, one page each
+formats/index - the forty-three supported formats, one page each
 
 lazy_loading - reading files larger than RAM
 
@@ -596,7 +601,7 @@ Source: https://polyxios.org/stable/formats/index.html
 
 Supported formats
 
-polyxios ships forty-one codecs across fifty-four extensions - the fifty-three
+polyxios ships forty-three codecs across fifty-six extensions - the fifty-five
 below plus .plt, which is recognised but not read. Each is registered by
 extension, so polyxios.read() picks the right reader from the filename - pass
 fmt= to override it.
@@ -605,7 +610,7 @@ Every page below summarises the format’s specification, notes where polyxios e
 deviates from it, and links to the authoritative document.
 
 <!--
-  The forty-one format cards, pulled into formats/index.rst by a raw:: html
+  The forty-three format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -855,6 +860,26 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
+    <p class="px-fmtname">VTKHDF <span class="px-fmtext">.vtkhdf</span></p>
+    <p class="px-fmtdesc">VTK's own HDF5 layout: an UnstructuredGrid, PolyData or
+      ImageData under /VTKHDF, partitioned, with its time steps inside.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtkhdf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.vtk.org/en/latest/vtk_file_formats/vtkhdf_file_format/index.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">PVD (ParaView collection) <span class="px-fmtext">.pvd</span></p>
+    <p class="px-fmtdesc">An XML index of VTK datasets over time, each with its
+      timestep, part and group; read at one step or as a whole series.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="pvd.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.paraview.org/en/latest/UsersGuide/understandingData.html#pvd-files">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
     <p class="px-fmtname">MFEM mesh <span class="px-fmtext">.mesh</span></p>
     <p class="px-fmtdesc">Named sections keyed by a geometry type code; INLINE and
       NURBS variants carry a recipe, not a mesh.</p>
@@ -1029,7 +1054,8 @@ deviates from it, and links to the authoritative document.
 Parallel and multi-block meta-files
 
 .vtm, .pvtu, .pvts, .pvti, .pvtp and .pvtr are registered too,
-but they hold no geometry - only references to sub-files. polyxios.read()
+but they hold no geometry - only references to sub-files. (A .pvd names
+sub-files too, but over time, and reads as a time series.) polyxios.read()
 hands back one mesh, always, so reading an index raises
 UnsupportedFormatError rather than failing with a
 parse error further in. The several live in the helper instead:
@@ -3297,6 +3323,181 @@ The extent, origin and step of the file a mesh was read from travel with it, so 
 
 index - the full format table.
 vts - the curvilinear structured sibling.
+
+## VTKHDF
+
+Source: https://polyxios.org/stable/formats/vtkhdf.html
+
+VTKHDF
+
+.vtkhdf read + write time series polyxios[hdf5]
+
+Summary of the specification
+
+VTKHDF is VTK’s own HDF5 layout and the file ParaView is moving its readers and writers to: one HDF5 file, a /VTKHDF group at its root, and two attributes on that group - Version, two integers, and Type, the VTK data object it holds. An UnstructuredGrid keeps Points, Connectivity, Offsets and Types datasets, a PolyData its points and four cell groups - Vertices, Lines, Polygons, Strips - each with a connectivity and offsets of its own, an ImageData no points at all, only the WholeExtent, Origin, Spacing and Direction attributes its lattice is expanded from. Every type keeps its arrays under PointData, CellData and FieldData. The file is partitioned - NumberOfPoints and NumberOfCells hold one entry per part, each part’s cells indexing its own points - and, when a Steps group is there, temporal: every dataset is the steps’ arrays laid end to end, and Steps holds the time of each step and where its points, cells and arrays begin.
+
+Specification at a glance
+
+
+
+
+
+root
+
+/VTKHDF with Version ([2, 0]) and Type attributes
+
+UnstructuredGrid
+
+NumberOfPoints NumberOfCells NumberOfConnectivityIds per part; Points Types Connectivity Offsets
+
+PolyData
+
+NumberOfPoints, Points; Vertices Lines Polygons Strips groups, each with its counts, Connectivity and Offsets
+
+ImageData
+
+WholeExtent Origin Spacing Direction attributes; arrays shaped (nz, ny, nx[, k]), an axis of size one kept or left out
+
+arrays
+
+PointData/<name> CellData/<name> FieldData/<name>
+
+time series
+
+Steps with NSteps, Values, PartOffsets, NumberOfParts, PointOffsets, CellOffsets, ConnectivityIdOffsets, PointDataOffsets/<name>, CellDataOffsets/<name>, FieldDataOffsets/<name>, FieldDataSizes/<name>
+
+VTKHDF file format ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("result.vtkhdf")              # the first step of a series
+mesh = px.read("result.vtkhdf", step=-1)     # the last
+mesh.global_attrs["vtkhdf_type"]             # "UnstructuredGrid", "PolyData" or "ImageData"
+mesh.global_attrs["time"]                    # that step's time, when the file holds steps
+
+from polyxios import helper
+times, meshes = helper.read_time_series("result.vtkhdf")
+
+polyxios.read() hands back one mesh, always. An UnstructuredGrid reads as its cells are, its VTK type codes mapped to polyxios’s; a PolyData reads its four cell groups in VTK’s order - vertices, lines, polygons, strips - with each cell typed by its point count, a vertex or poly_vertex, a line or poly_line, a triangle, quad or polygon, a triangle_strip; an ImageData is expanded into the hexahedra, quadrilaterals or lines its extent spans, the way vti is, with vti_origin, vti_spacing and vti_extent in global_attrs so it writes back as a .vti, and a Direction that is not the identity applied to the points and kept as vtkhdf_direction. PointData and CellData arrays are vertex_attrs and element_attrs in the file’s own dtypes, FieldData arrays global_attrs - a one-value array as the value, a string array as text - and the VTK type the file declared is global_attrs["vtkhdf_type"]. Every partition at the chosen step is merged into the one mesh, and where there are several, each part’s elements are tagged part_<k>. A temporal file is read at one step, the first without step=; polyxios.helper.read_time_series() reads them all, each carrying its time under global_attrs["time"].
+
+Only the rows a step needs are read from each dataset, so the other steps of a long series stay on disk. Every count the file declares is checked against the dataset that has to hold it before anything is allocated, and a connectivity id past the part’s points, offsets that run backwards or reach past the ids, or a step naming parts the file does not have, is refused naming the file and the dataset.
+
+The format needs h5py, which is optional - pip install "polyxios[hdf5]". Without it a read or a write raises UnsupportedFormatError spelling that command.
+
+Writing
+
+px.write(mesh, "out.vtkhdf")                          # UnstructuredGrid
+px.write(mesh, "out.vtkhdf", polydata=True)           # PolyData: vertices, lines, polygons, strips
+px.write(mesh, "out.vtkhdf", time=0.5)                # a Steps group of one step
+px.write(mesh, "out.vtkhdf", compression="gzip", compression_opts=4)
+
+helper.write_time_series(((t, solve(t)) for t in times), "run.vtkhdf")
+
+polydata picks the VTK type: True writes a PolyData and refuses a mesh holding a cell one cannot - a tetrahedron, a hexahedron - naming it, False an UnstructuredGrid; without it, global_attrs["vtkhdf_type"] decides, so a file read as a PolyData is written back as one, and anything else is an UnstructuredGrid. The points are written as float64, the cell types as VTK’s codes, the connectivity and offsets as int64. Every numeric vertex and element attribute goes out under its name and dtype, a boolean as uint8 and an array of more than two dimensions flattened to one row per entity; a tag group travels as one polyxios_tag_<name> column of ones and zeros, the way the VTK XML codecs write theirs. A number or an array under global_attrs is a FieldData array, a text a string array. time writes a Steps group of one step at that time; without it, a number under global_attrs["time"] does. compression and compression_opts go to h5py for every dataset.
+
+polyxios.helper.write_time_series() takes (time, mesh) pairs from any iterable, a generator included, and appends each step as it arrives: the cells are written once, the points again only for a step whose vertices moved, and every PointData, CellData and FieldData array once per step. A step whose elements differ from the first’s is refused, being another mesh rather than another step; so is one that lacks an array the first step had, or brings a new one, since VTK reads every step of a series through the same array names.
+
+Quirks worth knowing
+
+An ImageData is read and never written: a lattice goes out as the UnstructuredGrid its cells are. Read one and write it as a vti to keep it a lattice.
+
+A Type polyxios does not read - OverlappingAMR, MultiBlockDataSet, PartitionedDataSetCollection, HyperTreeGrid - raises UnsupportedFormatError naming it, and a Version past 2 CodecError. A Version of 1 reads as leniently as 2: the layouts 2.0 defined - PolyData, several parts, Steps - are taken as written when a 1.x file holds them.
+
+A PointData or CellData array that is not numeric, or holds fewer rows than the step needs, is dropped with a warning naming it, the answer the VTK XML readers give an array of the wrong length. An array with no entry under PointDataOffsets in a temporal file is read from row zero, which is where an array the file keeps once for every step sits.
+
+A temporal ImageData keeps its steps along a leading axis of each array - (steps, nz, ny, nx[, k]) - and its offsets count along it, which is what VTK’s reader asks for; an UnstructuredGrid or PolyData lays the steps end to end along the row axis.
+
+Every element type VTK has a code for is written; a code polyxios has no name for is dropped with a warning, and the values and tags over it cut to match.
+
+lazy=True raises LazyReadError: the arrays live in HDF5 datasets that h5py decodes whole.
+
+Verified against VTK’s own writer and reader: the test suite, when VTK is installed - the interop CI job installs it - reads what vtkHDFWriter writes - an UnstructuredGrid, a PolyData, an ImageData, a partitioned grid and a temporal series - and has vtkHDFReader read back the files polyxios writes, the series’ time steps included.
+
+pvd - ParaView’s collection of datasets over time.
+xdmf - the other HDF5-backed VTK family format, with its XML beside it.
+vtu - the same UnstructuredGrid in XML.
+index - the full format table.
+
+## PVD (ParaView collection)
+
+Source: https://polyxios.org/stable/formats/pvd.html
+
+PVD (ParaView collection)
+
+.pvd read + write time series
+
+Summary of the specification
+
+A .pvd file is ParaView’s collection: a short XML document that holds no geometry and names the files that do. A <VTKFile type="Collection"> root holds a <Collection> of <DataSet> elements, and each names a file - a .vtu, .vtp, .vti, a parallel .pvtu index, any VTK file - by a path relative to the collection, the timestep it belongs to, and the part and group it is when one step is split across several files. ParaView reads the collection as one dataset over time; a solver writes one by adding a line per step.
+
+Specification at a glance
+
+
+
+
+
+root
+
+<VTKFile type="Collection" version="0.1">
+
+datasets
+
+<Collection> of <DataSet timestep= group= part= file=/>
+
+files
+
+any VTK dataset, by a path relative to the collection
+
+time
+
+timestep, one number per dataset; several datasets may share one
+
+ParaView data formats ↗
+
+Reading
+
+import polyxios as px
+
+mesh = px.read("run.pvd")                    # the first time step
+mesh = px.read("run.pvd", step=-1)           # the last
+mesh.global_attrs["time"]                    # that step's timestep
+
+from polyxios import helper
+times, meshes = helper.read_time_series("run.pvd")
+
+polyxios.read() hands back one mesh, always. The collection’s time steps are its distinct timestep values in ascending order, a dataset spelling none at zero; the first is read without step=. Every dataset at that step is read through its own codec and merged into the one mesh - a .pvtu or other parallel index through polyxios.helper.read_multiblock() - and where there are several, tagged the way ParaView groups them: the datasets of one group share its tag, which names every element of every one of them, and a dataset naming no group is part_<n>, n its place among that step’s datasets counted from zero - so the untagged datasets of every step are part_0, part_1 and on, whatever part they spell. A name already in use - a tag a dataset carries, or another group’s - is left to it, and the collection’s gets a number appended. The datasets’ global_attrs are merged, a key two of them spell differently warned about and the later one’s value kept. The step’s timestep is global_attrs["time"], over whatever the dataset spelled itself. A subdirectory an index written on Windows spells with a backslash is found beside it too. polyxios.helper.read_time_series() reads every step.
+
+lazy=True is handed to each dataset’s reader: a step held in one file comes back the way that reader hands it out - views of a .vtu with a raw appended section - while a step split across several files is merged, which copies. It is handed on as asked, so a dataset whose codec cannot map its file - a .vtkhdf - raises LazyReadError from inside the collection, the way it would read on its own.
+
+Writing
+
+px.write(mesh, "out.pvd")                              # out.pvd and out_0.vtu beside it
+px.write(mesh, "out.pvd", format=".vtp", binary=False) # the dataset's codec and options
+px.write(mesh, "out.pvd", time=0.5)
+
+helper.write_time_series(((t, solve(t)) for t in times), "run.pvd")
+
+polyxios.write() is the one-step collection: the mesh is written beside the index as <stem>_0 with the extension format names, .vtu without it, and every other option goes to that codec. time is the step’s timestep; without it a number under global_attrs["time"] is, and zero otherwise. polyxios.helper.write_time_series() writes one dataset per step, <stem>_0, <stem>_1 and on, as the steps arrive from any iterable; the meshes need not share their elements, every step being a file of its own, but two steps at one time are refused, since a collection reads every dataset at one time as parts of one mesh.
+
+Quirks worth knowing
+
+The collection is found and written by path: a file object, or a .gz name, raises CodecError, since the datasets are found beside the index and a handle has no beside.
+
+A dataset whose path resolves outside the collection’s own directory - ../shared/step_0.vtu - is refused, the way the multi-block helpers refuse one for a .vtm or .pvtu: an index is data, and one naming a file outside its own directory asks for a file the caller did not. A collection naming another collection is refused too.
+
+A series refused part-way - two steps at one time, a dataset its codec will not write - leaves the datasets written so far beside the index’s path and no index; a shorter series written over a longer one leaves the earlier run’s later datasets beside the new index. A read follows the index, so neither is read.
+
+The index spells the time, so the dataset’s own time is left out of the file it goes into, and reads back from the index.
+
+A timestep that is not a finite number is refused on read, nan and inf among them, and a step at such a time is refused on write the same way, so no index is written that the reader would then reject.
+
+Whatever the dataset’s codec keeps is what the collection keeps: a .vtu carries every attribute and tag group, a .vtp only what a PolyData holds, and a .vti a lattice. The mesh a step reads back as is the one its codec hands out - a tetrahedron written to a .vtp comes back as the four-sided polygon that file holds.
+
+vtkhdf - VTK’s own HDF5 file, with its time steps inside.
+xdmf - the other time series format polyxios holds.
+index - the full format table.
 
 ## MFEM mesh
 
@@ -6609,6 +6810,29 @@ out as an extra bytes field. lazy=True maps an uncompressed file:
 the vertices are the int32 the file holds, the colours its uint16
 and every field a view of its column.
 
+VTKHDF (.vtkhdf), VTK’s own HDF5 layout and the file ParaView is
+moving to, is read and written behind the hdf5 extra. An
+UnstructuredGrid reads as its cells are, a PolyData with its
+vertices, lines, polygons and strips typed by point count, an
+ImageData expanded into the lattice its extent spans with the
+vti_* globals a .vti carries; every partition is merged and
+tagged part_<k>, PointData, CellData and FieldData are
+the attributes and globals, and a temporal file reads one step -
+step= on read, every step through helper.read_time_series.
+Write emits an UnstructuredGrid, or a PolyData with
+polydata=True or when the mesh was read as one, time= a
+Steps group of one, and helper.write_time_series appends each
+step’s arrays to one file, the cells written once and the points again
+only when they moved. Verified both ways against VTK’s own reader and
+writer, in the interop CI job as well as locally.
+
+PVD (.pvd), ParaView’s collection of datasets over time, is read and
+written. Every dataset at one timestep is read through its own codec
+and merged, tagged by group or part_<n>, with the step’s time
+under global_attrs["time"]; step= picks the step and
+helper.read_time_series reads them all. Write puts one .vtu -
+or the extension format= names - per step beside the index.
+
 ASCII point clouds (.xyz, Leica .pts and .ptx) are read and
 written. Columns past the coordinates are named by count and kind - an
 intensity, three whole numbers in 0..255 as colors, three others as
@@ -6916,7 +7140,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:343: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:364: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -6987,7 +7211,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:407: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:428: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -7225,7 +7449,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:631: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:652: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -7263,7 +7487,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:667: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:688: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -8228,7 +8452,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1527: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1548: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -8312,7 +8536,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1595: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1616: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -8360,7 +8584,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1626: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1647: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -8375,7 +8599,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1638: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1659: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -8481,7 +8705,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1711: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1732: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

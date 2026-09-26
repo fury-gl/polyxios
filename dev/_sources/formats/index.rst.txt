@@ -4,10 +4,10 @@ Supported formats
 =================
 
 .. meta::
-   :description: The forty-one 3D mesh and geometry formats polyxios reads and writes, across fifty-four extensions - VTK, OBJ, PLY, STL, glTF, LAS, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each.
+   :description: The forty-three 3D mesh and geometry formats polyxios reads and writes, across fifty-six extensions - VTK, VTKHDF, OBJ, PLY, STL, glTF, LAS, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each.
 
 
-polyxios ships forty-one codecs across fifty-four extensions - the fifty-three
+polyxios ships forty-three codecs across fifty-six extensions - the fifty-five
 below plus ``.plt``, which is recognised but not read. Each is registered by
 extension, so :func:`polyxios.read` picks the right reader from the filename - pass
 ``fmt=`` to override it.
@@ -22,7 +22,8 @@ Parallel and multi-block meta-files
 -----------------------------------
 
 ``.vtm``, ``.pvtu``, ``.pvts``, ``.pvti``, ``.pvtp`` and ``.pvtr`` are registered too,
-but they hold no geometry - only references to sub-files. :func:`polyxios.read`
+but they hold no geometry - only references to sub-files. (A ``.pvd`` names
+sub-files too, but over time, and :doc:`reads as a time series <pvd>`.) :func:`polyxios.read`
 hands back one mesh, always, so reading an index raises
 :class:`~polyxios.exceptions.UnsupportedFormatError` rather than failing with a
 parse error further in. The several live in the helper instead:
@@ -68,6 +69,8 @@ file is not supported.
    vtu
    vts
    vti
+   vtkhdf
+   pvd
    mfem
    netgen
    ugrid

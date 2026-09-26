@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=5ed58ef6"></script>
+    <script src="_static/documentation_options.js?v=65279898"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -447,6 +447,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
@@ -597,6 +599,27 @@ from the globals or the cloud, and sends every other numeric attribute
 out as an extra bytes field. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps an uncompressed file:
 the vertices are the int32 the file holds, the colours its <code class="docutils literal notranslate"><span class="pre">uint16</span></code>
 and every field a view of its column.</p></li>
+<li><p>VTKHDF (<code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code>), VTK’s own HDF5 layout and the file ParaView is
+moving to, is read and written behind the <code class="docutils literal notranslate"><span class="pre">hdf5</span></code> extra. An
+<code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code> reads as its cells are, a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with its
+vertices, lines, polygons and strips typed by point count, an
+<code class="docutils literal notranslate"><span class="pre">ImageData</span></code> expanded into the lattice its extent spans with the
+<code class="docutils literal notranslate"><span class="pre">vti_*</span></code> globals a <code class="docutils literal notranslate"><span class="pre">.vti</span></code> carries; every partition is merged and
+tagged <code class="docutils literal notranslate"><span class="pre">part_&lt;k&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">PointData</span></code>, <code class="docutils literal notranslate"><span class="pre">CellData</span></code> and <code class="docutils literal notranslate"><span class="pre">FieldData</span></code> are
+the attributes and globals, and a temporal file reads one step -
+<code class="docutils literal notranslate"><span class="pre">step=</span></code> on read, every step through <code class="docutils literal notranslate"><span class="pre">helper.read_time_series</span></code>.
+Write emits an <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code>, or a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with
+<code class="docutils literal notranslate"><span class="pre">polydata=True</span></code> or when the mesh was read as one, <code class="docutils literal notranslate"><span class="pre">time=</span></code> a
+<code class="docutils literal notranslate"><span class="pre">Steps</span></code> group of one, and <code class="docutils literal notranslate"><span class="pre">helper.write_time_series</span></code> appends each
+step’s arrays to one file, the cells written once and the points again
+only when they moved. Verified both ways against VTK’s own reader and
+writer, in the interop CI job as well as locally.</p></li>
+<li><p>PVD (<code class="docutils literal notranslate"><span class="pre">.pvd</span></code>), ParaView’s collection of datasets over time, is read and
+written. Every dataset at one <code class="docutils literal notranslate"><span class="pre">timestep</span></code> is read through its own codec
+and merged, tagged by <code class="docutils literal notranslate"><span class="pre">group</span></code> or <code class="docutils literal notranslate"><span class="pre">part_&lt;n&gt;</span></code>, with the step’s time
+under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>; <code class="docutils literal notranslate"><span class="pre">step=</span></code> picks the step and
+<code class="docutils literal notranslate"><span class="pre">helper.read_time_series</span></code> reads them all. Write puts one <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> -
+or the extension <code class="docutils literal notranslate"><span class="pre">format=</span></code> names - per step beside the index.</p></li>
 <li><p>ASCII point clouds (<code class="docutils literal notranslate"><span class="pre">.xyz</span></code>, Leica <code class="docutils literal notranslate"><span class="pre">.pts</span></code> and <code class="docutils literal notranslate"><span class="pre">.ptx</span></code>) are read and
 written. Columns past the coordinates are named by count and kind - an
 intensity, three whole numbers in 0..255 as <code class="docutils literal notranslate"><span class="pre">colors</span></code>, three others as

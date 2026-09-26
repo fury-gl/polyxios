@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=5ed58ef6"></script>
+    <script src="_static/documentation_options.js?v=65279898"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -447,6 +447,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
@@ -593,9 +595,9 @@ spin<span class="w"> </span>install<span class="w"> </span>-e<span class="w">  <
 <ul class="simple">
 <li><p>Cython &gt;= 3.0 (compiled hot-paths; pure Python fallbacks included)</p></li>
 <li><p>h5py &gt;= 3.0, for the HDF5 heavy data of <a class="reference internal" href="formats/xdmf.html"><span class="doc">XDMF</span></a> files
-and for the formats that are HDF5 files outright - <a class="reference internal" href="formats/med.html"><span class="doc">MED</span></a>,
-<a class="reference internal" href="formats/cgns.html"><span class="doc">CGNS</span></a>, <a class="reference internal" href="formats/h5m.html"><span class="doc">H5M</span></a> and
-<a class="reference internal" href="formats/hmf.html"><span class="doc">HMF</span></a> - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it
+and for the formats that are HDF5 files outright - <a class="reference internal" href="formats/vtkhdf.html"><span class="doc">VTKHDF</span></a>,
+<a class="reference internal" href="formats/med.html"><span class="doc">MED</span></a>, <a class="reference internal" href="formats/cgns.html"><span class="doc">CGNS</span></a>, <a class="reference internal" href="formats/h5m.html"><span class="doc">H5M</span></a>
+and <a class="reference internal" href="formats/hmf.html"><span class="doc">HMF</span></a> - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it
 XDMF’s inline and binary flavours still read and write, and an HDF5 file or
 reference raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
 naming the extra.</p></li>

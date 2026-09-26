@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=5ed58ef6"></script>
+    <script src="_static/documentation_options.js?v=65279898"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -447,6 +447,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
@@ -794,23 +796,26 @@ it.</p>
 things - a fluid domain and a solid one, one part per block - since
 <code class="xref py py-func docutils literal notranslate"><span class="pre">merge()</span></code> joins them into a mesh that no longer says
 which was which.</p>
-<p>A time series - one mesh at several times, which XDMF holds - is the same
+<p>A time series - one mesh at several times, which <a class="reference internal" href="formats/xdmf.html"><span class="doc">XDMF</span></a>,
+<a class="reference internal" href="formats/vtkhdf.html"><span class="doc">VTKHDF</span></a> and a <a class="reference internal" href="formats/pvd.html"><span class="doc">PVD collection</span></a>
+hold - is the same
 shape of problem with the same answer: <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> reads one step,
 the first unless <code class="docutils literal notranslate"><span class="pre">step=</span></code> says otherwise, and the several live in the helper:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">times</span><span class="p">,</span> <span class="n">meshes</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_time_series</span><span class="p">(</span><span class="s2">"run.xdmf"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">times</span><span class="p">,</span> <span class="n">meshes</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_time_series</span><span class="p">(</span><span class="s2">"run.xdmf"</span><span class="p">)</span>     <span class="c1"># or run.vtkhdf, run.pvd</span>
 <span class="n">helper</span><span class="o">.</span><span class="n">write_time_series</span><span class="p">(((</span><span class="n">t</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">times</span><span class="p">),</span> <span class="s2">"run.xdmf"</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The writer takes any iterable of <code class="docutils literal notranslate"><span class="pre">(time,</span> <span class="pre">mesh)</span></code> pairs and writes each step as
 it arrives, so a run can stream its results rather than hold them all. The
 usual XDMF layout keeps the arrays in an HDF5 file beside the XML one, which
-needs <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>; <code class="docutils literal notranslate"><span class="pre">data_format=&quot;xml&quot;</span></code> keeps them inline
-and needs nothing.</p>
+needs <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>, as does a <code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code>;
+<code class="docutils literal notranslate"><span class="pre">data_format=&quot;xml&quot;</span></code> keeps them inline and needs nothing, and a <code class="docutils literal notranslate"><span class="pre">.pvd</span></code>
+writes one VTK XML file per step beside the index.</p>
 </section>
 <section id="where-to-go-next">
 <h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the forty-one supported formats, one page each</p></li>
+<li><p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the forty-three supported formats, one page each</p></li>
 <li><p><a class="reference internal" href="lazy_loading.html"><span class="doc">Lazy loading</span></a> - reading files larger than RAM</p></li>
 <li><p><a class="reference internal" href="transforms.html"><span class="doc">Transforms</span></a> - filtering, cleaning and merging meshes</p></li>
 <li><p><a class="reference internal" href="cli.html"><span class="doc">Command line interface (pxios)</span></a> - the <code class="docutils literal notranslate"><span class="pre">pxios</span></code> command line</p></li>

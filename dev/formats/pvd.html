@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="AVS-UCD" />
+<meta property="og:title" content="PVD (ParaView collection)" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/avs.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/pvd.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".avs read + write eager Summary of the specification: AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data v..." />
+<meta property="og:description" content=".pvd read + write time series Summary of the specification: A.pvd file is ParaView’s collection: a short XML document that holds no geometry and names the files that do. A&lt;VTKFile type=&quot;Col..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_avs_5a129657.png" />
-<meta property="og:image:alt" content=".avs read + write eager Summary of the specification: AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data v..." />
-<meta name="description" content=".avs read + write eager Summary of the specification: AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data v..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_pvd_b4839881.png" />
+<meta property="og:image:alt" content=".pvd read + write time series Summary of the specification: A.pvd file is ParaView’s collection: a short XML document that holds no geometry and names the files that do. A&lt;VTKFile type=&quot;Col..." />
+<meta name="description" content=".pvd read + write time series Summary of the specification: A.pvd file is ParaView’s collection: a short XML document that holds no geometry and names the files that do. A&lt;VTKFile type=&quot;Col..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>AVS-UCD &#8212; polyxios</title>
+    <title>PVD (ParaView collection) &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/avs';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/pvd';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/avs.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/pvd.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Medit binary" href="meshb.html" />
-    <link rel="prev" title="Abaqus" href="abaqus.html" />
+    <link rel="next" title="MFEM mesh" href="mfem.html" />
+    <link rel="prev" title="VTKHDF" href="vtkhdf.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -432,7 +432,7 @@
 <li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">AVS-UCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
@@ -448,7 +448,7 @@
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
@@ -545,7 +545,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">AVS-UCD</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">PVD (ParaView collection)</span></li>
   </ul>
 </nav>
 </div>
@@ -562,12 +562,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="avs-ucd">
-<span id="format-avs"></span><h1>AVS-UCD<a class="headerlink" href="#avs-ucd" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.avs</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+  <section id="pvd-paraview-collection">
+<span id="format-pvd"></span><h1>PVD (ParaView collection)<a class="headerlink" href="#pvd-paraview-collection" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.pvd</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">time</span> <span class="pre">series</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data values. Node records follow - an id and three coordinates each - then one line per cell giving its id, material id, a cell type keyword (<code class="docutils literal notranslate"><span class="pre">tri</span></code>, <code class="docutils literal notranslate"><span class="pre">quad</span></code>, <code class="docutils literal notranslate"><span class="pre">tet</span></code>, <code class="docutils literal notranslate"><span class="pre">hex</span></code>, <code class="docutils literal notranslate"><span class="pre">prism</span></code>, <code class="docutils literal notranslate"><span class="pre">pyr</span></code>, <code class="docutils literal notranslate"><span class="pre">line</span></code>, <code class="docutils literal notranslate"><span class="pre">pt</span></code>) and its node ids. Optional data sections at the end declare component counts and labels before the per-node or per-cell values.</p>
+<p>A <code class="docutils literal notranslate"><span class="pre">.pvd</span></code> file is ParaView’s collection: a short XML document that holds no geometry and names the files that do. A <code class="docutils literal notranslate"><span class="pre">&lt;VTKFile</span> <span class="pre">type=&quot;Collection&quot;&gt;</span></code> root holds a <code class="docutils literal notranslate"><span class="pre">&lt;Collection&gt;</span></code> of <code class="docutils literal notranslate"><span class="pre">&lt;DataSet&gt;</span></code> elements, and each names a file - a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>, <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, a parallel <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code> index, any VTK file - by a path relative to the collection, the <code class="docutils literal notranslate"><span class="pre">timestep</span></code> it belongs to, and the <code class="docutils literal notranslate"><span class="pre">part</span></code> and <code class="docutils literal notranslate"><span class="pre">group</span></code> it is when one step is split across several files. ParaView reads the collection as one dataset over time; a solver writes one by adding a line per step.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -577,53 +577,64 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>counts line</p></td>
-<td><p>nnodes ncells ndata_node ndata_cell ndata_model</p></td>
+<tr class="row-odd"><td><p>root</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;VTKFile</span> <span class="pre">type=&quot;Collection&quot;</span> <span class="pre">version=&quot;0.1&quot;&gt;</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>node line</p></td>
-<td><p>id x y z</p></td>
+<tr class="row-even"><td><p>datasets</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;Collection&gt;</span></code> of <code class="docutils literal notranslate"><span class="pre">&lt;DataSet</span> <span class="pre">timestep=</span> <span class="pre">group=</span> <span class="pre">part=</span> <span class="pre">file=/&gt;</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>cell line</p></td>
-<td><p>id mat_id type n1 n2 …</p></td>
+<tr class="row-odd"><td><p>files</p></td>
+<td><p>any VTK dataset, by a path relative to the collection</p></td>
 </tr>
-<tr class="row-even"><td><p>cell types</p></td>
-<td><p>pt line tri quad tet pyr prism hex</p></td>
-</tr>
-<tr class="row-odd"><td><p>data sections</p></td>
-<td><p>component counts, then labelled value blocks</p></td>
+<tr class="row-even"><td><p>time</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">timestep</span></code>, one number per dataset; several datasets may share one</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://lanl.github.io/LaGriT/pages/docs/read_avs.html">Read the full AVS-UCD specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://docs.paraview.org/en/latest/UsersGuide/understandingData.html#pvd-files">ParaView data formats ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.avs"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"run.pvd"</span><span class="p">)</span>                    <span class="c1"># the first time step</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"run.pvd"</span><span class="p">,</span> <span class="n">step</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>           <span class="c1"># the last</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"time"</span><span class="p">]</span>                    <span class="c1"># that step's timestep</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span>
+<span class="n">times</span><span class="p">,</span> <span class="n">meshes</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_time_series</span><span class="p">(</span><span class="s2">"run.pvd"</span><span class="p">)</span>
 </pre></div>
 </div>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> hands back one mesh, always. The collection’s time steps are its distinct <code class="docutils literal notranslate"><span class="pre">timestep</span></code> values in ascending order, a dataset spelling none at zero; the first is read without <code class="docutils literal notranslate"><span class="pre">step=</span></code>. Every dataset at that step is read through its own codec and merged into the one mesh - a <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code> or other parallel index through <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.read_multiblock()</span></code> - and where there are several, tagged the way ParaView groups them: the datasets of one <code class="docutils literal notranslate"><span class="pre">group</span></code> share its tag, which names every element of every one of them, and a dataset naming no group is <code class="docutils literal notranslate"><span class="pre">part_&lt;n&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">n</span></code> its place among that step’s datasets counted from zero - so the untagged datasets of every step are <code class="docutils literal notranslate"><span class="pre">part_0</span></code>, <code class="docutils literal notranslate"><span class="pre">part_1</span></code> and on, whatever <code class="docutils literal notranslate"><span class="pre">part</span></code> they spell. A name already in use - a tag a dataset carries, or another group’s - is left to it, and the collection’s gets a number appended. The datasets’ <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> are merged, a key two of them spell differently warned about and the later one’s value kept. The step’s <code class="docutils literal notranslate"><span class="pre">timestep</span></code> is <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>, over whatever the dataset spelled itself. A subdirectory an index written on Windows spells with a backslash is found beside it too. <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.read_time_series()</span></code> reads every step.</p>
+<p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> is handed to each dataset’s reader: a step held in one file comes back the way that reader hands it out - views of a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> with a raw appended section - while a step split across several files is merged, which copies. It is handed on as asked, so a dataset whose codec cannot map its file - a <code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code> - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code> from inside the collection, the way it would read on its own.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.avs"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.pvd"</span><span class="p">)</span>                              <span class="c1"># out.pvd and out_0.vtu beside it</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.pvd"</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">".vtp"</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="c1"># the dataset's codec and options</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.pvd"</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+<span class="n">helper</span><span class="o">.</span><span class="n">write_time_series</span><span class="p">(((</span><span class="n">t</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">times</span><span class="p">),</span> <span class="s2">"run.pvd"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.write()</span></code> is the one-step collection: the mesh is written beside the index as <code class="docutils literal notranslate"><span class="pre">&lt;stem&gt;_0</span></code> with the extension <code class="docutils literal notranslate"><span class="pre">format</span></code> names, <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> without it, and every other option goes to that codec. <code class="docutils literal notranslate"><span class="pre">time</span></code> is the step’s <code class="docutils literal notranslate"><span class="pre">timestep</span></code>; without it a number under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code> is, and zero otherwise. <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.write_time_series()</span></code> writes one dataset per step, <code class="docutils literal notranslate"><span class="pre">&lt;stem&gt;_0</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;stem&gt;_1</span></code> and on, as the steps arrive from any iterable; the meshes need not share their elements, every step being a file of its own, but two steps at one time are refused, since a collection reads every dataset at one time as parts of one mesh.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>The per-cell material id is preserved as an element tag, so material groups survive a round trip.</p></li>
-<li><p>Node and cell data sections are read into named vertex and element attributes.</p></li>
-<li><p>1-based node ids are remapped to 0-based indices; the originals are kept as vertex tags.</p></li>
+<li><p>The collection is found and written by path: a file object, or a <code class="docutils literal notranslate"><span class="pre">.gz</span></code> name, raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>, since the datasets are found beside the index and a handle has no beside.</p></li>
+<li><p>A dataset whose path resolves outside the collection’s own directory - <code class="docutils literal notranslate"><span class="pre">../shared/step_0.vtu</span></code> - is refused, the way the multi-block helpers refuse one for a <code class="docutils literal notranslate"><span class="pre">.vtm</span></code> or <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>: an index is data, and one naming a file outside its own directory asks for a file the caller did not. A collection naming another collection is refused too.</p></li>
+<li><p>A series refused part-way - two steps at one time, a dataset its codec will not write - leaves the datasets written so far beside the index’s path and no index; a shorter series written over a longer one leaves the earlier run’s later datasets beside the new index. A read follows the index, so neither is read.</p></li>
+<li><p>The index spells the time, so the dataset’s own <code class="docutils literal notranslate"><span class="pre">time</span></code> is left out of the file it goes into, and reads back from the index.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">timestep</span></code> that is not a finite number is refused on read, <code class="docutils literal notranslate"><span class="pre">nan</span></code> and <code class="docutils literal notranslate"><span class="pre">inf</span></code> among them, and a step at such a time is refused on write the same way, so no index is written that the reader would then reject.</p></li>
+<li><p>Whatever the dataset’s codec keeps is what the collection keeps: a <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> carries every attribute and tag group, a <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> only what a PolyData holds, and a <code class="docutils literal notranslate"><span class="pre">.vti</span></code> a lattice. The mesh a step reads back as is the one its codec hands out - a tetrahedron written to a <code class="docutils literal notranslate"><span class="pre">.vtp</span></code> comes back as the four-sided polygon that file holds.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
+<p><a class="reference internal" href="vtkhdf.html"><span class="doc">VTKHDF</span></a> - VTK’s own HDF5 file, with its time steps inside.
+<a class="reference internal" href="xdmf.html"><span class="doc">XDMF</span></a> - the other time series format polyxios holds.
+<a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
 </section>
@@ -639,20 +650,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="abaqus.html"
+       href="vtkhdf.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Abaqus</p>
+        <p class="prev-next-title">VTKHDF</p>
       </div>
     </a>
     <a class="right-next"
-       href="meshb.html"
+       href="mfem.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Medit binary</p>
+        <p class="prev-next-title">MFEM mesh</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -687,7 +698,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/avs.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/pvd.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

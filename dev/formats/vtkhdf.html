@@ -7,20 +7,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta property="og:title" content="AVS-UCD" />
+<meta property="og:title" content="VTKHDF" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://polyxios.org/stable/formats/avs.html" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/vtkhdf.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".avs read + write eager Summary of the specification: AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data v..." />
+<meta property="og:description" content=".vtkhdf read + write time series polyxios[hdf5] Summary of the specification: VTKHDF is VTK’s own HDF5 layout and the file ParaView is moving its readers and writers to: one HDF5 file, a/VTKHDF gro..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_avs_5a129657.png" />
-<meta property="og:image:alt" content=".avs read + write eager Summary of the specification: AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data v..." />
-<meta name="description" content=".avs read + write eager Summary of the specification: AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data v..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtkhdf_7b5ab85b.png" />
+<meta property="og:image:alt" content=".vtkhdf read + write time series polyxios[hdf5] Summary of the specification: VTKHDF is VTK’s own HDF5 layout and the file ParaView is moving its readers and writers to: one HDF5 file, a/VTKHDF gro..." />
+<meta name="description" content=".vtkhdf read + write time series polyxios[hdf5] Summary of the specification: VTKHDF is VTK’s own HDF5 layout and the file ParaView is moving its readers and writers to: one HDF5 file, a/VTKHDF gro..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
-    <title>AVS-UCD &#8212; polyxios</title>
+    <title>VTKHDF &#8212; polyxios</title>
   
   
   
@@ -57,7 +57,7 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=5a050afe"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/avs';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/vtkhdf';</script>
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
@@ -67,11 +67,11 @@
         </script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <script src="../_static/js/homepage.js?v=0de8ffed"></script>
-    <link rel="canonical" href="https://polyxios.org/stable/formats/avs.html" />
+    <link rel="canonical" href="https://polyxios.org/stable/formats/vtkhdf.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Medit binary" href="meshb.html" />
-    <link rel="prev" title="Abaqus" href="abaqus.html" />
+    <link rel="next" title="PVD (ParaView collection)" href="pvd.html" />
+    <link rel="prev" title="VTK ImageData" href="vti.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
@@ -432,7 +432,7 @@
 <li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">AVS-UCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
 <li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
@@ -447,7 +447,7 @@
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">VTKHDF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
@@ -545,7 +545,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">AVS-UCD</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">VTKHDF</span></li>
   </ul>
 </nav>
 </div>
@@ -562,12 +562,12 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="avs-ucd">
-<span id="format-avs"></span><h1>AVS-UCD<a class="headerlink" href="#avs-ucd" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.avs</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+  <section id="vtkhdf">
+<span id="format-vtkhdf"></span><h1>VTKHDF<a class="headerlink" href="#vtkhdf" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">time</span> <span class="pre">series</span></code> <code class="docutils literal notranslate"><span class="pre">polyxios[hdf5]</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
-<p>AVS Unstructured Cell Data begins with a five-integer counts line: numbers of nodes, cells, node data values, cell data values and model data values. Node records follow - an id and three coordinates each - then one line per cell giving its id, material id, a cell type keyword (<code class="docutils literal notranslate"><span class="pre">tri</span></code>, <code class="docutils literal notranslate"><span class="pre">quad</span></code>, <code class="docutils literal notranslate"><span class="pre">tet</span></code>, <code class="docutils literal notranslate"><span class="pre">hex</span></code>, <code class="docutils literal notranslate"><span class="pre">prism</span></code>, <code class="docutils literal notranslate"><span class="pre">pyr</span></code>, <code class="docutils literal notranslate"><span class="pre">line</span></code>, <code class="docutils literal notranslate"><span class="pre">pt</span></code>) and its node ids. Optional data sections at the end declare component counts and labels before the per-node or per-cell values.</p>
+<p>VTKHDF is VTK’s own HDF5 layout and the file ParaView is moving its readers and writers to: one HDF5 file, a <code class="docutils literal notranslate"><span class="pre">/VTKHDF</span></code> group at its root, and two attributes on that group - <code class="docutils literal notranslate"><span class="pre">Version</span></code>, two integers, and <code class="docutils literal notranslate"><span class="pre">Type</span></code>, the VTK data object it holds. An <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code> keeps <code class="docutils literal notranslate"><span class="pre">Points</span></code>, <code class="docutils literal notranslate"><span class="pre">Connectivity</span></code>, <code class="docutils literal notranslate"><span class="pre">Offsets</span></code> and <code class="docutils literal notranslate"><span class="pre">Types</span></code> datasets, a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> its points and four cell groups - <code class="docutils literal notranslate"><span class="pre">Vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">Lines</span></code>, <code class="docutils literal notranslate"><span class="pre">Polygons</span></code>, <code class="docutils literal notranslate"><span class="pre">Strips</span></code> - each with a connectivity and offsets of its own, an <code class="docutils literal notranslate"><span class="pre">ImageData</span></code> no points at all, only the <code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code>, <code class="docutils literal notranslate"><span class="pre">Origin</span></code>, <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> and <code class="docutils literal notranslate"><span class="pre">Direction</span></code> attributes its lattice is expanded from. Every type keeps its arrays under <code class="docutils literal notranslate"><span class="pre">PointData</span></code>, <code class="docutils literal notranslate"><span class="pre">CellData</span></code> and <code class="docutils literal notranslate"><span class="pre">FieldData</span></code>. The file is partitioned - <code class="docutils literal notranslate"><span class="pre">NumberOfPoints</span></code> and <code class="docutils literal notranslate"><span class="pre">NumberOfCells</span></code> hold one entry per part, each part’s cells indexing its own points - and, when a <code class="docutils literal notranslate"><span class="pre">Steps</span></code> group is there, temporal: every dataset is the steps’ arrays laid end to end, and <code class="docutils literal notranslate"><span class="pre">Steps</span></code> holds the time of each step and where its points, cells and arrays begin.</p>
 </section>
 <section id="specification-at-a-glance">
 <h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
@@ -577,53 +577,76 @@
 <col style="width: 72.0%" />
 </colgroup>
 <tbody>
-<tr class="row-odd"><td><p>counts line</p></td>
-<td><p>nnodes ncells ndata_node ndata_cell ndata_model</p></td>
+<tr class="row-odd"><td><p>root</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/VTKHDF</span></code> with <code class="docutils literal notranslate"><span class="pre">Version</span></code> (<code class="docutils literal notranslate"><span class="pre">[2,</span> <span class="pre">0]</span></code>) and <code class="docutils literal notranslate"><span class="pre">Type</span></code> attributes</p></td>
 </tr>
-<tr class="row-even"><td><p>node line</p></td>
-<td><p>id x y z</p></td>
+<tr class="row-even"><td><p>UnstructuredGrid</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NumberOfPoints</span></code> <code class="docutils literal notranslate"><span class="pre">NumberOfCells</span></code> <code class="docutils literal notranslate"><span class="pre">NumberOfConnectivityIds</span></code> per part; <code class="docutils literal notranslate"><span class="pre">Points</span></code> <code class="docutils literal notranslate"><span class="pre">Types</span></code> <code class="docutils literal notranslate"><span class="pre">Connectivity</span></code> <code class="docutils literal notranslate"><span class="pre">Offsets</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>cell line</p></td>
-<td><p>id mat_id type n1 n2 …</p></td>
+<tr class="row-odd"><td><p>PolyData</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NumberOfPoints</span></code>, <code class="docutils literal notranslate"><span class="pre">Points</span></code>; <code class="docutils literal notranslate"><span class="pre">Vertices</span></code> <code class="docutils literal notranslate"><span class="pre">Lines</span></code> <code class="docutils literal notranslate"><span class="pre">Polygons</span></code> <code class="docutils literal notranslate"><span class="pre">Strips</span></code> groups, each with its counts, <code class="docutils literal notranslate"><span class="pre">Connectivity</span></code> and <code class="docutils literal notranslate"><span class="pre">Offsets</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>cell types</p></td>
-<td><p>pt line tri quad tet pyr prism hex</p></td>
+<tr class="row-even"><td><p>ImageData</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> <code class="docutils literal notranslate"><span class="pre">Origin</span></code> <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> <code class="docutils literal notranslate"><span class="pre">Direction</span></code> attributes; arrays shaped <code class="docutils literal notranslate"><span class="pre">(nz,</span> <span class="pre">ny,</span> <span class="pre">nx[,</span> <span class="pre">k])</span></code>, an axis of size one kept or left out</p></td>
 </tr>
-<tr class="row-odd"><td><p>data sections</p></td>
-<td><p>component counts, then labelled value blocks</p></td>
+<tr class="row-odd"><td><p>arrays</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PointData/&lt;name&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">CellData/&lt;name&gt;</span></code> <code class="docutils literal notranslate"><span class="pre">FieldData/&lt;name&gt;</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>time series</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Steps</span></code> with <code class="docutils literal notranslate"><span class="pre">NSteps</span></code>, <code class="docutils literal notranslate"><span class="pre">Values</span></code>, <code class="docutils literal notranslate"><span class="pre">PartOffsets</span></code>, <code class="docutils literal notranslate"><span class="pre">NumberOfParts</span></code>, <code class="docutils literal notranslate"><span class="pre">PointOffsets</span></code>, <code class="docutils literal notranslate"><span class="pre">CellOffsets</span></code>, <code class="docutils literal notranslate"><span class="pre">ConnectivityIdOffsets</span></code>, <code class="docutils literal notranslate"><span class="pre">PointDataOffsets/&lt;name&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">CellDataOffsets/&lt;name&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">FieldDataOffsets/&lt;name&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">FieldDataSizes/&lt;name&gt;</span></code></p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p class="px-speclink"><a class="reference external" href="https://lanl.github.io/LaGriT/pages/docs/read_avs.html">Read the full AVS-UCD specification ↗</a></p>
+<p class="px-speclink"><a class="reference external" href="https://docs.vtk.org/en/latest/vtk_file_formats/vtkhdf_file_format/index.html">VTKHDF file format ↗</a></p>
 </section>
 <section id="reading">
 <h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
 
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.avs"</span><span class="p">)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"result.vtkhdf"</span><span class="p">)</span>              <span class="c1"># the first step of a series</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"result.vtkhdf"</span><span class="p">,</span> <span class="n">step</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>     <span class="c1"># the last</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"vtkhdf_type"</span><span class="p">]</span>             <span class="c1"># "UnstructuredGrid", "PolyData" or "ImageData"</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">[</span><span class="s2">"time"</span><span class="p">]</span>                    <span class="c1"># that step's time, when the file holds steps</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span>
+<span class="n">times</span><span class="p">,</span> <span class="n">meshes</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">read_time_series</span><span class="p">(</span><span class="s2">"result.vtkhdf"</span><span class="p">)</span>
 </pre></div>
 </div>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> hands back one mesh, always. An <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code> reads as its cells are, its VTK type codes mapped to polyxios’s; a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> reads its four cell groups in VTK’s order - vertices, lines, polygons, strips - with each cell typed by its point count, a <code class="docutils literal notranslate"><span class="pre">vertex</span></code> or <code class="docutils literal notranslate"><span class="pre">poly_vertex</span></code>, a <code class="docutils literal notranslate"><span class="pre">line</span></code> or <code class="docutils literal notranslate"><span class="pre">poly_line</span></code>, a <code class="docutils literal notranslate"><span class="pre">triangle</span></code>, <code class="docutils literal notranslate"><span class="pre">quad</span></code> or <code class="docutils literal notranslate"><span class="pre">polygon</span></code>, a <code class="docutils literal notranslate"><span class="pre">triangle_strip</span></code>; an <code class="docutils literal notranslate"><span class="pre">ImageData</span></code> is expanded into the hexahedra, quadrilaterals or lines its extent spans, the way <a class="reference internal" href="vti.html"><span class="doc">VTK ImageData</span></a> is, with <code class="docutils literal notranslate"><span class="pre">vti_origin</span></code>, <code class="docutils literal notranslate"><span class="pre">vti_spacing</span></code> and <code class="docutils literal notranslate"><span class="pre">vti_extent</span></code> in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> so it writes back as a <code class="docutils literal notranslate"><span class="pre">.vti</span></code>, and a <code class="docutils literal notranslate"><span class="pre">Direction</span></code> that is not the identity applied to the points and kept as <code class="docutils literal notranslate"><span class="pre">vtkhdf_direction</span></code>. <code class="docutils literal notranslate"><span class="pre">PointData</span></code> and <code class="docutils literal notranslate"><span class="pre">CellData</span></code> arrays are <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> and <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code> in the file’s own dtypes, <code class="docutils literal notranslate"><span class="pre">FieldData</span></code> arrays <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> - a one-value array as the value, a string array as text - and the VTK type the file declared is <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;vtkhdf_type&quot;]</span></code>. Every partition at the chosen step is merged into the one mesh, and where there are several, each part’s elements are tagged <code class="docutils literal notranslate"><span class="pre">part_&lt;k&gt;</span></code>. A temporal file is read at one step, the first without <code class="docutils literal notranslate"><span class="pre">step=</span></code>; <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.read_time_series()</span></code> reads them all, each carrying its time under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>.</p>
+<p>Only the rows a step needs are read from each dataset, so the other steps of a long series stay on disk. Every count the file declares is checked against the dataset that has to hold it before anything is allocated, and a connectivity id past the part’s points, offsets that run backwards or reach past the ids, or a step naming parts the file does not have, is refused naming the file and the dataset.</p>
+<p>The format needs <a class="reference external" href="https://www.h5py.org/">h5py</a>, which is optional - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it a read or a write raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> spelling that command.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.avs"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtkhdf"</span><span class="p">)</span>                          <span class="c1"># UnstructuredGrid</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtkhdf"</span><span class="p">,</span> <span class="n">polydata</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>           <span class="c1"># PolyData: vertices, lines, polygons, strips</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtkhdf"</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>                <span class="c1"># a Steps group of one step</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtkhdf"</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s2">"gzip"</span><span class="p">,</span> <span class="n">compression_opts</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+
+<span class="n">helper</span><span class="o">.</span><span class="n">write_time_series</span><span class="p">(((</span><span class="n">t</span><span class="p">,</span> <span class="n">solve</span><span class="p">(</span><span class="n">t</span><span class="p">))</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">times</span><span class="p">),</span> <span class="s2">"run.vtkhdf"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+<p><code class="docutils literal notranslate"><span class="pre">polydata</span></code> picks the VTK type: <code class="docutils literal notranslate"><span class="pre">True</span></code> writes a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> and refuses a mesh holding a cell one cannot - a tetrahedron, a hexahedron - naming it, <code class="docutils literal notranslate"><span class="pre">False</span></code> an <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code>; without it, <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;vtkhdf_type&quot;]</span></code> decides, so a file read as a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> is written back as one, and anything else is an <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code>. The points are written as <code class="docutils literal notranslate"><span class="pre">float64</span></code>, the cell types as VTK’s codes, the connectivity and offsets as <code class="docutils literal notranslate"><span class="pre">int64</span></code>. Every numeric vertex and element attribute goes out under its name and dtype, a boolean as <code class="docutils literal notranslate"><span class="pre">uint8</span></code> and an array of more than two dimensions flattened to one row per entity; a tag group travels as one <code class="docutils literal notranslate"><span class="pre">polyxios_tag_&lt;name&gt;</span></code> column of ones and zeros, the way the VTK XML codecs write theirs. A number or an array under <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> is a <code class="docutils literal notranslate"><span class="pre">FieldData</span></code> array, a text a string array. <code class="docutils literal notranslate"><span class="pre">time</span></code> writes a <code class="docutils literal notranslate"><span class="pre">Steps</span></code> group of one step at that time; without it, a number under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code> does. <code class="docutils literal notranslate"><span class="pre">compression</span></code> and <code class="docutils literal notranslate"><span class="pre">compression_opts</span></code> go to h5py for every dataset.</p>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.helper.write_time_series()</span></code> takes <code class="docutils literal notranslate"><span class="pre">(time,</span> <span class="pre">mesh)</span></code> pairs from any iterable, a generator included, and appends each step as it arrives: the cells are written once, the points again only for a step whose vertices moved, and every <code class="docutils literal notranslate"><span class="pre">PointData</span></code>, <code class="docutils literal notranslate"><span class="pre">CellData</span></code> and <code class="docutils literal notranslate"><span class="pre">FieldData</span></code> array once per step. A step whose elements differ from the first’s is refused, being another mesh rather than another step; so is one that lacks an array the first step had, or brings a new one, since VTK reads every step of a series through the same array names.</p>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>The per-cell material id is preserved as an element tag, so material groups survive a round trip.</p></li>
-<li><p>Node and cell data sections are read into named vertex and element attributes.</p></li>
-<li><p>1-based node ids are remapped to 0-based indices; the originals are kept as vertex tags.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">ImageData</span></code> is read and never written: a lattice goes out as the <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code> its cells are. Read one and write it as a <a class="reference internal" href="vti.html"><span class="doc">VTK ImageData</span></a> to keep it a lattice.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">Type</span></code> polyxios does not read - <code class="docutils literal notranslate"><span class="pre">OverlappingAMR</span></code>, <code class="docutils literal notranslate"><span class="pre">MultiBlockDataSet</span></code>, <code class="docutils literal notranslate"><span class="pre">PartitionedDataSetCollection</span></code>, <code class="docutils literal notranslate"><span class="pre">HyperTreeGrid</span></code> - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> naming it, and a <code class="docutils literal notranslate"><span class="pre">Version</span></code> past 2 <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>. A <code class="docutils literal notranslate"><span class="pre">Version</span></code> of 1 reads as leniently as 2: the layouts 2.0 defined - <code class="docutils literal notranslate"><span class="pre">PolyData</span></code>, several parts, <code class="docutils literal notranslate"><span class="pre">Steps</span></code> - are taken as written when a 1.x file holds them.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">PointData</span></code> or <code class="docutils literal notranslate"><span class="pre">CellData</span></code> array that is not numeric, or holds fewer rows than the step needs, is dropped with a warning naming it, the answer the VTK XML readers give an array of the wrong length. An array with no entry under <code class="docutils literal notranslate"><span class="pre">PointDataOffsets</span></code> in a temporal file is read from row zero, which is where an array the file keeps once for every step sits.</p></li>
+<li><p>A temporal <code class="docutils literal notranslate"><span class="pre">ImageData</span></code> keeps its steps along a leading axis of each array - <code class="docutils literal notranslate"><span class="pre">(steps,</span> <span class="pre">nz,</span> <span class="pre">ny,</span> <span class="pre">nx[,</span> <span class="pre">k])</span></code> - and its offsets count along it, which is what VTK’s reader asks for; an <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code> or <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> lays the steps end to end along the row axis.</p></li>
+<li><p>Every element type VTK has a code for is written; a code polyxios has no name for is dropped with a warning, and the values and tags over it cut to match.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>: the arrays live in HDF5 datasets that h5py decodes whole.</p></li>
+<li><p>Verified against VTK’s own writer and reader: the test suite, when VTK is installed - the interop CI job installs it - reads what <code class="docutils literal notranslate"><span class="pre">vtkHDFWriter</span></code> writes - an <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code>, a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code>, an <code class="docutils literal notranslate"><span class="pre">ImageData</span></code>, a partitioned grid and a temporal series - and has <code class="docutils literal notranslate"><span class="pre">vtkHDFReader</span></code> read back the files polyxios writes, the series’ time steps included.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
+<p><a class="reference internal" href="pvd.html"><span class="doc">PVD (ParaView collection)</span></a> - ParaView’s collection of datasets over time.
+<a class="reference internal" href="xdmf.html"><span class="doc">XDMF</span></a> - the other HDF5-backed VTK family format, with its XML beside it.
+<a class="reference internal" href="vtu.html"><span class="doc">VTK UnstructuredGrid</span></a> - the same UnstructuredGrid in XML.
+<a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
 </div>
 </section>
 </section>
@@ -639,20 +662,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="abaqus.html"
+       href="vti.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Abaqus</p>
+        <p class="prev-next-title">VTK ImageData</p>
       </div>
     </a>
     <a class="right-next"
-       href="meshb.html"
+       href="pvd.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Medit binary</p>
+        <p class="prev-next-title">PVD (ParaView collection)</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -687,7 +710,7 @@
 
   
   <div class="tocsection editthispage">
-    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/avs.rst">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/vtkhdf.rst">
       <i class="fa-solid fa-pencil"></i>
       
       

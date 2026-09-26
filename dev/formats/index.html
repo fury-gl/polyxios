@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="The forty-one 3D mesh and geometry formats polyxios reads and writes, across fifty-four extensions - VTK, OBJ, PLY, STL, glTF, LAS, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each." name="description" />
+<meta content="The forty-three 3D mesh and geometry formats polyxios reads and writes, across fifty-six extensions - VTK, VTKHDF, OBJ, PLY, STL, glTF, LAS, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each." name="description" />
 <meta property="og:title" content="Supported formats" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/index.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="polyxios ships forty-one codecs across fifty-four extensions - the fifty-three below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right ..." />
+<meta property="og:description" content="polyxios ships forty-three codecs across fifty-six extensions - the fifty-five below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_d702a136.png" />
-<meta property="og:image:alt" content="polyxios ships forty-one codecs across fifty-four extensions - the fifty-three below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right ..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_index_df5472fd.png" />
+<meta property="og:image:alt" content="polyxios ships forty-three codecs across fifty-six extensions - the fifty-five below plus.plt, which is recognised but not read. Each is registered by extension, so polyxios.read() picks the right ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=5ed58ef6"></script>
+    <script src="../_static/documentation_options.js?v=65279898"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -447,6 +447,8 @@
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
@@ -559,14 +561,14 @@
                   
   <section id="supported-formats">
 <span id="formats"></span><h1>Supported formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h1>
-<p>polyxios ships forty-one codecs across fifty-four extensions - the fifty-three
+<p>polyxios ships forty-three codecs across fifty-six extensions - the fifty-five
 below plus <code class="docutils literal notranslate"><span class="pre">.plt</span></code>, which is recognised but not read. Each is registered by
 extension, so <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> picks the right reader from the filename - pass
 <code class="docutils literal notranslate"><span class="pre">fmt=</span></code> to override it.</p>
 <p>Every page below summarises the format’s specification, notes where polyxios extends or
 deviates from it, and links to the authoritative document.</p>
 <!--
-  The forty-one format cards, pulled into formats/index.rst by a raw:: html
+  The forty-three format cards, pulled into formats/index.rst by a raw:: html
   directive. Hrefs are relative to formats/, i.e. sibling pages.
   Every class is styled in _static/css/retro.css.
 
@@ -816,6 +818,26 @@ deviates from it, and links to the authoritative document.</p>
   </div>
 
   <div class="px-fmtcard">
+    <p class="px-fmtname">VTKHDF <span class="px-fmtext">.vtkhdf</span></p>
+    <p class="px-fmtdesc">VTK's own HDF5 layout: an UnstructuredGrid, PolyData or
+      ImageData under /VTKHDF, partitioned, with its time steps inside.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="vtkhdf.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.vtk.org/en/latest/vtk_file_formats/vtkhdf_file_format/index.html">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
+    <p class="px-fmtname">PVD (ParaView collection) <span class="px-fmtext">.pvd</span></p>
+    <p class="px-fmtdesc">An XML index of VTK datasets over time, each with its
+      timestep, part and group; read at one step or as a whole series.</p>
+    <p class="px-fmtlinks">
+      <a class="px-fmtread" href="pvd.html">read() &#8594;</a>
+      <a class="px-fmtspec" href="https://docs.paraview.org/en/latest/UsersGuide/understandingData.html#pvd-files">full spec &#8599;</a>
+    </p>
+  </div>
+
+  <div class="px-fmtcard">
     <p class="px-fmtname">MFEM mesh <span class="px-fmtext">.mesh</span></p>
     <p class="px-fmtdesc">Named sections keyed by a geometry type code; INLINE and
       NURBS variants carry a recipe, not a mesh.</p>
@@ -988,7 +1010,8 @@ deviates from it, and links to the authoritative document.</p>
 <section id="parallel-and-multi-block-meta-files">
 <h2>Parallel and multi-block meta-files<a class="headerlink" href="#parallel-and-multi-block-meta-files" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.vtm</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvts</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvti</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvtp</span></code> and <code class="docutils literal notranslate"><span class="pre">.pvtr</span></code> are registered too,
-but they hold no geometry - only references to sub-files. <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code>
+but they hold no geometry - only references to sub-files. (A <code class="docutils literal notranslate"><span class="pre">.pvd</span></code> names
+sub-files too, but over time, and <a class="reference internal" href="pvd.html"><span class="doc">reads as a time series</span></a>.) <code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code>
 hands back one mesh, always, so reading an index raises
 <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> rather than failing with a
 parse error further in. The several live in the helper instead:</p>
