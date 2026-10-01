@@ -218,6 +218,7 @@ Use `read_scene` / `write_scene` to preserve the structure; `read` flattens to a
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
 | glTF 2.0 | `.gltf` `.glb` | ✓ | ✓ | `read_scene` returns full hierarchy, PBR materials, animations; `read()` flattens with a warning |
+| COLLADA | `.dae` | ✓ | ✓ | `read_scene` returns nodes and effects as materials; skins and animations not yet read; `read()` flattens with a warning |
 
 ### Surface, point & interchange
 
@@ -297,7 +298,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**43 formats supported** across the 55 extensions in the tables, plus `.plt`, which
+**44 formats supported** across the 56 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

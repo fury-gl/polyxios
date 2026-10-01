@@ -8,6 +8,7 @@ py.install_sources(
     '_abaqus.py',
     '_cgns.py',
     '_3mf.py',
+    '_collada.py',
     '_avs.py',
     '_dolfin.py',
     '_exodus.py',

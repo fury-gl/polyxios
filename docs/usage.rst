@@ -295,7 +295,7 @@ writes one VTK XML file per step beside the index.
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the forty-three supported formats, one page each
+* :doc:`formats/index` - the forty-four supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line
