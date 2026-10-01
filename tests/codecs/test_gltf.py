@@ -5,9 +5,13 @@ The ``_make_glb`` helper assembles valid GLB bytes from a JSON dict and
 an optional binary chunk, independently of the codec's own GLB writer.
 """
 
+import dataclasses
+import io
 import json
 from pathlib import Path
 import struct
+from typing import Any
+import warnings
 
 import numpy as np
 import pytest
@@ -15,8 +19,17 @@ import pytest
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._scene import SceneData, SceneMaterial, SceneNode, SceneTexture
+from polyxios._trs import matrix_of_trs
 from polyxios._types import PolyData
-from polyxios.codecs._gltf import _parse_glb, read, read_scene, write, write_scene
+from polyxios.codecs._gltf import (
+    _decode_skins,
+    _increasing_float32,
+    _parse_glb,
+    read,
+    read_scene,
+    write,
+    write_scene,
+)
 from polyxios.exceptions import CodecError
 
 # ---------------------------------------------------------------------------
@@ -977,3 +990,927 @@ def test_placeholder_texture_source_omitted(tmp_path: Path) -> None:
     gltf, _ = _parse_glb(out.read_bytes())
     tex = gltf["textures"][0]
     assert "source" not in tex, f"expected no 'source' key, got {tex!r}"
+
+
+@pytest.mark.parametrize(
+    ("target", "interp", "match"),
+    [
+        ({"node": 0, "path": "matrix"}, "LINEAR", "path 'matrix'"),
+        ({"node": 0, "path": "translation"}, "BEZIER", "interpolates 'BEZIER'"),
+        (
+            {"node": 0, "path": "rotation", "sid": "rz", "member": "ANGLE"},
+            "LINEAR",
+            "'member', 'sid'",
+        ),
+    ],
+)
+def test_foreign_animation_channel_skipped(
+    tmp_path: Path, target: dict, interp: str, match: str
+) -> None:
+    """A channel glTF cannot hold is skipped, and an animation left without
+    channels is not written, since glTF requires at least one."""
+    sampler = {
+        "times": np.array([0.0, 1.0]),
+        "values": np.array([0.0, 90.0]),
+        "interpolation": interp,
+    }
+    scene = SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(SceneNode(mesh=0),),
+        scenes=((0,),),
+        global_attrs={
+            "animations": [
+                {"samplers": [sampler], "channels": [{"sampler": 0, "target": target}]}
+            ]
+        },
+    )
+    out = tmp_path / "foreign.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(scene, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "animations" not in gltf
+
+
+def _quat(axis: tuple[float, float, float], degrees: float) -> np.ndarray:
+    """Return the ``(x, y, z, w)`` quaternion turning ``degrees`` about ``axis``."""
+    half = np.radians(degrees) / 2
+    unit = np.asarray(axis, dtype=np.float64) / np.linalg.norm(axis)
+    return np.r_[unit * np.sin(half), np.cos(half)]
+
+
+def _trs_matrix(t: np.ndarray, q: np.ndarray, s: np.ndarray) -> np.ndarray:
+    """Return the 4x4 row-major matrix of translation, quaternion and scale."""
+    return matrix_of_trs(translation=t, rotation=q, scale=s)
+
+
+def _matrix_scene(keys: np.ndarray, *, interp: str = "LINEAR", extras=None, more=()):
+    """One node animated by a matrix channel of ``keys``, row-major (n, 16)."""
+    samplers = [
+        {
+            "times": np.arange(len(keys), dtype=np.float64),
+            "values": keys,
+            "interpolation": interp,
+        }
+    ]
+    channels = [
+        {
+            "sampler": 0,
+            "target": {"node": 0, "path": "matrix", "sid": "transform", "member": None},
+        }
+    ]
+    for target, sampler in more:
+        channels.append({"sampler": len(samplers), "target": target})
+        samplers.append(sampler)
+    return SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(SceneNode(mesh=0, extras=extras or {}),),
+        scenes=((0,),),
+        global_attrs={"animations": [{"channels": channels, "samplers": samplers}]},
+    )
+
+
+def _tracks(scene: SceneData) -> dict[str, dict]:
+    """Return the first animation's samplers keyed by their channel's path."""
+    anim = scene.global_attrs["animations"][0]
+    return {
+        c["target"]["path"]: anim["samplers"][c["sampler"]] for c in anim["channels"]
+    }
+
+
+def test_matrix_channel_written_as_trs(tmp_path: Path) -> None:
+    """A matrix channel animating a node's whole transform is split into
+    translation, rotation and scale channels, and the node written as TRS."""
+    t = np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0], [-1.0, 0.5, 0.0]])
+    q = np.array([_quat((0, 0, 1), 0), _quat((1, 1, 0), 120), _quat((0, 1, 0), 250)])
+    sc = np.array([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [0.5, 1.0, 3.0]])
+    keys = np.stack([_trs_matrix(*k).ravel() for k in zip(t, q, sc, strict=True)])
+    out = tmp_path / "split.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(_matrix_scene(keys), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "matrix" not in gltf["nodes"][0]
+    tracks = _tracks(read_scene(out))
+    assert sorted(tracks) == ["rotation", "scale", "translation"]
+    np.testing.assert_allclose(tracks["translation"]["values"], t, atol=1e-6)
+    np.testing.assert_allclose(tracks["scale"]["values"], sc, atol=1e-5)
+    rot = tracks["rotation"]["values"]
+    # Same hemisphere key to key, and each the same rotation as its source.
+    assert (np.sum(rot[1:] * rot[:-1], axis=1) >= 0).all()
+    np.testing.assert_allclose(np.abs(np.sum(rot * q, axis=1)), 1.0, atol=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("change", "match"),
+    [
+        ({"interp": "BEZIER"}, "not written"),
+        (
+            {
+                "extras": {
+                    "transforms": [
+                        {"kind": "translate", "sid": "t", "values": [0, 0, 0]},
+                        {
+                            "kind": "matrix",
+                            "sid": "transform",
+                            "values": np.eye(4).ravel().tolist(),
+                        },
+                    ]
+                }
+            },
+            "not written",
+        ),
+        (
+            {
+                "extras": {
+                    "transforms": [
+                        {
+                            "kind": "matrix",
+                            "sid": "other",
+                            "values": np.eye(4).ravel().tolist(),
+                        }
+                    ]
+                }
+            },
+            "not written",
+        ),
+    ],
+)
+def test_matrix_channel_not_the_whole_transform_is_skipped(
+    tmp_path: Path, change: dict, match: str
+) -> None:
+    """A matrix channel that is not the node's whole transform, or whose
+    interpolation glTF cannot blend a TRS by, is still skipped."""
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    out = tmp_path / "skip.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(_matrix_scene(keys, **change), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "animations" not in gltf
+
+
+def test_matrix_channel_clashing_with_a_trs_channel_is_skipped(tmp_path: Path) -> None:
+    """Two channels of one animation must not target the same node path."""
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    native = {
+        "times": np.array([0.0, 1.0]),
+        "values": np.zeros((2, 3)),
+        "interpolation": "LINEAR",
+    }
+    scene = _matrix_scene(keys, more=[({"node": 0, "path": "translation"}, native)])
+    out = tmp_path / "clash.glb"
+    with pytest.warns(UserWarning, match="already animates"):
+        write_scene(scene, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    channels = gltf["animations"][0]["channels"]
+    assert [c["target"]["path"] for c in channels] == ["translation"]
+
+
+def test_matrix_channel_key_with_a_shear_warns(tmp_path: Path) -> None:
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    keys[1, 1] = 0.5
+    with pytest.warns(UserWarning, match="shear"):
+        write_scene(_matrix_scene(keys), tmp_path / "shear.glb")
+
+
+def test_matrix_channel_split_leaves_the_scene_alone(tmp_path: Path) -> None:
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    scene = _matrix_scene(keys)
+    write_scene(scene, tmp_path / "same.glb")
+    anim = scene.global_attrs["animations"][0]
+    assert len(anim["channels"]) == 1 and len(anim["samplers"]) == 1
+    assert anim["channels"][0]["target"]["path"] == "matrix"
+
+
+def test_increasing_float32_moves_a_hold_key_below_its_step() -> None:
+    step = 0.1
+    times = np.array([0.0, np.nextafter(step, -np.inf), step, 1.0])
+    out = _increasing_float32(times)
+    assert out.dtype == np.float32
+    assert (np.diff(out) > 0).all()
+    assert out[2] == np.float32(step)
+
+
+def test_animated_node_with_a_mirrored_rest_matrix_is_written(tmp_path: Path) -> None:
+    """The rest pose of an animated node splits as its keys do, reflection
+    included, instead of refusing a negative determinant."""
+    mirror = np.diag([1.0, -1.0, 1.0, 1.0])
+    keys = np.stack([np.eye(4).ravel(), mirror.ravel()])
+    scene = _matrix_scene(keys)
+    scene = dataclasses.replace(
+        scene, nodes=(dataclasses.replace(scene.nodes[0], matrix=mirror),)
+    )
+    out = tmp_path / "mirror.glb"
+    with pytest.warns(UserWarning, match="handedness"):
+        write_scene(scene, out)
+    node = _parse_glb(out.read_bytes())[0]["nodes"][0]
+    rebuilt = _trs_matrix(
+        np.asarray(node["translation"]),
+        np.asarray(node["rotation"]),
+        np.asarray(node["scale"]),
+    )
+    np.testing.assert_allclose(rebuilt, mirror, atol=1e-12)
+
+
+def test_matrix_keys_printed_to_six_digits_are_not_a_shear(tmp_path: Path) -> None:
+    """Six significant digits, as COLLADA exporters print, rebuild the key."""
+    q = [_quat((1, 2, 3), a) for a in (0, 37, 81)]
+    keys = np.stack([_trs_matrix(np.zeros(3), k, np.ones(3)).ravel() for k in q])
+    keys = np.vectorize(lambda v: float(f"{v:.6g}"))(keys)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(_matrix_scene(keys), tmp_path / "six.glb")
+
+
+def test_native_channel_times_stay_increasing_in_float32(tmp_path: Path) -> None:
+    """Times of any channel, not only a split matrix one, that float32 would
+    collapse are kept strictly increasing."""
+    times = np.array([0.0, 1.0 - 1e-12, 1.0, 1.0 + 1e-12, 2.0])
+    scene = _matrix_scene(np.eye(4).ravel()[None, :])
+    scene = dataclasses.replace(
+        scene,
+        global_attrs={
+            "animations": [
+                {
+                    "channels": [
+                        {"sampler": 0, "target": {"node": 0, "path": "translation"}}
+                    ],
+                    "samplers": [
+                        {
+                            "times": times,
+                            "values": np.zeros((5, 3)),
+                            "interpolation": "STEP",
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    out = tmp_path / "times.glb"
+    write_scene(scene, out)
+    back = _tracks(read_scene(out))["translation"]["times"]
+    assert (np.diff(back.astype(np.float32)) > 0).all()
+
+
+def test_increasing_float32_leaves_unordered_times_alone() -> None:
+    times = np.array([2.0, 1.0, 0.0])
+    np.testing.assert_array_equal(_increasing_float32(times), times)
+
+
+def test_animation_channel_warning_names_the_caller(tmp_path: Path) -> None:
+    """The warning points at the line that wrote, however deep the codec is."""
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    scene = _matrix_scene(keys, interp="BEZIER")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_scene(scene, tmp_path / "caller.glb")
+    assert [w.filename for w in caught] == [__file__]
+
+
+def _skinned_glb(*, ibm_count: int = 2) -> tuple[bytes, np.ndarray]:
+    """Return a skinned triangle GLB and its row-major inverse bind matrices.
+
+    The second joint's inverse bind matrix translates by ``-1`` along x,
+    which only a column-major read puts in ``[0, 3]``.
+    """
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
+    joints = np.array([[0, 1, 0, 0]] * 3, dtype=np.uint8)
+    weights = np.array([[0.5, 0.5, 0, 0]] * 3, dtype=np.float32)
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[1, 0, 3] = -1.0
+    stored = np.tile(ibm.transpose(0, 2, 1), (ibm_count, 1, 1))[:ibm_count]
+    blobs = [verts.tobytes(), joints.tobytes(), weights.tobytes()]
+    blobs.append(stored.astype(np.float32).tobytes())
+    views, offset = [], 0
+    for blob in blobs:
+        views.append({"buffer": 0, "byteOffset": offset, "byteLength": len(blob)})
+        offset += len(blob)
+    gltf = {
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0, 1]}],
+        "nodes": [
+            {"mesh": 0, "skin": 0},
+            {"name": "hip", "children": [2]},
+            {"name": "knee", "translation": [1.0, 0.0, 0.0]},
+        ],
+        "meshes": [
+            {
+                "primitives": [
+                    {
+                        "attributes": {"POSITION": 0, "JOINTS_0": 1, "WEIGHTS_0": 2},
+                        "mode": 4,
+                    }
+                ]
+            }
+        ],
+        "skins": [{"joints": [1, 2], "inverseBindMatrices": 3}],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5121, "count": 3, "type": "VEC4"},
+            {"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"},
+            {
+                "bufferView": 3,
+                "componentType": 5126,
+                "count": ibm_count,
+                "type": "MAT4",
+            },
+        ],
+        "bufferViews": views,
+        "buffers": [{"byteLength": offset}],
+    }
+    return _make_glb(gltf, b"".join(blobs)), ibm
+
+
+def test_read_skin_inverse_bind_matrices_decoded_row_major(tmp_path: Path) -> None:
+    data, ibm = _skinned_glb()
+    p = tmp_path / "skin.glb"
+    p.write_bytes(data)
+    skin = read_scene(p).global_attrs["skins"][0]
+    assert skin["inverseBindMatrices"] == 3 and skin["joints"] == [1, 2]
+    assert skin["inverse_bind_matrices"].dtype == np.float64
+    np.testing.assert_array_equal(skin["inverse_bind_matrices"], ibm)
+
+
+def test_read_skin_inverse_bind_matrices_short_accessor_warns(
+    tmp_path: Path,
+) -> None:
+    data, _ = _skinned_glb(ibm_count=1)
+    p = tmp_path / "short.glb"
+    p.write_bytes(data)
+    with pytest.warns(UserWarning, match="not one MAT4 per joint"):
+        skin = read_scene(p).global_attrs["skins"][0]
+    assert "inverse_bind_matrices" not in skin
+
+
+@pytest.mark.parametrize(
+    ("skin", "match"),
+    [
+        (5, "not an object"),
+        ({"joints": 5, "inverseBindMatrices": 0}, "joints is not a list"),
+        ({"joints": [0], "inverseBindMatrices": 9}, "names no accessor"),
+        ({"joints": [0], "inverseBindMatrices": -1}, "names no accessor"),
+        ({"joints": [0], "inverseBindMatrices": "0"}, "names no accessor"),
+    ],
+)
+def test_malformed_skin_is_kept_with_a_warning(skin: Any, match: str) -> None:
+    gltf = {"accessors": [{"count": 1, "componentType": 5126, "type": "MAT4"}]}
+    with pytest.warns(UserWarning, match=match):
+        (out,) = _decode_skins(gltf, [skin], [])
+    assert out == skin
+
+
+_MAT4_VIEW = [{"buffer": 0, "byteLength": 64}]
+
+
+@pytest.mark.parametrize(
+    ("accessor", "buffers", "match"),
+    [
+        (
+            {"bufferView": 0, "count": 1, "componentType": 5126, "type": "MAT4"},
+            [b"\0" * 8],
+            "cannot be read",
+        ),
+        (
+            {
+                "count": 1,
+                "componentType": 5126,
+                "type": "MAT4",
+                "sparse": {"count": 1},
+            },
+            [],
+            "cannot be read",
+        ),
+        ({"componentType": 5126, "type": "MAT4"}, [], "cannot be read"),
+        (
+            {"bufferView": 7, "count": 1, "componentType": 5126, "type": "MAT4"},
+            [b"\0" * 64],
+            "cannot be read",
+        ),
+        (
+            {"bufferView": 0, "count": 1, "componentType": 5121, "type": "MAT4"},
+            [b"\1" * 64],
+            "not a float MAT4",
+        ),
+        (
+            {"bufferView": 0, "count": 4, "componentType": 5126, "type": "VEC4"},
+            [b"\0" * 64],
+            "not a float MAT4",
+        ),
+        (5, [], "not a float MAT4"),
+    ],
+)
+def test_skin_with_an_undecodable_accessor_is_kept_with_a_warning(
+    accessor: Any, buffers: list, match: str
+) -> None:
+    """An inverse bind accessor that cannot be decoded does not fail the read."""
+    gltf = {"accessors": [accessor], "bufferViews": _MAT4_VIEW}
+    skin = {"joints": [0], "inverseBindMatrices": 0}
+    with pytest.warns(UserWarning, match=match):
+        (out,) = _decode_skins(gltf, [skin], buffers)
+    assert out == skin
+
+
+def test_read_scene_survives_a_short_inverse_bind_buffer(tmp_path: Path) -> None:
+    data, _ = _skinned_glb()
+    gltf, bin_chunk = _parse_glb(data)
+    gltf["accessors"][3]["count"] = 50
+    p = tmp_path / "short_buffer.glb"
+    p.write_bytes(_make_glb(gltf, bin_chunk))
+    with pytest.warns(UserWarning, match="cannot be read"):
+        scene = read_scene(p)
+    assert "inverse_bind_matrices" not in scene.global_attrs["skins"][0]
+    assert len(scene.meshes) == 1
+
+
+@pytest.mark.parametrize("skin", [{"inverseBindMatrices": 0}, {"joints": []}])
+def test_skin_without_joints_is_not_decoded(skin: dict) -> None:
+    gltf = {
+        "accessors": [
+            {"bufferView": 0, "count": 1, "componentType": 5126, "type": "MAT4"}
+        ],
+        "bufferViews": _MAT4_VIEW,
+    }
+    skin = {**skin, "inverseBindMatrices": 0}
+    with pytest.warns(UserWarning, match="has no joints"):
+        (out,) = _decode_skins(gltf, [skin], [b"\0" * 64])
+    assert out == skin
+
+
+def test_skin_matrices_beyond_the_joints_are_left_out(tmp_path: Path) -> None:
+    data, ibm = _skinned_glb(ibm_count=3)
+    p = tmp_path / "surplus.glb"
+    p.write_bytes(data)
+    skin = read_scene(p).global_attrs["skins"][0]
+    np.testing.assert_array_equal(skin["inverse_bind_matrices"], ibm)
+
+
+def test_skins_that_are_not_a_list_are_kept_with_a_warning() -> None:
+    skins = {"joints": [0]}
+    with pytest.warns(UserWarning, match="skins is not a list"):
+        assert _decode_skins({}, skins, []) is skins
+
+
+def _channel_scene(channel: Any, *, matrix: np.ndarray | None = None) -> SceneData:
+    """Return a one-node scene whose one animation holds ``channel``."""
+    sampler = {
+        "times": np.array([0.0, 1.0]),
+        "values": np.zeros((2, 3)),
+        "interpolation": "LINEAR",
+    }
+    node = SceneNode(mesh=0) if matrix is None else SceneNode(mesh=0, matrix=matrix)
+    return SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(node,),
+        scenes=((0,),),
+        global_attrs={"animations": [{"samplers": [sampler], "channels": [channel]}]},
+    )
+
+
+@pytest.mark.parametrize("sampler", [99, -1, "0", None, 0.5, True])
+def test_channel_naming_no_sampler_leaves_its_node_a_matrix(
+    tmp_path: Path, sampler: Any
+) -> None:
+    """A dropped channel neither animates its node nor borrows a sampler."""
+    moved = np.eye(4)
+    moved[0, 3] = 2.0
+    channel = {"sampler": sampler, "target": {"node": 0, "path": "translation"}}
+    out = tmp_path / "no_sampler.glb"
+    write_scene(_channel_scene(channel, matrix=moved), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "animations" not in gltf
+    assert "matrix" in gltf["nodes"][0] and "translation" not in gltf["nodes"][0]
+
+
+@pytest.mark.parametrize(
+    ("target", "match"),
+    [
+        (None, "is not an object"),
+        ("node", "is not an object"),
+        ({"node": 99, "path": "translation"}, "not one of the scene's"),
+        ({"node": -1, "path": "translation"}, "not one of the scene's"),
+        ({"node": "a", "path": "translation"}, "not one of the scene's"),
+        ({"node": 0, "path": 3}, "not a glTF one"),
+    ],
+)
+def test_channel_with_a_target_glTF_cannot_hold_is_skipped(
+    tmp_path: Path, target: Any, match: str
+) -> None:
+    out = tmp_path / "target.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(_channel_scene({"sampler": 0, "target": target}), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "animations" not in gltf
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_animated_node_with_a_non_finite_matrix_raises(
+    tmp_path: Path, bad: float
+) -> None:
+    matrix = np.eye(4)
+    matrix[0, 0] = bad
+    channel = {"sampler": 0, "target": {"node": 0, "path": "translation"}}
+    with pytest.raises(CodecError, match="NaN or Inf"):
+        write_scene(_channel_scene(channel, matrix=matrix), tmp_path / "nan.glb")
+
+
+def test_increasing_float32_never_turns_a_time_negative() -> None:
+    out = _increasing_float32(np.array([0.0, 1e-50, 1e-49, 1.0]))
+    assert out[0] == 0 and (np.diff(out) > 0).all()
+    np.testing.assert_array_equal(out[-1], np.float32(1.0))
+
+
+def test_increasing_float32_keeps_negative_times_moving_down() -> None:
+    out = _increasing_float32(np.array([-1.0, -1.0 + 1e-12, 0.0]))
+    assert (np.diff(out) > 0).all() and out[1] == np.float32(-1.0)
+
+
+def test_increasing_float32_leaves_repeated_times_alone() -> None:
+    times = np.array([0.0, 1.0, 1.0, 1.0 + 1e-12, 2.0])
+    np.testing.assert_array_equal(_increasing_float32(times), times.astype(np.float32))
+
+
+def _sampler_scene(sampler: Any, *, path: str = "translation") -> SceneData:
+    """Return a one-node scene whose one channel of ``path`` uses ``sampler``."""
+    return SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(SceneNode(mesh=0),),
+        scenes=((0,),),
+        global_attrs={
+            "animations": [
+                {
+                    "samplers": [sampler],
+                    "channels": [{"sampler": 0, "target": {"node": 0, "path": path}}],
+                }
+            ]
+        },
+    )
+
+
+_T2 = np.array([0.0, 1.0])
+
+
+@pytest.mark.parametrize(
+    ("sampler", "path", "match"),
+    [
+        (5, "translation", "is not an object"),
+        ({}, "translation", "no times or no values"),
+        ({"times": _T2}, "translation", "no times or no values"),
+        (
+            {"times": _T2, "values": np.zeros((2, 3)), "interpolation": ["LINEAR"]},
+            "translation",
+            "interpolates",
+        ),
+        ({"times": ["a"], "values": np.zeros((1, 3))}, "translation", "not numbers"),
+        ({"times": np.zeros(0), "values": np.zeros((0, 3))}, "translation", "no key"),
+        ({"times": _T2, "values": np.full((2, 4), np.nan)}, "rotation", "NaN or Inf"),
+        ({"times": _T2, "values": np.zeros((2, 3))}, "rotation", "not 4 for each"),
+        ({"times": _T2, "values": np.zeros((1, 3))}, "scale", "not 3 for each"),
+        (
+            {"times": _T2, "values": np.zeros((2, 3)), "interpolation": "CUBICSPLINE"},
+            "translation",
+            "not 3 for each",
+        ),
+        ({"times": _T2, "values": np.zeros(3)}, "weights", "not a whole number"),
+    ],
+)
+def test_channel_with_a_sampler_glTF_cannot_hold_is_skipped(
+    tmp_path: Path, sampler: Any, path: str, match: str
+) -> None:
+    """A sampler that is no object, holds no usable keys, or whose values do
+    not fit its path is skipped with a warning instead of raising or being
+    written as an accessor of the wrong type or count."""
+    out = tmp_path / "sampler.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(_sampler_scene(sampler, path=path), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "animations" not in gltf
+    assert "matrix" not in gltf["nodes"][0] and "rotation" not in gltf["nodes"][0]
+
+
+def test_matrix_channel_with_an_unhashable_interpolation_is_skipped(
+    tmp_path: Path,
+) -> None:
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    with pytest.warns(UserWarning, match="not written"):
+        write_scene(_matrix_scene(keys, interp=["LINEAR"]), tmp_path / "interp.glb")
+
+
+def test_second_channel_animating_the_same_node_path_is_skipped(
+    tmp_path: Path,
+) -> None:
+    """glTF forbids two channels of one animation on the same target."""
+    scene = _sampler_scene({"times": _T2, "values": np.zeros((2, 3))})
+    anim = scene.global_attrs["animations"][0]
+    anim["samplers"].append({"times": _T2, "values": np.ones((2, 3))})
+    anim["channels"].append({"sampler": 1, "target": {"node": 0, "path": "scale"}})
+    anim["channels"].append(
+        {"sampler": 1, "target": {"node": 0, "path": "translation"}}
+    )
+    out = tmp_path / "twice.glb"
+    with pytest.warns(UserWarning, match="already animates the translation of node 0"):
+        write_scene(scene, out)
+    tracks = _tracks(read_scene(out))
+    assert sorted(tracks) == ["scale", "translation"]
+    np.testing.assert_array_equal(tracks["translation"]["values"], np.zeros((2, 3)))
+
+
+@pytest.mark.parametrize(
+    ("animations", "match"),
+    [
+        ([5], "animation 0 is not an object"),
+        ([{"channels": 5, "samplers": []}], "animation 0 is not an object"),
+        (5, "animations is not a list"),
+    ],
+)
+def test_animation_that_is_not_an_object_is_skipped(
+    tmp_path: Path, animations: Any, match: str
+) -> None:
+    scene = dataclasses.replace(
+        _sampler_scene({}), global_attrs={"animations": animations}
+    )
+    out = tmp_path / "anim.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(scene, out)
+    assert "animations" not in _parse_glb(out.read_bytes())[0]
+
+
+def test_animations_set_to_none_write_no_animation(tmp_path: Path) -> None:
+    scene = dataclasses.replace(_sampler_scene({}), global_attrs={"animations": None})
+    out = tmp_path / "none.glb"
+    write_scene(scene, out)
+    assert "animations" not in _parse_glb(out.read_bytes())[0]
+
+
+def test_flat_values_are_written_at_the_width_of_their_path(tmp_path: Path) -> None:
+    """Six flat values of a translation are two VEC3 keys, not six scalars,
+    and morph weights of two targets are four scalars, not two."""
+    out = tmp_path / "flat.glb"
+    write_scene(_sampler_scene({"times": _T2, "values": np.arange(6.0)}), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    output = gltf["accessors"][gltf["animations"][0]["samplers"][0]["output"]]
+    assert (output["type"], output["count"]) == ("VEC3", 2)
+
+    weights = np.array([[0.0, 1.0], [0.5, 0.25]])
+    write_scene(_sampler_scene({"times": _T2, "values": weights}, path="weights"), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    output = gltf["accessors"][gltf["animations"][0]["samplers"][0]["output"]]
+    assert (output["type"], output["count"]) == ("SCALAR", 4)
+    np.testing.assert_array_equal(
+        _tracks(read_scene(out))["weights"]["values"], weights.ravel()
+    )
+
+
+def test_shared_times_and_samplers_are_written_once(tmp_path: Path) -> None:
+    """The three channels a matrix one splits into share one time accessor,
+    and two channels naming one sampler share that sampler."""
+    out = tmp_path / "shared.glb"
+    write_scene(_matrix_scene(np.tile(np.eye(4).ravel(), (2, 1))), out)
+    anim = _parse_glb(out.read_bytes())[0]["animations"][0]
+    assert len(anim["samplers"]) == 3
+    assert len({s["input"] for s in anim["samplers"]}) == 1
+
+    scene = _sampler_scene({"times": _T2, "values": np.ones((2, 3))})
+    scene.global_attrs["animations"][0]["channels"].append(
+        {"sampler": 0, "target": {"node": 0, "path": "scale"}}
+    )
+    write_scene(scene, out)
+    anim = _parse_glb(out.read_bytes())[0]["animations"][0]
+    assert [c["sampler"] for c in anim["channels"]] == [0, 0]
+    assert len(anim["samplers"]) == 1
+
+
+def test_numpy_integers_in_the_scene_are_written(tmp_path: Path) -> None:
+    """A node, mesh or child index held as a numpy integer is plain JSON."""
+    scene = _sampler_scene({"times": _T2, "values": np.zeros((2, 3))})
+    scene.global_attrs["animations"][0]["channels"][0]["target"]["node"] = np.int64(0)
+    scene = dataclasses.replace(
+        scene,
+        nodes=(SceneNode(mesh=np.int32(0), children=(np.int64(1),)), SceneNode()),
+    )
+    out = tmp_path / "numpy.glb"
+    write_scene(scene, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert gltf["nodes"][0]["children"] == [1] and gltf["nodes"][0]["mesh"] == 0
+    assert gltf["animations"][0]["channels"][0]["target"]["node"] == 0
+
+
+def test_skin_accessor_without_a_buffer_view_is_not_decoded() -> None:
+    """Such an accessor reads as zeros, which are no inverse bind matrices."""
+    gltf = {"accessors": [{"count": 1, "componentType": 5126, "type": "MAT4"}]}
+    skin = {"joints": [0], "inverseBindMatrices": 0}
+    with pytest.warns(UserWarning, match="has no bufferView"):
+        (out,) = _decode_skins(gltf, [skin], [])
+    assert out == skin
+
+
+def _animated_glb() -> tuple[dict, bytes]:
+    """Return the JSON and binary chunk of a GLB holding one animation."""
+    buf = io.BytesIO()
+    write_scene(_sampler_scene({"times": _T2, "values": np.zeros((2, 3))}), buf)
+    return _parse_glb(buf.getvalue())
+
+
+@pytest.mark.parametrize(
+    ("change", "match"),
+    [
+        (lambda g: g["animations"][0]["samplers"][0].pop("input"), "sampler 0 of"),
+        (lambda g: g["animations"][0]["samplers"][0].update(output=99), "sampler 0"),
+        (lambda g: g.update(animations=[5]), "animation 0 is not an object"),
+        (lambda g: g.update(animations=5), "animations is not a list"),
+    ],
+)
+def test_read_malformed_animation_raises_codec_error(change: Any, match: str) -> None:
+    gltf, bin_chunk = _animated_glb()
+    change(gltf)
+    with pytest.raises(CodecError, match=match):
+        read_scene(io.BytesIO(_make_glb(gltf, bin_chunk)))
+
+
+def test_skipped_element_warning_names_the_caller(tmp_path: Path) -> None:
+    tetra = PolyData(
+        vertices=np.eye(4, 3),
+        connectivity=np.array([0, 1, 2, 0, 1, 2, 3], dtype=np.int32),
+        offsets=np.array([0, 3, 7], dtype=np.int32),
+        element_types=np.array(
+            [ELEMENT_TYPES["triangle"], ELEMENT_TYPES["tetra"]], dtype=np.uint8
+        ),
+    )
+    scene = SceneData(meshes=(tetra,), nodes=(SceneNode(mesh=0),), scenes=((0,),))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_scene(scene, tmp_path / "tetra.glb")
+    assert [w.filename for w in caught] == [__file__]
+
+
+def _pointer_scene(values: Any) -> SceneData:
+    """Return a scene whose one channel animates a pointer with ``values``."""
+    scene = _sampler_scene({"times": _T2, "values": values}, path="pointer")
+    target = scene.global_attrs["animations"][0]["channels"][0]["target"]
+    del target["node"]
+    target["extensions"] = {"KHR_animation_pointer": {"pointer": "/nodes/0/scale"}}
+    return scene
+
+
+@pytest.mark.parametrize(
+    ("values", "acc_type"),
+    [
+        (np.arange(2.0), "SCALAR"),
+        (np.arange(2.0).reshape(2, 1), "SCALAR"),
+        (np.arange(4.0).reshape(2, 2), "VEC2"),
+        (np.arange(6.0).reshape(2, 3), "VEC3"),
+        (np.arange(8.0).reshape(2, 4), "VEC4"),
+        (np.arange(18.0).reshape(2, 9), "MAT3"),
+        (np.arange(32.0).reshape(2, 16), "MAT4"),
+    ],
+)
+def test_pointer_values_are_written_at_their_own_width(
+    tmp_path: Path, values: np.ndarray, acc_type: str
+) -> None:
+    """One accessor element per key, of the type as wide as a key's row."""
+    out = tmp_path / "pointer.glb"
+    write_scene(_pointer_scene(values), out)
+    gltf, bin_chunk = _parse_glb(out.read_bytes())
+    output = gltf["accessors"][gltf["animations"][0]["samplers"][0]["output"]]
+    assert (output["type"], output["count"]) == (acc_type, 2)
+    view = gltf["bufferViews"][output["bufferView"]]
+    assert view["byteLength"] == values.size * 4
+    back = read_scene(out).global_attrs["animations"][0]["samplers"][0]["values"]
+    np.testing.assert_array_equal(back.ravel(), values.ravel())
+
+
+@pytest.mark.parametrize(
+    "values", [np.zeros((2, 5)), np.zeros((2, 2, 2)), np.zeros(6), np.zeros((3, 3))]
+)
+def test_pointer_values_of_no_glTF_type_are_skipped(
+    tmp_path: Path, values: np.ndarray
+) -> None:
+    """A width glTF has no accessor type for is not written as a VEC3."""
+    out = tmp_path / "pointer.glb"
+    with pytest.warns(UserWarning, match="glTF has a type for"):
+        write_scene(_pointer_scene(values), out)
+    assert "animations" not in _parse_glb(out.read_bytes())[0]
+
+
+def test_channel_target_with_a_null_node_is_written_without_it(
+    tmp_path: Path,
+) -> None:
+    """A target's ``node`` is an integer or absent in glTF, never null."""
+    scene = _sampler_scene({"times": _T2, "values": np.zeros((2, 3))})
+    scene.global_attrs["animations"][0]["channels"][0]["target"]["node"] = None
+    out = tmp_path / "null_node.glb"
+    write_scene(scene, out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert gltf["animations"][0]["channels"][0]["target"] == {"path": "translation"}
+
+
+@pytest.mark.parametrize(
+    ("sampler", "path", "match"),
+    [
+        ({"times": _T2, "values": np.full((2, 3), 1e39)}, "translation", "float32"),
+        (
+            {"times": np.array([0.0, 1e39]), "values": np.zeros((2, 3))},
+            "translation",
+            "float32",
+        ),
+        (
+            {"times": np.array([1.0, 0.0]), "values": np.zeros((2, 3))},
+            "translation",
+            "not strictly increasing",
+        ),
+        (
+            {"times": np.array([0.0, 0.0]), "values": np.zeros((2, 3))},
+            "scale",
+            "not strictly increasing",
+        ),
+        ({"times": _T2, "values": np.zeros((2, 4))}, "rotation", "zero length"),
+        (
+            {
+                "times": _T2,
+                "values": np.tile(
+                    [[1.0, 0, 0, 0], [0, 0, 0, 0], [1.0, 0, 0, 0]], (2, 1)
+                ),
+                "interpolation": "CUBICSPLINE",
+            },
+            "rotation",
+            "zero length",
+        ),
+    ],
+)
+def test_sampler_glTF_would_store_wrong_is_skipped(
+    tmp_path: Path, sampler: dict, path: str, match: str
+) -> None:
+    """A value float32 overflows on, times out of order and a zero quaternion
+    skip their channel with a warning rather than fail or spoil the file."""
+    out = tmp_path / "sampler.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(_sampler_scene(sampler, path=path), out)
+    gltf, _ = _parse_glb(out.read_bytes())
+    assert "animations" not in gltf and "rotation" not in gltf["nodes"][0]
+
+
+def test_cubicspline_rotation_with_zero_tangents_is_written(tmp_path: Path) -> None:
+    """Only the middle row of each three is a rotation; tangents may be zero."""
+    values = np.tile([[0.0, 0, 0, 0], [0, 0, 0, 1.0], [0, 0, 0, 0]], (2, 1))
+    sampler = {"times": _T2, "values": values, "interpolation": "CUBICSPLINE"}
+    out = tmp_path / "spline.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(_sampler_scene(sampler, path="rotation"), out)
+    np.testing.assert_array_equal(
+        _tracks(read_scene(out))["rotation"]["values"], values
+    )
+
+
+def test_matrix_channel_float32_cannot_hold_is_skipped_whole(tmp_path: Path) -> None:
+    """Not split into a skipped translation beside a written rotation."""
+    keys = np.tile(np.eye(4).ravel(), (2, 1))
+    keys[1, 3] = 1e39
+    out = tmp_path / "huge.glb"
+    with pytest.warns(UserWarning, match="not written"):
+        write_scene(_matrix_scene(keys), out)
+    assert "animations" not in _parse_glb(out.read_bytes())[0]
+
+
+@pytest.mark.parametrize(
+    ("change", "match"),
+    [
+        (lambda g: g["animations"][0].update(channels=5), "animation 0 is not"),
+        (lambda g: g["animations"][0].update(channels=[5]), "channel 0 of"),
+        (lambda g: g["animations"][0].update(samplers=[5]), "sampler 0 of"),
+        (
+            lambda g: g["animations"][0]["samplers"][0].update(input=-1),
+            "names no accessor as its input",
+        ),
+        (
+            lambda g: g["animations"][0]["samplers"][0].update(input=True),
+            "names no accessor as its input",
+        ),
+        (
+            lambda g: g["animations"][0]["samplers"][0].update(output=-1),
+            "names no accessor as its output",
+        ),
+        (
+            lambda g: g["animations"][0]["samplers"][0].update(
+                input=g["animations"][0]["samplers"][0]["output"]
+            ),
+            "not a SCALAR one",
+        ),
+    ],
+)
+def test_read_animation_naming_no_accessor_raises_codec_error(
+    change: Any, match: str
+) -> None:
+    """A negative or boolean index reads no accessor from the end or as 0/1,
+    and channels are checked as the samplers are."""
+    gltf, bin_chunk = _animated_glb()
+    change(gltf)
+    with pytest.raises(CodecError, match=match):
+        read_scene(io.BytesIO(_make_glb(gltf, bin_chunk)))
+
+
+def test_animation_name_that_is_not_a_string_is_left_out(tmp_path: Path) -> None:
+    scene = _sampler_scene({"times": _T2, "values": np.zeros((2, 3))})
+    scene.global_attrs["animations"][0]["name"] = 5
+    out = tmp_path / "name.glb"
+    write_scene(scene, out)
+    assert "name" not in _parse_glb(out.read_bytes())[0]["animations"][0]

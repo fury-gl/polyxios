@@ -15,6 +15,106 @@ from polyxios import transforms
 from polyxios._types import PolyData
 
 
+def _same_value(a: Any, b: Any) -> bool:
+    """Return whether two attribute values are equal, arrays nested included.
+
+    ``==`` on a dict or list holding arrays raises, since an array compares
+    element-wise; this walks dicts, lists and tuples and compares arrays
+    with :func:`numpy.array_equal`, NaN equal to NaN as a value read twice
+    from one file is, in an array or as a float or complex scalar. A value
+    is equal to itself, as it is inside a dict under ``==``. A 0-d array
+    compares as the scalar it holds, as it does under ``==``, and an object
+    array element by element.
+
+    Parameters
+    ----------
+    a, b
+        The values to compare.
+
+    Returns
+    -------
+    bool
+        True when they hold the same structure and values.
+    """
+    if a is b:
+        return True
+    if isinstance(a, np.ndarray) and a.ndim == 0:
+        a = a[()]
+    if isinstance(b, np.ndarray) and b.ndim == 0:
+        b = b[()]
+    if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+        return (
+            isinstance(a, np.ndarray)
+            and isinstance(b, np.ndarray)
+            and a.shape == b.shape
+            and _same_array(a, b)
+        )
+    if isinstance(a, dict) or isinstance(b, dict):
+        return (
+            isinstance(a, dict)
+            and isinstance(b, dict)
+            and a.keys() == b.keys()
+            and all(_same_value(a[k], b[k]) for k in a)
+        )
+    if isinstance(a, (list, tuple)) or isinstance(b, (list, tuple)):
+        return (
+            type(a) is type(b)
+            and len(a) == len(b)
+            and all(_same_value(x, y) for x, y in zip(a, b, strict=True))
+        )
+    if (
+        isinstance(a, (float, complex, np.inexact))
+        and isinstance(b, (float, complex, np.inexact))
+        and np.isnan(a)
+        and np.isnan(b)
+    ):
+        return True
+    return bool(a == b)
+
+
+def _same_array(a: np.ndarray, b: np.ndarray) -> bool:
+    """Return whether two arrays of one shape hold the same values.
+
+    Parameters
+    ----------
+    a, b
+        The arrays to compare.
+
+    Returns
+    -------
+    bool
+        True when every element is equal, NaN equal to NaN; the elements of
+        an object array are compared with :func:`_same_value`, since they
+        may be arrays themselves.
+    """
+    if a.dtype.kind == "O" or b.dtype.kind == "O":
+        return all(_same_value(x, y) for x, y in zip(a.flat, b.flat, strict=True))
+    both_float = a.dtype.kind in "fc" and b.dtype.kind in "fc"
+    return bool(np.array_equal(a, b, equal_nan=both_float))
+
+
+def _same_mesh(a: PolyData, b: PolyData) -> bool:
+    """Return whether two meshes hold the same arrays and attributes.
+
+    ``==`` on two distinct :class:`~polyxios.PolyData` raises, their fields
+    being arrays; this compares them field by field with :func:`_same_value`.
+
+    Parameters
+    ----------
+    a, b
+        The meshes to compare.
+
+    Returns
+    -------
+    bool
+        True when every field of the two is equal by value.
+    """
+    return type(a) is type(b) and all(
+        _same_value(getattr(a, f.name), getattr(b, f.name))
+        for f in dataclasses.fields(a)
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class SceneImage:
     """A texture image: external URI or embedded bytes.
@@ -62,7 +162,7 @@ class SceneTexture:
     wrap_t: int = 10497
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class SceneMaterial:
     """PBR metallic-roughness material.
 
@@ -113,6 +213,16 @@ class SceneMaterial:
     emissive_texture: int | None = None
     extras: dict[str, Any] = field(default_factory=dict)
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return all(
+            _same_value(getattr(self, f.name), getattr(other, f.name))
+            for f in dataclasses.fields(self)
+        )
+
+    __hash__ = None
+
 
 @dataclass(frozen=True, slots=True, eq=False)
 class SceneNode:
@@ -149,7 +259,7 @@ class SceneNode:
             and self.mesh == other.mesh
             and self.children == other.children
             and np.array_equal(self.matrix, other.matrix)
-            and self.extras == other.extras
+            and _same_value(self.extras, other.extras)
         )
 
     __hash__ = None
@@ -202,7 +312,10 @@ class SceneData:
         if not isinstance(other, type(self)):
             return NotImplemented
         return (
-            self.meshes == other.meshes
+            len(self.meshes) == len(other.meshes)
+            and all(
+                _same_mesh(a, b) for a, b in zip(self.meshes, other.meshes, strict=True)
+            )
             and self.nodes == other.nodes
             and self.materials == other.materials
             and self.textures == other.textures
@@ -210,7 +323,7 @@ class SceneData:
             and self.scenes == other.scenes
             and self.active_scene == other.active_scene
             and self.name == other.name
-            and self.global_attrs == other.global_attrs
+            and _same_value(self.global_attrs, other.global_attrs)
         )
 
     __hash__ = None

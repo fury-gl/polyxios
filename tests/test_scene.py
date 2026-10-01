@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata
-from polyxios._scene import SceneData, SceneNode
+from polyxios._scene import SceneData, SceneMaterial, SceneNode
 from polyxios._types import PolyData
 from polyxios.codecs._gltf import _parse_glb, write_scene
 
@@ -369,3 +369,107 @@ def test_tangents_transformed_with_world_transform() -> None:
     assert not np.allclose(result_tgts[:, :3], [wrong_xyz] * 3, atol=1e-6), (
         "tangent direction matches the pre-fix (wrong) result"
     )
+
+
+def _animated(times: np.ndarray, *, extra: np.ndarray | None = None) -> SceneData:
+    """Return a one-node scene whose sampler and node extras hold arrays.
+
+    Parameters
+    ----------
+    times
+        The sampler's times and values.
+    extra
+        The node's ``extras["weights"]``, or no extras when None.
+
+    Returns
+    -------
+    SceneData
+        The scene.
+    """
+    node_extras = {} if extra is None else {"weights": extra}
+    return SceneData(
+        meshes=(),
+        nodes=(SceneNode(extras=node_extras),),
+        global_attrs={
+            "animations": [{"samplers": [{"times": times, "values": times}]}]
+        },
+    )
+
+
+def test_scene_equality_compares_nested_arrays() -> None:
+    """Arrays inside global_attrs and node extras compare by value, not raise."""
+    t = np.arange(3.0)
+    assert _animated(t) == _animated(t.copy())
+    assert _animated(t) != _animated(t + 1.0)
+    assert _animated(t) != _animated(np.arange(4.0))
+    assert _animated(t, extra=t) == _animated(t, extra=t.copy())
+    assert _animated(t, extra=t) != _animated(t, extra=[0.0, 1.0, 2.0])
+
+
+def test_scene_equality_nan_arrays_and_0d_scalars() -> None:
+    """A NaN array equals itself, and a 0-d array its scalar, as under ``==``."""
+    t = np.array([0.0, np.nan])
+    assert _animated(t) == _animated(t.copy())
+    assert _animated(t, extra=np.array(1.0)) == _animated(t, extra=np.float64(1.0))
+    names = np.array(["a", "b"])
+    assert _animated(t, extra=names) == _animated(t, extra=names.copy())
+
+
+def test_scene_equality_nan_scalars_and_identity() -> None:
+    """A scene equals itself, and NaN scalars compare as NaN arrays do."""
+    t = np.arange(3.0)
+    assert _animated(t, extra=float("nan")) == _animated(t, extra=float("nan"))
+    assert _animated(t, extra=np.array(np.nan)) == _animated(t, extra=np.float32("nan"))
+    assert _animated(t, extra=float("nan")) != _animated(t, extra=1.0)
+    scene = _animated(t, extra=np.array([{"a": t}, None], dtype=object))
+    assert scene == scene
+
+
+def test_scene_equality_object_arrays_compare_element_by_element() -> None:
+    t = np.arange(3.0)
+
+    def nested(values: np.ndarray) -> np.ndarray:
+        out = np.empty(2, dtype=object)
+        out[0], out[1] = {"a": values}, "b"
+        return out
+
+    assert _animated(t, extra=nested(t)) == _animated(t, extra=nested(t.copy()))
+    assert _animated(t, extra=nested(t)) != _animated(t, extra=nested(t + 1.0))
+
+
+def test_material_equality_compares_arrays_in_extras() -> None:
+    """Arrays in a material's extras compare by value instead of raising."""
+    t = np.arange(3.0)
+    assert SceneMaterial(extras={"a": t}) == SceneMaterial(extras={"a": t.copy()})
+    assert SceneMaterial(extras={"a": t}) != SceneMaterial(extras={"a": t + 1.0})
+    assert SceneMaterial(name="a") != SceneMaterial(name="b")
+    assert SceneMaterial() == SceneMaterial()
+
+
+def test_scene_equality_complex_nan_scalars() -> None:
+    """A complex NaN scalar equals itself, as it does inside an array."""
+    t = np.arange(3.0)
+    nan = complex("nan")
+    assert _animated(t, extra=nan) == _animated(t, extra=complex("nan"))
+    assert _animated(t, extra=np.array([nan])) == _animated(t, extra=np.array([nan]))
+
+
+def test_material_equality_compares_every_field_by_value() -> None:
+    """A NaN factor equals itself, as a NaN in ``extras`` does."""
+    assert SceneMaterial(metallic=float("nan")) == SceneMaterial(metallic=float("nan"))
+    assert SceneMaterial(metallic=0.5) != SceneMaterial(metallic=0.25)
+
+
+def test_scene_equality_compares_meshes_by_value() -> None:
+    """Two scenes read from one file are equal, their meshes distinct objects."""
+
+    def scene(z: float) -> SceneData:
+        mesh = make_polydata(
+            np.array([[0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+            [("triangle", np.array([[0, 1, 2]]))],
+        )
+        return SceneData(meshes=(mesh,), nodes=(SceneNode(mesh=0),))
+
+    assert scene(0.0) == scene(0.0)
+    assert scene(0.0) != scene(1.0)
+    assert scene(0.0) != SceneData(meshes=(), nodes=(SceneNode(mesh=0),))

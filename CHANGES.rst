@@ -60,6 +60,12 @@ New features
   step's arrays to one file, the cells written once and the points again
   only when they moved. Verified both ways against VTK's own reader and
   writer, in the interop CI job as well as locally.
+- A glTF read decodes each skin's ``inverseBindMatrices`` accessor into
+  ``inverse_bind_matrices`` (row-major, one per joint), so a format that
+  stores the bind pose by matrix can write a skinned glTF scene. A skin
+  with no joints, or whose accessor is missing, is not float MAT4, has no
+  ``bufferView`` (all zeros), cannot be read or holds fewer matrices than
+  joints, is kept undecoded with a warning rather than failing the read.
 - PVD (``.pvd``), ParaView's collection of datasets over time, is read and
   written. Every dataset at one ``timestep`` is read through its own codec
   and merged, tagged by ``group`` or ``part_<n>``, with the step's time
@@ -291,6 +297,67 @@ Behaviour changes
 
 Bug fixes
 ~~~~~~~~~
+
+- Two ``SceneData`` (or ``SceneNode``, or ``SceneMaterial``) compared with
+  ``==`` no longer raise when their ``global_attrs`` or ``extras`` hold
+  arrays, as a glTF animation does: nested dicts, lists and arrays are
+  compared by value, NaN equal to NaN. An array and a list holding the same
+  values now compare unequal, where a one-element pair compared equal
+  before. The meshes of two ``SceneData`` are compared the same way, array
+  by array, where any two scenes holding a mesh raised unless they shared
+  the very same ``PolyData`` objects.
+
+- glTF write skips, with a warning, an animation channel glTF cannot
+  hold: a target carrying fields glTF has none for, a path other than
+  ``translation``, ``rotation``, ``scale``, ``weights`` or ``pointer``, a
+  node that is not one of the scene's, an interpolation other than
+  ``LINEAR``, ``STEP`` or ``CUBICSPLINE``, a sampler that is not an object,
+  holds no key, NaN, Inf or a value float32 cannot hold, times that are
+  not strictly increasing, a rotation of zero length, or values that are
+  not three per key for a translation or scale and four for a rotation, or
+  a node path an earlier channel of the same animation already animates.
+  Such a channel was written as is, a valid-looking file animating the
+  wrong thing, or raised ``TypeError`` or ``KeyError``, and an animation
+  left with no channel is no longer written empty, which glTF forbids. An
+  animation that is not an object is skipped with a warning as well. A
+  node that only such a skipped channel, or one naming no sampler, targets
+  keeps its ``matrix`` instead of being spelled as translation, rotation
+  and scale. A ``matrix`` channel animating a node's whole transform is
+  split into translation, rotation and scale channels.
+
+- glTF write stores flat animation values at the width of their path, six
+  values of a translation as two ``VEC3`` keys, and morph weights given
+  one row per key as that many scalars rather than one per row. A sampler
+  several channels share is written once, as is a times array several
+  samplers share. A node, mesh or child index held as a numpy integer, or
+  an array in a channel target's ``extras``, is written rather than raising
+  ``TypeError``. The values of a ``pointer`` channel are written as the
+  accessor type as wide as one key - 9 as ``MAT3``, 16 as ``MAT4`` - where
+  any width but 1, 2 and 4 was labelled ``VEC3`` over the wrong byte count;
+  a shape glTF has no type for is skipped with a warning. A target whose
+  ``node`` is None is written without the key rather than as ``null``, and
+  an animation name that is not a string is left out.
+
+- glTF read raises ``CodecError`` naming the animation and sampler, rather
+  than a bare ``KeyError``, ``IndexError`` or ``AttributeError``, when an
+  animation is not an object holding a list of channels and a list of
+  samplers, a channel or sampler is not an object, or a sampler names no
+  readable accessor. A negative or boolean accessor index, which read the
+  accessor that many from the end or number 0 or 1, raises as well, as do
+  times taken from an accessor that is not ``SCALAR``.
+
+- The glTF warnings for skipped volume, pixel and quadratic elements, and
+  for a scene flattened by ``read``, point at the caller's line whether
+  the codec was called through ``polyxios`` or directly.
+
+- glTF write of an animated node whose matrix mirrors (a negative
+  determinant) no longer raises ``ValueError`` when SciPy is installed, nor
+  writes a wrong rotation when it is not: the rest pose splits into
+  translation, rotation and scale the way the animation keys do, the
+  reflection on the x scale. A matrix holding NaN or Inf raises
+  ``CodecError``. Key times of every channel, not only a split matrix one,
+  stay strictly increasing once stored as float32, and the first never
+  turns negative.
 
 - A 3MF whose model part inflates past a gigabyte - ten million vertices -
   is read. The part was inflated whole and handed to the XML parser in one

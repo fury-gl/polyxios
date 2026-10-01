@@ -13,7 +13,6 @@ from pathlib import Path
 import struct
 from typing import Any
 import urllib.parse
-import warnings
 
 import numpy as np
 
@@ -34,7 +33,9 @@ from polyxios._scene import (
     SceneNode,
     SceneTexture,
 )
+from polyxios._trs import matrix_of_trs, trs_of_matrix
 from polyxios._types import PolyData
+from polyxios._warn import warn_caller as _warn_caller
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 from polyxios.version import version as __version__
@@ -505,34 +506,152 @@ def _node_local_matrix(node: dict) -> np.ndarray:
         # glTF stores column-major; numpy is row-major, so transpose.
         return np.array(node["matrix"], dtype=np.float64).reshape(4, 4).T
 
-    t = node.get("translation", [0.0, 0.0, 0.0])
-    r = node.get("rotation", [0.0, 0.0, 0.0, 1.0])  # xyzw
-    s = node.get("scale", [1.0, 1.0, 1.0])
-
-    T = np.eye(4, dtype=np.float64)
-    T[0, 3], T[1, 3], T[2, 3] = t
-
-    S = np.diag([s[0], s[1], s[2], 1.0])
-
-    # Quaternion xyzw → 3×3 rotation matrix.
-    x, y, z, w = r
-    R = np.eye(4, dtype=np.float64)
-    R[0, 0] = 1 - 2 * (y * y + z * z)
-    R[0, 1] = 2 * (x * y - z * w)
-    R[0, 2] = 2 * (x * z + y * w)
-    R[1, 0] = 2 * (x * y + z * w)
-    R[1, 1] = 1 - 2 * (x * x + z * z)
-    R[1, 2] = 2 * (y * z - x * w)
-    R[2, 0] = 2 * (x * z - y * w)
-    R[2, 1] = 2 * (y * z + x * w)
-    R[2, 2] = 1 - 2 * (x * x + y * y)
-
-    return T @ R @ S
+    return matrix_of_trs(
+        translation=node.get("translation", [0.0, 0.0, 0.0]),
+        rotation=node.get("rotation", [0.0, 0.0, 0.0, 1.0]),
+        scale=node.get("scale", [1.0, 1.0, 1.0]),
+    )
 
 
 # =============================================================================
 # read_scene
 # =============================================================================
+
+
+def _is_float_mat4(accessor: Any) -> bool:
+    """Return whether an accessor entry holds float MAT4 elements.
+
+    Parameters
+    ----------
+    accessor
+        One entry of ``gltf["accessors"]``.
+
+    Returns
+    -------
+    bool
+        True for an object of ``type`` MAT4 and ``componentType`` FLOAT, the
+        only kind glTF allows for inverse bind matrices.
+    """
+    return (
+        isinstance(accessor, dict)
+        and accessor.get("type") == "MAT4"
+        and accessor.get("componentType") == 5126
+    )
+
+
+def _is_index(value: Any, n: int) -> bool:
+    """Return whether a JSON value is an index into a list of ``n`` entries.
+
+    Parameters
+    ----------
+    value
+        The value a glTF object gives where an index is expected.
+    n
+        The length of the list it indexes.
+
+    Returns
+    -------
+    bool
+        True for an integer from 0 to ``n - 1``; False for a boolean, which
+        Python would take as 0 or 1, and for a negative integer, which would
+        count from the end.
+    """
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < n
+
+
+def _decode_skins(gltf: dict, skins: Any, buffers: list[bytes]) -> Any:
+    """Return the skins with their inverse bind matrices decoded.
+
+    Parameters
+    ----------
+    gltf
+        Parsed glTF JSON dict.
+    skins
+        The raw ``gltf["skins"]`` list.
+    buffers
+        Raw buffer bytes.
+
+    Returns
+    -------
+    Any
+        ``skins`` itself, with a warning, when it is not a list. Otherwise
+        one dict per skin: its raw keys, plus ``"inverse_bind_matrices"``,
+        ``(len(joints), 4, 4)`` row-major float64, when it names an
+        ``inverseBindMatrices`` accessor of at least one float MAT4 per
+        joint, any beyond the joints left out. A skin that is not an object
+        is kept as it is, and one whose ``joints`` is not a list or is empty,
+        whose ``inverseBindMatrices`` names no accessor, an accessor
+        that is not float MAT4, one that cannot be read, one with no
+        ``bufferView`` (all zeros, which no bind pose inverts to) or one
+        shorter than the joints is kept without the key; each with a warning.
+    """
+    if not isinstance(skins, list):
+        _warn_caller("glTF: skins is not a list; kept as it is.")
+        return skins
+    out = []
+    accessors = gltf.get("accessors", ())
+    n_accessors = len(accessors) if isinstance(accessors, list) else 0
+    for k, skin in enumerate(skins):
+        if not isinstance(skin, dict):
+            _warn_caller(f"glTF: skin {k} is not an object; kept as it is.")
+            out.append(skin)
+            continue
+        entry = dict(skin)
+        acc = skin.get("inverseBindMatrices")
+        joints = skin.get("joints", [])
+        if acc is None:
+            pass
+        elif not isinstance(joints, list):
+            _warn_caller(
+                f"glTF: skin {k} joints is not a list; its inverse bind "
+                "matrices are not decoded."
+            )
+        elif not joints:
+            _warn_caller(
+                f"glTF: skin {k} has no joints; its inverse bind matrices are "
+                "not decoded."
+            )
+        elif not _is_index(acc, n_accessors):
+            _warn_caller(
+                f"glTF: skin {k} inverseBindMatrices {acc!r} names no accessor; "
+                "its inverse bind matrices are not decoded."
+            )
+        elif not _is_float_mat4(accessors[acc]):
+            _warn_caller(
+                f"glTF: skin {k} inverseBindMatrices accessor {acc} is not a "
+                "float MAT4 one; its inverse bind matrices are not decoded."
+            )
+        else:
+            n_joints = len(joints)
+            try:
+                ibm = _read_accessor(gltf, acc, buffers)
+            except (CodecError, KeyError, IndexError, TypeError, ValueError) as exc:
+                _warn_caller(
+                    f"glTF: skin {k} inverseBindMatrices accessor {acc} cannot "
+                    f"be read ({exc}); its inverse bind matrices are not decoded."
+                )
+            else:
+                if "bufferView" not in accessors[acc]:
+                    _warn_caller(
+                        f"glTF: skin {k} inverseBindMatrices accessor {acc} has no "
+                        "bufferView, so holds only zeros; its inverse bind "
+                        "matrices are not decoded."
+                    )
+                elif ibm.ndim != 2 or ibm.shape[1] != 16 or len(ibm) < n_joints:
+                    _warn_caller(
+                        f"glTF: skin {k} has {n_joints} joints but its "
+                        f"inverseBindMatrices accessor holds shape {ibm.shape}, "
+                        "not one MAT4 per joint; its inverse bind matrices are "
+                        "not decoded."
+                    )
+                else:
+                    # Column-major in the file; transposed to numpy's row-major.
+                    entry["inverse_bind_matrices"] = np.ascontiguousarray(
+                        ibm[:n_joints].reshape(-1, 4, 4).transpose(0, 2, 1),
+                        dtype=np.float64,
+                    )
+        out.append(entry)
+    return out
 
 
 def _decode_animations(
@@ -564,13 +683,57 @@ def _decode_animations(
           ``"values"`` (ndarray, shape (N, K) or (N,) for SCALAR), and
           ``"interpolation"`` str (``"LINEAR"``, ``"STEP"``, or
           ``"CUBICSPLINE"``).
+
+    Raises
+    ------
+    CodecError
+        If ``animations`` is not a list, an animation is not an object
+        holding a list of channels and a list of samplers, a channel or a
+        sampler is not an object, or a sampler's ``input`` or ``output`` is
+        not the index of a readable accessor, SCALAR for the ``input``.
     """
+    if not isinstance(animations, list):
+        raise CodecError("glTF: animations is not a list.")
+    accessors = gltf.get("accessors")
+    n_accessors = len(accessors) if isinstance(accessors, list) else 0
     result = []
-    for anim in animations:
+    for k, anim in enumerate(animations):
+        if not isinstance(anim, dict) or not all(
+            isinstance(anim.get(key, []), list) for key in ("channels", "samplers")
+        ):
+            raise CodecError(
+                f"glTF: animation {k} is not an object holding a list of "
+                "channels and a list of samplers."
+            )
+        for j, ch in enumerate(anim.get("channels", [])):
+            if not isinstance(ch, dict):
+                raise CodecError(
+                    f"glTF: channel {j} of animation {k} is not an object."
+                )
         decoded_samplers: list[dict] = []
-        for s in anim.get("samplers", []):
-            times = _read_accessor(gltf, s["input"], buffers).astype(np.float64)
-            values = _read_accessor(gltf, s["output"], buffers).astype(np.float64)
+        for j, s in enumerate(anim.get("samplers", [])):
+            if not isinstance(s, dict):
+                raise CodecError(
+                    f"glTF: sampler {j} of animation {k} is not an object."
+                )
+            for key in ("input", "output"):
+                if not _is_index(s.get(key), n_accessors):
+                    raise CodecError(
+                        f"glTF: sampler {j} of animation {k} names no accessor "
+                        f"as its {key} ({s.get(key)!r})."
+                    )
+            try:
+                times = _read_accessor(gltf, s["input"], buffers).astype(np.float64)
+                values = _read_accessor(gltf, s["output"], buffers).astype(np.float64)
+            except (KeyError, IndexError, TypeError, ValueError) as exc:
+                raise CodecError(
+                    f"glTF: sampler {j} of animation {k} cannot be read ({exc!r})."
+                ) from exc
+            if times.ndim != 1:
+                raise CodecError(
+                    f"glTF: sampler {j} of animation {k} takes its times from "
+                    f"accessor {s['input']}, which is not a SCALAR one."
+                )
             decoded_samplers.append(
                 {
                     "times": times,
@@ -766,7 +929,7 @@ def read_scene(path: Source) -> SceneData:
             gltf, gltf["animations"], buffers
         )
     if "skins" in gltf:
-        global_attrs["skins"] = gltf["skins"]
+        global_attrs["skins"] = _decode_skins(gltf, gltf["skins"], buffers)
 
     return SceneData(
         meshes=meshes,
@@ -882,11 +1045,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     """
     if lazy:
         raise LazyReadError("glTF format does not support lazy reads.")
-    warnings.warn(
+    _warn_caller(
         f"'{source_name(path)}' is a scene format (glTF): read() flattens "
         "the scene graph, materials, textures and hierarchy into a single "
-        "PolyData. Use polyxios.read_scene() to preserve the full scene.",
-        stacklevel=3,  # user → read → here
+        "PolyData. Use polyxios.read_scene() to preserve the full scene."
     )
     return read_scene(path).to_polydata()
 
@@ -906,6 +1068,29 @@ def sniff(head: bytes) -> bool:
 # =============================================================================
 
 
+def _json_default(value: Any) -> Any:
+    """Return a numpy scalar or array as the Python value JSON can hold.
+
+    Parameters
+    ----------
+    value
+        A value :func:`json.dumps` cannot serialize by itself.
+
+    Returns
+    -------
+    Any
+        The ``int``, ``float``, ``bool`` or nested ``list`` it holds.
+
+    Raises
+    ------
+    TypeError
+        If it is neither a numpy scalar nor an array.
+    """
+    if isinstance(value, (np.generic, np.ndarray)):
+        return value.tolist()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
 def _pad4(data: bytes, *, pad_byte: bytes = b"\x00") -> bytes:
     """Return *data* padded to the next 4-byte boundary."""
     rem = len(data) % 4
@@ -916,9 +1101,12 @@ def _make_glb(gltf_dict: dict, bin_data: bytes) -> bytes:
     """Assemble a GLB binary from a JSON dict and binary buffer."""
     try:
         json_bytes = _pad4(
-            json.dumps(gltf_dict, separators=(",", ":"), allow_nan=False).encode(
-                "utf-8"
-            ),
+            json.dumps(
+                gltf_dict,
+                separators=(",", ":"),
+                allow_nan=False,
+                default=_json_default,
+            ).encode("utf-8"),
             pad_byte=b" ",
         )
     except ValueError as exc:
@@ -1143,17 +1331,15 @@ def _polydata_to_primitives(
     # Warn once for each unsupported category.
     has_volume = bool(np.any(np.isin(poly.element_types, list(_VOLUME_CODES))))
     if has_volume:
-        warnings.warn(
+        _warn_caller(
             "glTF: volume elements (tetra, hexahedron, etc.) have no glTF "
-            "primitive mode and were skipped.",
-            stacklevel=5,  # user → write/write_scene → _polydata_to_primitives → here
+            "primitive mode and were skipped."
         )
     has_skip = bool(np.any(np.isin(poly.element_types, list(_SKIP_WARN_CODES))))
     if has_skip:
-        warnings.warn(
+        _warn_caller(
             "glTF: pixel and quadratic surface elements have no glTF "
-            "primitive mode and were skipped.",
-            stacklevel=5,  # user → write/write_scene → _polydata_to_primitives → here
+            "primitive mode and were skipped."
         )
 
     _WRITABLE_MODES: dict[int, int] = {
@@ -1323,128 +1509,6 @@ def write(
 # =============================================================================
 
 
-def _matrix_to_trs(matrix: np.ndarray) -> dict:
-    """Decompose a 4×4 transform into glTF translation/rotation/scale.
-
-    Parameters
-    ----------
-    matrix
-        4×4 float64 row-major transform matrix.
-
-    Returns
-    -------
-    dict
-        Dict with ``"translation"``, ``"rotation"`` (x, y, z, w), and
-        ``"scale"`` keys.  Identity components are omitted.
-    """
-    t = matrix[:3, 3].tolist()
-    col0 = matrix[:3, 0]
-    col1 = matrix[:3, 1]
-    col2 = matrix[:3, 2]
-    sx = float(np.linalg.norm(col0))
-    sy = float(np.linalg.norm(col1))
-    sz = float(np.linalg.norm(col2))
-
-    # Detect degenerate (zero) scale components.
-    if sx <= 0 or sy <= 0 or sz <= 0:
-        warnings.warn(
-            "glTF: matrix has a zero-scale component "
-            f"(sx={sx:.6g}, sy={sy:.6g}, sz={sz:.6g}); TRS decomposition may be inaccurate.",
-            stacklevel=4,  # user → write_scene → _matrix_to_trs → here
-        )
-
-    # Detect negative determinant (reflection); TRS cannot represent it.
-    det = float(np.linalg.det(matrix[:3, :3]))
-    if det < 0:
-        warnings.warn(
-            "glTF: matrix has a negative determinant (reflection); "
-            "glTF TRS cannot represent reflections — absolute-value scale will be used.",
-            stacklevel=4,  # user → write_scene → _matrix_to_trs → here
-        )
-        sx, sy, sz = abs(sx), abs(sy), abs(sz)
-
-    # Rotation sub-matrix (columns normalised).
-    r = np.column_stack(
-        [
-            col0 / sx if sx > 0 else col0,
-            col1 / sy if sy > 0 else col1,
-            col2 / sz if sz > 0 else col2,
-        ]
-    )
-
-    try:
-        from scipy.spatial.transform import Rotation as _Rot
-
-        q = _Rot.from_matrix(r).as_quat()  # [x, y, z, w]
-    except (ImportError, ModuleNotFoundError):
-        # Pure-numpy Shepherd method fallback.
-        trace = r[0, 0] + r[1, 1] + r[2, 2]
-        if trace > 0:
-            s = 0.5 / np.sqrt(trace + 1.0)
-            q = np.array(
-                [
-                    (r[2, 1] - r[1, 2]) * s,
-                    (r[0, 2] - r[2, 0]) * s,
-                    (r[1, 0] - r[0, 1]) * s,
-                    0.25 / s,
-                ]
-            )
-        elif r[0, 0] > r[1, 1] and r[0, 0] > r[2, 2]:
-            s = 2.0 * np.sqrt(1.0 + r[0, 0] - r[1, 1] - r[2, 2])
-            q = np.array(
-                [
-                    0.25 * s,
-                    (r[0, 1] + r[1, 0]) / s,
-                    (r[0, 2] + r[2, 0]) / s,
-                    (r[2, 1] - r[1, 2]) / s,
-                ]
-            )
-        elif r[1, 1] > r[2, 2]:
-            s = 2.0 * np.sqrt(1.0 + r[1, 1] - r[0, 0] - r[2, 2])
-            q = np.array(
-                [
-                    (r[0, 1] + r[1, 0]) / s,
-                    0.25 * s,
-                    (r[1, 2] + r[2, 1]) / s,
-                    (r[0, 2] - r[2, 0]) / s,
-                ]
-            )
-        else:
-            s = 2.0 * np.sqrt(1.0 + r[2, 2] - r[0, 0] - r[1, 1])
-            q = np.array(
-                [
-                    (r[0, 2] + r[2, 0]) / s,
-                    (r[1, 2] + r[2, 1]) / s,
-                    0.25 * s,
-                    (r[1, 0] - r[0, 1]) / s,
-                ]
-            )
-
-    # Normalise quaternion; fall back to identity if it is degenerate.
-    q_norm = float(np.linalg.norm(q))
-    if q_norm > 0:
-        q = q / q_norm
-    else:
-        warnings.warn(
-            "glTF: quaternion extracted from matrix has zero norm; "
-            "falling back to identity rotation.",
-            stacklevel=4,  # user → write_scene → _matrix_to_trs → here
-        )
-        q = np.array([0.0, 0.0, 0.0, 1.0])
-
-    out: dict = {}
-    _identity_t = [0.0, 0.0, 0.0]
-    _identity_r = [0.0, 0.0, 0.0, 1.0]
-    _identity_s = [1.0, 1.0, 1.0]
-    if not np.allclose(t, _identity_t):
-        out["translation"] = t
-    if not np.allclose(q.tolist(), _identity_r, atol=1e-6):
-        out["rotation"] = q.tolist()
-    if not np.allclose([sx, sy, sz], _identity_s, atol=1e-6):
-        out["scale"] = [sx, sy, sz]
-    return out
-
-
 def write_scene(
     scene: SceneData,
     path: Source,
@@ -1470,16 +1534,45 @@ def write_scene(
     Raises
     ------
     CodecError
-        If ``binary=False`` and *path* is a stream, or if any mesh produces
-        no writable primitives.
+        If ``binary=False`` and *path* is a stream, if any mesh produces
+        no writable primitives, or if the matrix of an animated node holds
+        NaN or Inf.
 
     Notes
     -----
     ``write_scene`` is lossy for skinned meshes: skin definitions
     (``global_attrs["skins"]``), ``JOINTS_0`` / ``WEIGHTS_0`` vertex
     attributes, and per-node ``skin`` / ``camera`` extras are not written.
-    Use the round-tripped ``SceneData`` only for static geometry and
-    material inspection.
+    Use the round-tripped ``SceneData`` of a skinned scene only for static
+    geometry and material inspection.
+
+    An animation channel that is not a glTF one is skipped with a warning
+    rather than written with the wrong meaning: a target with fields glTF
+    lacks (another format's ``sid`` or ``member``), a path other than
+    ``translation``, ``rotation``, ``scale``, ``weights`` or ``pointer``, a
+    node that is not one of the scene's, an interpolation other than
+    ``LINEAR``, ``STEP`` or ``CUBICSPLINE``, a sampler that is not an
+    object, holds no key, NaN, Inf or a value float32 cannot hold, times
+    that are not strictly increasing, a rotation of zero length, or whose
+    values are not three per key for a translation or scale, four for a
+    rotation (three times as many under ``CUBICSPLINE``), or a node path an
+    earlier channel of the same animation already animates. A channel
+    naming no sampler of its animation is dropped, and does not count as
+    animating its node; an animation that is not an object is skipped with
+    a warning.
+
+    The values of a ``pointer`` channel are one row per key, written as the
+    accessor type as wide as a row: a scalar, 2, 3 or 4 components, or the
+    9 or 16 of a matrix. Any other shape is skipped with a warning.
+
+    A ``matrix`` channel of ``LINEAR`` or ``STEP`` keys that animates a
+    node's whole transform - the node spelled with that one matrix alone,
+    or with no spelling at all - is written as translation, rotation and
+    scale channels instead, each key split into the three (a shear or
+    projection is dropped, with a warning); between keys glTF blends those
+    rather than the matrix. It is skipped with a warning when another
+    channel of its animation already animates one of the node's three
+    paths.
     """
     if binary is None:
         binary = format_suffix(path).lower() != ".gltf"
@@ -1540,12 +1633,21 @@ def write_scene(
     # Nodes.
     # Nodes targeted by animation channels MUST use T/R/S, not matrix.
     identity = np.eye(4, dtype=np.float64)
+    animations = _split_matrix_channels(
+        _animation_objects(scene.global_attrs.get("animations")), scene.nodes
+    )
     animated_node_indices: set[int] = set()
-    for anim in scene.global_attrs.get("animations", []):
+    n_nodes = len(scene.nodes)
+    for anim in animations:
+        samplers = anim.get("samplers", [])
         for ch in anim.get("channels", []):
-            node_idx = ch.get("target", {}).get("node")
+            if _sampler_index(ch, samplers) is None:
+                continue
+            if _foreign_channel(ch, samplers, n_nodes=n_nodes):
+                continue
+            node_idx = ch["target"].get("node")
             if node_idx is not None:
-                animated_node_indices.add(node_idx)
+                animated_node_indices.add(int(node_idx))
 
     gltf_nodes: list[dict] = []
     for node_i, node in enumerate(scene.nodes):
@@ -1559,10 +1661,21 @@ def write_scene(
         if node_i in animated_node_indices:
             # glTF spec: animated nodes MUST NOT carry matrix; always use
             # explicit T/R/S even when the rest-pose transform is identity.
-            trs = _matrix_to_trs(node.matrix)
-            n_entry["translation"] = trs.get("translation", [0.0, 0.0, 0.0])
-            n_entry["rotation"] = trs.get("rotation", [0.0, 0.0, 0.0, 1.0])
-            n_entry["scale"] = trs.get("scale", [1.0, 1.0, 1.0])
+            if not np.isfinite(node.matrix).all():
+                raise CodecError(
+                    f"glTF: the matrix of animated node {node_i} holds NaN or "
+                    "Inf values."
+                )
+            t, q, sc, exact = trs_of_matrix(node.matrix)
+            if not exact:
+                _warn_caller(
+                    f"glTF: node {node_i} is animated, so it is written as "
+                    "translation, rotation and scale, and its matrix holds a "
+                    "shear or projection, which those cannot; it is dropped."
+                )
+            n_entry["translation"] = t.tolist()
+            n_entry["rotation"] = q.tolist()
+            n_entry["scale"] = sc.tolist()
         elif not np.allclose(node.matrix, identity):
             # glTF column-major = transpose of numpy row-major.
             n_entry["matrix"] = node.matrix.T.ravel().tolist()
@@ -1587,7 +1700,7 @@ def write_scene(
     # Encode animations before assembling gltf_dict: _encode_animations appends
     # to bb.accessors and bb.buffer_views, so bvs and buffer byte-length must
     # be computed after all data is in the builder.
-    gltf_animations = _encode_animations(scene.global_attrs.get("animations", []), bb)
+    gltf_animations = _encode_animations(animations, bb, n_nodes=n_nodes)
 
     bvs = [
         {k: v for k, v in bv.items() if k != "_media_type"} for bv in bb.buffer_views
@@ -1617,6 +1730,10 @@ def write_scene(
     _write_output(gltf_dict, bb.bin_data, path, binary=binary)
 
 
+_GLTF_PATHS = frozenset({"translation", "rotation", "scale", "weights", "pointer"})
+_GLTF_INTERPOLATIONS = frozenset({"LINEAR", "STEP", "CUBICSPLINE"})
+_GLTF_TARGET_KEYS = frozenset({"node", "path", "extensions", "extras"})
+
 # glTF path → (accessor type string, number of components)
 _PATH_ACCESSOR: dict[str, tuple[str, int]] = {
     "translation": ("VEC3", 3),
@@ -1624,8 +1741,414 @@ _PATH_ACCESSOR: dict[str, tuple[str, int]] = {
     "scale": ("VEC3", 3),
 }
 
+# Width of one key of a pointer channel → accessor type; four is read as a
+# VEC4, the commoner of the two types that wide.
+_WIDTH_ACCESSOR: dict[int, str] = {
+    1: "SCALAR",
+    2: "VEC2",
+    3: "VEC3",
+    4: "VEC4",
+    9: "MAT3",
+    16: "MAT4",
+}
 
-def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
+_FLOAT32_MAX = float(np.finfo(np.float32).max)
+
+
+def _animation_objects(animations: Any) -> list[dict]:
+    """Return the animations that are objects holding channels and samplers.
+
+    Parameters
+    ----------
+    animations
+        ``SceneData.global_attrs["animations"]``, or None when it has none.
+
+    Returns
+    -------
+    list[dict]
+        The entries that are dicts whose ``channels`` and ``samplers`` are
+        lists or tuples, in order; any other is left out with a warning, as
+        is the whole value when it is not a list or tuple.
+    """
+    if animations is None:
+        return []
+    if not isinstance(animations, (list, tuple)):
+        _warn_caller("glTF: animations is not a list; none is written.")
+        return []
+    out = []
+    for k, anim in enumerate(animations):
+        if isinstance(anim, dict) and all(
+            isinstance(anim.get(key, []), (list, tuple))
+            for key in ("channels", "samplers")
+        ):
+            out.append(anim)
+        else:
+            _warn_caller(
+                f"glTF: animation {k} is not an object holding a list of "
+                "channels and a list of samplers; it is not written."
+            )
+    return out
+
+
+def _bad_sampler(sampler: Any, path: str) -> str | None:
+    """Return why a sampler cannot be written for a path, None when it can.
+
+    Parameters
+    ----------
+    sampler
+        One entry of an animation's ``samplers``.
+    path
+        The glTF path of the channel using it.
+
+    Returns
+    -------
+    str or None
+        The reason, None when the sampler holds at least one key of
+        strictly increasing times and of values float32 can hold, in an
+        interpolation glTF has, the values as many per key as the path
+        takes: three or four for a translation, rotation or scale, any whole
+        number for morph weights, and for a pointer one row per key of a
+        width glTF has an accessor type for. A rotation key of zero length
+        is refused too.
+    """
+    if not isinstance(sampler, dict):
+        return f"its sampler {sampler!r} is not an object"
+    interp = sampler.get("interpolation", "LINEAR")
+    if not isinstance(interp, str) or interp not in _GLTF_INTERPOLATIONS:
+        return f"its sampler interpolates {interp!r}, which glTF lacks"
+    if "times" not in sampler or "values" not in sampler:
+        return "its sampler has no times or no values"
+    try:
+        times = np.asarray(sampler["times"], dtype=np.float64)
+        values = np.asarray(sampler["values"], dtype=np.float64)
+    except (TypeError, ValueError):
+        return "its sampler times or values are not numbers"
+    if not times.size:
+        return "its sampler holds no key"
+    if not (np.isfinite(times).all() and np.isfinite(values).all()):
+        return "its sampler holds NaN or Inf"
+    if max(np.abs(times).max(), np.abs(values).max(initial=0.0)) > _FLOAT32_MAX:
+        return "its sampler holds a value float32, the width glTF stores, cannot"
+    if not (np.diff(times.ravel()) > 0).all():
+        return "its sampler times are not strictly increasing"
+    n_rows = times.size * (3 if interp == "CUBICSPLINE" else 1)
+    if path in _PATH_ACCESSOR:
+        width = _PATH_ACCESSOR[path][1]
+        if values.size != n_rows * width:
+            return (
+                f"its sampler holds {values.size} values, not {width} for each "
+                f"of its {times.size} {interp} keys"
+            )
+        if path == "rotation":
+            # Under CUBICSPLINE only the middle row of three is a rotation.
+            keys = values.reshape(-1, 4)
+            if interp == "CUBICSPLINE":
+                keys = keys[1::3]
+            if not np.any(keys, axis=1).all():
+                return "its sampler holds a rotation of zero length"
+    elif path == "weights":
+        if not values.size or values.size % n_rows:
+            return (
+                f"its sampler holds {values.size} values, not a whole number for "
+                f"each of its {times.size} {interp} keys"
+            )
+    elif (
+        values.ndim not in (1, 2)
+        or len(values) != n_rows
+        or (values.ndim == 2 and values.shape[1] not in _WIDTH_ACCESSOR)
+    ):
+        return (
+            f"its sampler values, of shape {values.shape}, are not one scalar, "
+            f"vector or matrix glTF has a type for per row of its {times.size} "
+            f"{interp} keys"
+        )
+    return None
+
+
+def _sampler_index(ch: Any, samplers: Any) -> int | None:
+    """Return the index of the sampler a channel names, None when it names none.
+
+    Parameters
+    ----------
+    ch
+        One entry of an animation's ``channels``.
+    samplers
+        That animation's ``samplers``.
+
+    Returns
+    -------
+    int or None
+        The index, None when the channel is not an object or its ``sampler``
+        is not an integer within ``samplers``.
+    """
+    s = ch.get("sampler", 0) if isinstance(ch, dict) else None
+    if isinstance(s, bool) or not isinstance(s, (int, np.integer)):
+        return None
+    if not isinstance(samplers, (list, tuple)) or not 0 <= s < len(samplers):
+        return None
+    return int(s)
+
+
+def _foreign_channel(ch: Any, samplers: Any, *, n_nodes: int) -> str | None:
+    """Return why a channel is not a glTF one, None when it is.
+
+    Another format's channel can share glTF's shape but not its meaning: a
+    COLLADA ``rotation`` animates one ``<rotate>`` element's angle in
+    degrees (its target carries ``sid`` and ``member``), not the node's
+    quaternion, and its sampler may interpolate ``BEZIER``. Written as is,
+    it would be a valid-looking glTF file that animates the wrong thing.
+    A sampler :func:`_bad_sampler` refuses makes its channel foreign too.
+
+    Parameters
+    ----------
+    ch
+        One entry of an animation's ``channels``.
+    samplers
+        That animation's ``samplers``.
+    n_nodes
+        The number of nodes of the scene.
+
+    Returns
+    -------
+    str or None
+        The reason the channel cannot be written, None when it can.
+    """
+    target = ch.get("target") if isinstance(ch, dict) else None
+    if not isinstance(target, dict):
+        return f"its target {target!r} is not an object"
+    extra = sorted(set(target) - _GLTF_TARGET_KEYS, key=str)
+    if extra:
+        return f"its target carries {extra}, which glTF has no field for"
+    path = target.get("path", "")
+    if not isinstance(path, str) or path not in _GLTF_PATHS:
+        return f"its path {path!r} is not a glTF one"
+    node = target.get("node")
+    if node is not None and (
+        isinstance(node, bool)
+        or not isinstance(node, (int, np.integer))
+        or not 0 <= node < n_nodes
+    ):
+        return f"its node {node!r} is not one of the scene's {n_nodes}"
+    sampler_idx = _sampler_index(ch, samplers)
+    if sampler_idx is None:
+        return None
+    return _bad_sampler(samplers[sampler_idx], path)
+
+
+_MATRIX_TARGET_KEYS = frozenset({"node", "path", "sid", "member"})
+_MATRIX_INTERPOLATIONS = frozenset({"LINEAR", "STEP"})
+_TRS_PATHS = ("translation", "rotation", "scale")
+
+
+def _whole_matrix_channel(
+    ch: Any, samplers: Any, nodes: tuple[SceneNode, ...]
+) -> tuple[int, np.ndarray, np.ndarray, str] | None:
+    """Return the keys of a channel animating a node's whole matrix.
+
+    A COLLADA ``matrix`` channel animates one ``<matrix>`` element; it is
+    the node's whole local transform only when the node is spelled with
+    that element alone, or carries no spelling at all.
+
+    Parameters
+    ----------
+    ch
+        One entry of an animation's ``channels``.
+    samplers
+        That animation's ``samplers``.
+    nodes
+        The scene's nodes.
+
+    Returns
+    -------
+    tuple or None
+        The node index, the key times, the ``(n, 4, 4)`` row-major key
+        matrices and the interpolation; None when the channel is not one
+        whose keys can be split into translation, rotation and scale.
+    """
+    target = ch.get("target") if isinstance(ch, dict) else None
+    if not isinstance(target, dict) or target.get("path") != "matrix":
+        return None
+    if set(target) - _MATRIX_TARGET_KEYS or target.get("member") not in (None, ""):
+        return None
+    node = target.get("node")
+    if isinstance(node, bool) or not isinstance(node, (int, np.integer)):
+        return None
+    if not 0 <= node < len(nodes):
+        return None
+    spelled = nodes[node].extras.get("transforms")
+    if spelled is not None and not (
+        isinstance(spelled, list)
+        and len(spelled) == 1
+        and isinstance(spelled[0], dict)
+        and spelled[0].get("kind") == "matrix"
+        and spelled[0].get("sid") == target.get("sid")
+    ):
+        return None
+    s = _sampler_index(ch, samplers)
+    if s is None:
+        return None
+    sampler = samplers[s]
+    if not isinstance(sampler, dict):
+        return None
+    interp = sampler.get("interpolation", "LINEAR")
+    if not isinstance(interp, str) or interp not in _MATRIX_INTERPOLATIONS:
+        return None
+    try:
+        times = np.asarray(sampler.get("times"), dtype=np.float64).ravel()
+        values = np.asarray(sampler.get("values"), dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+    if not len(times) or values.size != 16 * len(times):
+        return None
+    if not (np.isfinite(times).all() and np.isfinite(values).all()):
+        return None
+    if max(np.abs(times).max(), np.abs(values).max()) > _FLOAT32_MAX:
+        return None
+    return int(node), times, values.reshape(len(times), 4, 4), interp
+
+
+def _split_matrix_channels(animations: Any, nodes: tuple[SceneNode, ...]) -> Any:
+    """Return the animations with whole-matrix channels split into TRS ones.
+
+    Each channel :func:`_whole_matrix_channel` accepts is replaced, in its
+    place, by a translation, a rotation and a scale channel over the same
+    times, their samplers appended to the animation's. Every other channel
+    and sampler is kept as is, so its index does not move. Successive
+    quaternions keep the same hemisphere, so glTF's slerp takes the short
+    way between keys as the matrix did.
+
+    Parameters
+    ----------
+    animations
+        ``SceneData.global_attrs["animations"]``.
+    nodes
+        The scene's nodes.
+
+    Returns
+    -------
+    Any
+        A new list of animations, the input left untouched; the input
+        itself when it is not a list or tuple.
+    """
+    if not isinstance(animations, (list, tuple)):
+        return animations
+    out: list = []
+    for anim in animations:
+        channels = anim.get("channels", []) if isinstance(anim, dict) else None
+        samplers = anim.get("samplers", []) if isinstance(anim, dict) else None
+        if not isinstance(channels, (list, tuple)):
+            out.append(anim)
+            continue
+        wholes = [_whole_matrix_channel(ch, samplers, nodes) for ch in channels]
+        if all(w is None for w in wholes):
+            out.append(anim)
+            continue
+        taken = {
+            (ch["target"].get("node"), ch["target"].get("path"))
+            for ch, w in zip(channels, wholes, strict=True)
+            if w is None
+            and isinstance(ch, dict)
+            and isinstance(ch.get("target"), dict)
+            and _sampler_index(ch, samplers) is not None
+            and _foreign_channel(ch, samplers, n_nodes=len(nodes)) is None
+        }
+        new_channels: list = []
+        new_samplers = list(samplers)
+        for ch, whole in zip(channels, wholes, strict=True):
+            if whole is None:
+                new_channels.append(ch)
+                continue
+            node, times, keys, interp = whole
+            paths = {(node, p) for p in _TRS_PATHS}
+            if paths & taken:
+                _warn_caller(
+                    "glTF: an animation channel is not written: its matrix keys "
+                    f"would animate the translation, rotation and scale of node "
+                    f"{node}, which another channel of the animation already "
+                    "animates."
+                )
+                continue
+            taken |= paths
+            split = [trs_of_matrix(k) for k in keys]
+            if not all(exact for *_, exact in split):
+                _warn_caller(
+                    f"glTF: a matrix animation key of node {node} holds a shear "
+                    "or projection, which translation, rotation and scale "
+                    "cannot; it is dropped from the key."
+                )
+            flips = np.diff([np.prod(sc) < 0 for _, _, sc, _ in split])
+            if flips.any():
+                _warn_caller(
+                    f"glTF: the matrix animation keys of node {node} change "
+                    "handedness between keys; the reflection is a negative x "
+                    "scale, so the keys between two such keys swing through it."
+                )
+            quats = np.array([q for _, q, _, _ in split])
+            for k in range(1, len(quats)):
+                if np.dot(quats[k], quats[k - 1]) < 0:
+                    quats[k] = -quats[k]
+            tracks = (
+                np.array([t for t, _, _, _ in split]),
+                quats,
+                np.array([sc for _, _, sc, _ in split]),
+            )
+            for path, values in zip(_TRS_PATHS, tracks, strict=True):
+                new_channels.append(
+                    {
+                        "sampler": len(new_samplers),
+                        "target": {"node": node, "path": path},
+                    }
+                )
+                new_samplers.append(
+                    {"times": times, "values": values, "interpolation": interp}
+                )
+        out.append({**anim, "channels": new_channels, "samplers": new_samplers})
+    return out
+
+
+def _increasing_float32(times: np.ndarray) -> np.ndarray:
+    """Return key times that stay strictly increasing once stored as float32.
+
+    Two float64 times closer than a float32 step, a key held just before a
+    step say, round onto one float32 time, the only width a glTF time
+    accessor takes. Such a key moves down to the float32 just below the key
+    after it, keeping the step a step; when that would push the first time,
+    not negative to begin with, below zero, which glTF forbids, the
+    colliding keys move up instead. Only the first time is kept from
+    turning negative: after a negative first time, which glTF forbids
+    anyway, a later zero may move below zero. Times that were not strictly
+    increasing to begin with are left as they are.
+
+    Parameters
+    ----------
+    times
+        Key times, as float64.
+
+    Returns
+    -------
+    np.ndarray
+        The times as float32 values.
+    """
+    out = times.astype(np.float32)
+    if out.ndim != 1 or (np.diff(out) > 0).all():
+        return out
+    if not (times[:-1] < times[1:]).all():
+        return out
+    down = out.copy()
+    for k in range(len(down) - 2, -1, -1):
+        if down[k] >= down[k + 1]:
+            down[k] = np.nextafter(down[k + 1], np.float32(-np.inf))
+    if times[0] < 0 or down[0] >= 0:
+        return down
+    for k in range(1, len(out)):
+        if out[k] <= out[k - 1]:
+            out[k] = np.nextafter(out[k - 1], np.float32(np.inf))
+    return out
+
+
+def _encode_animations(
+    animations: list[dict], bb: _BinBuilder, *, n_nodes: int
+) -> list[dict]:
     """Encode decoded animation data back into glTF animation dicts.
 
     Appends accessor and bufferView entries to *bb* for each sampler's
@@ -1642,6 +2165,16 @@ def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
         Each sampler must have ``"times"`` and ``"values"`` as ndarrays.
     bb
         Binary buffer builder to append accessor data into.
+    n_nodes
+        The number of nodes of the scene, a channel targeting any other
+        being skipped.
+
+    Notes
+    -----
+    A sampler several channels name is written once, and so is a times
+    array several samplers share. A channel :func:`_foreign_channel`
+    refuses, or animating a node path an earlier channel of its animation
+    already does, is skipped with a warning.
 
     Returns
     -------
@@ -1649,63 +2182,88 @@ def _encode_animations(animations: list[dict], bb: _BinBuilder) -> list[dict]:
         glTF animation dicts ready for ``gltf["animations"]``.
     """
     result: list[dict] = []
+    time_accessors: dict[int, int] = {}
     for anim in animations:
         channels = anim.get("channels", [])
         samplers = anim.get("samplers", [])
         if not channels or not samplers:
             continue
 
-        # Build both lists in a single loop so a skipped channel never
-        # shifts the sampler index relative to the channel list.
         gltf_samplers: list[dict] = []
         gltf_channels: list[dict] = []
+        written: dict[tuple[int, str], int] = {}
+        animated: set[tuple[int, str]] = set()
         for ch in channels:
-            sampler_idx = ch.get("sampler", 0)
-            if sampler_idx >= len(samplers):
+            sampler_idx = _sampler_index(ch, samplers)
+            if sampler_idx is None:
                 continue
-            s = samplers[sampler_idx]
-            times: np.ndarray = np.asarray(s["times"], dtype=np.float32)
-            values: np.ndarray = np.asarray(s["values"], dtype=np.float32)
-            path = ch.get("target", {}).get("path", "")
-
-            # Derive acc_type from values shape; "weights" is SCALAR.
-            if (
-                path == "weights"
-                or values.ndim == 1
-                or (values.ndim == 2 and values.shape[1] == 1)
-            ):
-                acc_type = "SCALAR"
-            elif values.ndim == 2 and values.shape[1] == 2:
-                acc_type = "VEC2"
-            elif values.ndim == 2 and values.shape[1] == 4:
-                acc_type = "VEC4"
+            reason = _foreign_channel(ch, samplers, n_nodes=n_nodes)
+            if reason is not None:
+                _warn_caller(f"glTF: an animation channel is not written: {reason}.")
+                continue
+            target = dict(ch["target"])
+            path = target["path"]
+            if target.get("node") is None:
+                target.pop("node", None)
             else:
-                acc_type, _ = _PATH_ACCESSOR.get(path, ("VEC3", 3))
+                target["node"] = int(target["node"])
+                if path != "pointer":
+                    if (target["node"], path) in animated:
+                        _warn_caller(
+                            "glTF: an animation channel is not written: an "
+                            f"earlier channel of the animation already animates "
+                            f"the {path} of node {target['node']}."
+                        )
+                        continue
+                    animated.add((target["node"], path))
+            s = samplers[sampler_idx]
+            values: np.ndarray = np.asarray(s["values"], dtype=np.float32)
 
-            t_idx = bb.add(times, acc_type="SCALAR", component_type=5126, target=None)
-            # glTF spec requires min/max on animation sampler input (time) accessors.
-            if len(times) > 0:
-                bb.accessors[t_idx]["min"] = [float(times.min())]
-                bb.accessors[t_idx]["max"] = [float(times.max())]
-            v_idx = bb.add(values, acc_type=acc_type, component_type=5126, target=None)
-            interp = s.get("interpolation", "LINEAR")
+            if path in _PATH_ACCESSOR:
+                acc_type, width = _PATH_ACCESSOR[path]
+                values = values.reshape(-1, width)
+            elif path == "weights":
+                acc_type = "SCALAR"
+                values = values.ravel()
+            else:
+                acc_type = _WIDTH_ACCESSOR[1 if values.ndim == 1 else values.shape[1]]
+                if acc_type == "SCALAR":
+                    values = values.ravel()
 
-            gltf_samplers.append(
-                {
-                    "input": t_idx,
-                    "output": v_idx,
-                    "interpolation": interp,
-                }
-            )
+            if (sampler_idx, acc_type) not in written:
+                # Keyed by the array itself: the three samplers a matrix
+                # channel splits into share one, and so one accessor.
+                t_idx = time_accessors.get(id(s["times"]))
+                if t_idx is None:
+                    times = _increasing_float32(
+                        np.asarray(s["times"], dtype=np.float64).ravel()
+                    )
+                    t_idx = bb.add(
+                        times, acc_type="SCALAR", component_type=5126, target=None
+                    )
+                    # glTF requires min/max on a sampler's input accessor.
+                    bb.accessors[t_idx]["min"] = [float(times.min())]
+                    bb.accessors[t_idx]["max"] = [float(times.max())]
+                    time_accessors[id(s["times"])] = t_idx
+                v_idx = bb.add(
+                    values, acc_type=acc_type, component_type=5126, target=None
+                )
+                written[sampler_idx, acc_type] = len(gltf_samplers)
+                gltf_samplers.append(
+                    {
+                        "input": t_idx,
+                        "output": v_idx,
+                        "interpolation": s.get("interpolation", "LINEAR"),
+                    }
+                )
             gltf_channels.append(
-                {
-                    "sampler": len(gltf_samplers) - 1,
-                    "target": ch.get("target", {}),
-                }
+                {"sampler": written[sampler_idx, acc_type], "target": target}
             )
 
+        if not gltf_channels:
+            continue
         entry: dict = {"channels": gltf_channels, "samplers": gltf_samplers}
-        if anim.get("name"):
+        if anim.get("name") and isinstance(anim["name"], str):
             entry["name"] = anim["name"]
         result.append(entry)
 
@@ -1772,7 +2330,9 @@ def _write_output(
         gltf_dict = {k: v for k, v in gltf_dict.items() if k != "buffers"}
 
     try:
-        json_str = json.dumps(gltf_dict, indent=2, allow_nan=False)
+        json_str = json.dumps(
+            gltf_dict, indent=2, allow_nan=False, default=_json_default
+        )
     except ValueError as exc:
         raise CodecError("glTF: mesh data contains NaN or Inf values") from exc
     write_text(path, json_str, encoding="utf-8")
