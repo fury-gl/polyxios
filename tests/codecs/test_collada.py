@@ -15,6 +15,7 @@ import base64
 import dataclasses
 from datetime import datetime
 import io
+import json
 from pathlib import Path
 import re
 import tracemalloc
@@ -1672,7 +1673,7 @@ def test_read_skin_warns_and_reads_the_mesh_in_bind_shape(tmp_path: Path) -> Non
     assert "skins" not in scene.global_attrs
 
 
-def test_write_skins_and_animations_warn_and_are_dropped(tmp_path: Path) -> None:
+def test_write_skins_warn_and_are_dropped(tmp_path: Path) -> None:
     scene = SceneData(
         meshes=(_surface(),),
         nodes=(SceneNode(mesh=0),),
@@ -1680,7 +1681,7 @@ def test_write_skins_and_animations_warn_and_are_dropped(tmp_path: Path) -> None
         global_attrs={"skins": [{"joints": [0]}], "animations": [{"channels": []}]},
     )
     out = tmp_path / "dropped.dae"
-    with pytest.warns(UserWarning, match=r"\['skins', 'animations'\] are not written"):
+    with pytest.warns(UserWarning, match=r"\['skins'\] are not written"):
         write_scene(scene, out)
     text = out.read_text()
     assert "<library_controllers>" not in text
@@ -1733,12 +1734,1071 @@ def _anim_dae(
     )
 
 
-def test_read_animations_warn_and_the_scene_is_read_at_rest(tmp_path: Path) -> None:
+def test_read_instanced_node_animates_every_copy(tmp_path: Path) -> None:
+    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]]))
+    anim = (
+        '<animation id="a">'
+        + _source("a-t", [0.0, 1.0], "TIME")
+        + _source("a-tr", np.array([[0.0, 0, 0], [1, 2, 3]]), "X Y Z")
+        + '<sampler id="s"><input semantic="INPUT" source="#a-t"/>'
+        '<input semantic="OUTPUT" source="#a-tr"/></sampler>'
+        '<channel source="#s" target="lib/location"/></animation>'
+    )
+    text = _dae(
+        f"<library_geometries>{geo}</library_geometries>"
+        '<library_nodes><node id="lib"><translate sid="location">0 0 0</translate>'
+        '<instance_geometry url="#g0"/></node></library_nodes>'
+        f"<library_animations>{anim}</library_animations>"
+        '<library_visual_scenes><visual_scene id="S">'
+        '<node id="a"><instance_node url="#lib"/></node>'
+        '<node id="b"><instance_node url="#lib"/></node>'
+        "</visual_scene></library_visual_scenes>"
+    )
+    scene = read_scene(_write(tmp_path, text))
+    channels = scene.global_attrs["animations"][0]["channels"]
+    assert [c["target"]["node"] for c in channels] == [1, 3]
+    assert [c["sampler"] for c in channels] == [0, 0]
+    out = tmp_path / "copies.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    # The node goes to <library_nodes> once, both parents instance it from
+    # there, and its channel is written once for both.
+    text = out.read_text()
+    assert text.count('<node id="lib">') == 1
+    assert text.count('<instance_node url="#lib"/>') == 2
+    assert text.count("<channel ") == 1
+    back = read_scene(out)
+    assert len(back.nodes) == len(scene.nodes)
+    channels = back.global_attrs["animations"][0]["channels"]
+    assert [c["target"]["node"] for c in channels] == [1, 3]
+
+
+def test_read_channels_on_instanced_nodes_capped(tmp_path: Path) -> None:
+    """Every channel gets a target per copy of the node it addresses, so the
+    targets are capped as the copies are."""
+    depth = 10
+    lib = "".join(
+        f'<node id="n{i}"><instance_node url="#n{i + 1}"/>'
+        f'<instance_node url="#n{i + 1}"/></node>'
+        for i in range(depth)
+    )
+    leaf = f'<node id="n{depth}"><translate sid="t">0 0 0</translate></node>'
+    body = (
+        _source("a-t", [0.0, 1.0], "TIME")
+        + _source("a-tr", np.zeros((2, 3)), "X Y Z")
+        + '<sampler id="s"><input semantic="INPUT" source="#a-t"/>'
+        '<input semantic="OUTPUT" source="#a-tr"/></sampler>'
+        + f'<channel source="#s" target="n{depth}/t"/>'
+        * 300
+    )
+    text = _dae(
+        f"<library_nodes>{lib}{leaf}</library_nodes>"
+        f'<library_animations><animation id="a">{body}</animation>'
+        "</library_animations>"
+        '<library_visual_scenes><visual_scene id="S"><instance_node url="#n0"/>'
+        "</visual_scene></library_visual_scenes>"
+    )
+    with pytest.raises(CodecError, match="expand past 262144 targets"):
+        read_scene(_write(tmp_path, text))
+
+
+def _copy_of(scene: SceneData) -> dict[int, str]:
+    """Map every node under ``A`` or ``B`` to that copy's name."""
+    out: dict[int, str] = {}
+    for top in scene.scenes[0]:
+        stack = [top]
+        while stack:
+            idx = stack.pop()
+            out[idx] = scene.nodes[top].extras["id"]
+            stack.extend(scene.nodes[idx].children)
+    return out
+
+
+def test_read_animation_channels(tmp_path: Path) -> None:
+    channels = (
+        '<channel source="#s-tr" target="n0/location"/>'
+        '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
+        '<channel source="#s-m" target="n0/child/transform"/>'
+    )
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    anims = scene.global_attrs["animations"]
+    assert len(anims) == 1
+    anim = anims[0]
+    assert anim["name"] == "Walk"
+    assert [c["target"] for c in anim["channels"]] == [
+        {"node": 0, "path": "translation", "sid": "location", "member": None},
+        {"node": 0, "path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+        {"node": 1, "path": "matrix", "sid": "transform", "member": None},
+    ]
+    assert [c["sampler"] for c in anim["channels"]] == [0, 1, 2]
+    s = anim["samplers"]
+    np.testing.assert_array_equal(s[0]["times"], [0.0, 1.0])
+    np.testing.assert_array_equal(s[0]["values"], [[0, 0, 0], [1, 2, 3]])
+    assert s[0]["interpolation"] == "LINEAR"
+    np.testing.assert_array_equal(s[1]["values"], [0.0, 90.0])
+    assert s[1]["interpolation"] == "LINEAR"
+    assert s[2]["values"].shape == (2, 16)
+
+
+def test_read_animation_samplers_sharing_a_source_own_their_times(
+    tmp_path: Path,
+) -> None:
+    channels = (
+        '<channel source="#s-tr" target="n0/location"/>'
+        '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
+    )
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    s = scene.global_attrs["animations"][0]["samplers"]
+    s[0]["times"][0] = 42.0
+    assert s[1]["times"][0] == 0.0
+
+
+def test_read_sampler_shared_by_two_animations_owned_by_each(tmp_path: Path) -> None:
     channels = '<channel source="#s-tr" target="n0/location"/>'
-    with pytest.warns(UserWarning, match="animations are not read"):
+    second = (
+        '<animation id="again"><channel source="#s-tr" target="n0/location"/>'
+        "</animation></library_animations>"
+    )
+    text = _anim_dae(channels).replace("</library_animations>", second)
+    first, other = read_scene(_write(tmp_path, text)).global_attrs["animations"]
+    first["samplers"][0]["values"][0, 0] = 99.0
+    first["samplers"][0]["times"][0] = 99.0
+    assert other["samplers"][0]["values"][0, 0] == 0.0
+    assert other["samplers"][0]["times"][0] == 0.0
+
+
+def test_read_animation_target_sid_found_below_a_child(tmp_path: Path) -> None:
+    channels = (
+        '<channel source="#s-m" target="n0/grandkid/transform"/>'
+        '<channel source="#s-m" target="n0/child/grandkid/transform"/>'
+    )
+    text = _anim_dae(channels).replace(
+        '<node id="n1" sid="child"><matrix sid="transform">'
+        "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix></node>",
+        '<node id="n1" sid="child"><node id="n2" sid="grandkid">'
+        '<matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>'
+        "</node></node>",
+    )
+    anim = read_scene(_write(tmp_path, text)).global_attrs["animations"][0]
+    assert [c["target"]["node"] for c in anim["channels"]] == [2, 2]
+    assert [c["target"]["sid"] for c in anim["channels"]] == ["transform"] * 2
+
+
+def test_read_animation_nested_and_bezier_tangents(tmp_path: Path) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    text = _anim_dae(channels, nested=True, interp=("BEZIER", "BEZIER")).replace(
+        '<input semantic="INTERPOLATION" source="#a-i"/>',
+        '<input semantic="INTERPOLATION" source="#a-i"/>'
+        '<input semantic="IN_TANGENT" source="#a-tr"/>'
+        '<input semantic="OUT_TANGENT" source="#a-tr"/>',
+    )
+    anim = read_scene(_write(tmp_path, text)).global_attrs["animations"][0]
+    assert anim["name"] == "Walk"
+    s = anim["samplers"][0]
+    assert s["interpolation"] == "BEZIER"
+    assert s["in_tangents"].shape == (2, 3)
+    assert s["out_tangents"].shape == (2, 3)
+
+
+def test_read_interpolation_in_lower_case_upper_cased(tmp_path: Path) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    text = _anim_dae(channels, interp=("bezier", "bezier"))
+    scene = read_scene(_write(tmp_path, text))
+    assert scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] == (
+        "BEZIER"
+    )
+    # What the reader hands out, the writer takes.
+    write_scene(scene, tmp_path / "again.dae")
+
+
+def test_read_unknown_interpolation_read_as_linear(tmp_path: Path) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    text = _anim_dae(channels, interp=("SMOOTH", "SMOOTH"))
+    with pytest.warns(UserWarning, match="'SMOOTH'.*read as LINEAR"):
+        scene = read_scene(_write(tmp_path, text))
+    assert scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] == (
+        "LINEAR"
+    )
+    write_scene(scene, tmp_path / "again.dae")
+
+
+def test_collada_channels_not_written_into_gltf(tmp_path: Path) -> None:
+    channels = (
+        '<channel source="#s-tr" target="n0/location"/>'
+        '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
+    )
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    out = tmp_path / "a.gltf"
+    with pytest.warns(UserWarning, match="not written.*'member', 'sid'"):
+        polyxios.write_scene(scene, out)
+    assert "animations" not in json.loads(out.read_text())
+
+
+def test_read_animation_unresolved_target_dropped(tmp_path: Path) -> None:
+    channels = (
+        '<channel source="#s-tr" target="nowhere/location"/>'
+        '<channel source="#s-tr" target="n0/nosuchsid"/>'
+        '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
+    )
+    with pytest.warns(UserWarning) as rec:
+        anim = read_scene(_write(tmp_path, _anim_dae(channels))).global_attrs[
+            "animations"
+        ][0]
+    assert any("nowhere" in str(w.message) for w in rec)
+    assert any("nosuchsid" in str(w.message) for w in rec)
+    assert len(anim["channels"]) == 1
+    assert anim["channels"][0]["sampler"] == 0
+    assert len(anim["samplers"]) == 1
+
+
+def test_read_animation_times_values_mismatch_refused(tmp_path: Path) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    text = (
+        _anim_dae(channels)
+        .replace(
+            '<float_array id="a-t-array" count="2">0.0 1.0',
+            '<float_array id="a-t-array" count="3">0.0 1.0 2.0',
+        )
+        .replace(
+            '<accessor source="#a-t-array" count="2"',
+            '<accessor source="#a-t-array" count="3"',
+        )
+    )
+    with pytest.raises(CodecError, match="keys"):
+        read_scene(_write(tmp_path, text))
+
+
+def _with_animations(scene: SceneData, anims: list) -> SceneData:
+    return SceneData(
+        meshes=scene.meshes,
+        nodes=scene.nodes,
+        materials=scene.materials,
+        textures=scene.textures,
+        images=scene.images,
+        scenes=scene.scenes,
+        name=scene.name,
+        global_attrs={"animations": anims},
+    )
+
+
+def _animated_scene(transforms: list, target: dict, values) -> SceneData:
+    node = SceneNode(
+        name="n",
+        mesh=0,
+        matrix=np.eye(4),
+        extras={"transforms": transforms},
+    )
+    anim = {
+        "name": "a",
+        "channels": [{"sampler": 0, "target": {"node": 0, **target}}],
+        "samplers": [
+            {
+                "times": np.array([0.0, 1.0]),
+                "values": np.asarray(values, dtype=np.float64),
+                "interpolation": "LINEAR",
+            }
+        ],
+    }
+    return SceneData(
+        meshes=(_surface(),),
+        nodes=(node,),
+        scenes=((0,),),
+        global_attrs={"animations": [anim]},
+    )
+
+
+_TRANSLATE = {"kind": "translate", "sid": "location", "values": [0.0, 0.0, 0.0]}
+
+
+_ROTATE_X = {"kind": "rotate", "sid": "rotationX", "values": [1.0, 0.0, 0.0, 0.0]}
+
+
+_ROTATE_Y = {"kind": "rotate", "sid": "rotationY", "values": [0.0, 1.0, 0.0, 0.0]}
+
+
+def test_write_sidless_rotation_is_not_bound_to_a_rotate(tmp_path: Path) -> None:
+    quat = [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.7071, 0.7071]]
+    scene = _animated_scene([_ROTATE_X, _ROTATE_Y], {"path": "rotation"}, quat)
+    out = tmp_path / "quat.dae"
+    with pytest.warns(UserWarning, match="no sid and path 'rotation'"):
+        write_scene(scene, out)
+    assert "<channel" not in out.read_text()
+
+
+def test_write_sidless_translation_binds_the_single_translate(tmp_path: Path) -> None:
+    scene = _animated_scene(
+        [_TRANSLATE, _ROTATE_X], {"path": "translation"}, [[0, 0, 0], [1, 2, 3]]
+    )
+    out = tmp_path / "tr.dae"
+    write_scene(scene, out)
+    (channel,) = read_scene(out).global_attrs["animations"][0]["channels"]
+    assert channel["target"]["sid"] == "location"
+
+
+def test_write_sidless_translation_with_two_translates_dropped(tmp_path: Path) -> None:
+    second = {**_TRANSLATE, "sid": "offset"}
+    scene = _animated_scene(
+        [_TRANSLATE, second], {"path": "translation"}, [[0, 0, 0], [1, 2, 3]]
+    )
+    out = tmp_path / "tr2.dae"
+    with pytest.warns(UserWarning, match="spells 2 <translate> elements"):
+        write_scene(scene, out)
+    assert "<channel" not in out.read_text()
+
+
+def test_write_sidless_translation_of_the_wrong_width_dropped(tmp_path: Path) -> None:
+    scene = _animated_scene([_TRANSLATE], {"path": "translation"}, [0.0, 1.0])
+    out = tmp_path / "tr1.dae"
+    with pytest.warns(UserWarning, match="1 values per key where <translate> holds 3"):
+        write_scene(scene, out)
+    assert "<channel" not in out.read_text()
+
+
+def test_write_sidless_cubicspline_channel_dropped(tmp_path: Path) -> None:
+    scene = _animated_scene(
+        [_TRANSLATE], {"path": "translation"}, [[0, 0, 0], [1, 2, 3]]
+    )
+    scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] = "CUBICSPLINE"
+    out = tmp_path / "cubic.dae"
+    with pytest.warns(UserWarning, match="no sid and interpolation 'CUBICSPLINE'"):
+        write_scene(scene, out)
+    assert "<channel" not in out.read_text()
+
+
+def _trs(t, q, s) -> np.ndarray:
+    x, y, z, w = np.asarray(q, dtype=np.float64) / np.linalg.norm(q)
+    rot = np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+        ]
+    )
+    out = np.eye(4)
+    out[:3, :3] = rot * np.asarray(s, dtype=np.float64)
+    out[:3, 3] = t
+    return out
+
+
+_QUARTER_Z = [0.0, 0.0, np.sqrt(0.5), np.sqrt(0.5)]
+
+
+def _gltf_scene(tracks: dict, *, matrix=None) -> SceneData:
+    """A one-node scene animated as glTF animates it: no sid, a quaternion rotation."""
+    samplers, channels = [], []
+    for path, (times, values, interp) in tracks.items():
+        channels.append({"sampler": len(samplers), "target": {"node": 0, "path": path}})
+        samplers.append(
+            {
+                "times": np.asarray(times, dtype=np.float64),
+                "values": np.asarray(values, dtype=np.float64),
+                "interpolation": interp,
+            }
+        )
+    node = SceneNode(mesh=0, matrix=np.eye(4) if matrix is None else matrix)
+    return SceneData(
+        meshes=(_surface(),),
+        nodes=(node,),
+        scenes=((0,),),
+        global_attrs={"animations": [{"channels": channels, "samplers": samplers}]},
+    )
+
+
+def _baked(scene: SceneData, out: Path) -> dict:
+    write_scene(scene, out)
+    (anim,) = read_scene(out).global_attrs["animations"]
+    (channel,) = anim["channels"]
+    assert channel["target"] == {
+        "node": 0,
+        "path": "matrix",
+        "sid": "transform",
+        "member": None,
+    }
+    return anim["samplers"][channel["sampler"]]
+
+
+def test_write_sidless_trs_channels_bake_into_matrix_keys(tmp_path: Path) -> None:
+    scene = _gltf_scene(
+        {
+            "translation": ([0.0, 1.0], [[0, 0, 0], [1, 2, 3]], "LINEAR"),
+            "rotation": ([0.0, 1.0], [[0, 0, 0, 1], _QUARTER_Z], "LINEAR"),
+            "scale": ([0.0, 1.0], [[1, 1, 1], [2, 2, 2]], "LINEAR"),
+        }
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sampler = _baked(scene, tmp_path / "trs.dae")
+    assert sampler["interpolation"] == "LINEAR"
+    # A quarter turn is split into 15-degree spans.
+    np.testing.assert_allclose(sampler["times"], np.linspace(0.0, 1.0, 7))
+    keys = sampler["values"].reshape(-1, 4, 4)
+    np.testing.assert_allclose(keys[0], np.eye(4), atol=1e-12)
+    np.testing.assert_allclose(
+        keys[-1], _trs([1, 2, 3], _QUARTER_Z, [2, 2, 2]), atol=1e-12
+    )
+    half = [0.0, 0.0, np.sin(np.pi / 8), np.cos(np.pi / 8)]
+    np.testing.assert_allclose(
+        keys[3], _trs([0.5, 1, 1.5], half, [1.5, 1.5, 1.5]), atol=1e-12
+    )
+
+
+def test_write_baked_rotation_holds_the_rest_translation_and_scale(
+    tmp_path: Path,
+) -> None:
+    rest = _trs([5, 0, 0], [0, 0, 0, 1], [-1, 1, 1])
+    scene = _gltf_scene(
+        {"rotation": ([0.0, 2.0], [[0, 0, 0, 1], _QUARTER_Z], "LINEAR")},
+        matrix=rest,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sampler = _baked(scene, tmp_path / "rest.dae")
+    keys = sampler["values"].reshape(-1, 4, 4)
+    np.testing.assert_allclose(keys[0], rest, atol=1e-12)
+    np.testing.assert_allclose(
+        keys[-1], _trs([5, 0, 0], _QUARTER_Z, [-1, 1, 1]), atol=1e-12
+    )
+
+
+def test_write_baked_step_channels_stay_step(tmp_path: Path) -> None:
+    scene = _gltf_scene(
+        {
+            "translation": ([0.0, 1.0, 2.0], [[0, 0, 0], [1, 0, 0], [2, 0, 0]], "STEP"),
+            "scale": ([0.5], [[3, 3, 3]], "STEP"),
+        }
+    )
+    sampler = _baked(scene, tmp_path / "step.dae")
+    assert sampler["interpolation"] == "STEP"
+    np.testing.assert_array_equal(sampler["times"], [0.0, 0.5, 1.0, 2.0])
+    keys = sampler["values"].reshape(-1, 4, 4)
+    np.testing.assert_array_equal(keys[:, 0, 3], [0.0, 0.0, 1.0, 2.0])
+    np.testing.assert_array_equal(keys[:, 0, 0], [3.0] * 4)
+
+
+def test_write_baked_step_among_blending_channels_holds_until_its_key(
+    tmp_path: Path,
+) -> None:
+    scene = _gltf_scene(
+        {
+            "translation": ([0.0, 1.0], [[0, 0, 0], [1, 0, 0]], "STEP"),
+            "scale": ([0.0, 2.0], [[1, 1, 1], [3, 3, 3]], "LINEAR"),
+        }
+    )
+    sampler = _baked(scene, tmp_path / "mixed.dae")
+    assert sampler["interpolation"] == "LINEAR"
+    held = float(np.nextafter(np.float32(1.0), np.float32(0.0)))
+    np.testing.assert_array_equal(sampler["times"], [0.0, held, 1.0, 2.0])
+    assert len(np.unique(sampler["times"].astype(np.float32))) == 4
+    keys = sampler["values"].reshape(-1, 4, 4)
+    np.testing.assert_array_equal(keys[:, 0, 3], [0.0, 0.0, 1.0, 1.0])
+    np.testing.assert_allclose(keys[:, 1, 1], [1.0, 1.0 + held, 2.0, 3.0])
+
+
+def test_write_baked_cubicspline_is_split_and_follows_the_spline(
+    tmp_path: Path,
+) -> None:
+    # In-tangent, value, out-tangent per key; flat tangents give smoothstep.
+    values = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [4, 0, 0], [0, 0, 0]]
+    scene = _gltf_scene({"translation": ([0.0, 1.0], values, "CUBICSPLINE")})
+    sampler = _baked(scene, tmp_path / "cubic.dae")
+    np.testing.assert_allclose(sampler["times"], [0.0, 0.25, 0.5, 0.75, 1.0])
+    u = sampler["times"]
+    np.testing.assert_allclose(
+        sampler["values"].reshape(-1, 4, 4)[:, 0, 3], 4 * (3 * u**2 - 2 * u**3)
+    )
+
+
+def test_write_baked_cubicspline_rotation_overshoot_is_split_to_the_cap(
+    tmp_path: Path,
+) -> None:
+    ten = [0.0, 0.0, np.sin(np.radians(5.0)), np.cos(np.radians(5.0))]
+    # In-tangent, value, out-tangent per key; a steep out-tangent swings the
+    # rotation far past both keys inside the span.
+    values = [[0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 3, 0], [0, 0, 0, 0], ten, [0, 0, 0, 0]]
+    scene = _gltf_scene({"rotation": ([0.0, 1.0], values, "CUBICSPLINE")})
+    keys = _baked(scene, tmp_path / "swing.dae")["values"].reshape(-1, 4, 4)[:, :3, :3]
+    cos = (np.einsum("kij,kij->k", keys[:-1], keys[1:]) - 1.0) / 2.0
+    assert np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))).max() <= 15.0 + 1e-6
+
+
+def test_write_bake_drops_a_bad_channel_and_keeps_the_others(tmp_path: Path) -> None:
+    scene = _gltf_scene(
+        {
+            "translation": ([0.0, 1.0], [[0, 0, 0], [1, 2, 3]], "LINEAR"),
+            "scale": ([0.0, 1.0], [1.0, 2.0], "LINEAR"),
+        }
+    )
+    scene.global_attrs["animations"][0]["channels"].append(
+        {"sampler": 0, "target": {"node": 0, "path": "translation"}}
+    )
+    with pytest.warns(UserWarning) as record:
+        sampler = _baked(scene, tmp_path / "bad.dae")
+    messages = " ".join(str(w.message) for w in record)
+    assert "channel 1 has no sid and 2 keys of 1 values" in messages
+    assert "channel 2 animates the translation of node 0 a second time" in messages
+    keys = sampler["values"].reshape(-1, 4, 4)
+    np.testing.assert_allclose(keys[-1], _trs([1, 2, 3], [0, 0, 0, 1], [1, 1, 1]))
+
+
+def test_write_bake_of_a_sheared_node_warns(tmp_path: Path) -> None:
+    sheared = np.eye(4)
+    sheared[0, 1] = 0.5
+    scene = _gltf_scene(
+        {"translation": ([0.0, 1.0], [[0, 0, 0], [1, 0, 0]], "LINEAR")},
+        matrix=sheared,
+    )
+    with pytest.warns(UserWarning, match="shear or projection"):
+        _baked(scene, tmp_path / "shear.dae")
+
+
+def test_gltf_trs_animation_reaches_collada(tmp_path: Path) -> None:
+    scene = _gltf_scene(
+        {
+            "translation": ([0.0, 1.0], [[0, 0, 0], [1, 2, 3]], "LINEAR"),
+            "rotation": ([0.0, 1.0], [[0, 0, 0, 1], _QUARTER_Z], "LINEAR"),
+        }
+    )
+    polyxios.write_scene(scene, tmp_path / "a.glb")
+    from_gltf = polyxios.read_scene(tmp_path / "a.glb")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sampler = _baked(from_gltf, tmp_path / "a.dae")
+    np.testing.assert_allclose(
+        sampler["values"].reshape(-1, 4, 4)[-1],
+        _trs([1, 2, 3], _QUARTER_Z, [1, 1, 1]),
+        atol=1e-6,
+    )
+
+
+def test_write_animation_roundtrip(tmp_path: Path) -> None:
+    channels = (
+        '<channel source="#s-tr" target="n0/location"/>'
+        '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
+        '<channel source="#s-m" target="n0/child/transform"/>'
+    )
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    out = tmp_path / "anim.dae"
+    write_scene(scene, out)
+    back = read_scene(out)
+    a0 = scene.global_attrs["animations"][0]
+    a1 = back.global_attrs["animations"][0]
+    assert a1["name"] == "Walk"
+    assert [c["target"] for c in a1["channels"]] == [
+        c["target"] for c in a0["channels"]
+    ]
+    for s0, s1 in zip(a0["samplers"], a1["samplers"], strict=True):
+        np.testing.assert_array_equal(s0["times"], s1["times"])
+        np.testing.assert_array_equal(s0["values"], s1["values"])
+        assert s0["interpolation"] == s1["interpolation"]
+    # The node's own transform elements come back as they were spelled.
+    assert [t["sid"] for t in back.nodes[0].extras["transforms"]] == [
+        "location",
+        "rotationZ",
+    ]
+
+
+def test_write_animation_sources_then_samplers_then_channels(
+    tmp_path: Path,
+) -> None:
+    channels = (
+        '<channel source="#s-tr" target="n0/location"/>'
+        '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
+    )
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    out = tmp_path / "order.dae"
+    write_scene(scene, out)
+    anim = ET.parse(out).getroot().find(f"{{{_NS}}}library_animations")[0]
+    tags = [child.tag.rsplit("}", 1)[-1] for child in anim]
+    assert tags.count("sampler") == 2
+    # The schema's sequence: every source, then every sampler, then every channel.
+    assert tags == sorted(tags, key=["source", "sampler", "channel"].index)
+
+
+def test_write_sampler_shared_by_two_channels_written_once(tmp_path: Path) -> None:
+    channels = (
+        '<channel source="#s-tr" target="n0/location"/>'
+        '<channel source="#s-tr" target="n0/child/transform"/>'
+    )
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    assert [c["sampler"] for c in scene.global_attrs["animations"][0]["channels"]] == [
+        0,
+        0,
+    ]
+    out = tmp_path / "shared.dae"
+    write_scene(scene, out)
+    assert out.read_text().count("<sampler ") == 1
+    back = read_scene(out).global_attrs["animations"][0]
+    assert len(back["samplers"]) == 1
+    assert [c["sampler"] for c in back["channels"]] == [0, 0]
+
+
+@pytest.mark.parametrize("interp", ["LIN EAR", "<b>", "lineaire"])
+def test_write_interpolation_outside_the_specification_refused(
+    tmp_path: Path, interp: str
+) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] = interp
+    with pytest.raises(CodecError, match=re.escape(repr(interp))):
+        write_scene(scene, tmp_path / "bad.dae")
+
+
+def test_write_interpolation_in_lower_case_upper_cased(tmp_path: Path) -> None:
+    """The reader upper-cases an interpolation silently, so the writer does too."""
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    scene = read_scene(_write(tmp_path, _anim_dae(channels)))
+    scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] = "bezier"
+    out = tmp_path / "lower.dae"
+    write_scene(scene, out)
+    assert "bezier" not in out.read_text()
+    back = read_scene(out).global_attrs["animations"][0]["samplers"][0]
+    assert back["interpolation"] == "BEZIER"
+
+
+def test_write_animation_channel_without_target_sid_dropped(tmp_path: Path) -> None:
+    scene = _material_scene()
+    anims = [
+        {
+            "name": "A",
+            "channels": [
+                {
+                    "sampler": 0,
+                    "target": {"node": 0, "path": "translation", "sid": "location"},
+                }
+            ],
+            "samplers": [
+                {
+                    "times": np.array([0.0, 1.0]),
+                    "values": np.zeros((2, 3)),
+                    "interpolation": "LINEAR",
+                }
+            ],
+        }
+    ]
+    scene = _with_animations(scene, anims)
+    with pytest.warns(UserWarning, match="location"):
+        write_scene(scene, tmp_path / "a.dae")
+
+
+def test_write_matrix_path_targets_generated_transform(tmp_path: Path) -> None:
+    scene = _material_scene()
+    anims = [
+        {
+            "name": "A",
+            "channels": [{"sampler": 0, "target": {"node": 1, "path": "matrix"}}],
+            "samplers": [
+                {
+                    "times": np.array([0.0, 1.0]),
+                    "values": np.tile(np.eye(4).ravel(), (2, 1)),
+                    "interpolation": "STEP",
+                }
+            ],
+        }
+    ]
+    scene = _with_animations(scene, anims)
+    out = tmp_path / "m.dae"
+    write_scene(scene, out)
+    back = read_scene(out).global_attrs["animations"][0]
+    assert back["channels"][0]["target"] == {
+        "node": 1,
+        "path": "matrix",
+        "sid": "transform",
+        "member": None,
+    }
+    assert back["samplers"][0]["interpolation"] == "STEP"
+
+
+def test_write_sampler_without_times_or_values_refused(tmp_path: Path) -> None:
+    node = SceneNode(
+        mesh=0,
+        extras={"transforms": [{"kind": "translate", "sid": "t", "values": [0, 0, 0]}]},
+    )
+    base = SceneData(meshes=(_surface(),), nodes=(node,), scenes=((0,),))
+    target = {"node": 0, "path": "translation", "sid": "t"}
+    for sampler in ({"values": [[0, 0, 0]]}, {"times": [0.0]}, "not a dict"):
+        anims = [
+            {"channels": [{"sampler": 0, "target": target}], "samplers": [sampler]}
+        ]
+        with pytest.raises(CodecError, match="'times' and 'values'"):
+            write_scene(_with_animations(base, anims), tmp_path / "s.dae")
+
+
+def test_write_animation_entries_that_are_not_dicts_refused(tmp_path: Path) -> None:
+    base = SceneData(meshes=(_surface(),), nodes=(SceneNode(mesh=0),), scenes=((0,),))
+    with pytest.raises(CodecError, match="animation 0 is not a dict"):
+        write_scene(_with_animations(base, ["walk"]), tmp_path / "a.dae")
+    anims = [{"channels": ["c"], "samplers": []}]
+    with pytest.raises(CodecError, match="channel 0 is not a dict"):
+        write_scene(_with_animations(base, anims), tmp_path / "a.dae")
+
+
+def test_write_sampler_matrix_per_key_flattened(tmp_path: Path) -> None:
+    scene = _material_scene()
+    mats = np.tile(np.eye(4), (2, 1, 1))
+    mats[1, :3, 3] = [1, 2, 3]
+    anims = [
+        {
+            "name": "A",
+            "channels": [{"sampler": 0, "target": {"node": 1, "path": "matrix"}}],
+            "samplers": [
+                {
+                    "times": np.array([0.0, 1.0]),
+                    "values": mats,
+                    "in_tangents": mats,
+                    "interpolation": "BEZIER",
+                }
+            ],
+        }
+    ]
+    out = tmp_path / "mats.dae"
+    write_scene(_with_animations(scene, anims), out)
+    sampler = read_scene(out).global_attrs["animations"][0]["samplers"][0]
+    assert sampler["values"].shape == (2, 16)
+    np.testing.assert_array_equal(sampler["values"], mats.reshape(2, 16))
+    assert sampler["in_tangents"].shape == (2, 16)
+
+
+def test_write_channel_target_that_is_not_a_dict_dropped(tmp_path: Path) -> None:
+    scene = _material_scene()
+    anims = [
+        {
+            "channels": [{"sampler": 0, "target": "node0/transform"}],
+            "samplers": [{"times": np.array([0.0]), "values": np.zeros((1, 3))}],
+        }
+    ]
+    with pytest.warns(UserWarning, match="channel 0 names a node or sampler"):
+        write_scene(_with_animations(scene, anims), tmp_path / "t.dae")
+
+
+def test_write_channel_member_must_be_a_name_or_indices(tmp_path: Path) -> None:
+    def scene_with(member) -> SceneData:
+        return SceneData(
+            meshes=(),
+            nodes=(SceneNode(),),
+            scenes=((0,),),
+            global_attrs={
+                "animations": [
+                    {
+                        "channels": [
+                            {
+                                "sampler": 0,
+                                "target": {
+                                    "node": 0,
+                                    "sid": "transform",
+                                    "member": member,
+                                },
+                            }
+                        ],
+                        "samplers": [{"times": [0.0, 1.0], "values": [0.0, 1.0]}],
+                    }
+                ]
+            },
+        )
+
+    for member in ('X"/><evil a="', 3, "(a)"):
+        out = tmp_path / "member.dae"
+        with pytest.warns(UserWarning, match="neither a name nor"):
+            write_scene(scene_with(member), out)
+        assert not any(e.tag.endswith("evil") for e in ET.parse(out).iter())
+        assert "<channel" not in out.read_text()
+    for member, target in (("X", "transform.X"), ("(0)(3)", "transform(0)(3)")):
+        write_scene(scene_with(member), out)
+        assert f'target="node0/{target}"' in out.read_text()
+        back = read_scene(out)
+        assert (
+            back.global_attrs["animations"][0]["channels"][0]["target"]["member"]
+            == member
+        )
+
+
+def test_read_animation_tangent_count_mismatch_refused(tmp_path: Path) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    text = _anim_dae(channels, interp=("BEZIER", "BEZIER")).replace(
+        '<input semantic="INTERPOLATION" source="#a-i"/>',
+        '<input semantic="INTERPOLATION" source="#a-i"/>'
+        '<input semantic="IN_TANGENT" source="#a-bad"/>',
+        1,
+    )
+    text = text.replace(
+        '<sampler id="s-tr">',
+        _source("a-bad", np.zeros((3, 2)), "X Y") + '<sampler id="s-tr">',
+    )
+    with pytest.raises(CodecError, match="2 keys but 3 in_tangent"):
+        read_scene(_write(tmp_path, text))
+
+
+def test_write_sampler_tangent_count_mismatch_refused(tmp_path: Path) -> None:
+    sampler = {
+        "times": np.array([0.0, 1.0]),
+        "values": np.tile(np.eye(4).ravel(), (2, 1)),
+        "interpolation": "BEZIER",
+        "out_tangents": np.zeros((1, 2)),
+    }
+    anims = [
+        {
+            "channels": [{"sampler": 0, "target": {"node": 1, "path": "matrix"}}],
+            "samplers": [sampler],
+        }
+    ]
+    scene = _with_animations(_material_scene(), anims)
+    with pytest.raises(CodecError, match="2 times but 1 out_tangent"):
+        write_scene(scene, tmp_path / "t.dae")
+
+
+def test_write_sampler_tangents_not_numbers_refused(tmp_path: Path) -> None:
+    sampler = {
+        "times": np.array([0.0, 1.0]),
+        "values": np.tile(np.eye(4).ravel(), (2, 1)),
+        "interpolation": "BEZIER",
+        "in_tangents": [["a", "b"], [1.0, 2.0]],
+    }
+    anims = [
+        {
+            "channels": [{"sampler": 0, "target": {"node": 1, "path": "matrix"}}],
+            "samplers": [sampler],
+        }
+    ]
+    scene = _with_animations(_material_scene(), anims)
+    with pytest.raises(CodecError, match="in_tangents that are not numbers"):
+        write_scene(scene, tmp_path / "t.dae")
+
+
+def test_write_baked_step_rotation_among_blending_channels_adds_a_key_per_step(
+    tmp_path: Path,
+) -> None:
+    """A rotation that steps turns at its key alone: splitting the span before
+    it would pile keys no float32 tells apart against the step."""
+    half_turn = [0.0, 0.0, 1.0, 0.0]
+    scene = _gltf_scene(
+        {
+            "rotation": (
+                [0.0, 1.0, 2.0],
+                [[0, 0, 0, 1], half_turn, [0, 0, 0, 1]],
+                "STEP",
+            ),
+            "translation": ([0.0, 2.0], [[0, 0, 0], [2, 0, 0]], "LINEAR"),
+        }
+    )
+    sampler = _baked(scene, tmp_path / "step_rotation.dae")
+    times = sampler["times"]
+    held = [float(np.nextafter(np.float32(t), np.float32(0.0))) for t in (1.0, 2.0)]
+    np.testing.assert_array_equal(times, [0.0, held[0], 1.0, held[1], 2.0])
+    assert (np.diff(times.astype(np.float32)) > 0).all()
+    keys = sampler["values"].reshape(-1, 4, 4)
+    np.testing.assert_allclose(keys[:, 0, 0], [1.0, 1.0, -1.0, -1.0, 1.0], atol=1e-12)
+    np.testing.assert_allclose(keys[:, 0, 3], times)
+
+
+def test_write_baked_step_beside_cubicspline_keeps_keys_float32_apart(
+    tmp_path: Path,
+) -> None:
+    scene = _gltf_scene(
+        {
+            "translation": ([0.0, 1.0, 2.0], [[0, 0, 0], [1, 0, 0], [2, 0, 0]], "STEP"),
+            "scale": ([0.0, 2.0], np.ones((6, 3)), "CUBICSPLINE"),
+        }
+    )
+    times = _baked(scene, tmp_path / "step_cubic.dae")["times"]
+    held = [float(np.nextafter(np.float32(t), np.float32(0.0))) for t in (1.0, 2.0)]
+    np.testing.assert_array_equal(
+        times, [0.0, 0.25, 0.5, 0.75, held[0], 1.0, 1.25, 1.5, 1.75, held[1], 2.0]
+    )
+    assert (np.diff(times.astype(np.float32)) > 0).all()
+
+
+def _translated_scene(sampler: dict, **target) -> SceneData:
+    node = SceneNode(
+        mesh=0,
+        extras={"transforms": [{"kind": "translate", "sid": "t", "values": [0, 0, 0]}]},
+    )
+    base = SceneData(meshes=(_surface(),), nodes=(node,), scenes=((0,),))
+    channel = {
+        "sampler": 0,
+        "target": {"node": 0, "path": "translation", "sid": "t", **target},
+    }
+    return _with_animations(base, [{"channels": [channel], "samplers": [sampler]}])
+
+
+@pytest.mark.parametrize(
+    ("sampler", "reason"),
+    [
+        ({"times": [0.0, np.nan], "values": [[0, 0, 0]] * 2}, "not finite"),
+        ({"times": [0.0, 1.0], "values": [[0, 0, 0], [0, np.inf, 0]]}, "not finite"),
+        ({"times": [0.0, 1.0, 0.5], "values": [[0, 0, 0]] * 3}, "do not increase"),
+        ({"times": [0.0, 0.0], "values": [[0, 0, 0]] * 2}, "do not increase"),
+        ({"times": [], "values": []}, "without keys"),
+        (
+            {
+                "times": [0.0, 1.0],
+                "values": [[0, 0, 0]] * 2,
+                "interpolation": "BEZIER",
+                "in_tangents": [[0.0] * 6, [np.nan] * 6],
+            },
+            "in_tangents that are not finite",
+        ),
+    ],
+)
+def test_write_channel_with_unusable_keys_dropped(
+    tmp_path: Path, sampler: dict, reason: str
+) -> None:
+    """The keys a baked channel is dropped for drop one with a sid too."""
+    out = tmp_path / "keys.dae"
+    with pytest.warns(UserWarning, match=f"channel 0 has .*{reason}; it is dropped"):
+        write_scene(_translated_scene(sampler), out)
+    text = out.read_text()
+    assert "<library_animations>" not in text
+    assert "NaN" not in text and "INF" not in text
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert "animations" not in read_scene(out).global_attrs
+
+
+def test_write_second_channel_on_a_target_dropped(tmp_path: Path) -> None:
+    scene = _translated_scene({"times": [0.0, 1.0], "values": [[0, 0, 0], [1, 2, 3]]})
+    anim = scene.global_attrs["animations"][0]
+    anim["samplers"].append({"times": [0.0, 2.0], "values": [[0, 0, 0], [9, 9, 9]]})
+    anim["channels"].append(
+        {"sampler": 1, "target": {"node": 0, "path": "translation"}}
+    )
+    anim["channels"].append(
+        {
+            "sampler": 1,
+            "target": {"node": 0, "path": "translation", "sid": "t", "member": "X"},
+        }
+    )
+    out = tmp_path / "twice.dae"
+    with pytest.warns(UserWarning, match=r"channel 1 animates 'node0/t' a second time"):
+        write_scene(scene, out)
+    back = read_scene(out).global_attrs["animations"][0]
+    assert [c["target"]["member"] for c in back["channels"]] == [None, "X"]
+    np.testing.assert_array_equal(back["samplers"][0]["times"], [0.0, 1.0])
+
+
+def test_write_baked_and_matrix_channels_on_one_node_keep_the_first(
+    tmp_path: Path,
+) -> None:
+    scene = _gltf_scene({"translation": ([0.0, 1.0], [[0, 0, 0], [1, 0, 0]], "LINEAR")})
+    anim = scene.global_attrs["animations"][0]
+    anim["samplers"].append(
+        {"times": [0.0, 1.0], "values": np.tile(np.eye(4).ravel(), (2, 1))}
+    )
+    explicit = {"node": 0, "path": "matrix", "sid": "transform"}
+    anim["channels"].append({"sampler": 1, "target": explicit})
+    with pytest.warns(
+        UserWarning, match="channel 1 animates 'node0/transform' a second"
+    ):
+        sampler = _baked(scene, tmp_path / "baked_first.dae")
+    np.testing.assert_array_equal(sampler["values"][:, 3], [0.0, 1.0])
+
+    anim["channels"].reverse()
+    with pytest.warns(
+        UserWarning, match="channel 1 animates 'node0/transform' a second"
+    ):
+        sampler = _baked(scene, tmp_path / "matrix_first.dae")
+    np.testing.assert_array_equal(sampler["values"][:, 3], [0.0, 0.0])
+
+
+def test_write_bake_ids_count_the_nodes_baked(tmp_path: Path) -> None:
+    scene = _gltf_scene({"translation": ([0.0, 1.0], [[0, 0, 0], [1, 0, 0]], "LINEAR")})
+    scene = dataclasses.replace(scene, nodes=(SceneNode(children=(1,)), scene.nodes[0]))
+    anim = scene.global_attrs["animations"][0]
+    anim["samplers"].append({"times": [1.0, 0.0], "values": [[1, 1, 1], [2, 2, 2]]})
+    anim["channels"] = [
+        {"sampler": 1, "target": {"node": 0, "path": "scale"}},
+        {"sampler": 0, "target": {"node": 1, "path": "translation"}},
+    ]
+    out = tmp_path / "ids.dae"
+    with pytest.warns(UserWarning, match="channel 0 has no sid and key times"):
+        write_scene(scene, out)
+    assert re.findall(r'<sampler id="([^"]+)"', out.read_text()) == [
+        "animation0-bake0-sampler"
+    ]
+
+
+@pytest.mark.parametrize("name", [None, ""])
+def test_write_animation_without_a_name_spells_none(tmp_path: Path, name) -> None:
+    scene = _translated_scene({"times": [0.0, 1.0], "values": [[0, 0, 0], [1, 2, 3]]})
+    scene.global_attrs["animations"][0]["name"] = name
+    out = tmp_path / "unnamed.dae"
+    write_scene(scene, out)
+    assert '<animation id="animation0">' in out.read_text()
+    assert read_scene(out).global_attrs["animations"][0]["name"] == "animation0"
+
+
+def test_read_animation_transform_sid_found_on_a_descendant(tmp_path: Path) -> None:
+    """The last sid of an address is looked up as the ones before it are: on
+    the node, then breadth-first below it."""
+    channels = (
+        '<channel source="#s-m" target="n0/transform"/>'
+        '<channel source="#s-tr" target="n0/location"/>'
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         scene = read_scene(_write(tmp_path, _anim_dae(channels)))
-    assert "animations" not in scene.global_attrs
-    np.testing.assert_array_equal(scene.nodes[0].matrix, np.eye(4))
+    targets = [c["target"] for c in scene.global_attrs["animations"][0]["channels"]]
+    assert [(t["node"], t["path"], t["sid"]) for t in targets] == [
+        (1, "matrix", "transform"),
+        (0, "translation", "location"),
+    ]
+    out = tmp_path / "below.dae"
+    write_scene(scene, out)
+    assert 'target="n1/transform"' in out.read_text()
+    back = read_scene(out).global_attrs["animations"][0]
+    assert [c["target"] for c in back["channels"]] == targets
+
+
+def test_read_channel_without_source_names_the_file_once(tmp_path: Path) -> None:
+    path = _write(tmp_path, _anim_dae('<channel target="n0/location"/>'))
+    with pytest.raises(CodecError) as exc:
+        read_scene(path)
+    assert str(exc.value).count("m.dae") == 1
+    assert "channel 'n0/location' has no url" in str(exc.value)
+
+
+def test_read_sampler_messages_name_the_file_once(tmp_path: Path) -> None:
+    text = _anim_dae('<channel source="#s-tr" target="n0/location"/>').replace(
+        '<input semantic="INPUT" source="#a-t"/><input semantic="OUTPUT" source="#a-tr"/>',
+        '<input semantic="INPUT" source="#a-t"/><input semantic="OUTPUT" source="#gone"/>',
+    )
+    with pytest.raises(CodecError) as exc:
+        read_scene(_write(tmp_path, text))
+    assert str(exc.value).count("m.dae") == 1
+
+
+def test_write_channel_on_a_copy_alone_warns_it_reaches_every_instance(
+    tmp_path: Path,
+) -> None:
+    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]]))
+    anim = (
+        '<animation id="a">'
+        + _source("a-t", [0.0, 1.0], "TIME")
+        + _source("a-tr", np.array([[0.0, 0, 0], [1, 2, 3]]), "X Y Z")
+        + '<sampler id="s"><input semantic="INPUT" source="#a-t"/>'
+        '<input semantic="OUTPUT" source="#a-tr"/></sampler>'
+        '<channel source="#s" target="lib/location"/></animation>'
+    )
+    text = _dae(
+        f"<library_geometries>{geo}</library_geometries>"
+        '<library_nodes><node id="lib"><translate sid="location">0 0 0</translate>'
+        '<instance_geometry url="#g0"/></node></library_nodes>'
+        f"<library_animations>{anim}</library_animations>"
+        '<library_visual_scenes><visual_scene id="S">'
+        '<node id="a"><instance_node url="#lib"/></node>'
+        '<node id="b"><instance_node url="#lib"/></node>'
+        "</visual_scene></library_visual_scenes>"
+    )
+    scene = read_scene(_write(tmp_path, text))
+    channels = scene.global_attrs["animations"][0]["channels"]
+    assert [c["target"]["node"] for c in channels] == [1, 3]
+    del channels[0]
+    out = tmp_path / "lone.dae"
+    with pytest.warns(
+        UserWarning, match="animates node 3, a copy of instanced node 1, alone"
+    ):
+        write_scene(scene, out)
+    back = read_scene(out).global_attrs["animations"][0]["channels"]
+    assert [c["target"]["node"] for c in back] == [1, 3]
 
 
 def test_no_animation_key_when_absent(tmp_path: Path) -> None:
@@ -2674,8 +3734,7 @@ def test_write_edited_node_does_not_warn_about_an_unused_sid(tmp_path: Path) -> 
 
 
 def test_write_edited_matrix_wins_over_spelled_transforms(tmp_path: Path) -> None:
-    with pytest.warns(UserWarning, match="animations are not read"):
-        scene = read_scene(_write(tmp_path, _anim_dae("")))
+    scene = read_scene(_write(tmp_path, _anim_dae("")))
     node = scene.nodes[0]
     m = np.eye(4)
     m[0, 3] = 7.0
