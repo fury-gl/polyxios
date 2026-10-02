@@ -86,7 +86,7 @@ jobs:
         run: pip install --no-build-isolation -e ".[dev]"
 
       - name: Install the comparison readers
-        run: pip install vtk meshio
+        run: pip install vtk meshio pycollada
 
       - name: Check they are importable
         # Every guard that uses them is importorskip'd, so a failed install
@@ -95,6 +95,7 @@ jobs:
           python -c "import vtkmodules.vtkIOLegacy, vtkmodules.vtkCommonCore"
           python -c "import vtkmodules.util.numpy_support"
           python -c "import meshio, meshio.netgen._netgen"
+          python -c "import collada"
 
       - name: Run tests
         run: pytest tests/ -v --durations=10

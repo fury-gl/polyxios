@@ -682,6 +682,21 @@ CAPABILITIES: dict[str, Cap] = {
         note="glTF fan-triangulates quads into triangles on write (mode 4 "
         "only); read() warns that flattening loses scene hierarchy.",
     ),
+    ".dae": Cap(
+        "surface",
+        vertex_attrs=(),
+        warns=(
+            r"vertex attribute\(s\) \['scalar', 'vector'\]",
+            r"element attribute\(s\) \['efloat', 'eint'\]",
+            r"tag group\(s\) \['a', 'b', 'vgroup'\]",
+            r"global_attrs \['gnum'\] of mesh 0",
+            r"scene format.*read_scene",
+        ),
+        note="COLLADA holds normals, texture coordinates and colours per vertex"
+        " and a material per element, nothing else: every other attribute, the"
+        " tags and the globals are dropped on write with a warning, and read()"
+        " warns that it flattens the scene.",
+    ),
     ".3mf": Cap(
         "surface",
         n_vertices=7,

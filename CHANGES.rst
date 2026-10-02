@@ -60,6 +60,28 @@ New features
   step's arrays to one file, the cells written once and the points again
   only when they moved. Verified both ways against VTK's own reader and
   writer, in the interop CI job as well as locally.
+- COLLADA (``.dae``), the Khronos XML scene format every modelling tool of
+  its decade exports, is read and written as a ``SceneData``. Each
+  ``<geometry>`` is a mesh: triangles, polylists, polygons, lines, line and
+  triangle strips and fans, with a corner split into its own vertex where
+  its normal, texture coordinate or colour differs, ``NORMAL``,
+  ``TEXCOORD`` and ``COLOR`` inputs as ``normals``, ``texcoords`` and
+  ``colors``, and each block's material symbol resolved through the
+  instancing node's ``<bind_material>`` into ``element_attrs["material"]``;
+  a geometry two instances bind to different materials gets a mesh per
+  binding. Effects read as materials (diffuse, emission, transparency and
+  its mode, textures through sampler and surface, an FCOLLADA bump as the
+  normal texture, the phong pieces in ``extras``), images by uri, ``<hex>``
+  or ``data:`` URI. Nodes keep the transform elements they were spelled
+  with. Every count and reference is checked by name before anything is
+  allocated, an XML entity is refused in any encoding, and nested
+  ``<instance_node>`` copies are capped by the document's size. Write
+  spells 1.4.1 with fixed timestamps, so a scene always writes the same
+  bytes, refuses connectivity a reader could not read back, and writes a
+  node shared by two parents once in ``<library_nodes>``, instanced from
+  there. ``read()`` flattens with a warning, ``lazy=True`` raises. Skins and
+  animations are not read or written yet: a skinned mesh reads in its bind
+  shape and an animated scene at rest, each with a warning.
 - A glTF read decodes each skin's ``inverseBindMatrices`` accessor into
   ``inverse_bind_matrices`` (row-major, one per joint), so a format that
   stores the bind pose by matrix can write a skinned glTF scene. A skin

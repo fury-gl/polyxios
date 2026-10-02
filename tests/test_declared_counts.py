@@ -148,6 +148,18 @@ CORRUPT: dict[str, str] = {
         '<cells size="1"><tetrahedron index="0" v0="0" v1="0" v2="0" v3="0"/>'
         "</cells></mesh></dolfin>"
     ),
+    ".dae": (
+        '<?xml version="1.0"?><COLLADA xmlns="http://www.collada.org/2005/11/'
+        'COLLADASchema" version="1.4.1"><library_geometries><geometry id="g">'
+        f'<mesh><source id="p"><float_array id="pa" count="{BIG}">0 0 0'
+        f'</float_array><technique_common><accessor source="#pa" count="{BIG}" '
+        'stride="3"><param name="X" type="float"/><param name="Y" type="float"/>'
+        '<param name="Z" type="float"/></accessor></technique_common></source>'
+        '<vertices id="v"><input semantic="POSITION" source="#p"/></vertices>'
+        '<triangles count="1"><input semantic="VERTEX" source="#v" offset="0"/>'
+        "<p>0 0 0</p></triangles></mesh></geometry></library_geometries>"
+        "</COLLADA>"
+    ),
     ".gltf": (
         '{"asset":{"version":"2.0"},'
         '"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],'

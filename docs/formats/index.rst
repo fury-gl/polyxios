@@ -4,10 +4,10 @@ Supported formats
 =================
 
 .. meta::
-   :description: The forty-three 3D mesh and geometry formats polyxios reads and writes, across fifty-six extensions - VTK, VTKHDF, OBJ, PLY, STL, glTF, LAS, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each.
+   :description: The forty-four 3D mesh and geometry formats polyxios reads and writes, across fifty-seven extensions - VTK, VTKHDF, OBJ, PLY, STL, glTF, COLLADA, LAS, PCD, XYZ, XDMF, MED, CGNS, Gmsh, ANSYS Fluent, Abaqus, Nastran, Netgen, Kratos MDPA, PERMAS, SVG and more, one reference page each.
 
 
-polyxios ships forty-three codecs across fifty-six extensions - the fifty-five
+polyxios ships forty-four codecs across fifty-seven extensions - the fifty-six
 below plus ``.plt``, which is recognised but not read. Each is registered by
 extension, so :func:`polyxios.read` picks the right reader from the filename - pass
 ``fmt=`` to override it.
@@ -60,6 +60,7 @@ file is not supported.
    dolfin
    flac3d
    gltf
+   collada
    gmsh
    nastran
    tecplot
