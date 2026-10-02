@@ -21,6 +21,7 @@ from polyxios._element_types import ELEMENT_TYPES
 from polyxios._scene import SceneData, SceneMaterial, SceneNode, SceneTexture
 from polyxios._trs import matrix_of_trs
 from polyxios._types import PolyData
+from polyxios.codecs import _collada
 from polyxios.codecs._gltf import (
     _decode_skins,
     _increasing_float32,
@@ -1098,6 +1099,64 @@ def test_matrix_channel_written_as_trs(tmp_path: Path) -> None:
     # Same hemisphere key to key, and each the same rotation as its source.
     assert (np.sum(rot[1:] * rot[:-1], axis=1) >= 0).all()
     np.testing.assert_allclose(np.abs(np.sum(rot * q, axis=1)), 1.0, atol=1e-6)
+
+
+def test_gltf_animation_survives_a_collada_round_trip(tmp_path: Path) -> None:
+    """glTF TRS channels baked into COLLADA matrix keys come back as TRS
+    channels holding the original values at the original key times, with
+    time keys that stay strictly increasing in float32."""
+    rotation = np.array([_quat((0, 0, 1), 0), _quat((0, 0, 1), 170)])
+    translation = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    scene = SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(SceneNode(mesh=0),),
+        scenes=((0,),),
+        global_attrs={
+            "animations": [
+                {
+                    "channels": [
+                        {"sampler": 0, "target": {"node": 0, "path": "rotation"}},
+                        {"sampler": 1, "target": {"node": 0, "path": "translation"}},
+                    ],
+                    "samplers": [
+                        {
+                            "times": np.array([0.0, 1.0]),
+                            "values": rotation,
+                            "interpolation": "LINEAR",
+                        },
+                        {
+                            "times": np.array([0.0, 0.5, 1.0]),
+                            "values": translation,
+                            "interpolation": "STEP",
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+    dae = tmp_path / "mid.dae"
+    glb = tmp_path / "back.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _collada.write_scene(scene, dae)
+        write_scene(_collada.read_scene(dae), glb)
+    tracks = _tracks(read_scene(glb))
+    assert sorted(tracks) == ["rotation", "scale", "translation"]
+    for track in tracks.values():
+        assert (np.diff(track["times"]) > 0).all()
+
+    def at(path: str, time: float) -> np.ndarray:
+        track = tracks[path]
+        return track["values"][np.flatnonzero(track["times"] == np.float32(time))[-1]]
+
+    for time, value in zip((0.0, 0.5, 1.0), translation, strict=True):
+        np.testing.assert_allclose(at("translation", time), value, atol=1e-6)
+    for time, value in zip((0.0, 1.0), rotation, strict=True):
+        assert abs(np.dot(at("rotation", time), value)) == pytest.approx(1.0, abs=1e-6)
+    # The translation still steps at 0.5: the key just before holds 0.
+    times = tracks["translation"]["times"]
+    before = int(np.flatnonzero(times == np.float32(0.5))[0]) - 1
+    np.testing.assert_allclose(tracks["translation"]["values"][before], 0.0, atol=1e-6)
 
 
 @pytest.mark.parametrize(
