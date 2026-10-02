@@ -218,7 +218,7 @@ Use `read_scene` / `write_scene` to preserve the structure; `read` flattens to a
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
 | glTF 2.0 | `.gltf` `.glb` | ✓ | ✓ | `read_scene` returns full hierarchy, PBR materials, animations; `read()` flattens with a warning |
-| COLLADA | `.dae` | ✓ | ✓ | `read_scene` returns nodes and effects as materials; skins and animations not yet read; `read()` flattens with a warning |
+| COLLADA | `.dae` | ✓ | ✓ | `read_scene` returns nodes, effects as materials and animations; skins not yet read; `read()` flattens with a warning |
 
 ### Surface, point & interchange
 
