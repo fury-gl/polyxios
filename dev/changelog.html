@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=b0a854c8"></script>
+    <script src="_static/documentation_options.js?v=fa15e602"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.5" />
-    <meta name="docbuild:last-update" content="2026-09-28"/>
+    <meta name="docbuild:last-update" content="2026-10-02"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -614,6 +614,12 @@ Write emits an <code class="docutils literal notranslate"><span class="pre">Unst
 step’s arrays to one file, the cells written once and the points again
 only when they moved. Verified both ways against VTK’s own reader and
 writer, in the interop CI job as well as locally.</p></li>
+<li><p>A glTF read decodes each skin’s <code class="docutils literal notranslate"><span class="pre">inverseBindMatrices</span></code> accessor into
+<code class="docutils literal notranslate"><span class="pre">inverse_bind_matrices</span></code> (row-major, one per joint), so a format that
+stores the bind pose by matrix can write a skinned glTF scene. A skin
+with no joints, or whose accessor is missing, is not float MAT4, has no
+<code class="docutils literal notranslate"><span class="pre">bufferView</span></code> (all zeros), cannot be read or holds fewer matrices than
+joints, is kept undecoded with a warning rather than failing the read.</p></li>
 <li><p>PVD (<code class="docutils literal notranslate"><span class="pre">.pvd</span></code>), ParaView’s collection of datasets over time, is read and
 written. Every dataset at one <code class="docutils literal notranslate"><span class="pre">timestep</span></code> is read through its own codec
 and merged, tagged by <code class="docutils literal notranslate"><span class="pre">group</span></code> or <code class="docutils literal notranslate"><span class="pre">part_&lt;n&gt;</span></code>, with the step’s time
@@ -843,6 +849,61 @@ in use where a generic helper needed a type variable declared beside it.</p></li
 <section id="bug-fixes">
 <h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>Two <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> (or <code class="docutils literal notranslate"><span class="pre">SceneNode</span></code>, or <code class="docutils literal notranslate"><span class="pre">SceneMaterial</span></code>) compared with
+<code class="docutils literal notranslate"><span class="pre">==</span></code> no longer raise when their <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> or <code class="docutils literal notranslate"><span class="pre">extras</span></code> hold
+arrays, as a glTF animation does: nested dicts, lists and arrays are
+compared by value, NaN equal to NaN. An array and a list holding the same
+values now compare unequal, where a one-element pair compared equal
+before. The meshes of two <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> are compared the same way, array
+by array, where any two scenes holding a mesh raised unless they shared
+the very same <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> objects.</p></li>
+<li><p>glTF write skips, with a warning, an animation channel glTF cannot
+hold: a target carrying fields glTF has none for, a path other than
+<code class="docutils literal notranslate"><span class="pre">translation</span></code>, <code class="docutils literal notranslate"><span class="pre">rotation</span></code>, <code class="docutils literal notranslate"><span class="pre">scale</span></code>, <code class="docutils literal notranslate"><span class="pre">weights</span></code> or <code class="docutils literal notranslate"><span class="pre">pointer</span></code>, a
+node that is not one of the scene’s, an interpolation other than
+<code class="docutils literal notranslate"><span class="pre">LINEAR</span></code>, <code class="docutils literal notranslate"><span class="pre">STEP</span></code> or <code class="docutils literal notranslate"><span class="pre">CUBICSPLINE</span></code>, a sampler that is not an object,
+holds no key, NaN, Inf or a value float32 cannot hold, times that are
+not strictly increasing, a rotation of zero length, or values that are
+not three per key for a translation or scale and four for a rotation, or
+a node path an earlier channel of the same animation already animates.
+Such a channel was written as is, a valid-looking file animating the
+wrong thing, or raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> or <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>, and an animation
+left with no channel is no longer written empty, which glTF forbids. An
+animation that is not an object is skipped with a warning as well. A
+node that only such a skipped channel, or one naming no sampler, targets
+keeps its <code class="docutils literal notranslate"><span class="pre">matrix</span></code> instead of being spelled as translation, rotation
+and scale. A <code class="docutils literal notranslate"><span class="pre">matrix</span></code> channel animating a node’s whole transform is
+split into translation, rotation and scale channels.</p></li>
+<li><p>glTF write stores flat animation values at the width of their path, six
+values of a translation as two <code class="docutils literal notranslate"><span class="pre">VEC3</span></code> keys, and morph weights given
+one row per key as that many scalars rather than one per row. A sampler
+several channels share is written once, as is a times array several
+samplers share. A node, mesh or child index held as a numpy integer, or
+an array in a channel target’s <code class="docutils literal notranslate"><span class="pre">extras</span></code>, is written rather than raising
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>. The values of a <code class="docutils literal notranslate"><span class="pre">pointer</span></code> channel are written as the
+accessor type as wide as one key - 9 as <code class="docutils literal notranslate"><span class="pre">MAT3</span></code>, 16 as <code class="docutils literal notranslate"><span class="pre">MAT4</span></code> - where
+any width but 1, 2 and 4 was labelled <code class="docutils literal notranslate"><span class="pre">VEC3</span></code> over the wrong byte count;
+a shape glTF has no type for is skipped with a warning. A target whose
+<code class="docutils literal notranslate"><span class="pre">node</span></code> is None is written without the key rather than as <code class="docutils literal notranslate"><span class="pre">null</span></code>, and
+an animation name that is not a string is left out.</p></li>
+<li><p>glTF read raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the animation and sampler, rather
+than a bare <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>, <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> or <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code>, when an
+animation is not an object holding a list of channels and a list of
+samplers, a channel or sampler is not an object, or a sampler names no
+readable accessor. A negative or boolean accessor index, which read the
+accessor that many from the end or number 0 or 1, raises as well, as do
+times taken from an accessor that is not <code class="docutils literal notranslate"><span class="pre">SCALAR</span></code>.</p></li>
+<li><p>The glTF warnings for skipped volume, pixel and quadratic elements, and
+for a scene flattened by <code class="docutils literal notranslate"><span class="pre">read</span></code>, point at the caller’s line whether
+the codec was called through <code class="docutils literal notranslate"><span class="pre">polyxios</span></code> or directly.</p></li>
+<li><p>glTF write of an animated node whose matrix mirrors (a negative
+determinant) no longer raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> when SciPy is installed, nor
+writes a wrong rotation when it is not: the rest pose splits into
+translation, rotation and scale the way the animation keys do, the
+reflection on the x scale. A matrix holding NaN or Inf raises
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code>. Key times of every channel, not only a split matrix one,
+stay strictly increasing once stored as float32, and the first never
+turns negative.</p></li>
 <li><p>A 3MF whose model part inflates past a gigabyte - ten million vertices -
 is read. The part was inflated whole and handed to the XML parser in one
 buffer, which expat refuses past that size with <code class="docutils literal notranslate"><span class="pre">out</span> <span class="pre">of</span> <span class="pre">memory</span></code>, and
@@ -2405,7 +2466,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-28.
+  Last updated on 2026-10-02.
   <br/>
 </p></div>
       

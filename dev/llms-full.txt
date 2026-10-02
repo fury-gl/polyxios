@@ -2525,7 +2525,9 @@ Multiple glTF primitives inside one mesh are merged into a single PolyData on re
 
 Node world transforms are applied during to_polydata(): vertices are multiplied by the world matrix, normals by the inverse-transpose of the linear 3×3 part of the node matrix, and tangents by the linear 3×3 part directly (covariant transform).
 
-Animation data is preserved in global_attrs["animations"] as decoded numpy arrays and re-encoded on write_scene.  Animated nodes are forced to TRS form (never matrix) as the glTF spec requires.
+Animation data is preserved in global_attrs["animations"] as decoded numpy arrays and re-encoded on write_scene; a malformed animation, channel or sampler, or a sampler whose input or output is not the index of an accessor, raises CodecError on read.  Animated nodes are forced to TRS form (never matrix) as the glTF spec requires; a rest matrix that mirrors carries the reflection as a negative x scale, as a split key does, and one holding a shear or projection loses it with a warning. A channel whose meaning glTF lacks, targeting a node the scene does not have, whose sampler is not an object, holds no key, NaN, Inf or a value float32 cannot hold, times that are not strictly increasing, a rotation of zero length, or values that are not three per key for a translation or scale and four for a rotation, or animating a node path an earlier channel of its animation already animates, is skipped with a warning; a matrix channel of LINEAR or STEP keys animating a node’s whole transform is split into translation, rotation and scale channels, a key holding a shear or projection losing it with a warning, and is skipped with a warning when another channel of its animation already animates one of those paths; keys that change handedness from one to the next warn, since the rotation between them swings through the reflection. Key times that float32 would collapse onto their neighbour are nudged down to stay strictly increasing, on every channel, or up when down would make the first time negative. A sampler several channels share is written once, as is a times array several samplers share. The values of a pointer channel, one row per key, are written as the accessor type as wide as a row (scalar, VEC2 to VEC4, MAT3 or MAT4); any other shape is skipped with a warning.
+
+Skins are kept in global_attrs["skins"] as their glTF dicts, each with its inverseBindMatrices accessor also decoded into inverse_bind_matrices, (len(joints), 4, 4) row-major float64; a skin with no joints, or whose accessor is not float MAT4, has no bufferView, cannot be read or holds fewer matrices than joints, is left undecoded with a warning. write_scene does not write skins.
 
 Textures with image: -1 are placeholder entries that preserve index alignment for KHR_texture_basisu / EXT_texture_webp extensions; they are read and written without a source key.
 
@@ -6826,6 +6828,13 @@ step’s arrays to one file, the cells written once and the points again
 only when they moved. Verified both ways against VTK’s own reader and
 writer, in the interop CI job as well as locally.
 
+A glTF read decodes each skin’s inverseBindMatrices accessor into
+inverse_bind_matrices (row-major, one per joint), so a format that
+stores the bind pose by matrix can write a skinned glTF scene. A skin
+with no joints, or whose accessor is missing, is not float MAT4, has no
+bufferView (all zeros), cannot be read or holds fewer matrices than
+joints, is kept undecoded with a warning rather than failing the read.
+
 PVD (.pvd), ParaView’s collection of datasets over time, is read and
 written. Every dataset at one timestep is read through its own codec
 and merged, tagged by group or part_<n>, with the step’s time
@@ -7067,6 +7076,67 @@ in use where a generic helper needed a type variable declared beside it.
 
 Bug fixes
 
+Two SceneData (or SceneNode, or SceneMaterial) compared with
+== no longer raise when their global_attrs or extras hold
+arrays, as a glTF animation does: nested dicts, lists and arrays are
+compared by value, NaN equal to NaN. An array and a list holding the same
+values now compare unequal, where a one-element pair compared equal
+before. The meshes of two SceneData are compared the same way, array
+by array, where any two scenes holding a mesh raised unless they shared
+the very same PolyData objects.
+
+glTF write skips, with a warning, an animation channel glTF cannot
+hold: a target carrying fields glTF has none for, a path other than
+translation, rotation, scale, weights or pointer, a
+node that is not one of the scene’s, an interpolation other than
+LINEAR, STEP or CUBICSPLINE, a sampler that is not an object,
+holds no key, NaN, Inf or a value float32 cannot hold, times that are
+not strictly increasing, a rotation of zero length, or values that are
+not three per key for a translation or scale and four for a rotation, or
+a node path an earlier channel of the same animation already animates.
+Such a channel was written as is, a valid-looking file animating the
+wrong thing, or raised TypeError or KeyError, and an animation
+left with no channel is no longer written empty, which glTF forbids. An
+animation that is not an object is skipped with a warning as well. A
+node that only such a skipped channel, or one naming no sampler, targets
+keeps its matrix instead of being spelled as translation, rotation
+and scale. A matrix channel animating a node’s whole transform is
+split into translation, rotation and scale channels.
+
+glTF write stores flat animation values at the width of their path, six
+values of a translation as two VEC3 keys, and morph weights given
+one row per key as that many scalars rather than one per row. A sampler
+several channels share is written once, as is a times array several
+samplers share. A node, mesh or child index held as a numpy integer, or
+an array in a channel target’s extras, is written rather than raising
+TypeError. The values of a pointer channel are written as the
+accessor type as wide as one key - 9 as MAT3, 16 as MAT4 - where
+any width but 1, 2 and 4 was labelled VEC3 over the wrong byte count;
+a shape glTF has no type for is skipped with a warning. A target whose
+node is None is written without the key rather than as null, and
+an animation name that is not a string is left out.
+
+glTF read raises CodecError naming the animation and sampler, rather
+than a bare KeyError, IndexError or AttributeError, when an
+animation is not an object holding a list of channels and a list of
+samplers, a channel or sampler is not an object, or a sampler names no
+readable accessor. A negative or boolean accessor index, which read the
+accessor that many from the end or number 0 or 1, raises as well, as do
+times taken from an accessor that is not SCALAR.
+
+The glTF warnings for skipped volume, pixel and quadratic elements, and
+for a scene flattened by read, point at the caller’s line whether
+the codec was called through polyxios or directly.
+
+glTF write of an animated node whose matrix mirrors (a negative
+determinant) no longer raises ValueError when SciPy is installed, nor
+writes a wrong rotation when it is not: the rest pose splits into
+translation, rotation and scale the way the animation keys do, the
+reflection on the x scale. A matrix holding NaN or Inf raises
+CodecError. Key times of every channel, not only a split matrix one,
+stay strictly increasing once stored as float32, and the first never
+turns negative.
+
 A 3MF whose model part inflates past a gigabyte - ten million vertices -
 is read. The part was inflated whole and handed to the XML parser in one
 buffer, which expat refuses past that size with out of memory, and
@@ -7140,7 +7210,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:364: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:431: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -7211,7 +7281,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:428: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:495: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -7449,7 +7519,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:652: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:719: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -7487,7 +7557,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:688: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:755: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -8452,7 +8522,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1548: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1615: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -8536,7 +8606,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1616: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1683: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -8584,7 +8654,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1647: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1714: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -8599,7 +8669,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1659: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1726: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -8705,7 +8775,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1732: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1799: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
