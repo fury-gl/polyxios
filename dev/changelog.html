@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=fa15e602"></script>
+    <script src="_static/documentation_options.js?v=f17a0e25"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -438,6 +438,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/flac3d.html">FLAC3D</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tecplot.html">Tecplot ASCII</a></li>
@@ -614,6 +615,28 @@ Write emits an <code class="docutils literal notranslate"><span class="pre">Unst
 step’s arrays to one file, the cells written once and the points again
 only when they moved. Verified both ways against VTK’s own reader and
 writer, in the interop CI job as well as locally.</p></li>
+<li><p>COLLADA (<code class="docutils literal notranslate"><span class="pre">.dae</span></code>), the Khronos XML scene format every modelling tool of
+its decade exports, is read and written as a <code class="docutils literal notranslate"><span class="pre">SceneData</span></code>. Each
+<code class="docutils literal notranslate"><span class="pre">&lt;geometry&gt;</span></code> is a mesh: triangles, polylists, polygons, lines, line and
+triangle strips and fans, with a corner split into its own vertex where
+its normal, texture coordinate or colour differs, <code class="docutils literal notranslate"><span class="pre">NORMAL</span></code>,
+<code class="docutils literal notranslate"><span class="pre">TEXCOORD</span></code> and <code class="docutils literal notranslate"><span class="pre">COLOR</span></code> inputs as <code class="docutils literal notranslate"><span class="pre">normals</span></code>, <code class="docutils literal notranslate"><span class="pre">texcoords</span></code> and
+<code class="docutils literal notranslate"><span class="pre">colors</span></code>, and each block’s material symbol resolved through the
+instancing node’s <code class="docutils literal notranslate"><span class="pre">&lt;bind_material&gt;</span></code> into <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;material&quot;]</span></code>;
+a geometry two instances bind to different materials gets a mesh per
+binding. Effects read as materials (diffuse, emission, transparency and
+its mode, textures through sampler and surface, an FCOLLADA bump as the
+normal texture, the phong pieces in <code class="docutils literal notranslate"><span class="pre">extras</span></code>), images by uri, <code class="docutils literal notranslate"><span class="pre">&lt;hex&gt;</span></code>
+or <code class="docutils literal notranslate"><span class="pre">data:</span></code> URI. Nodes keep the transform elements they were spelled
+with. Every count and reference is checked by name before anything is
+allocated, an XML entity is refused in any encoding, and nested
+<code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code> copies are capped by the document’s size. Write
+spells 1.4.1 with fixed timestamps, so a scene always writes the same
+bytes, refuses connectivity a reader could not read back, and writes a
+node shared by two parents once in <code class="docutils literal notranslate"><span class="pre">&lt;library_nodes&gt;</span></code>, instanced from
+there. <code class="docutils literal notranslate"><span class="pre">read()</span></code> flattens with a warning, <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises. Skins and
+animations are not read or written yet: a skinned mesh reads in its bind
+shape and an animated scene at rest, each with a warning.</p></li>
 <li><p>A glTF read decodes each skin’s <code class="docutils literal notranslate"><span class="pre">inverseBindMatrices</span></code> accessor into
 <code class="docutils literal notranslate"><span class="pre">inverse_bind_matrices</span></code> (row-major, one per joint), so a format that
 stores the bind pose by matrix can write a skinned glTF scene. A skin

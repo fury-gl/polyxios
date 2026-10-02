@@ -1,0 +1,833 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" data-theme="dark">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta property="og:title" content="COLLADA" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://polyxios.org/stable/formats/collada.html" />
+<meta property="og:site_name" content="polyxios" />
+<meta property="og:description" content=".dae read + write eager scene: read_scene + write_scene Summary of the specification: COLLADA is the Khronos Group’s XML interchange format for 3D scenes, the file every modelling tool of the 2000s..." />
+<meta property="og:image:width" content="1146" />
+<meta property="og:image:height" content="600" />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_collada_64f6610f.png" />
+<meta property="og:image:alt" content=".dae read + write eager scene: read_scene + write_scene Summary of the specification: COLLADA is the Khronos Group’s XML interchange format for 3D scenes, the file every modelling tool of the 2000s..." />
+<meta name="description" content=".dae read + write eager scene: read_scene + write_scene Summary of the specification: COLLADA is the Khronos Group’s XML interchange format for 3D scenes, the file every modelling tool of the 2000s..." />
+<meta name="twitter:card" content="summary_large_image" />
+
+    <meta name="robots" content="noindex, follow" />
+    <title>COLLADA &#8212; polyxios</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "dark";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=fb81dddc" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=f17a0e25"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=5a050afe"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'formats/collada';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = 'dev';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            true;
+        </script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../_static/js/homepage.js?v=0de8ffed"></script>
+    <link rel="canonical" href="https://polyxios.org/stable/formats/collada.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Gmsh" href="gmsh.html" />
+    <link rel="prev" title="glTF" href="gltf.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-02"/>
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="dark">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+<aside class="bd-header-announcement" aria-label="Announcement">
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
+</aside>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">&lt;polyxios /&gt;</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../usage.html">docs</a>
+    </li>
+    <li class="nav-item current active">
+      <a class="nav-link nav-internal" href="index.html">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+        <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.12</span></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../usage.html">docs</a>
+    </li>
+    <li class="nav-item current active">
+      <a class="nav-link nav-internal" href="index.html">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+        
+          <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.12</span></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">docs/</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">installation.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">usage.rst</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">formats/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="vtk.html">VTK Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtr.html">VTK RectilinearGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtp.html">VTK PolyData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
+<li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
+<li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
+<li class="toctree-l2"><a class="reference internal" href="meshb.html">Medit binary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gltf.html">glTF</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">COLLADA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
+<li class="toctree-l2"><a class="reference internal" href="su2.html">SU2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tetgen.html">TetGen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wkt.html">Well-Known Text</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="exodus.html">Exodus II</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../transforms.html">transforms.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli.html">cli.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../plugins.html">plugins.rst</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">api/</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../api/generated/polyxios.html">polyxios</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.version.html">polyxios.version</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.codecs.html">polyxios.codecs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.cli.html">polyxios.cli</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">contributing.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../development.html">development.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">changelog.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../credits.html">credits.rst</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Supported formats</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">COLLADA</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="collada">
+<span id="format-collada"></span><h1>COLLADA<a class="headerlink" href="#collada" title="Link to this heading">#</a></h1>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.dae</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code> <code class="docutils literal notranslate"><span class="pre">scene:</span> <span class="pre">read_scene</span> <span class="pre">+</span> <span class="pre">write_scene</span></code></p>
+<section id="summary-of-the-specification">
+<h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
+<p>COLLADA is the Khronos Group’s XML interchange format for 3D scenes, the file every modelling tool of the 2000s learned to export and the one glTF was designed to replace. A document is a set of libraries tied together by <code class="docutils literal notranslate"><span class="pre">#id</span></code> references: geometries, effects and the materials that instance them, images, controllers (skins and morphs), animations and visual scenes, with a <code class="docutils literal notranslate"><span class="pre">&lt;scene&gt;</span></code> naming the visual scene to show. A <code class="docutils literal notranslate"><span class="pre">&lt;geometry&gt;</span></code> holds a <code class="docutils literal notranslate"><span class="pre">&lt;mesh&gt;</span></code> of <code class="docutils literal notranslate"><span class="pre">&lt;source&gt;</span></code> arrays, each read through an <code class="docutils literal notranslate"><span class="pre">&lt;accessor&gt;</span></code> that names its stride and parameters, a <code class="docutils literal notranslate"><span class="pre">&lt;vertices&gt;</span></code> element binding the position source, and primitive blocks - <code class="docutils literal notranslate"><span class="pre">&lt;triangles&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;polylist&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;polygons&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;lines&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;linestrips&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;tristrips&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;trifans&gt;</span></code> - whose <code class="docutils literal notranslate"><span class="pre">&lt;p&gt;</span></code> index tuples name one entry of every <code class="docutils literal notranslate"><span class="pre">&lt;input&gt;</span></code> per corner, so a corner carries its own normal and texture coordinate. Nodes hold transforms as <code class="docutils literal notranslate"><span class="pre">&lt;matrix&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;translate&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;rotate&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;scale&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;lookat&gt;</span></code> elements applied in document order, each addressable by <code class="docutils literal notranslate"><span class="pre">sid</span></code> so an <code class="docutils literal notranslate"><span class="pre">&lt;animation&gt;</span></code> channel can target it. Effects describe materials in fixed-function terms - phong, lambert, blinn or constant shading with emission, diffuse, specular and transparency channels that are colours or textures reached through a sampler and a surface.</p>
+</section>
+<section id="specification-at-a-glance">
+<h2>Specification at a glance<a class="headerlink" href="#specification-at-a-glance" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>document</p></td>
+<td><p>UTF-8 XML, root <code class="docutils literal notranslate"><span class="pre">&lt;COLLADA</span> <span class="pre">version=&quot;1.4.1&quot;&gt;</span></code> (or 1.5.0) in the <code class="docutils literal notranslate"><span class="pre">collada.org/2005/11/COLLADASchema</span></code> namespace</p></td>
+</tr>
+<tr class="row-even"><td><p>source</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;float_array</span> <span class="pre">count&gt;</span></code> (or <code class="docutils literal notranslate"><span class="pre">Name_array</span></code>) plus <code class="docutils literal notranslate"><span class="pre">&lt;accessor</span> <span class="pre">count</span> <span class="pre">stride</span> <span class="pre">offset&gt;</span></code> with one <code class="docutils literal notranslate"><span class="pre">&lt;param</span> <span class="pre">name</span> <span class="pre">type&gt;</span></code> per used component</p></td>
+</tr>
+<tr class="row-odd"><td><p>mesh</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;vertices&gt;</span></code> binding <code class="docutils literal notranslate"><span class="pre">POSITION</span></code>; primitive blocks with <code class="docutils literal notranslate"><span class="pre">&lt;input</span> <span class="pre">semantic</span> <span class="pre">offset</span> <span class="pre">set&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;p&gt;</span></code> index tuples, <code class="docutils literal notranslate"><span class="pre">&lt;vcount&gt;</span></code> for a polylist</p></td>
+</tr>
+<tr class="row-even"><td><p>primitive blocks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">triangles</span></code>, <code class="docutils literal notranslate"><span class="pre">polylist</span></code>, <code class="docutils literal notranslate"><span class="pre">polygons</span></code> (with <code class="docutils literal notranslate"><span class="pre">&lt;ph&gt;</span></code> holes), <code class="docutils literal notranslate"><span class="pre">lines</span></code>, <code class="docutils literal notranslate"><span class="pre">linestrips</span></code>, <code class="docutils literal notranslate"><span class="pre">tristrips</span></code>, <code class="docutils literal notranslate"><span class="pre">trifans</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>node transforms</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;matrix&gt;</span></code> (16, row-major), <code class="docutils literal notranslate"><span class="pre">&lt;translate&gt;</span></code> (3), <code class="docutils literal notranslate"><span class="pre">&lt;rotate&gt;</span></code> (axis + degrees), <code class="docutils literal notranslate"><span class="pre">&lt;scale&gt;</span></code> (3), <code class="docutils literal notranslate"><span class="pre">&lt;lookat&gt;</span></code> (9), <code class="docutils literal notranslate"><span class="pre">&lt;skew&gt;</span></code>; composed in document order</p></td>
+</tr>
+<tr class="row-even"><td><p>instancing</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;instance_geometry&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;bind_material&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;instance_controller&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;skeleton&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code>, cameras and lights</p></td>
+</tr>
+<tr class="row-odd"><td><p>effect</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;profile_COMMON&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;newparam&gt;</span></code> surfaces and samplers, a <code class="docutils literal notranslate"><span class="pre">&lt;technique&gt;</span></code> of <code class="docutils literal notranslate"><span class="pre">phong</span></code> / <code class="docutils literal notranslate"><span class="pre">lambert</span></code> / <code class="docutils literal notranslate"><span class="pre">blinn</span></code> / <code class="docutils literal notranslate"><span class="pre">constant</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>skin</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;bind_shape_matrix&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;joints&gt;</span></code> (<code class="docutils literal notranslate"><span class="pre">JOINT</span></code> names, <code class="docutils literal notranslate"><span class="pre">INV_BIND_MATRIX</span></code>), <code class="docutils literal notranslate"><span class="pre">&lt;vertex_weights&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;vcount&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;v&gt;</span></code> joint/weight pairs</p></td>
+</tr>
+<tr class="row-odd"><td><p>animation</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;sampler&gt;</span></code> of <code class="docutils literal notranslate"><span class="pre">INPUT</span></code> times, <code class="docutils literal notranslate"><span class="pre">OUTPUT</span></code> values, <code class="docutils literal notranslate"><span class="pre">INTERPOLATION</span></code> names and tangents; <code class="docutils literal notranslate"><span class="pre">&lt;channel</span> <span class="pre">target=&quot;node/sid.MEMBER&quot;&gt;</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>asset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;up_axis&gt;</span></code> X_UP / Y_UP / Z_UP, <code class="docutils literal notranslate"><span class="pre">&lt;unit</span> <span class="pre">name</span> <span class="pre">meter&gt;</span></code>, contributor, created and modified</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="px-speclink"><a class="reference external" href="https://www.khronos.org/files/collada_spec_1_4.pdf">Read the full COLLADA 1.4.1 specification ↗</a></p>
+</section>
+<section id="reading">
+<h2>Reading<a class="headerlink" href="#reading" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">read_scene</span></code> returns a <a class="reference internal" href="../api/generated/polyxios.SceneData.html#polyxios.SceneData" title="polyxios.SceneData"><code class="xref py py-class docutils literal notranslate"><span class="pre">SceneData</span></code></a> with one mesh per <code class="docutils literal notranslate"><span class="pre">&lt;geometry&gt;</span></code>, in library order:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
+
+<span class="n">scene</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read_scene</span><span class="p">(</span><span class="s2">"robot.dae"</span><span class="p">)</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">meshes</span>       <span class="c1"># tuple of PolyData, one per &lt;geometry&gt;</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">nodes</span>        <span class="c1"># tuple of SceneNode: local matrix, mesh index, children</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">scenes</span>       <span class="c1"># root node indices of each &lt;visual_scene&gt;</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">materials</span>    <span class="c1"># tuple of SceneMaterial built from the effects</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">textures</span>     <span class="c1"># sampler settings, one per distinct (image, wrap, filter)</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">images</span>       <span class="c1"># &lt;library_images&gt;: a uri, or bytes from &lt;hex&gt; / data: URIs</span>
+</pre></div>
+</div>
+<p>A corner is one index per <code class="docutils literal notranslate"><span class="pre">&lt;input&gt;</span></code>; corners that name the same position but a different normal, texture coordinate or colour become separate vertices, in first-occurrence order, the way an OBJ reader splits <code class="docutils literal notranslate"><span class="pre">v/vt/vn</span></code> triples. Every position of <code class="docutils literal notranslate"><span class="pre">&lt;vertices&gt;</span></code> is a vertex, whether or not a corner names it. A block whose inputs all share one offset is read as values per position; a later block naming another source for the same attribute splits its corners like any other disagreeing input. When one block carries an input another block of the same mesh lacks (lines beside textured triangles, say), the corners without it get zeros, with a warning. <code class="docutils literal notranslate"><span class="pre">NORMAL</span></code> set 0 lands in <code class="docutils literal notranslate"><span class="pre">normals</span></code> and set <em>n</em> in <code class="docutils literal notranslate"><span class="pre">normals_n</span></code>, <code class="docutils literal notranslate"><span class="pre">TEXCOORD</span></code> set 0 in <code class="docutils literal notranslate"><span class="pre">texcoords</span></code> and set <em>n</em> in <code class="docutils literal notranslate"><span class="pre">texcoords_n</span></code> (a mesh with no set 0, as 3ds Max numbers its first map channel 1, has its sets renumbered down from the lowest, so its first is <code class="docutils literal notranslate"><span class="pre">texcoords</span></code>; a <code class="docutils literal notranslate"><span class="pre">P</span></code> column that is zero throughout is dropped), <code class="docutils literal notranslate"><span class="pre">COLOR</span></code> in <code class="docutils literal notranslate"><span class="pre">colors</span></code> (3 or 4 columns as the file has them); any other semantic keeps its lowercased name, and a set spelled with leading zeros is read as its number; a block giving one attribute twice (a <code class="docutils literal notranslate"><span class="pre">TEXCOORD</span></code> with no set beside one of set 0, say) keeps the first with a warning. Every primitive block maps to the VTK element it is: triangles, quads and polygons (a polylist entry by its size), lines, <code class="docutils literal notranslate"><span class="pre">poly_line</span></code> for a line strip, <code class="docutils literal notranslate"><span class="pre">triangle_strip</span></code> for a triangle strip, and a fan is expanded into triangles. A block’s <code class="docutils literal notranslate"><span class="pre">material</span></code> symbol is resolved through the instancing node’s <code class="docutils literal notranslate"><span class="pre">&lt;bind_material&gt;</span></code>, or straight to a material of that id (with a warning when the instance binds other symbols but not this one), into <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;material&quot;]</span></code> (<code class="docutils literal notranslate"><span class="pre">-1</span></code> where none). A geometry whose instances resolve its symbols to different materials - two nodes binding one symbol differently, or one binding it and one leaving it to the material of that id - gets a mesh per resolution: the first keeps the geometry’s place in <code class="docutils literal notranslate"><span class="pre">meshes</span></code>, each other is appended after the last geometry, sharing the first’s arrays (PolyData is immutable) under its own <code class="docutils literal notranslate"><span class="pre">material</span></code> column, and those columns may hold sixteen bytes per byte of document (and never less than 256 MiB) before it is refused. A <code class="docutils literal notranslate"><span class="pre">&lt;geometry</span> <span class="pre">name&gt;</span></code> is the mesh’s <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;mesh_name&quot;]</span></code>, the key glTF and MED use, and every <code class="docutils literal notranslate"><span class="pre">&lt;library_*&gt;</span></code> of a kind is read, not only the first.</p>
+<p>Nodes keep their <code class="docutils literal notranslate"><span class="pre">id</span></code>, <code class="docutils literal notranslate"><span class="pre">sid</span></code> and <code class="docutils literal notranslate"><span class="pre">JOINT</span></code> type in <code class="docutils literal notranslate"><span class="pre">extras</span></code>, along with the transform elements they were spelled with (<code class="docutils literal notranslate"><span class="pre">extras[&quot;transforms&quot;]</span></code>, a list of <code class="docutils literal notranslate"><span class="pre">{&quot;kind&quot;,</span> <span class="pre">&quot;sid&quot;,</span> <span class="pre">&quot;values&quot;}</span></code>), so a node writes back spelled as it was read. A node instancing several geometries gets a child node per extra one; an <code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code> is copied into place, and a document whose instances would expand the tree past one node per eight bytes (and past 262144 nodes) is refused rather than grown exponentially. Skins and animations are not read yet. An <code class="docutils literal notranslate"><span class="pre">&lt;instance_controller&gt;</span></code> reads as its geometry in the bind shape, without <code class="docutils literal notranslate"><span class="pre">joints</span></code> or <code class="docutils literal notranslate"><span class="pre">weights</span></code>, with one warning counting the skinned instances, and a document holding <code class="docutils literal notranslate"><span class="pre">&lt;animation&gt;</span></code> elements is read at rest, with a warning. The <code class="docutils literal notranslate"><span class="pre">&lt;asset&gt;</span></code> up axis, unit, timestamps and its contributor’s author, authoring tool and copyright are <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;asset&quot;]</span></code>; the axis is recorded, never applied. A write keeps the author and copyright (a glTF asset’s copyright included), names polyxios as the authoring tool, and drops with a warning any other key but another format’s own <code class="docutils literal notranslate"><span class="pre">version</span></code> and <code class="docutils literal notranslate"><span class="pre">generator</span></code>.</p>
+<p>Flatten to a single <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code>, or let <code class="xref py py-func docutils literal notranslate"><span class="pre">read()</span></code> do it with a warning:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">scene</span><span class="o">.</span><span class="n">to_polydata</span><span class="p">()</span>    <span class="c1"># applies every node's world transform</span>
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"robot.dae"</span><span class="p">)</span>   <span class="c1"># the same, with a UserWarning</span>
+</pre></div>
+</div>
+</section>
+<section id="writing">
+<h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">write_scene</span></code> spells a <a class="reference internal" href="../api/generated/polyxios.SceneData.html#polyxios.SceneData" title="polyxios.SceneData"><code class="xref py py-class docutils literal notranslate"><span class="pre">SceneData</span></code></a> back in COLLADA 1.4.1 syntax:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write_scene</span><span class="p">(</span><span class="n">scene</span><span class="p">,</span> <span class="s2">"out.dae"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.dae"</span><span class="p">)</span>     <span class="c1"># a one-node scene; material values become material_&lt;n&gt;</span>
+</pre></div>
+</div>
+<p>Each mesh becomes a <code class="docutils literal notranslate"><span class="pre">&lt;geometry&gt;</span></code>, named by its <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;mesh_name&quot;]</span></code>, with its positions, <code class="docutils literal notranslate"><span class="pre">normals</span></code>, <code class="docutils literal notranslate"><span class="pre">texcoords</span></code>, <code class="docutils literal notranslate"><span class="pre">colors</span></code>, <code class="docutils literal notranslate"><span class="pre">tangent</span></code>, <code class="docutils literal notranslate"><span class="pre">binormal</span></code>, <code class="docutils literal notranslate"><span class="pre">textangent</span></code> and <code class="docutils literal notranslate"><span class="pre">texbinormal</span></code> (each with its <code class="docutils literal notranslate"><span class="pre">_n</span></code> set suffix, so every attribute the reader names comes back) as sources sharing one index (integer colours scaled to 0..1 by their dtype’s maximum, 255 for a signed dtype, with a warning when a signed one holds values outside 0..255); element attributes other than <code class="docutils literal notranslate"><span class="pre">material</span></code>, tag groups, <code class="docutils literal notranslate"><span class="pre">joints</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code>, and <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> other than <code class="docutils literal notranslate"><span class="pre">mesh_name</span></code> (or, on the scene, <code class="docutils literal notranslate"><span class="pre">asset</span></code>) are dropped with a warning, the scene’s <code class="docutils literal notranslate"><span class="pre">skins</span></code> and <code class="docutils literal notranslate"><span class="pre">animations</span></code> included; a set suffix the reader would not spell back - not a number, <code class="docutils literal notranslate"><span class="pre">_0</span></code>, a leading zero, or one another key of the mesh already spells - is written under the lowest free set number with a warning and reads back under that number. Triangles go in a <code class="docutils literal notranslate"><span class="pre">&lt;triangles&gt;</span></code> block, or into the <code class="docutils literal notranslate"><span class="pre">&lt;polylist&gt;</span></code> with the quads and polygons when the mesh has any; lines, line strips and triangle strips get their own blocks, and points and volume cells are skipped with a warning - a point cloud keeps its positions as a <code class="docutils literal notranslate"><span class="pre">&lt;mesh&gt;</span></code> without primitives, which is valid COLLADA and reads back as a mesh of no elements, its set-0 vertex attributes written inside <code class="docutils literal notranslate"><span class="pre">&lt;vertices&gt;</span></code> (whose inputs take no set, so another set is dropped with a warning). Elements are grouped by primitive block and material, each group its own block, in first-occurrence order: element order survives within one block, so a surface whose <code class="docutils literal notranslate"><span class="pre">material</span></code> column alternates reads back regrouped by material (<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1,</span> <span class="pre">0,</span> <span class="pre">1]</span></code> becomes <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">1]</span></code>), and lines and triangles given as <code class="docutils literal notranslate"><span class="pre">[line,</span> <span class="pre">triangle,</span> <span class="pre">line]</span></code> read back as <code class="docutils literal notranslate"><span class="pre">[line,</span> <span class="pre">line,</span> <span class="pre">triangle]</span></code>. A <code class="docutils literal notranslate"><span class="pre">&lt;polylist&gt;</span></code> keeps only each element’s vertex count, so a polygon of three or four vertices reads back as a triangle or a quad. Connectivity is checked before anything is written: offsets that do not rise from 0 to the connectivity’s length, an index naming a vertex the mesh lacks, or an element whose vertex count its type does not allow (a line two, a triangle three, a quad four, a polygon or triangle strip at least three, a line strip at least two) is refused rather than written into a file no reader could read back. Node and material <code class="docutils literal notranslate"><span class="pre">extras</span></code> keys COLLADA has no place for are dropped with a warning. A <code class="docutils literal notranslate"><span class="pre">material</span></code> column must hold whole numbers (an integer dtype, or floats that are all whole and finite); anything else is refused, by <code class="docutils literal notranslate"><span class="pre">write</span></code> as by <code class="docutils literal notranslate"><span class="pre">write_scene</span></code>. Materials become <code class="docutils literal notranslate"><span class="pre">&lt;effect&gt;</span></code> entries in the shading their <code class="docutils literal notranslate"><span class="pre">extras[&quot;shading&quot;]</span></code> names (phong by default) with the base colour as diffuse, <code class="docutils literal notranslate"><span class="pre">emissive</span></code> as emission, alpha below one as the alpha of an <code class="docutils literal notranslate"><span class="pre">A_ONE</span></code> <code class="docutils literal notranslate"><span class="pre">&lt;transparent&gt;</span></code> colour, a base colour texture as the diffuse texture, bound to the lowest <code class="docutils literal notranslate"><span class="pre">TEXCOORD</span></code> set the mesh writes by a <code class="docutils literal notranslate"><span class="pre">&lt;bind_vertex_input&gt;</span></code> (none when it writes no texture coordinates), a normal texture as an FCOLLADA <code class="docutils literal notranslate"><span class="pre">&lt;bump&gt;</span></code>, and <code class="docutils literal notranslate"><span class="pre">double_sided</span></code> as the GOOGLEEARTH extra; a metallic-roughness or occlusion texture has no slot in the common profile and is dropped with a warning. Images are written by uri, or as a <code class="docutils literal notranslate"><span class="pre">data:</span></code> URI when they hold bytes. A node is spelled with the transform elements in <code class="docutils literal notranslate"><span class="pre">extras[&quot;transforms&quot;]</span></code> when they still compose to its matrix (to a tolerance relative to the matrix’s own magnitude), else as one <code class="docutils literal notranslate"><span class="pre">&lt;matrix</span> <span class="pre">sid=&quot;transform&quot;&gt;</span></code>. A node reached more than once - by a second parent, or as the root of a second scene - is written once in <code class="docutils literal notranslate"><span class="pre">&lt;library_nodes&gt;</span></code>, the only place some readers resolve an <code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code>, and every parent instances it from there: listed before that parent’s child nodes, as the schema orders them, so it reads back first among its siblings, and a scene root reached so is held by a wrapper node, since a visual scene holds only <code class="docutils literal notranslate"><span class="pre">&lt;node&gt;</span></code> elements. A node read as a copy of an <code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code> - holding the <code class="docutils literal notranslate"><span class="pre">id</span></code> of a node written before it and matching its subtree node for node - is instanced from that node again, so a document’s instancing survives a round trip, while a copy edited after reading is written in full under a generated id, with a warning. Only nodes a <code class="docutils literal notranslate"><span class="pre">&lt;visual_scene&gt;</span></code> reaches are written: a node in no scene is dropped with a warning. A node <code class="docutils literal notranslate"><span class="pre">id</span></code> or <code class="docutils literal notranslate"><span class="pre">sid</span></code> that is not an XML name, or an <code class="docutils literal notranslate"><span class="pre">id</span></code> an earlier node already holds, is dropped with a warning, the node taking a generated id.</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 20.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">up_axis</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;X_UP&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Y_UP&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;Z_UP&quot;</span></code>; overrides <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;asset&quot;][&quot;up_axis&quot;]</span></code>, which itself defaults to <code class="docutils literal notranslate"><span class="pre">Y_UP</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unit</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{&quot;name&quot;:</span> <span class="pre">...,</span> <span class="pre">&quot;meter&quot;:</span> <span class="pre">...}</span></code>; overrides the asset’s unit, which defaults to one metre.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="quirks-worth-knowing">
+<h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
+<ul class="px-quirks simple">
+<li><p>A document declaring an XML entity is refused, whatever the expat Python links against would do with it; one in an encoding expat cannot read itself (Shift_JIS, EUC-JP, …) is transcoded first, and an encoding Python does not know is refused.</p></li>
+<li><p>Every count is checked before anything is allocated: a <code class="docutils literal notranslate"><span class="pre">float_array</span></code> whose <code class="docutils literal notranslate"><span class="pre">count</span></code> disagrees with its content, an accessor reading past its array, a <code class="docutils literal notranslate"><span class="pre">&lt;p&gt;</span></code> whose length disagrees with the block’s <code class="docutils literal notranslate"><span class="pre">count</span></code> or <code class="docutils literal notranslate"><span class="pre">&lt;vcount&gt;</span></code>, an index past its source, a <code class="docutils literal notranslate"><span class="pre">#url</span></code> the document does not hold, a transform with the wrong number of values and a node instancing itself are each refused by name.</p></li>
+<li><p>The writer uses fixed timestamps (<code class="docutils literal notranslate"><span class="pre">1970-01-01T00:00:00Z</span></code> unless the asset carries its own <code class="docutils literal notranslate"><span class="pre">xs:dateTime</span></code> - <code class="docutils literal notranslate"><span class="pre">2024-01-02T03:04:05Z</span></code>, or a <code class="docutils literal notranslate"><span class="pre">datetime</span></code>; any other value is replaced by the epoch with a warning), so two writes of one scene are byte-identical.</p></li>
+<li><p>The document is UTF-8 and says so: a text handle opened with another encoding is refused, unless that encoding spells ASCII as ASCII (Latin-1, cp1252, …) and the document holds nothing else. Open it with <code class="docutils literal notranslate"><span class="pre">encoding=&quot;utf-8&quot;</span></code>, in binary mode, or pass a path.</p></li>
+<li><p>A name holding a line break or tab is written as a character reference, since a parser folds the literal character to a space, so it reads back unchanged; a node <code class="docutils literal notranslate"><span class="pre">id</span></code> that is not an XML name is replaced by a generated one, a node <code class="docutils literal notranslate"><span class="pre">sid</span></code> is written only when the node has a valid one, a transform <code class="docutils literal notranslate"><span class="pre">sid</span></code> that a channel target cannot end in (a letter or <code class="docutils literal notranslate"><span class="pre">_</span></code>, then letters, digits, <code class="docutils literal notranslate"><span class="pre">_</span></code> or <code class="docutils literal notranslate"><span class="pre">-</span></code>: a <code class="docutils literal notranslate"><span class="pre">.</span></code> would start the member) or that repeats an earlier one of the node is written without one, with a warning.</p></li>
+<li><p>A diffuse texture replaces the diffuse colour, as the format has room for one or the other: a textured material reads back with a white base colour and its alpha, and a tint on the texture is dropped with a warning (an emission texture likewise reads back with a white <code class="docutils literal notranslate"><span class="pre">emissive</span></code>, the factor that leaves it as drawn, and a tint on it is dropped with a warning; under a black <code class="docutils literal notranslate"><span class="pre">emissive</span></code>, which switches it off, the texture itself is dropped with a warning rather than written to glow), as is the base colour of a <code class="docutils literal notranslate"><span class="pre">constant</span></code> effect, which has no diffuse. Metallic and roughness have no COLLADA spelling and are not written; every material reads back with <code class="docutils literal notranslate"><span class="pre">metallic=0</span></code>.</p></li>
+<li><p>Transparency follows the <code class="docutils literal notranslate"><span class="pre">&lt;transparent</span> <span class="pre">opaque=&quot;...&quot;&gt;</span></code> mode (<code class="docutils literal notranslate"><span class="pre">A_ONE</span></code>, <code class="docutils literal notranslate"><span class="pre">A_ZERO</span></code>, <code class="docutils literal notranslate"><span class="pre">RGB_ZERO</span></code>, <code class="docutils literal notranslate"><span class="pre">RGB_ONE</span></code>; any other spelling is read as <code class="docutils literal notranslate"><span class="pre">A_ONE</span></code> with a warning) times <code class="docutils literal notranslate"><span class="pre">&lt;transparency&gt;</span></code>; an alpha below one reads as <code class="docutils literal notranslate"><span class="pre">alpha_mode=&quot;BLEND&quot;</span></code>. The one exception is <code class="docutils literal notranslate"><span class="pre">A_ONE</span></code> with a white transparent colour and <code class="docutils literal notranslate"><span class="pre">&lt;transparency&gt;</span></code> 0, which SketchUp, Google Earth and Blender before 2.8 write for an <em>opaque</em> material: read literally it would be invisible, so it is read as opaque with a warning (once per document, as a SketchUp export has hundreds), as other readers do. COLLADA has no alpha mask: <code class="docutils literal notranslate"><span class="pre">alpha_mode</span></code> is derived from the alpha on read, and <code class="docutils literal notranslate"><span class="pre">MASK</span></code> with its <code class="docutils literal notranslate"><span class="pre">alpha_cutoff</span></code> is not written.</p></li>
+<li><p>Non-finite values are written in XML’s own spelling (<code class="docutils literal notranslate"><span class="pre">NaN</span></code>, <code class="docutils literal notranslate"><span class="pre">INF</span></code>, <code class="docutils literal notranslate"><span class="pre">-INF</span></code>) and read back as such.</p></li>
+<li><p>An image <code class="docutils literal notranslate"><span class="pre">uri</span></code> is kept as the file spells it, percent-encoding included (<code class="docutils literal notranslate"><span class="pre">tex%20ture.png</span></code>), as glTF’s is: decode it before opening a file.</p></li>
+<li><p>A 1.5 sampler naming its image with <code class="docutils literal notranslate"><span class="pre">&lt;instance_image&gt;</span></code> resolves like a 1.4 sampler-and-surface chain. A 1.4 <code class="docutils literal notranslate"><span class="pre">&lt;image&gt;</span></code> holding its pixels in <code class="docutils literal notranslate"><span class="pre">&lt;data&gt;</span></code> reads like a 1.5 <code class="docutils literal notranslate"><span class="pre">&lt;hex&gt;</span></code>, its media type sniffed from the bytes; a <code class="docutils literal notranslate"><span class="pre">data:</span></code> URI’s <code class="docutils literal notranslate"><span class="pre">base64</span></code> marker is matched in any case, and one without it is percent-decoded; a 1.5 <code class="docutils literal notranslate"><span class="pre">&lt;create_2d&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;create_3d&gt;</span></code> or <code class="docutils literal notranslate"><span class="pre">&lt;create_cube&gt;</span></code> image is read empty with a warning.</p></li>
+<li><p>Polygons with holes (<code class="docutils literal notranslate"><span class="pre">&lt;ph&gt;</span></code>) keep their outer ring and drop the holes with a warning; <code class="docutils literal notranslate"><span class="pre">&lt;skew&gt;</span></code> transforms are ignored with a warning; a morph controller reads as its base geometry; a <code class="docutils literal notranslate"><span class="pre">&lt;transparency&gt;</span></code> or diffuse alpha that is not finite is read as opaque with a warning; an <code class="docutils literal notranslate"><span class="pre">&lt;input&gt;</span></code> without a <code class="docutils literal notranslate"><span class="pre">semantic</span></code> names no attribute and is dropped with a warning; an <code class="docutils literal notranslate"><span class="pre">&lt;up_axis&gt;</span></code> outside <code class="docutils literal notranslate"><span class="pre">X_UP</span></code> / <code class="docutils literal notranslate"><span class="pre">Y_UP</span></code> / <code class="docutils literal notranslate"><span class="pre">Z_UP</span></code> is dropped with a warning.</p></li>
+<li><p>An <code class="docutils literal notranslate"><span class="pre">&lt;instance_camera&gt;</span></code> or <code class="docutils literal notranslate"><span class="pre">&lt;instance_light&gt;</span></code> is read as the id it names, under the node’s <code class="docutils literal notranslate"><span class="pre">extras[&quot;camera&quot;]</span></code> / <code class="docutils literal notranslate"><span class="pre">extras[&quot;light&quot;]</span></code>; a node’s second one of a kind is dropped with a warning, and the writer carries neither and warns when it drops one.</p></li>
+<li><p>A file whose numbers use a decimal comma is refused as “not numbers”, except the asset’s <code class="docutils literal notranslate"><span class="pre">meter</span></code>, which is read with a warning since one exporter spells only that one in the machine’s locale; a <code class="docutils literal notranslate"><span class="pre">meter</span></code> that is zero, negative or not finite is read as 1 with a warning, since the writer refuses it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.zae</span></code> (a zipped <code class="docutils literal notranslate"><span class="pre">.dae</span></code>) and external <code class="docutils literal notranslate"><span class="pre">file.dae#id</span></code> references are not read: an <code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;instance_geometry&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;instance_controller&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;instance_effect&gt;</span></code> (the material reads as a bare phong one) or <code class="docutils literal notranslate"><span class="pre">&lt;instance_visual_scene&gt;</span></code> (the first visual scene is active) naming another document is dropped with a warning, any other external reference is refused. An <code class="docutils literal notranslate"><span class="pre">&lt;image&gt;</span></code> held inside an effect is read after those of <code class="docutils literal notranslate"><span class="pre">&lt;library_images&gt;</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>: the geometry is XML text.</p></li>
+</ul>
+</section>
+<section id="known-limitations">
+<h2>Known limitations<a class="headerlink" href="#known-limitations" title="Link to this heading">#</a></h2>
+<ul class="px-quirks simple">
+<li><p>Skins and animations are neither read nor written yet (see above); the scene reads in its bind shape, at rest.</p></li>
+<li><p>Ids follow the XML 1.0 fifth edition’s name characters. Validators built on XML Schema 1.0, libxml2 among them, still apply the older, narrower classes, so an id starting with a letter outside them (Glagolitic, a supplementary-plane script) is valid XML that such a validator rejects.</p></li>
+<li><p>COLLADA 1.4.1 types every <code class="docutils literal notranslate"><span class="pre">name</span></code> attribute as an <code class="docutils literal notranslate"><span class="pre">xs:NCName</span></code>, so a name holding a space or starting with a digit makes a document a validating parser rejects. Most readers accept it, and it is written as given.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">write</span></code> names materials <code class="docutils literal notranslate"><span class="pre">material_&lt;value&gt;</span></code> after the PolyData’s <code class="docutils literal notranslate"><span class="pre">material</span></code> values, but a read numbers materials from 0 in document order, so <code class="docutils literal notranslate"><span class="pre">[7]</span></code> reads back as <code class="docutils literal notranslate"><span class="pre">[0]</span></code> with material <code class="docutils literal notranslate"><span class="pre">material_7</span></code>.</p></li>
+<li><p>An attribute only a primitive block of <code class="docutils literal notranslate"><span class="pre">count=&quot;0&quot;</span></code> names becomes a zero column on read, without the warning a partial attribute gets.</p></li>
+<li><p>External references (<code class="docutils literal notranslate"><span class="pre">file.dae#id</span></code>) and <code class="docutils literal notranslate"><span class="pre">.zae</span></code> archives are not followed.</p></li>
+</ul>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference internal" href="gltf.html"><span class="doc">glTF</span></a> - the format’s successor, sharing the SceneData model.
+<a class="reference internal" href="index.html"><span class="doc">Supported formats</span></a> - the full format table.</p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="gltf.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">glTF</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="gmsh.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Gmsh</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-of-the-specification">Summary of the specification</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-limitations">Known limitations</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/fury-gl/polyxios/edit/master/docs/formats/collada.rst">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, polyxios contributors.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on 2026-10-02.
+  <br/>
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
