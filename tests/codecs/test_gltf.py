@@ -26,6 +26,7 @@ from polyxios.codecs._gltf import (
     _decode_skins,
     _increasing_float32,
     _parse_glb,
+    _stack_elements,
     read,
     read_scene,
     write,
@@ -246,10 +247,270 @@ def test_read_multiple_primitives(tmp_path: Path) -> None:
     p.write_bytes(_make_glb(gltf, bin_data))
     scene = read_scene(p)
     poly = scene.meshes[0]
-    assert poly.vertices.shape[0] == 6
-    mat_col = poly.element_attrs["material"]
-    assert int(mat_col[0]) == 0
-    assert int(mat_col[1]) == 1
+    assert poly.vertices.shape[0] == 3
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 0, 1, 2])
+    np.testing.assert_array_equal(poly.offsets, [0, 3, 6])
+    np.testing.assert_array_equal(poly.element_attrs["material"], [0, 1])
+
+
+_QUAD = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float32)
+
+
+def _primitives_glb(
+    primitives: list[Any],
+    *,
+    index_blocks: tuple[np.ndarray, ...] = (),
+    n_normals: int = 4,
+) -> bytes:
+    """Build a one-mesh GLB over a 4-vertex quad.
+
+    Accessor 0 and 1 are two POSITION accessors over the same quad, accessor
+    2 a NORMAL accessor of ``n_normals`` entries, and accessors 3 onwards the
+    ``index_blocks``, each in the component type of its numpy dtype.
+    """
+    comp = {
+        np.dtype(np.int8): 5120,
+        np.dtype(np.uint8): 5121,
+        np.dtype(np.uint16): 5123,
+        np.dtype(np.uint32): 5125,
+        np.dtype(np.float32): 5126,
+    }
+    normals = np.tile(np.array([0, 0, 1], dtype=np.float32), (n_normals, 1))
+    bin_data = _QUAD.tobytes() + normals.tobytes()
+    views = [
+        {"buffer": 0, "byteOffset": 0, "byteLength": 48},
+        {"buffer": 0, "byteOffset": 48, "byteLength": normals.nbytes},
+    ]
+    accessors: list[dict] = [
+        {"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"},
+        {"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"},
+        {"bufferView": 1, "componentType": 5126, "count": n_normals, "type": "VEC3"},
+    ]
+    for block in index_blocks:
+        bin_data += b"\x00" * (-len(bin_data) % 4)
+        views.append(
+            {"buffer": 0, "byteOffset": len(bin_data), "byteLength": block.nbytes}
+        )
+        accessors.append(
+            {
+                "bufferView": len(views) - 1,
+                "componentType": comp[block.dtype],
+                "count": len(block),
+                "type": "SCALAR",
+            }
+        )
+        bin_data += block.tobytes()
+    gltf = {
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0}],
+        "meshes": [{"primitives": primitives}],
+        "accessors": accessors,
+        "bufferViews": views,
+        "buffers": [{"byteLength": len(bin_data)}],
+        "materials": [{"name": f"mat{k}"} for k in range(3)],
+    }
+    return _make_glb(gltf, bin_data)
+
+
+def _read_primitives(tmp_path: Path, primitives: list[Any], **kwargs: Any) -> PolyData:
+    p = tmp_path / "prims.glb"
+    p.write_bytes(_primitives_glb(primitives, **kwargs))
+    return read_scene(p).meshes[0]
+
+
+def test_read_primitives_with_own_accessors_keep_their_vertices_and_order(
+    tmp_path: Path,
+) -> None:
+    tri = np.array([0, 1, 2], dtype=np.uint16)
+    poly = _read_primitives(
+        tmp_path,
+        [
+            {"attributes": {"POSITION": 0}, "indices": 3, "material": 0},
+            {"attributes": {"POSITION": 1}, "indices": 3, "material": 1},
+            {"attributes": {"POSITION": 0}, "indices": 3, "material": 2},
+        ],
+        index_blocks=(tri,),
+    )
+    np.testing.assert_array_equal(poly.vertices, np.vstack([_QUAD, _QUAD]))
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 4, 5, 6, 0, 1, 2])
+    np.testing.assert_array_equal(poly.offsets, [0, 3, 6, 9])
+    np.testing.assert_array_equal(poly.element_attrs["material"], [0, 1, 2])
+
+
+def test_read_shared_vertices_fill_a_missing_material_with_minus_one(
+    tmp_path: Path,
+) -> None:
+    tri = np.array([0, 1, 2], dtype=np.uint16)
+    poly = _read_primitives(
+        tmp_path,
+        [
+            {"attributes": {"POSITION": 0}, "indices": 3, "material": 1},
+            {"attributes": {"POSITION": 0}, "indices": 3},
+        ],
+        index_blocks=(tri,),
+    )
+    assert poly.vertices.shape[0] == 4
+    np.testing.assert_array_equal(poly.element_attrs["material"], [1, -1])
+
+
+def test_read_shared_vertices_across_primitive_modes(tmp_path: Path) -> None:
+    attrs = {"POSITION": 0, "NORMAL": 2}
+    poly = _read_primitives(
+        tmp_path,
+        [
+            {"attributes": attrs, "indices": 3, "mode": 1},
+            {"attributes": attrs, "indices": 4, "mode": 4},
+            {"attributes": attrs, "mode": 0},
+        ],
+        index_blocks=(
+            np.array([0, 1, 1, 2], dtype=np.uint8),
+            np.array([0, 2, 3], dtype=np.uint32),
+        ),
+    )
+    assert poly.vertices.shape[0] == 4
+    assert poly.vertex_attrs["normals"].shape == (4, 3)
+    line, tri, vertex = (ELEMENT_TYPES[k] for k in ("line", "triangle", "vertex"))
+    np.testing.assert_array_equal(
+        poly.element_types, [line, line, tri, vertex, vertex, vertex, vertex]
+    )
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 1, 2, 0, 2, 3, 0, 1, 2, 3])
+    np.testing.assert_array_equal(poly.offsets, [0, 2, 4, 7, 8, 9, 10, 11])
+
+
+_LINE, _TRI = ELEMENT_TYPES["line"], ELEMENT_TYPES["triangle"]
+_POLY_LINE, _VERTEX = ELEMENT_TYPES["poly_line"], ELEMENT_TYPES["vertex"]
+_TRI_STRIP = ELEMENT_TYPES["triangle_strip"]
+
+
+@pytest.mark.parametrize(
+    ("mode", "indices", "connectivity", "offsets", "types"),
+    [
+        (0, [3, 1], [3, 1], [0, 1, 2], [_VERTEX] * 2),
+        (1, [0, 1, 2, 3, 1], [0, 1, 2, 3], [0, 2, 4], [_LINE] * 2),
+        (2, [0, 1, 2], [0, 1, 2, 0], [0, 4], [_POLY_LINE]),
+        (2, [], [], [0], []),
+        (3, [0, 1, 2], [0, 1, 2], [0, 3], [_POLY_LINE]),
+        (4, [0, 1, 2, 3], [0, 1, 2], [0, 3], [_TRI]),
+        (5, [0, 1, 3, 2], [0, 1, 3, 2], [0, 4], [_TRI_STRIP]),
+        (6, [0, 1, 2, 3], [0, 1, 2, 0, 2, 3], [0, 3, 6], [_TRI] * 2),
+        (6, [0, 1], [], [0], []),
+    ],
+)
+def test_read_primitive_modes(
+    tmp_path: Path,
+    mode: int,
+    indices: list[int],
+    connectivity: list[int],
+    offsets: list[int],
+    types: list[int],
+) -> None:
+    block = np.array(indices or [0], dtype=np.uint16)
+    poly = _read_primitives(
+        tmp_path,
+        [{"attributes": {"POSITION": 0}, "indices": 3, "mode": mode}],
+        index_blocks=(block[: len(indices)] if indices else block[:0],),
+    )
+    np.testing.assert_array_equal(poly.connectivity, connectivity)
+    np.testing.assert_array_equal(poly.offsets, offsets)
+    np.testing.assert_array_equal(poly.element_types, types)
+
+
+@pytest.mark.parametrize(
+    ("block", "match"),
+    [
+        (np.array([0, 1, 0xFFFFFFFF], dtype=np.uint32), "index 4294967295"),
+        (np.array([0, 1, -1], dtype=np.int8), "not an unsigned integer"),
+        (np.array([0.0, 1.0, 2.5], dtype=np.float32), "not an unsigned integer"),
+    ],
+)
+def test_read_rejects_indices_that_name_no_vertex(
+    tmp_path: Path, block: np.ndarray, match: str
+) -> None:
+    """An index past the vertex set, or one stored as a signed or float
+    component, used to be cast to int32 and read as a vertex."""
+    with pytest.raises(CodecError, match=match):
+        _read_primitives(
+            tmp_path,
+            [{"attributes": {"POSITION": 0}, "indices": 3}],
+            index_blocks=(block,),
+        )
+
+
+@pytest.mark.parametrize(
+    ("primitive", "match"),
+    [
+        ({"attributes": {"POSITION": -1}}, r"POSITION names no accessor \(-1\)"),
+        ({"attributes": {"POSITION": 99}}, r"POSITION names no accessor \(99\)"),
+        ({"attributes": {"POSITION": 0, "NORMAL": True}}, "NORMAL names no"),
+        ({"attributes": {"POSITION": 0}, "indices": 99}, "indices names no"),
+        ({"attributes": ["POSITION"]}, "has no attributes object"),
+        ("triangle", "primitive 0 is not an object"),
+        ({"attributes": {"POSITION": 0}, "material": "a"}, "names no material"),
+        ({"attributes": {"POSITION": 0}, "material": 3}, r"no material \(3\)"),
+        ({"attributes": {"POSITION": 0}, "mode": True}, "mode True"),
+    ],
+)
+def test_read_rejects_a_malformed_primitive(
+    tmp_path: Path, primitive: Any, match: str
+) -> None:
+    """A negative accessor index used to read the last accessor, a material
+    past the list and a boolean mode were kept; the others raised a raw
+    IndexError, TypeError or ValueError."""
+    with pytest.raises(CodecError, match=match):
+        _read_primitives(tmp_path, [primitive])
+
+
+def test_read_rejects_a_vertex_attribute_of_another_length(tmp_path: Path) -> None:
+    with pytest.raises(CodecError, match="'normals' holds 3 entries"):
+        _read_primitives(
+            tmp_path, [{"attributes": {"POSITION": 0, "NORMAL": 2}}], n_normals=3
+        )
+
+
+def test_stack_elements_widens_indices_past_int32() -> None:
+    conn = np.array([0, 1, 2], dtype=np.int64)
+    offsets = np.array([0, 3], dtype=np.int64)
+    types = np.array([_TRI], dtype=np.uint8)
+    connectivity, offsets_out, _ = _stack_elements(
+        [(conn, offsets, types)] * 2, vertex_bases=[0, 2**31], n_vertices=2**31 + 3
+    )
+    assert connectivity.dtype == np.int64
+    assert offsets_out.dtype == np.int64
+    np.testing.assert_array_equal(connectivity[3:], [2**31, 2**31 + 1, 2**31 + 2])
+    small, small_offsets, _ = _stack_elements(
+        [(conn, offsets, types)] * 2, vertex_bases=[0, 4], n_vertices=8
+    )
+    assert small.dtype == small_offsets.dtype == np.int32
+
+
+def test_write_read_multi_material_mesh_keeps_its_vertex_count(
+    tmp_path: Path,
+) -> None:
+    v = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]], dtype=np.float64)
+    n = np.tile([0.0, 0.0, 1.0], (4, 1))
+    quad = make_polydata(v, [("triangle", np.array([[0, 1, 2], [0, 2, 3]]))])
+    quad = dataclasses.replace(
+        quad,
+        vertex_attrs={"normals": n},
+        element_attrs={"material": np.array([0, 1], dtype=np.int32)},
+    )
+    scene = SceneData(
+        meshes=(quad,),
+        nodes=(SceneNode(mesh=0),),
+        materials=(SceneMaterial(name="a"), SceneMaterial(name="b")),
+        scenes=((0,),),
+    )
+    p = tmp_path / "quad.glb"
+    for _ in range(3):
+        write_scene(scene, p)
+        scene = read_scene(p)
+        poly = scene.meshes[0]
+        np.testing.assert_allclose(poly.vertices, v)
+        np.testing.assert_allclose(poly.vertex_attrs["normals"], n)
+        np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 0, 2, 3])
+        np.testing.assert_array_equal(poly.element_attrs["material"], [0, 1])
 
 
 def test_read_node_transform_baked(tmp_path: Path) -> None:
