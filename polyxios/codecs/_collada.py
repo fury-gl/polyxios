@@ -19,10 +19,12 @@ Read gives a :class:`~polyxios.SceneData`: one PolyData per geometry with
 effects as PBR-ish :class:`~polyxios.SceneMaterial` entries whose phong
 pieces ride in ``extras``; nodes with their local matrix and the transform
 elements they were spelled with in ``extras["transforms"]``, so an
-animation still finds its target on write; animations under
-``global_attrs["animations"]``, in the shape glTF uses. Skins are not read
-or written yet. Write spells the scene back in 1.4.1 syntax with fixed
-timestamps, so the same scene always writes the same bytes.
+animation still finds its target on write; skins as ``joints`` and
+``weights`` on the mesh, a ``skin`` index on the node and the bind data
+under ``global_attrs["skins"]``, and animations under
+``global_attrs["animations"]``, both in the shape glTF uses. Write spells
+the scene back in 1.4.1 syntax with fixed timestamps, so the same scene
+always writes the same bytes.
 """
 
 from __future__ import annotations
@@ -114,7 +116,19 @@ _ASSET_KEYS = frozenset(
 _UP_AXES = ("X_UP", "Y_UP", "Z_UP")
 # The extras a write spells; ``camera`` and ``light`` are dropped with their
 # own warning.
-_NODE_EXTRAS = frozenset({"id", "sid", "type", "transforms", "camera", "light"})
+_NODE_EXTRAS = frozenset({"id", "sid", "type", "transforms", "camera", "light", "skin"})
+# The keys of a ``global_attrs["skins"]`` entry a write reads; glTF's
+# ``inverseBindMatrices`` accessor index is superseded by its decoded matrices.
+_SKIN_KEYS = frozenset(
+    {
+        "name",
+        "joints",
+        "skeleton",
+        "inverse_bind_matrices",
+        "bind_shape_matrix",
+        "inverseBindMatrices",
+    }
+)
 _MATERIAL_EXTRAS = frozenset(
     {
         "shading",
@@ -288,12 +302,17 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         ``<library_geometries>`` of the document, as with the other
         libraries), its ``name`` as ``global_attrs["mesh_name"]``, then a
         variant of a geometry, sharing its arrays under another ``material``
-        column, for each further way its instances resolve its symbols; the
-        visual scenes' node trees with the instanced one active, effects as
-        materials with their textures and images, and animations under
-        ``global_attrs["animations"]`` (each named by its ``name``, else its
-        ``id``; a channel addressing a node instanced several times gets a
-        target per copy). A document
+        column or another skin's ``joints`` and ``weights``, for each further
+        way its instances resolve its symbols or skin it; the visual scenes'
+        node trees with the instanced one active, effects as materials with
+        their textures and images, skins under ``global_attrs["skins"]``
+        (``name``, ``joints`` as node indices, ``inverse_bind_matrices``,
+        ``bind_shape_matrix`` when spelled and ``skeleton`` when the
+        instance names one root; a skinned node's ``extras["skin"]`` is its
+        index, and instances whose joints bind to other nodes get an entry
+        each), and animations under ``global_attrs["animations"]`` (each
+        named by its ``name``, else its ``id``; a channel addressing a node
+        instanced several times gets a target per copy). A document
         whose visual scenes hold no node (or that has none) gets one root
         node per geometry, all in one scene, so its meshes still show.
         COLLADA has no alpha mask, so ``alpha_mode`` is ``BLEND`` when the
@@ -326,13 +345,28 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         ``OUTPUT``, its values or tangents do not number its keys, a channel
         names a source that is not a sampler, or channels addressing
         instanced nodes expand past the node cap or miss their transform on
-        more copies than it.
+        more copies than it. Also when a skin's ``<joints>`` has no
+        ``JOINT`` input, its inverse bind matrices are not 16 wide or one
+        per joint, its ``<vertex_weights>`` lacks a ``JOINT`` or ``WEIGHT``
+        input, its ``count`` disagrees with ``<vcount>``, covers more
+        vertices than the geometry, a ``<vcount>`` entry is negative or the
+        entries do not sum to ``<v>``, a ``<v>`` index is past its source
+        (or a joint index below -1), the skins' influences and inverse bind
+        matrix copies pass the byte budget of material columns, or skinned
+        instances bind joints afresh more than sixteen times per node of
+        the node cap.
 
     Warns
     -----
     UserWarning
-        For what is not read: skins (the mesh is read in its bind shape,
-        one warning counting the skinned instances). For animation
+        For skins read leniently: a vertex with more than four influences
+        (the four heaviest are kept, renormalised), an influence on the
+        bind shape or on a joint ``<joints>`` does not list (dropped, the
+        rest renormalised), a ``<vertex_weights>`` covering fewer vertices
+        than the geometry (the rest are unweighted), a ``<skeleton>`` root
+        no node holds (ignored), a joint name no node holds (bound to -1)
+        or several nodes match equally near the instance (the shallowest,
+        then first in the document, is bound). For animation
         channels whose target reaches no node transform (one warning
         counting them; they are dropped), a channel whose keys are not the
         width its target takes (it is dropped), a
@@ -403,12 +437,9 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         *st.variants,
     )
 
-    if st.skinned:
-        _warn(
-            f"{name!r}: skins are not read; {st.skinned} skinned mesh "
-            "instance(s) are read in their bind shape, without joints or "
-            "weights."
-        )
+    skins = _resolve_skins(st, scenes)
+    if skins:
+        global_attrs["skins"] = skins
     animations = _read_animations(st)
     if animations:
         global_attrs["animations"] = animations
@@ -447,7 +478,7 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     Warns
     -----
     UserWarning
-        Always: the scene graph, materials and animations are dropped;
+        Always: the scene graph, materials, skins and animations are dropped;
         :func:`read_scene` keeps them.
 
     Raises
@@ -1131,12 +1162,33 @@ def _read_materials(
 
 
 @dataclasses.dataclass
+class _Skin:
+    """One ``<skin>``, read once for every instance of its controller.
+
+    ``joints`` and ``weights`` are per vertex of the geometry's mesh and
+    shared by every mesh variant the skin dresses; ``names`` are the
+    ``JOINT`` source's entries, bound to nodes per instance.
+    """
+
+    name: str
+    names: list[str]
+    kind: str
+    ibm: np.ndarray
+    bind_shape: np.ndarray | None
+    joints: np.ndarray
+    weights: np.ndarray
+    handed: bool = False
+
+
+@dataclasses.dataclass
 class _Mesh:
     """One geometry, read once and shared by every node instancing it.
 
     ``key`` is the material each symbol resolves to under the first
-    instance's binding, which its own ``materials`` hold; ``variants`` maps
-    every other resolution seen to the scene mesh index of its variant.
+    instance's binding, which its own ``materials`` hold, and the skin that
+    instance dresses it in (``id`` of its :class:`_Skin`, or None);
+    ``variants`` maps every other pair seen to the scene mesh index of its
+    variant.
     """
 
     poly: PolyData
@@ -1145,17 +1197,22 @@ class _Mesh:
     symbols: list[tuple[str | None, int]]
     gid: str
     materials: np.ndarray | None = None
-    key: tuple[int, ...] | None = None
-    variants: dict[tuple[int, ...], int] = dataclasses.field(default_factory=dict)
+    skin: _Skin | None = None
+    key: tuple[tuple[int, ...], int | None] | None = None
+    variants: dict[tuple[tuple[int, ...], int | None], int] = dataclasses.field(
+        default_factory=dict
+    )
 
 
 @dataclasses.dataclass
 class _State:
     """What the node walk accumulates.
 
-    ``variants`` holds a mesh for each extra material resolution, scene
-    mesh ``len(meshes) + k``; ``copied`` counts the bytes of their material
-    columns against ``max_copied``.
+    ``variants`` holds a mesh for each extra material resolution or skin,
+    scene mesh ``len(meshes) + k``; ``copied`` counts the bytes of their
+    material columns, of every skin's influences and of every inverse bind
+    matrix copy against ``max_copied``. ``pending`` lists each skinned
+    instance as (node, skin, ``<skeleton>`` ids), bound once the walk ends.
     """
 
     doc: _Doc
@@ -1169,7 +1226,11 @@ class _State:
     nodes_by_id: dict[str, list[int]] = dataclasses.field(default_factory=dict)
     variants: list[PolyData] = dataclasses.field(default_factory=list)
     copied: int = 0
-    skinned: int = 0
+    skin_of: dict[int, _Skin] = dataclasses.field(default_factory=dict)
+    pending: list[tuple[int, _Skin, list[str]]] = dataclasses.field(
+        default_factory=list
+    )
+    sid_index: _SidIndex | None = None
 
 
 def _prim_rows(
@@ -1606,50 +1667,104 @@ def _empty() -> PolyData:
     )
 
 
-def _mesh_at(st: _State, slot: int, bound: dict[str, int] | None) -> int:
-    """Return the scene mesh index of geometry ``slot`` under ``bound``.
-
-    The geometry is read on first use. Its first instance's binding resolves
-    its own materials; an instance whose binding resolves its symbols to
-    other materials gets a variant: the same arrays, PolyData being
-    immutable, under its own ``material`` column.
-    """
+def _geometry_mesh(st: _State, slot: int) -> _Mesh:
+    """Return geometry ``slot``, read on first use."""
     mesh = st.meshes[slot]
     if mesh is None:
         mesh = _read_geometry(st.doc, st.geometries[slot], slot)
         st.meshes[slot] = mesh
-    if not any(sym is not None for sym, _ in mesh.symbols):
-        return slot
-    key = _resolved(st, mesh, bound or {})
+    return mesh
+
+
+def _spend(st: _State, size: int, what: str) -> None:
+    """Count ``size`` bytes of copies against the document's budget."""
+    if st.copied + size > st.max_copied:
+        raise CodecError(
+            f"{st.doc.name!r}: {what} need copies past {st.max_copied} bytes, "
+            f"more than a document of {st.doc.size} bytes is read into."
+        )
+    st.copied += size
+
+
+def _mesh_at(
+    st: _State, slot: int, bound: dict[str, int] | None, skin: _Skin | None
+) -> int:
+    """Return the scene mesh index of geometry ``slot`` under ``bound`` and ``skin``.
+
+    The geometry is read on first use. Its first instance's binding resolves
+    its own materials and its skin, if any, dresses it; an instance whose
+    binding resolves its symbols to other materials, or that skins it
+    otherwise, gets a variant: the same arrays, PolyData being immutable,
+    under its own ``material`` column and the skin's ``joints`` and
+    ``weights``.
+    """
+    mesh = _geometry_mesh(st, slot)
+    symbolic = any(sym is not None for sym, _ in mesh.symbols)
+    key = (
+        _resolved(st, mesh, bound or {}) if symbolic else (),
+        None if skin is None else id(skin),
+    )
     if mesh.key is None:
         mesh.key = key
-        mesh.materials = _resolve_symbols(st, mesh, bound or {})
+        mesh.skin = skin
+        if symbolic:
+            mesh.materials = _resolve_symbols(st, mesh, bound or {})
         return slot
     if key == mesh.key:
         return slot
     if key not in mesh.variants:
-        size = 4 * sum(n for _, n in mesh.symbols)
-        if st.copied + size > st.max_copied:
-            raise CodecError(
-                f"{st.doc.name!r}: instances binding geometry '{mesh.gid}' to "
-                f"other materials need material columns past {st.max_copied} "
-                f"bytes, more than a document of {st.doc.size} bytes is read "
-                "into."
+        materials = None
+        if symbolic:
+            _spend(
+                st,
+                4 * sum(n for _, n in mesh.symbols),
+                f"instances binding geometry '{mesh.gid}' to other materials",
             )
-        st.copied += size
-        materials = _resolve_symbols(st, mesh, bound or {})
-        st.variants.append(
-            dataclasses.replace(
-                mesh.poly,
-                vertex_attrs=dict(mesh.poly.vertex_attrs),
-                element_attrs={**mesh.poly.element_attrs, "material": materials},
-                vertex_tags=dict(mesh.poly.vertex_tags),
-                element_tags=dict(mesh.poly.element_tags),
-                global_attrs=dict(mesh.poly.global_attrs),
-            )
-        )
+            materials = _resolve_symbols(st, mesh, bound or {})
+        st.variants.append(_dressed(mesh.poly, materials, skin, copy=True))
         mesh.variants[key] = len(st.meshes) + len(st.variants) - 1
     return mesh.variants[key]
+
+
+def _dressed(
+    poly: PolyData, materials: np.ndarray | None, skin: _Skin | None, *, copy: bool
+) -> PolyData:
+    """Return ``poly`` under a ``material`` column and a skin's influences.
+
+    Parameters
+    ----------
+    poly
+        The geometry as read.
+    materials
+        The ``material`` column, or None to leave the element attributes be.
+    skin
+        The skin whose ``joints`` and ``weights`` it carries, or None.
+    copy
+        Whether every attribute dict is a fresh one, as a variant sharing
+        the geometry's arrays needs.
+
+    Returns
+    -------
+    PolyData
+        ``poly`` itself when there is nothing to add and no copy is asked.
+    """
+    if materials is None and skin is None and not copy:
+        return poly
+    vertex_attrs = dict(poly.vertex_attrs)
+    if skin is not None:
+        vertex_attrs["joints"] = skin.joints
+        vertex_attrs["weights"] = skin.weights
+    element_attrs = dict(poly.element_attrs)
+    if materials is not None:
+        element_attrs["material"] = materials
+    return dataclasses.replace(
+        poly,
+        vertex_attrs=vertex_attrs,
+        element_attrs=element_attrs,
+        vertex_tags=dict(poly.vertex_tags),
+        element_tags=dict(poly.element_tags),
+        global_attrs=dict(poly.global_attrs),
+    )
 
 
 def _resolved(st: _State, mesh: _Mesh, bound: dict[str, int]) -> tuple[int, ...]:
@@ -1665,10 +1780,7 @@ def _resolved(st: _State, mesh: _Mesh, bound: dict[str, int]) -> tuple[int, ...]
 
 def _resolve_deferred(st: _State, slot: int) -> None:
     """Read a geometry no node instances and resolve its symbols by material id."""
-    mesh = st.meshes[slot]
-    if mesh is None:
-        mesh = _read_geometry(st.doc, st.geometries[slot], slot)
-        st.meshes[slot] = mesh
+    mesh = _geometry_mesh(st, slot)
     if mesh.materials is None and any(sym is not None for sym, _ in mesh.symbols):
         mesh.materials = _resolve_symbols(st, mesh, {})
 
@@ -1707,11 +1819,7 @@ def _resolve_symbols(st: _State, mesh: _Mesh, bound: dict[str, int]) -> np.ndarr
 
 
 def _finish_mesh(st: _State, mesh: _Mesh) -> PolyData:
-    if mesh.materials is None:
-        return mesh.poly
-    return dataclasses.replace(
-        mesh.poly, element_attrs={**mesh.poly.element_attrs, "material": mesh.materials}
-    )
+    return _dressed(mesh.poly, mesh.materials, mesh.skin, copy=False)
 
 
 def _bind(st: _State, inst: ET.Element) -> dict[str, int]:
@@ -1921,7 +2029,7 @@ def _walk(
                 raise CodecError(
                     f"{what} instances {child.get('url')!r}, which is not a geometry."
                 )
-            mesh = _mesh_at(st, slot, _bind(st, child))
+            mesh = _mesh_at(st, slot, _bind(st, child), None)
             if mesh_idx is None:
                 mesh_idx = mesh
             else:
@@ -1937,13 +2045,20 @@ def _walk(
                     f"{what} instances {child.get('url')!r}, which is not a controller."
                 )
             slot, skin = _controller_geometry(st, ctrl, ())
-            mesh = _mesh_at(st, slot, _bind(st, child))
-            if skin is not None:
-                st.skinned += 1
+            data = None if skin is None else _read_skin(st, ctrl, skin, slot)
+            mesh = _mesh_at(st, slot, _bind(st, child), data)
             if mesh_idx is None:
                 mesh_idx = mesh
+                holder = idx
             else:
-                children.append(_synth_node(st, mesh, ctrl.get("name", "")))
+                holder = _synth_node(st, mesh, ctrl.get("name", ""))
+                children.append(holder)
+            if data is not None:
+                skeletons = [
+                    (sk.text or "").strip().removeprefix("#")
+                    for sk in _children(child, "skeleton")
+                ]
+                st.pending.append((holder, data, skeletons))
         elif tag in ("instance_camera", "instance_light"):
             kind = tag[len("instance_") :]
             url = child.get("url", "")
@@ -2021,6 +2136,447 @@ def _read_scenes(st: _State) -> tuple[tuple[tuple[int, ...], ...], int, str]:
 
 
 # -----------------------------------------------------------------------------
+# skins
+# -----------------------------------------------------------------------------
+
+
+def _read_skin(st: _State, ctrl: ET.Element, skin: ET.Element, slot: int) -> _Skin:
+    """Return the weights, joint names and bind matrices of one ``<skin>``.
+
+    Read once per ``<skin>``; every instance of its controller binds the
+    names to nodes of its own (see :func:`_resolve_skins`).
+    """
+    known = st.skin_of.get(id(skin))
+    if known is not None:
+        return known
+    doc = st.doc
+    cid = ctrl.get("id", "?")
+    what = f"{doc.name!r}: skin '{cid}'"
+    mesh = _geometry_mesh(st, slot)
+    bsm_elem = _child(skin, "bind_shape_matrix")
+    bind_shape = (
+        None
+        if bsm_elem is None
+        else _floats(bsm_elem.text, f"{what} bind_shape_matrix", n=16).reshape(4, 4)
+    )
+
+    names: list[str] = []
+    names_src: ET.Element | None = None
+    kind = "Name_array"
+    ibm: np.ndarray | None = None
+    for inp in _children(_child(skin, "joints"), "input"):
+        semantic = inp.get("semantic")
+        if semantic == "JOINT":
+            names_src = _ref(doc, inp.get("source"), f"{what} joints JOINT input")
+            names = _name_source(doc, names_src, f"{what} JOINT")
+            kind = _local(_accessor(doc, names_src, f"{what} JOINT")[1].tag)
+        elif semantic == "INV_BIND_MATRIX":
+            src = _ref(doc, inp.get("source"), f"{what} joints INV_BIND_MATRIX input")
+            table = _float_source(doc, src, f"{what} INV_BIND_MATRIX")
+            if table.shape[1] != 16:
+                raise CodecError(
+                    f"{what}: INV_BIND_MATRIX has stride {table.shape[1]}, not 16."
+                )
+            ibm = _own(doc, src, table).reshape(-1, 4, 4)
+    if names_src is None:
+        raise CodecError(f"{what}: <joints> has no JOINT input.")
+    if ibm is None:
+        ibm = np.tile(np.eye(4), (len(names), 1, 1))
+    elif len(ibm) != len(names):
+        raise CodecError(
+            f"{what} names {len(names)} joints but holds {len(ibm)} inverse bind "
+            "matrices."
+        )
+
+    n_pos = mesh.n_positions
+    n_vertices = len(mesh.positions_of)
+    _spend(st, 48 * (n_pos + n_vertices), f"skins of geometry '{mesh.gid}'")
+    joints_pp = np.zeros((n_pos, 4), dtype=np.int32)
+    weights_pp = np.zeros((n_pos, 4), dtype=np.float64)
+    vw = _child(skin, "vertex_weights")
+    if vw is not None:
+        _read_vertex_weights(
+            st, vw, what, names, names_src, n_pos, joints_pp, weights_pp
+        )
+    out = _Skin(
+        name=ctrl.get("name") or cid,
+        names=names,
+        kind=kind,
+        ibm=ibm,
+        bind_shape=bind_shape,
+        joints=joints_pp[mesh.positions_of],
+        weights=weights_pp[mesh.positions_of],
+    )
+    st.skin_of[id(skin)] = out
+    return out
+
+
+def _read_vertex_weights(
+    st: _State,
+    vw: ET.Element,
+    what: str,
+    names: list[str],
+    names_src: ET.Element,
+    n_pos: int,
+    joints_pp: np.ndarray,
+    weights_pp: np.ndarray,
+) -> None:
+    """Scatter a ``<vertex_weights>`` into per-position joint and weight slots.
+
+    A ``JOINT`` input over another source than ``<joints>``' indexes its
+    own names, which are mapped onto the ``<joints>`` list by name.
+    """
+    doc = st.doc
+    count = _int(vw.get("count"), f"{what} vertex_weights count")
+    inputs = _children(vw, "input")
+    offsets = [
+        _int(i.get("offset"), f"{what} vertex_weights offset", default=0)
+        for i in inputs
+    ]
+    if offsets and min(offsets) < 0:
+        raise CodecError(f"{what}: a vertex_weights input has a negative offset.")
+    stride = max(offsets, default=-1) + 1
+    joint_col = weight_col = None
+    weight_values = np.zeros(0)
+    joint_names = names
+    same_source = True
+    for inp, off in zip(inputs, offsets, strict=True):
+        semantic = inp.get("semantic")
+        if semantic not in ("JOINT", "WEIGHT"):
+            continue
+        src = _ref(doc, inp.get("source"), f"{what} vertex_weights {semantic} input")
+        if semantic == "JOINT":
+            joint_col = off
+            joint_names = _name_source(doc, src, f"{what} JOINT")
+            same_source = src is names_src
+        else:
+            weight_col = off
+            weight_values = _float_source(doc, src, f"{what} WEIGHT")[:, 0]
+    if joint_col is None or weight_col is None:
+        raise CodecError(f"{what}: vertex_weights needs JOINT and WEIGHT inputs.")
+    vc = _child(vw, "vcount")
+    vcount = _ints(vc.text if vc is not None else "", f"{what} <vcount>")
+    if len(vcount) != count:
+        raise CodecError(
+            f"{what}: vertex_weights declares count={count} but <vcount> holds "
+            f"{len(vcount)}."
+        )
+    if count > n_pos:
+        raise CodecError(
+            f"{what}: vertex_weights covers {count} vertices but the geometry has "
+            f"{n_pos}."
+        )
+    if len(vcount) and vcount.min() < 0:
+        raise CodecError(f"{what}: <vcount> has an entry below 0.")
+    v_elem = _child(vw, "v")
+    v = _ints(v_elem.text if v_elem is not None else "", f"{what} <v>")
+    # Checked entry by entry first: a huge entry would overflow the sum.
+    if len(vcount) and int(vcount.max()) * stride > len(v):
+        raise CodecError(
+            f"{what}: vertex_weights <vcount> has an entry of {int(vcount.max())} "
+            f"influences, more than its <v> of {len(v)} indices holds."
+        )
+    need = int(vcount.sum()) * stride
+    if len(v) != need:
+        raise CodecError(
+            f"{what}: vertex_weights <vcount> sums to {need} indices but <v> holds "
+            f"{len(v)}."
+        )
+    if count < n_pos:
+        _warn(
+            f"{what}: vertex_weights covers {count} of the geometry's {n_pos} "
+            "vertices; the rest have no influence."
+        )
+    pairs = v.reshape(-1, stride)
+    j = pairs[:, joint_col]
+    w = pairs[:, weight_col]
+    if len(w) and (w.min() < 0 or w.max() >= len(weight_values)):
+        raise CodecError(f"{what}: a <v> weight index is past the WEIGHT source.")
+    if len(j) and j.max() >= len(joint_names):
+        raise CodecError(f"{what}: a <v> joint index is past the JOINT source.")
+    if len(j) and j.min() < -1:
+        raise CodecError(
+            f"{what}: a <v> joint index is {int(j.min())}; only -1, the bind "
+            "shape, is below zero."
+        )
+    if same_source:
+        slots = j
+    else:
+        slot_of_name: dict[str, int] = {}
+        for i, n in enumerate(names):
+            slot_of_name.setdefault(n, i)
+        of_joint = np.array(
+            [slot_of_name.get(n, -1) for n in joint_names] + [-1], dtype=np.int64
+        )
+        slots = of_joint[np.where(j >= 0, j, len(joint_names))]
+    _pack_influences(what, vcount, slots, weight_values[w], joints_pp, weights_pp)
+
+
+def _pack_influences(
+    what: str,
+    vcount: np.ndarray,
+    slots: np.ndarray,
+    w: np.ndarray,
+    joints_pp: np.ndarray,
+    weights_pp: np.ndarray,
+) -> None:
+    """Scatter the ``<v>`` pairs into four influence slots per vertex.
+
+    A negative slot (the bind shape, or a joint name the skin's ``<joints>``
+    do not list) has no joint to hold it and is dropped; a vertex with more
+    than four influences keeps the four heaviest. Either way the vertex's
+    kept weights are renormalised, since a sum below one would pull it
+    toward the origin when skinned, and a warning says so, counting the
+    vertices left with no influence at all. Every other vertex keeps its
+    file order and weights.
+    """
+    n = len(vcount)
+    vid = np.repeat(np.arange(n), vcount)
+    keep = slots >= 0
+    lost = np.zeros(n, dtype=bool)
+    lost[vid[~keep]] = True
+    vid, slots, w = vid[keep], slots[keep], w[keep]
+    per_vertex = np.bincount(vid, minlength=n)
+    crowded = per_vertex[vid] > 4
+    order = np.lexsort((np.arange(len(vid)), np.where(crowded, -w, 0.0), vid))
+    vid, slots, w, crowded = vid[order], slots[order], w[order], crowded[order]
+    rank = np.arange(len(vid)) - (np.cumsum(per_vertex) - per_vertex)[vid]
+    top = rank < 4
+    renorm = crowded | lost[vid]
+    if renorm.any():
+        total = np.bincount(vid[top], weights=w[top], minlength=n)
+        scale = np.where(total > 0, 1.0 / np.where(total > 0, total, 1.0), 1.0)
+        w = np.where(renorm, w * scale[vid], w)
+    if crowded.any():
+        _warn(
+            f"{what} gives some vertices more than four influences; the four "
+            "heaviest are kept and renormalised."
+        )
+    if lost.any():
+        bare = int((lost & (per_vertex == 0)).sum())
+        tail = (
+            f"; {bare} of them keep no influence at all, and their zero "
+            "weights collapse them to the origin when skinned"
+            if bare
+            else ""
+        )
+        _warn(
+            f"{what} weights {int(lost.sum())} vertex(es) to the bind shape "
+            "(joint -1) or to a joint its <joints> do not list; those "
+            f"influences are dropped and the rest renormalised{tail}."
+        )
+    joints_pp[vid[top], rank[top]] = slots[top]
+    weights_pp[vid[top], rank[top]] = w[top]
+
+
+def _nearest(
+    index: _SidIndex,
+    what: str,
+    name: str,
+    anchor: int,
+    scene_span: dict[int, tuple[int, int]],
+) -> tuple[int | None, bool]:
+    """Return the node holding a name nearest ``anchor``, and whether that was a tie.
+
+    Parameters
+    ----------
+    index
+        The walked forest, from :func:`_sid_index`.
+    what
+        ``"id"`` or ``"node"`` (a node sid), the holder list searched.
+    name
+        The id or sid.
+    anchor
+        The node the choice is made for.
+    scene_span
+        The rank range of the scene each root node belongs to.
+
+    Returns
+    -------
+    tuple
+        The holder under the deepest ancestor of ``anchor`` holding any,
+        else in its scene, else anywhere, breadth-first first among those
+        (None without holders); and whether that group held more than one.
+    """
+    ranks = index.holders.get((what, name))
+    if not ranks:
+        return None, False
+    if len(ranks) == 1:
+        return index.node_at[ranks[0]], False
+    spans: list[tuple[int, int]] = []
+    a = anchor
+    while a >= 0:
+        spans.append((index.first[a], index.end[a]))
+        a = index.parent[a]
+    spans.append(scene_span.get(index.root_of[anchor], (0, 0)))
+    spans.append((0, len(index.node_at)))
+    for lo, hi in spans:
+        i = bisect.bisect_left(ranks, lo)
+        j = bisect.bisect_left(ranks, hi)
+        if j > i:
+            return _first_holder(index, what, name, lo, hi), j - i > 1
+    return None, False
+
+
+def _bind_joint(
+    index: _SidIndex,
+    name: str,
+    kind: str,
+    roots: list[int],
+    anchor: int,
+    scene_span: dict[int, tuple[int, int]],
+) -> tuple[int | None, bool, bool]:
+    """Return the node a joint name binds to, whether that was a tie, and how.
+
+    An ``IDREF_array`` names node ids; a ``SIDREF_array`` entry holding a
+    ``/`` is an ``id/sid/...`` address followed as a channel target's is.
+    Any other name is a node sid, looked up breadth-first under each
+    ``<skeleton>`` root in turn, then among every node (the nearest to the
+    instance), then as an id, for the exporters that name joints so. The
+    third value is whether the ``<skeleton>`` roots alone chose the node,
+    whatever the instance.
+    """
+    if kind == "SIDREF_array" and "/" in name:
+        head, *sids = name.split("/")
+        idx, tie = _nearest(index, "id", head, anchor, scene_span)
+        for sid in sids:
+            if idx is None:
+                break
+            idx = _descendant_by_sid(index, idx, sid)
+        return idx, tie, False
+    if kind == "IDREF_array" and ("id", name) in index.holders:
+        return (*_nearest(index, "id", name, anchor, scene_span), False)
+    for root in roots:
+        hit = _first_holder(index, "node", name, index.first[root], index.end[root])
+        if hit is not None:
+            return hit, False, True
+    if ("node", name) in index.holders:
+        return (*_nearest(index, "node", name, anchor, scene_span), False)
+    return (*_nearest(index, "id", name, anchor, scene_span), False)
+
+
+def _resolve_skins(
+    st: _State, scenes: tuple[tuple[int, ...], ...]
+) -> list[dict[str, Any]]:
+    """Bind every skinned instance's joints and return the scene's skins.
+
+    Instances of one controller whose joints and skeleton bind to the same
+    nodes share a skin entry; each other binding - the copies of an
+    instanced character, one controller under two rigs - gets its own,
+    over a copy of the inverse bind matrices. A binding is reused for an
+    instance that would find the same nodes: one of the same skin whose
+    ``<skeleton>`` roots alone chose every joint, or of the same skin,
+    roots and parent, the instance holding none of the names itself. The
+    names bound afresh are capped at sixteen per node of the node cap.
+    """
+    if not st.pending:
+        return []
+    index = _index_of(st)
+    scene_span: dict[int, tuple[int, int]] = {}
+    for roots in scenes:
+        if roots:
+            span = (
+                min(index.first[r] for r in roots),
+                max(index.end[r] for r in roots),
+            )
+            scene_span.update(dict.fromkeys(roots, span))
+    skins: list[dict[str, Any]] = []
+    entry_of: dict[tuple[int, tuple[int, ...], tuple[int, ...]], int] = {}
+    bound: dict[tuple[int, tuple[int, ...], int], tuple[list[int], list, list]] = {}
+    named: dict[int, set[str]] = {}
+    cap = 16 * st.max_nodes
+    n_bound = 0
+    reported: set[int] = set()
+    for anchor, data, skeletons in st.pending:
+        roots: list[int] = []
+        unknown: list[str] = []
+        for sid in skeletons:
+            root = _nearest(index, "id", sid, anchor, scene_span)[0]
+            if root is None:
+                unknown.append(sid)
+            elif root not in roots:
+                roots.append(root)
+        names = named.get(id(data))
+        if names is None:
+            names = named[id(data)] = {n.split("/", 1)[0] for n in data.names}
+        extras = st.nodes[anchor].extras
+        context = anchor
+        if (
+            index.parent[anchor] >= 0
+            and not st.nodes[anchor].children
+            and not (extras.get("id") in names or extras.get("sid") in names)
+        ):
+            context = index.parent[anchor]
+        hit = bound.get((id(data), tuple(roots), -1)) if roots else None
+        if hit is None:
+            hit = bound.get((id(data), tuple(roots), context))
+        if hit is None:
+            n_bound += len(data.names)
+            if n_bound > cap:
+                raise CodecError(
+                    f"{st.doc.name!r}: skinned instances bind joints past {cap} "
+                    f"times, more than a document of {st.doc.size} bytes is read "
+                    "into."
+                )
+            joints: list[int] = []
+            missing: list[str] = []
+            tied: list[str] = []
+            scoped = bool(roots)
+            for n in data.names:
+                idx, tie, by_roots = _bind_joint(
+                    index, n, data.kind, roots, anchor, scene_span
+                )
+                scoped = scoped and by_roots
+                if idx is None:
+                    missing.append(n)
+                elif tie:
+                    tied.append(n)
+                joints.append(-1 if idx is None else idx)
+            hit = (joints, missing, tied)
+            bound[id(data), tuple(roots), -1 if scoped else context] = hit
+        joints, missing, tied = hit
+        key = (id(data), tuple(joints), tuple(roots))
+        k = entry_of.get(key)
+        if k is None:
+            if data.handed:
+                _spend(st, data.ibm.nbytes, f"instances of skin {data.name!r}")
+            entry: dict[str, Any] = {
+                "name": data.name,
+                "joints": list(joints),
+                "inverse_bind_matrices": data.ibm.copy() if data.handed else data.ibm,
+            }
+            data.handed = True
+            if data.bind_shape is not None:
+                entry["bind_shape_matrix"] = data.bind_shape.copy()
+            if len(roots) == 1:
+                entry["skeleton"] = roots[0]
+            k = entry_of[key] = len(skins)
+            skins.append(entry)
+        extras["skin"] = k
+        if id(data) in reported or not (unknown or missing or tied):
+            continue
+        reported.add(id(data))
+        what = f"{st.doc.name!r}: skin {data.name!r}"
+        if unknown:
+            _warn(
+                f"{what} names <skeleton> root(s) {unknown} that no node holds; "
+                "they are ignored."
+            )
+        if missing:
+            _warn(
+                f"{what} names joint(s) {missing} that no node's sid or id "
+                "matches; they are -1."
+            )
+        if tied:
+            _warn(
+                f"{what} names joint(s) {tied} that several nodes match, none "
+                "nearer the skinned node than the others; the shallowest, then "
+                "first in the document, is bound."
+            )
+    return skins
+
+
+# -----------------------------------------------------------------------------
 # animations
 # -----------------------------------------------------------------------------
 
@@ -2085,9 +2641,12 @@ class _SidIndex:
     preorder: the subtree of a node is the ranks ``first[node]`` up to
     ``end[node]``, and breadth-first order below a node is ascending
     ``key[rank]``, its depth times the node count plus its rank.
-    ``holders`` maps ``("node", sid)`` and ``("transform", sid)`` to the
-    ascending ranks of the nodes holding that node or transform sid;
-    ``trees`` caches the minimum tree over a holder list's keys.
+    ``holders`` maps ``("id", id)``, ``("node", sid)`` and
+    ``("transform", sid)`` to the ascending ranks of the nodes holding that
+    id, node sid or transform sid;
+    ``trees`` caches the minimum tree over a holder list's keys;
+    ``parent`` is each node's parent (-1 for a root) and ``root_of`` the
+    root of its tree.
     """
 
     first: list[int]
@@ -2096,22 +2655,32 @@ class _SidIndex:
     key: list[int]
     holders: dict[tuple[str, str], list[int]]
     kind_of: dict[tuple[int, str], str]
+    parent: list[int]
+    root_of: list[int]
     trees: dict[tuple[str, str], np.ndarray] = dataclasses.field(default_factory=dict)
+
+
+def _index_of(st: _State) -> _SidIndex:
+    """Return the walked forest's :class:`_SidIndex`, built on first use."""
+    if st.sid_index is None:
+        st.sid_index = _sid_index(st)
+    return st.sid_index
 
 
 def _sid_index(st: _State) -> _SidIndex:
     nodes = st.nodes
     n = len(nodes)
-    has_parent = [False] * n
-    for node in nodes:
+    parent = [-1] * n
+    for idx, node in enumerate(nodes):
         for child in node.children:
-            has_parent[child] = True
+            parent[child] = idx
+    root_of = list(range(n))
     first = [0] * n
     end = [0] * n
     depth = [0] * n
     node_at: list[int] = []
     for root in range(n):
-        if has_parent[root]:
+        if parent[root] >= 0:
             continue
         stack = [root]
         while stack:
@@ -2121,6 +2690,7 @@ def _sid_index(st: _State) -> _SidIndex:
                 continue
             first[idx] = len(node_at)
             node_at.append(idx)
+            root_of[idx] = root
             stack.append(~idx)
             children = nodes[idx].children
             for child in children:
@@ -2130,6 +2700,9 @@ def _sid_index(st: _State) -> _SidIndex:
     kind_of: dict[tuple[int, str], str] = {}
     for rank, idx in enumerate(node_at):
         extras = nodes[idx].extras
+        nid = extras.get("id")
+        if isinstance(nid, str):
+            holders.setdefault(("id", nid), []).append(rank)
         sid = extras.get("sid")
         if isinstance(sid, str):
             holders.setdefault(("node", sid), []).append(rank)
@@ -2139,7 +2712,7 @@ def _sid_index(st: _State) -> _SidIndex:
                 kind_of[idx, sid] = t["kind"]
                 holders.setdefault(("transform", sid), []).append(rank)
     key = [depth[idx] * n + rank for rank, idx in enumerate(node_at)]
-    return _SidIndex(first, end, node_at, key, holders, kind_of)
+    return _SidIndex(first, end, node_at, key, holders, kind_of, parent, root_of)
 
 
 def _min_tree(keys: list[int]) -> np.ndarray:
@@ -2267,7 +2840,7 @@ def _read_animations(st: _State) -> list[dict[str, Any]]:
     animations = _library(doc.root, "library_animations", "animation")
     if not animations:
         return out
-    index = _sid_index(st)
+    index = _index_of(st)
     n_targets = 0
     n_missed = 0
     unreached: list[str] = []
@@ -2371,7 +2944,15 @@ def write_scene(
         the transform elements it was read with when ``extras["transforms"]``
         still composes to its matrix, else one ``<matrix>``; materials
         become phong effects and animations channels targeting those
-        transform elements. The ``translation``, ``rotation`` and ``scale``
+        transform elements. A node whose ``extras["skin"]`` names an entry
+        of ``global_attrs["skins"]`` instances a ``<controller>`` built
+        from that skin and its mesh's ``joints`` and ``weights`` (zero
+        weights left out), one per distinct mesh and skin; every joint is
+        written as a ``JOINT`` node with a sid (its own, else its id, else
+        a fresh one), named by sid when that sid is the joint's alone under
+        the ``<skeleton>`` roots - the skin's ``skeleton`` when it is an
+        ancestor of every joint, else the joints whose parent is not one -
+        and by id otherwise. The ``translation``, ``rotation`` and ``scale``
         channels without a ``sid`` that animate a node written as one
         ``<matrix>`` - glTF's, whose rotation is a quaternion no
         ``<rotate>`` spells - are baked, per animation and node, into one
@@ -2421,8 +3002,17 @@ def write_scene(
     Warns
     -----
     UserWarning
-        For the scene's ``skins``, which are not written, an animation
-        channel naming a node or sampler the written scene lacks, whose
+        For a skin that is not a dict, has no joints, names a joint that is
+        not a written node, has inverse bind matrices that are not one
+        finite 4x4 per joint, glTF ``inverseBindMatrices`` never decoded,
+        or a ``bind_shape_matrix`` that is not a finite 4x4, or that no
+        written node with a mesh names (each is not written, and its nodes
+        instance their geometry), for skin keys COLLADA has no place for,
+        a node naming a skin the scene lacks or naming one without a mesh,
+        a skinned mesh without integer ``joints`` and real ``weights`` of
+        one shape, a row per vertex (written unskinned), a negative or
+        non-finite weight or one on a joint the skin does not list (it is
+        dropped), an animation channel naming a node or sampler the written scene lacks, whose
         target the written node lacks, whose ``member`` is neither a name
         nor ``(i)(j)`` indices or whose keys are not the width its target
         takes, a channel whose sampler has no keys, keys
@@ -2451,7 +3041,8 @@ def write_scene(
         XML name token (the unit is written without one), elements COLLADA
         cannot hold (points, volume cells; a mesh with nothing else keeps its positions as a ``<mesh>``
         without primitives), vertex attributes it has no input for
-        (``joints`` and ``weights`` among them), element attributes other
+        (``joints`` and ``weights`` among them, unless a skinned node
+        instances the mesh), element attributes other
         than ``material``, a ``metallic_roughness_texture`` or
         ``occlusion_texture`` (the common profile has no slot for either),
         a base colour or emissive tinting its texture, a base colour on a
@@ -2488,7 +3079,8 @@ def write_scene(
         entry, channel or sampler is not a dict, a sampler lacks ``times``
         or ``values``, its values or tangents do not number its ``times``,
         or its ``interpolation`` is not one of the six the specification
-        names. Also when a mesh's vertices are not (n, 3) real numbers, its element types not
+        names, or ``global_attrs["skins"]`` is not a list. Also when a
+        mesh's vertices are not (n, 3) real numbers, its element types not
         integer codes in 0..255, its offsets not integers rising from 0 to
         the connectivity's length, its connectivity names a vertex it lacks
         or an element has a vertex count its type does not allow, a node's
@@ -2651,19 +3243,23 @@ def write_scene(
             f"{name!r}: global_attrs {lost} of the scene have no COLLADA "
             "counterpart; they are dropped."
         )
-    if scene.global_attrs.get("skins"):
-        _warn(
-            f"{name!r}: global_attrs ['skins'] are not written; COLLADA skins "
-            "are not supported yet."
-        )
+    shared_order = _shared_nodes(scene, roots_per_scene, alias, name)
+    shared = set(shared_order)
+    plan = _plan_skins(scene, ids, order, shared, name)
 
     binds: list[str] = []
     parts.append("  <library_geometries>\n")
     for i, mesh in enumerate(scene.meshes):
-        xml, used, uv_set = _geometry_xml(mesh, ids, i, len(scene.materials), name)
+        xml, used, uv_set = _geometry_xml(
+            mesh, ids, i, len(scene.materials), i in plan.meshes, name
+        )
         parts.append(xml)
         binds.append(_bind_xml(ids, used, textured, uv_set))
     parts.append("  </library_geometries>\n")
+    if plan.xml:
+        parts.append(
+            "  <library_controllers>\n" + plan.xml + "  </library_controllers>\n"
+        )
 
     animations = _animations_xml(scene, ids, written, name)
     if animations:
@@ -2672,12 +3268,11 @@ def write_scene(
         )
 
     try:
-        shared_order = _shared_nodes(scene, roots_per_scene, alias, name)
-        shared = set(shared_order)
         if shared_order:
             parts.append("  <library_nodes>\n")
             parts.extend(
-                _node_xml(scene, ids, n, binds, shared, 2, name) for n in shared_order
+                _node_xml(scene, ids, n, binds, plan, shared, 2, name)
+                for n in shared_order
             )
             parts.append("  </library_nodes>\n")
         active = (
@@ -2695,7 +3290,7 @@ def write_scene(
                         f'<instance_node url="#{ids.node(r)}"/></node>\n'
                     )
                 else:
-                    parts.append(_node_xml(scene, ids, r, binds, shared, 3, name))
+                    parts.append(_node_xml(scene, ids, r, binds, plan, shared, 3, name))
             parts.append("    </visual_scene>\n")
     except RecursionError as exc:
         raise CodecError(
@@ -2877,6 +3472,18 @@ class _Ids:
     def animation(self, i: int) -> str:
         return self._of("animation", i)
 
+    def controller(self, i: int) -> str:
+        return self._of("controller", i)
+
+    def joint_sid(self, i: int) -> str:
+        """Give node ``i`` a sid no other node holds, its id when that is free."""
+        sid = self.node_ids[i]
+        if sid in self.sids:
+            sid = self.fresh(f"joint{i}")
+        self.sids.add(sid)
+        self.given_sids[i] = sid
+        return sid
+
     def node(self, i: int) -> str:
         return self.node_ids[i]
 
@@ -2988,12 +3595,20 @@ def _source_xml(
     )
 
 
-def _name_source_xml(sid: str, names: list[str], param: str, *, indent: int = 8) -> str:
+def _name_source_xml(
+    sid: str,
+    names: list[str],
+    param: str,
+    *,
+    indent: int = 8,
+    array: str = "Name_array",
+) -> str:
     pad = " " * indent
+    kind = "IDREF" if array == "IDREF_array" else "name"
     return (
         f'{pad}<source id="{sid}">\n'
-        f'{pad}  <Name_array id="{sid}-array" count="{len(names)}">{" ".join(names)}</Name_array>\n'
-        f'{pad}  <technique_common><accessor source="#{sid}-array" count="{len(names)}" stride="1"><param name="{param}" type="name"/></accessor></technique_common>\n'
+        f'{pad}  <{array} id="{sid}-array" count="{len(names)}">{" ".join(names)}</{array}>\n'
+        f'{pad}  <technique_common><accessor source="#{sid}-array" count="{len(names)}" stride="1"><param name="{param}" type="{kind}"/></accessor></technique_common>\n'
         f"{pad}</source>\n"
     )
 
@@ -3255,12 +3870,14 @@ _ATTR_PARAMS = {
 
 
 def _geometry_xml(
-    mesh: PolyData, ids: _Ids, i: int, n_materials: int, name: str
+    mesh: PolyData, ids: _Ids, i: int, n_materials: int, skinned: bool, name: str
 ) -> tuple[str, list[int], int | None]:
     """Return the ``<geometry>`` of mesh ``i``, its blocks' materials and UV set.
 
     The third value is the lowest ``TEXCOORD`` set written, None when the
-    mesh has none; a textured material binds its sampler to that set.
+    mesh has none; a textured material binds its sampler to that set. A
+    ``skinned`` mesh's ``joints`` and ``weights`` go in a controller rather
+    than being reported dropped.
     """
     gid = ids.geometry(i)
     verts, types, offs = _mesh_arrays(mesh, f"{name!r}: mesh {i}")
@@ -3283,7 +3900,8 @@ def _geometry_xml(
     given_sets = {base: set(taken) for base, taken in used_sets.items()}
     for key, table in mesh.vertex_attrs.items():
         if key in ("joints", "weights"):
-            dropped.append(key)
+            if not skinned:
+                dropped.append(key)
             continue
         base = key
         set_no = 0
@@ -3685,9 +4303,12 @@ def _copy_pairs(
         One pair per node of the two subtrees, matched child by child; None
         when they differ in a name, mesh, matrix, extras or child count,
         when a node of the copy is already ranked or appears twice, or when
-        a node it would copy is not ranked yet.
+        a node it would copy is not ranked yet. A skin compares equal when
+        it is the node's own skin with its joints and skeleton moved to the
+        copy, as a reader binds the copy of a skinned character.
     """
     pairs: list[tuple[int, int]] = []
+    skins: list[tuple[Any, Any]] = []
     seen: set[int] = set()
     stack = [(copy, node)]
     n_nodes = len(scene.nodes)
@@ -3703,13 +4324,73 @@ def _copy_pairs(
             or na.mesh != nb.mesh
             or len(na.children) != len(nb.children)
             or not np.array_equal(na.matrix, nb.matrix)
-            or not _same(na.extras, nb.extras)
+            or not _same(_sans_skin(na.extras), _sans_skin(nb.extras))
         ):
             return None
+        skins.append((na.extras.get("skin"), nb.extras.get("skin")))
         seen.add(a)
         pairs.append((a, b))
         stack.extend(zip(na.children, nb.children, strict=True))
+    moved = dict(pairs)
+    for sa, sb in skins:
+        if not (_same(sa, sb) or _moved_skin(scene, sa, sb, moved)):
+            return None
     return pairs
+
+
+def _sans_skin(extras: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in extras.items() if k != "skin"}
+
+
+def _moved_skin(scene: SceneData, a: Any, b: Any, moved: dict[int, int]) -> bool:
+    """Return whether skin ``a`` is skin ``b`` with its nodes moved by ``moved``.
+
+    Parameters
+    ----------
+    scene
+        The scene being written.
+    a, b
+        The ``skin`` extras of a copy and of the node it copies.
+    moved
+        ``copy -> node`` over the two subtrees; a joint of ``b`` inside the
+        node's subtree is its copy in ``a``, one outside the same node.
+
+    Returns
+    -------
+    bool
+        False as well when either is not a skin of the scene.
+    """
+    skins = scene.global_attrs.get("skins")
+    ia, ib = _index(a), _index(b)
+    if (
+        not isinstance(skins, (list, tuple))
+        or ia is None
+        or ib is None
+        or not (0 <= ia < len(skins) and 0 <= ib < len(skins))
+        or not isinstance(skins[ia], dict)
+        or not isinstance(skins[ib], dict)
+    ):
+        return False
+    sa, sb = skins[ia], skins[ib]
+    if sa.keys() != sb.keys():
+        return False
+    copy_of = {node: copy for copy, node in moved.items()}
+    for key, va in sa.items():
+        vb = sb[key]
+        if key == "joints":
+            try:
+                same = list(va) == [copy_of.get(_index(j), j) for j in vb]
+            except TypeError:
+                return False
+        elif key == "skeleton":
+            same = va == copy_of.get(_index(vb), vb)
+        elif isinstance(va, np.ndarray) or isinstance(vb, np.ndarray):
+            same = np.shape(va) == np.shape(vb) and bool(np.array_equal(va, vb))
+        else:
+            same = _same(va, vb)
+        if not same:
+            return False
+    return True
 
 
 def _same(a: Any, b: Any) -> bool:
@@ -3861,6 +4542,7 @@ def _node_xml(
     ids: _Ids,
     idx: int,
     binds: list[str],
+    plan: _SkinPlan,
     shared: set[int],
     depth: int,
     name: str,
@@ -3869,11 +4551,16 @@ def _node_xml(
 
     A child in ``shared`` is written in ``<library_nodes>`` and instanced
     here with ``<instance_node>``, which the schema places before the child
-    ``<node>`` elements, so a reader lists such children first.
+    ``<node>`` elements, so a reader lists such children first. A skinned
+    node instances its controller in ``plan`` rather than its geometry.
     """
     node = scene.nodes[idx]
     pad = "  " * depth
-    joint = ' type="JOINT"' if node.extras.get("type") == "JOINT" else ""
+    joint = (
+        ' type="JOINT"'
+        if node.extras.get("type") == "JOINT" or idx in plan.joints
+        else ""
+    )
     given = ids.given_sids[idx]
     sid_attr = f' sid="{given}"' if given is not None else ""
     parts = [
@@ -3899,10 +4586,17 @@ def _node_xml(
             raise CodecError(
                 f"{name!r}: node {idx} names mesh {node.mesh}, which the scene lacks."
             )
-        parts.append(
-            f'{pad}  <instance_geometry url="#{ids.geometry(node.mesh)}">'
-            f"{binds[node.mesh]}</instance_geometry>\n"
-        )
+        if idx in plan.instance:
+            cid, skeleton = plan.instance[idx]
+            parts.append(
+                f'{pad}  <instance_controller url="#{cid}">{skeleton}'
+                f"{binds[node.mesh]}</instance_controller>\n"
+            )
+        else:
+            parts.append(
+                f'{pad}  <instance_geometry url="#{ids.geometry(node.mesh)}">'
+                f"{binds[node.mesh]}</instance_geometry>\n"
+            )
     dropped = [k for k in ("camera", "light") if node.extras.get(k) is not None]
     if dropped:
         _warn(
@@ -3916,7 +4610,9 @@ def _node_xml(
         if child in shared:
             instanced.append(f'{pad}  <instance_node url="#{ids.node(child)}"/>\n')
         else:
-            nested.append(_node_xml(scene, ids, child, binds, shared, depth + 1, name))
+            nested.append(
+                _node_xml(scene, ids, child, binds, plan, shared, depth + 1, name)
+            )
     parts.extend(instanced)
     parts.extend(nested)
     parts.append(f"{pad}</node>\n")
@@ -3950,6 +4646,370 @@ def _bind_xml(
         "<bind_material><technique_common>"
         + "".join(entries)
         + "</technique_common></bind_material>"
+    )
+
+
+@dataclasses.dataclass
+class _SkinPlan:
+    """The controllers a write spells and the nodes instancing them.
+
+    ``instance`` maps a node to its ``<instance_controller>`` url and its
+    ``<skeleton>`` elements; ``meshes`` are the meshes whose ``joints`` and
+    ``weights`` a controller carries, ``joints`` the nodes written as
+    ``JOINT``.
+    """
+
+    xml: str = ""
+    instance: dict[int, tuple[str, str]] = dataclasses.field(default_factory=dict)
+    meshes: set[int] = dataclasses.field(default_factory=set)
+    joints: set[int] = dataclasses.field(default_factory=set)
+
+
+@dataclasses.dataclass
+class _SkinEntry:
+    """A skin of the scene as a write spells it, joints mapped to written nodes."""
+
+    joints: list[int]
+    roots: list[int]
+    ibm: np.ndarray
+    bind_shape: np.ndarray | None
+    name: str
+
+
+def _multiplied(scene: SceneData, shared: set[int], alias: dict[int, int]) -> set[int]:
+    """Return the nodes a reader meets more than once: the shared ones and below."""
+    out: set[int] = set()
+    stack = list(shared)
+    while stack:
+        idx = stack.pop()
+        if idx in out:
+            continue
+        out.add(idx)
+        stack.extend(alias.get(c, c) for c in scene.nodes[idx].children)
+    return out
+
+
+def _plan_skins(
+    scene: SceneData,
+    ids: _Ids,
+    order: dict[int, int],
+    shared: set[int],
+    name: str,
+) -> _SkinPlan:
+    """Return the controllers of every skinned node the write spells.
+
+    A node with a mesh and a ``skin`` in its extras instances a
+    ``<controller>`` built from that skin and its mesh's ``joints`` and
+    ``weights``, one per distinct (mesh, skin) pair. Every joint is written
+    as a ``JOINT`` node with a sid (its own, else its id, else a fresh
+    one), named by sid when a reader looking under the skin's
+    ``<skeleton>`` roots finds that sid on that node alone, and by id
+    otherwise.
+
+    Raises
+    ------
+    CodecError
+        When ``global_attrs["skins"]`` is not a list.
+    """
+    plan = _SkinPlan()
+    skins = scene.global_attrs.get("skins")
+    if skins is None:
+        skins = []
+    if not isinstance(skins, (list, tuple)):
+        raise CodecError(
+            f"{name!r}: global_attrs['skins'] must be a list, not {skins!r}."
+        )
+    alias = ids.alias
+    emitted = [n for n in sorted(order, key=order.__getitem__) if n not in alias]
+    parent: dict[int, int] = {}
+    for n in emitted:
+        for c in scene.nodes[n].children:
+            parent.setdefault(alias.get(c, c), n)
+    users: dict[int, list[int]] = {}
+    unknown: list[int] = []
+    meshless: list[int] = []
+    for n in emitted:
+        node = scene.nodes[n]
+        ref = node.extras.get("skin")
+        if ref is None:
+            continue
+        k = _index(ref)
+        if k is None or not 0 <= k < len(skins):
+            unknown.append(n)
+        elif node.mesh is None:
+            meshless.append(n)
+        elif _index(node.mesh) is not None and 0 <= node.mesh < len(scene.meshes):
+            users.setdefault(k, []).append(n)
+    if unknown:
+        _warn(
+            f"{name!r}: node(s) {unknown} name a skin global_attrs['skins'] "
+            "lacks; they are written unskinned."
+        )
+    if meshless:
+        _warn(
+            f"{name!r}: node(s) {meshless} name a skin but no mesh for it to "
+            "deform; the skin is not written there."
+        )
+    # A copy's skin goes out with the node it copies.
+    referenced = {_index(scene.nodes[n].extras.get("skin")) for n in order}
+    unused = [k for k in range(len(skins)) if k not in users and k not in referenced]
+    if unused:
+        _warn(
+            f"{name!r}: skin(s) {unused} deform no written node's mesh; they are "
+            "not written."
+        )
+    entries = {
+        k: entry
+        for k in sorted(users)
+        if (entry := _skin_entry(skins[k], k, order, alias, parent, name)) is not None
+    }
+    for entry in entries.values():
+        for j in entry.joints:
+            plan.joints.add(j)
+            if ids.given_sids[j] is None:
+                ids.joint_sid(j)
+    multi = _multiplied(scene, shared, alias)
+    counts: dict[tuple[int, ...], dict[str, int]] = {}
+    controllers: dict[tuple[int, int], str | None] = {}
+    parts: list[str] = []
+    for k, entry in entries.items():
+        array, names = _joint_names(scene, ids, entry, multi, counts)
+        skeleton = "".join(f"<skeleton>#{ids.node(r)}</skeleton>" for r in entry.roots)
+        for n in users[k]:
+            m = scene.nodes[n].mesh
+            if (m, k) not in controllers:
+                cid = ids.controller(len(controllers))
+                xml = _controller_xml(
+                    scene.meshes[m], ids, cid, m, k, entry, array, names, name
+                )
+                controllers[m, k] = None if xml is None else cid
+                if xml is not None:
+                    parts.append(xml)
+                    plan.meshes.add(m)
+            cid = controllers[m, k]
+            if cid is not None:
+                plan.instance[n] = (cid, skeleton)
+    plan.xml = "".join(parts)
+    return plan
+
+
+def _skin_entry(
+    skin: Any,
+    k: int,
+    order: dict[int, int],
+    alias: dict[int, int],
+    parent: dict[int, int],
+    name: str,
+) -> _SkinEntry | None:
+    """Return skin ``k`` as written, or None, with a warning, when it cannot be.
+
+    Its ``skeleton`` becomes the one ``<skeleton>`` root when it is an
+    ancestor of (or is) every joint; otherwise each joint whose parent is
+    not a joint of the skin is a root, as exporters spell a rig's top bones.
+    """
+    what = f"{name!r}: skin {k}"
+    if not isinstance(skin, dict):
+        _warn(f"{what} is not a dict; it is not written.")
+        return None
+    dropped = sorted(str(key) for key in skin if key not in _SKIN_KEYS)
+    if dropped:
+        _warn(f"{what} keys {dropped} have no COLLADA counterpart; they are dropped.")
+    given = skin.get("joints")
+    if not isinstance(given, (list, tuple, np.ndarray)) or not len(given):
+        _warn(f"{what} has no joints list; it is not written.")
+        return None
+    joints = [_index(j) for j in given]
+    lost = [
+        j for j, i in zip(given, joints, strict=True) if i is None or i not in order
+    ]
+    if lost:
+        _warn(
+            f"{what} names joint(s) {lost} that are not written nodes; it is not "
+            "written."
+        )
+        return None
+    joints = [alias.get(j, j) for j in joints]
+    ibm = skin.get("inverse_bind_matrices")
+    if ibm is None:
+        if skin.get("inverseBindMatrices") is not None:
+            _warn(
+                f"{what} names inverse bind matrices that were never decoded; it "
+                "is not written."
+            )
+            return None
+        ibm = np.tile(np.eye(4), (len(joints), 1, 1))
+    ibm = _floats_or_none(ibm)
+    bind_shape = skin.get("bind_shape_matrix")
+    if bind_shape is not None:
+        bind_shape = _floats_or_none(bind_shape)
+        if bind_shape is None:
+            bind_shape = np.zeros(0)
+    if ibm is None or ibm.shape != (len(joints), 4, 4) or not np.isfinite(ibm).all():
+        _warn(
+            f"{what} has inverse bind matrices that are not {len(joints)} finite "
+            "4x4 matrices, one per joint; it is not written."
+        )
+        return None
+    if bind_shape is not None and (
+        bind_shape.shape != (4, 4) or not np.isfinite(bind_shape).all()
+    ):
+        _warn(
+            f"{what} has a bind_shape_matrix that is not a finite 4x4 matrix; it "
+            "is not written."
+        )
+        return None
+    members = set(joints)
+    roots: list[int] = []
+    top = _index(skin.get("skeleton"))
+    if top is not None and top in order:
+        top = alias.get(top, top)
+        if all(_under(j, top, parent) for j in joints):
+            roots = [top]
+    if not roots:
+        for j in joints:
+            if parent.get(j) not in members and j not in roots:
+                roots.append(j)
+    label = skin.get("name")
+    return _SkinEntry(
+        joints=joints,
+        roots=roots,
+        ibm=ibm,
+        bind_shape=bind_shape,
+        name="" if label is None else str(label),
+    )
+
+
+def _floats_or_none(value: Any) -> np.ndarray | None:
+    """Return ``value`` as a float64 array, None when it does not convert."""
+    try:
+        return np.asarray(value, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+
+
+def _under(node: int, top: int, parent: dict[int, int]) -> bool:
+    """Return whether ``top`` is ``node`` or one of its ancestors."""
+    while node != top:
+        if node not in parent:
+            return False
+        node = parent[node]
+    return True
+
+
+def _joint_names(
+    scene: SceneData,
+    ids: _Ids,
+    entry: _SkinEntry,
+    multi: set[int],
+    counts: dict[tuple[int, ...], dict[str, int]],
+) -> tuple[str, list[str]]:
+    """Return the ``JOINT`` array kind of a skin and its entries.
+
+    Sids, in a ``Name_array``, when each joint's sid is held by that node
+    alone under the ``<skeleton>`` roots, so a reader looking there binds
+    it; ids, in an ``IDREF_array``, otherwise, or when a joint or root is
+    one a reader meets more than once (under a shared node), whose copies
+    share the id and bind the nearest.
+    """
+    joints, roots = entry.joints, entry.roots
+    if not any(j in multi for j in (*joints, *roots)):
+        key = tuple(roots)
+        count = counts.get(key)
+        if count is None:
+            count = counts[key] = {}
+            stack = list(roots)
+            seen: set[int] = set()
+            while stack:
+                idx = stack.pop()
+                if idx in seen:
+                    continue
+                seen.add(idx)
+                sid = ids.given_sids[idx]
+                if sid is not None:
+                    count[sid] = count.get(sid, 0) + 1
+                stack.extend(ids.alias.get(c, c) for c in scene.nodes[idx].children)
+        sids = [ids.given_sids[j] for j in joints]
+        if all(s is not None and count.get(s) == 1 for s in sids):
+            return "Name_array", sids
+    return "IDREF_array", [ids.node(j) for j in joints]
+
+
+def _controller_xml(
+    mesh: PolyData,
+    ids: _Ids,
+    cid: str,
+    m: int,
+    k: int,
+    entry: _SkinEntry,
+    array: str,
+    names: list[str],
+    name: str,
+) -> str | None:
+    """Return the ``<controller>`` skinning mesh ``m`` by skin ``k``.
+
+    Zero weights are not written. A negative or non-finite weight, or one
+    on a joint the skin does not list, is dropped with a warning; a mesh
+    without ``joints`` and ``weights`` of one row per vertex is written
+    unskinned, with a warning, and None returned.
+    """
+    what = f"{name!r}: mesh {m} under skin {k}"
+    joints = mesh.vertex_attrs.get("joints")
+    weights = mesh.vertex_attrs.get("weights")
+    if joints is None or weights is None:
+        _warn(f"{what} has no joints and weights; it is written unskinned.")
+        return None
+    joints = np.asarray(joints)
+    weights = np.asarray(weights)
+    if (
+        joints.ndim != 2
+        or joints.shape != weights.shape
+        or len(joints) != len(mesh.vertices)
+        or joints.dtype.kind not in "iu"
+        or weights.dtype.kind not in "iuf"
+    ):
+        _warn(
+            f"{what} needs integer joints and real weights of one shape, one row "
+            f"per vertex, not {joints.dtype} {joints.shape} and {weights.dtype} "
+            f"{weights.shape}; it is written unskinned."
+        )
+        return None
+    w = weights.astype(np.float64)
+    bad = ~np.isfinite(w) | (w < 0)
+    keep = ~bad & (w > 0)
+    stray = keep & ((joints < 0) | (joints >= len(names)))
+    if bad.any():
+        _warn(
+            f"{what} has {int(bad.sum())} negative or non-finite weight(s); they "
+            "are dropped."
+        )
+    if stray.any():
+        _warn(
+            f"{what} has {int(stray.sum())} influence(s) on a joint outside the "
+            f"skin's {len(names)}; they are dropped."
+        )
+    keep &= ~stray
+    kept = w[keep]
+    v = np.column_stack([joints[keep].astype(np.int64), np.arange(len(kept))])
+    bind_shape = (
+        ""
+        if entry.bind_shape is None
+        else f"        <bind_shape_matrix>{_nums(entry.bind_shape)}</bind_shape_matrix>\n"
+    )
+    return (
+        f'    <controller id="{cid}"{_name_attr(entry.name)}>\n'
+        f'      <skin source="#{ids.geometry(m)}">\n'
+        + bind_shape
+        + _name_source_xml(f"{cid}-joints", names, "JOINT", array=array)
+        + _source_xml(f"{cid}-bind", entry.ibm.reshape(-1, 16), ("TRANSFORM",))
+        + _source_xml(f"{cid}-weights", kept, ("WEIGHT",))
+        + f'        <joints><input semantic="JOINT" source="#{cid}-joints"/>'
+        f'<input semantic="INV_BIND_MATRIX" source="#{cid}-bind"/></joints>\n'
+        f'        <vertex_weights count="{len(joints)}">'
+        f'<input semantic="JOINT" source="#{cid}-joints" offset="0"/>'
+        f'<input semantic="WEIGHT" source="#{cid}-weights" offset="1"/>'
+        f"<vcount>{_nums(keep.sum(axis=1))}</vcount><v>{_nums(v)}</v>"
+        "</vertex_weights>\n"
+        "      </skin>\n    </controller>\n"
     )
 
 
