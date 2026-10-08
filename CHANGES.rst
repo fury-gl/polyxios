@@ -79,9 +79,20 @@ New features
   spells 1.4.1 with fixed timestamps, so a scene always writes the same
   bytes, refuses connectivity a reader could not read back, and writes a
   node shared by two parents once in ``<library_nodes>``, instanced from
-  there. ``read()`` flattens with a warning, ``lazy=True`` raises. Skins and
-  animations are not read or written yet: a skinned mesh reads in its bind
-  shape and an animated scene at rest, each with a warning.
+  there. ``read()`` flattens with a warning, ``lazy=True`` raises. Skins are
+  not read or written yet: a skinned mesh reads in its bind shape, with a
+  warning.
+- COLLADA animations are read and written. ``<animation>`` channels land
+  under ``global_attrs["animations"]`` in the shape glTF uses, each target
+  holding the node, the path, the transform ``sid`` and its member; a
+  channel addressing an instanced node gets a target per copy, capped by
+  the document's size. A write targets the transform element holding the
+  channel's ``sid``. Channels without one on a node written as a single
+  ``<matrix>`` - a glTF animation's translation, rotation and scale - are
+  baked into matrix keys, with extra keys where a matrix blend would drift
+  from the rotation, so a glTF animation goes to COLLADA and comes back as
+  translation, rotation and scale channels holding its values at its key
+  times.
 - A glTF read decodes each skin's ``inverseBindMatrices`` accessor into
   ``inverse_bind_matrices`` (row-major, one per joint), so a format that
   stores the bind pose by matrix can write a skinned glTF scene. A skin

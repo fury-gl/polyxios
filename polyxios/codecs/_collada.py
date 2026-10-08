@@ -10,22 +10,25 @@ carries its own normal and texture coordinate and a vertex two corners
 disagree about is split here, as OBJ readers do. ``<node>`` trees carry
 transforms as ``<matrix>``, ``<translate>``, ``<rotate>`` and ``<scale>``
 elements in document order, instance geometries, controllers (skins) and
-other nodes.
+other nodes; ``<animation>`` channels target a node's transform element
+by the ``sid`` it declares.
 
 Read gives a :class:`~polyxios.SceneData`: one PolyData per geometry with
 ``normals``, ``texcoords`` and ``colors`` as vertex attributes and
 ``element_attrs["material"]`` as indices into the scene's materials;
 effects as PBR-ish :class:`~polyxios.SceneMaterial` entries whose phong
 pieces ride in ``extras``; nodes with their local matrix and the transform
-elements they were spelled with in ``extras["transforms"]``. Skins and
-animations are not read or written yet. Write spells the scene back in
-1.4.1 syntax with fixed timestamps, so the same scene always writes the
-same bytes.
+elements they were spelled with in ``extras["transforms"]``, so an
+animation still finds its target on write; animations under
+``global_attrs["animations"]``, in the shape glTF uses. Skins are not read
+or written yet. Write spells the scene back in 1.4.1 syntax with fixed
+timestamps, so the same scene always writes the same bytes.
 """
 
 from __future__ import annotations
 
 import base64
+import bisect
 import codecs
 import dataclasses
 from datetime import datetime
@@ -46,6 +49,7 @@ from polyxios._scene import (
     SceneNode,
     SceneTexture,
 )
+from polyxios._trs import trs_of_matrix
 from polyxios._types import PolyData
 from polyxios._warn import warn_caller as _warn
 from polyxios.exceptions import CodecError, LazyReadError
@@ -85,6 +89,8 @@ _NCNAME = re.compile(f"[{_NAME_START}][{_NAME_REST}.]*\\Z")
 # A transform sid ends a channel target, where a dot starts the member.
 _TRANSFORM_SID = re.compile(f"[{_NAME_START}][{_NAME_REST}]*\\Z")
 _NMTOKEN = re.compile(f"[{_NAME_REST}.]+\\Z")
+# The member part of a channel target: ``.X`` / ``.ANGLE`` or ``(i)(j)``.
+_MEMBER = re.compile(r"(?:[A-Za-z_][A-Za-z0-9_]*|(?:\(\d+\))+)\Z")
 # A parser folds a literal newline, tab or return in an attribute to a
 # space; only the character reference survives a round trip.
 _ATTR_ENTITIES = {'"': "&quot;", "\n": "&#10;", "\r": "&#13;", "\t": "&#9;"}
@@ -212,6 +218,14 @@ _MAGIC = (
     (b"BM", "image/bmp"),
 )
 
+_PATH_OF_KIND = {
+    "matrix": "matrix",
+    "translate": "translation",
+    "rotate": "rotation",
+    "scale": "scale",
+    "lookat": "lookat",
+}
+_KIND_OF_PATH = {v: k for k, v in _PATH_OF_KIND.items()}
 _KIND_SIZE = {"matrix": 16, "translate": 3, "rotate": 4, "scale": 3, "lookat": 9}
 
 _PARAM_WIDTH = {
@@ -236,7 +250,18 @@ _SHADING_TERMS = {
     "constant": (),
 }
 _OPAQUE_MODES = ("A_ONE", "A_ZERO", "RGB_ZERO", "RGB_ONE")
+_INTERPOLATIONS = ("LINEAR", "BEZIER", "HERMITE", "CARDINAL", "BSPLINE", "STEP")
 _MATERIAL_TEXTURES = ("base_color_texture", "normal_texture", "emissive_texture")
+
+# Paths of a channel without a sid that are baked into ``<matrix>`` keys, and
+# the interpolations such a channel may use.
+_BAKED_PATHS = ("translation", "rotation", "scale")
+_BAKED_INTERPOLATIONS = ("LINEAR", "STEP", "CUBICSPLINE")
+# COLLADA blends a matrix element by element, which shrinks a node rotating
+# between two keys; keys this close in angle keep that below 1%.
+_BAKE_MAX_DEGREES: float = 15.0
+_BAKE_CUBIC_PIECES: int = 4
+_BAKE_MAX_PASSES: int = 8
 
 _IDENTITY = np.eye(4, dtype=np.float64)
 
@@ -263,13 +288,17 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         ``<library_geometries>`` of the document, as with the other
         libraries), its ``name`` as ``global_attrs["mesh_name"]``, then a
         variant of a geometry, sharing its arrays under another ``material``
-        column, for each further way its instances resolve its symbols; the visual scenes' node trees with the instanced one active,
-        effects as materials with their textures and images. A document
+        column, for each further way its instances resolve its symbols; the
+        visual scenes' node trees with the instanced one active, effects as
+        materials with their textures and images, and animations under
+        ``global_attrs["animations"]`` (each named by its ``name``, else its
+        ``id``; a channel addressing a node instanced several times gets a
+        target per copy). A document
         whose visual scenes hold no node (or that has none) gets one root
         node per geometry, all in one scene, so its meshes still show.
         COLLADA has no alpha mask, so ``alpha_mode`` is ``BLEND`` when the
         material's alpha is below one and ``OPAQUE`` otherwise. Positions,
-        vertex attributes and matrices are float64 whatever precision or
+        vertex attributes, matrices and sampler keys are float64 whatever precision or
         array type the file's text carries. Every ``<vertices>`` position is
         a vertex, whether or not a primitive names it. A mesh without
         texture coordinate set 0 has its sets renumbered down from the
@@ -291,22 +320,31 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         element has the wrong number of values, a node instances itself,
         the node tree nests deeper than the interpreter's recursion limit,
         ``<instance_node>`` expands it past one node per eight bytes of
-        document (and past 262144 nodes), or the material columns of
+        document (and past 262144 nodes), the material columns of
         geometries bound to other materials pass sixteen bytes per byte of
-        document (and 256 MiB).
+        document (and 256 MiB), an animation sampler lacks ``INPUT`` or
+        ``OUTPUT``, its values or tangents do not number its keys, a channel
+        names a source that is not a sampler, or channels addressing
+        instanced nodes expand past the node cap or miss their transform on
+        more copies than it.
 
     Warns
     -----
     UserWarning
         For what is not read: skins (the mesh is read in its bind shape,
-        one warning counting the skinned instances) and animations (one
-        warning; the scene is read at rest). For metadata read leniently:
+        one warning counting the skinned instances). For animation
+        channels whose target reaches no node transform (one warning
+        counting them; they are dropped), a channel whose keys are not the
+        width its target takes (it is dropped), a
+        sampler mixing interpolations (the first is taken for all keys) or
+        naming one the specification does not (read as ``LINEAR``). For
+        metadata read leniently:
         an ``up_axis`` that is not one of the three the specification
         allows is dropped, a unit's meter spelled with a decimal comma is
         read as a point, a morph controller contributes only its base
         geometry, a unit's meter that is not a finite positive number is
-        read as 1, an alpha that is not finite is read as opaque, an instance of a node, geometry, controller, effect or
-        visual scene in another document is dropped (a material without
+        read as 1, an alpha that is not finite is read as opaque, an
+        instance of a node, geometry, controller, effect or visual scene in another document is dropped (a material without
         its effect is a bare phong one, and the first visual scene is
         active), a node's second ``<instance_camera>`` or
         ``<instance_light>`` is dropped for the first, and an
@@ -371,8 +409,9 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
             "instance(s) are read in their bind shape, without joints or "
             "weights."
         )
-    if _library(root, "library_animations", "animation"):
-        _warn(f"{name!r}: animations are not read; the scene is read at rest.")
+    animations = _read_animations(st)
+    if animations:
+        global_attrs["animations"] = animations
 
     return SceneData(
         meshes=polys,
@@ -408,7 +447,7 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     Warns
     -----
     UserWarning
-        Always: the scene graph and materials are dropped;
+        Always: the scene graph, materials and animations are dropped;
         :func:`read_scene` keeps them.
 
     Raises
@@ -422,7 +461,7 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
         raise LazyReadError("COLLADA is XML text and cannot be memory-mapped.")
     _warn(
         f"'{source_name(path)}' is a scene format (COLLADA): read() flattens "
-        "the scene graph and materials into a single "
+        "the scene graph, materials and animations into a single "
         "PolyData. Use polyxios.read_scene() to preserve the full scene."
     )
     return read_scene(path).to_polydata()
@@ -727,6 +766,16 @@ def _float_source(doc: _Doc, src: ET.Element, what: str) -> np.ndarray:
             "not numbers."
         )
     return table.astype(np.float64, copy=False)
+
+
+def _name_source(doc: _Doc, src: ET.Element, what: str) -> list[str]:
+    table = _source(doc, src, what)
+    if not isinstance(table, list):
+        raise CodecError(
+            f"{doc.name!r}: source '{src.get('id', '?')}' ({what}) holds numbers, "
+            "not names."
+        )
+    return table
 
 
 # -----------------------------------------------------------------------------
@@ -1117,6 +1166,7 @@ class _State:
     max_nodes: int
     max_copied: int
     nodes: list[SceneNode | None] = dataclasses.field(default_factory=list)
+    nodes_by_id: dict[str, list[int]] = dataclasses.field(default_factory=dict)
     variants: list[PolyData] = dataclasses.field(default_factory=list)
     copied: int = 0
     skinned: int = 0
@@ -1535,10 +1585,10 @@ def _warn_unnamed_input(doc: _Doc, where: str) -> None:
 def _own(doc: _Doc, src: ET.Element, table: np.ndarray) -> np.ndarray:
     """Return ``table`` as is the first time its array is handed out, a copy after.
 
-    A geometry keeps its ``<source>`` tables as views of the parsed
-    arrays; a second reader of the same ``<float_array>``, through the
-    same ``<source>`` or another one over it, gets its own memory so
-    editing one mesh leaves the others alone.
+    A geometry or sampler keeps its ``<source>`` tables as views of the
+    parsed arrays; a second reader of the same ``<float_array>``, through
+    the same ``<source>`` or another one over it, gets its own memory so
+    editing one mesh or animation leaves the others alone.
     """
     key = id(_accessor(doc, src, "")[1])
     if key in doc.handed:
@@ -1832,6 +1882,8 @@ def _walk(
         raise CodecError(f"{doc.name!r}: node {chain} contains itself.")
     idx = _new_node(st, None)
     inner = (*stack, (id(node), label))
+    if nid is not None:
+        st.nodes_by_id.setdefault(nid, []).append(idx)
     sid = node.get("sid")
 
     matrix, spelled = _node_transforms(doc, node, what)
@@ -1968,6 +2020,334 @@ def _read_scenes(st: _State) -> tuple[tuple[tuple[int, ...], ...], int, str]:
     return tuple(scenes), active, name
 
 
+# -----------------------------------------------------------------------------
+# animations
+# -----------------------------------------------------------------------------
+
+
+def _sampler(
+    st: _State, elem: ET.Element, cache: dict[int, dict[str, Any]]
+) -> dict[str, Any]:
+    doc = st.doc
+    known = cache.get(id(elem))
+    if known is not None:
+        return known
+    what = f"sampler '{elem.get('id', '?')}'"
+    out: dict[str, Any] = {"interpolation": "LINEAR"}
+    times = values = None
+    for inp in _children(elem, "input"):
+        semantic = inp.get("semantic")
+        src = _ref(doc, inp.get("source"), f"{what} {semantic} input")
+        if semantic == "INPUT":
+            times = _own(doc, src, _float_source(doc, src, f"{what} INPUT")[:, 0])
+        elif semantic == "OUTPUT":
+            values = _own(doc, src, _float_source(doc, src, f"{what} OUTPUT"))
+        elif semantic == "INTERPOLATION":
+            names = [n.upper() for n in _name_source(doc, src, f"{what} INTERPOLATION")]
+            if names:
+                if len(set(names)) > 1:
+                    _warn(
+                        f"{doc.name!r}: {what} mixes interpolations; {names[0]} is taken for all keys."
+                    )
+                if names[0] in _INTERPOLATIONS:
+                    out["interpolation"] = names[0]
+                else:
+                    _warn(
+                        f"{doc.name!r}: {what} has interpolation {names[0]!r}, which the "
+                        "specification does not name; it is read as LINEAR."
+                    )
+        elif semantic in ("IN_TANGENT", "OUT_TANGENT"):
+            out[semantic.lower() + "s"] = _own(
+                doc, src, _float_source(doc, src, f"{what} {semantic}")
+            )
+    if times is None or values is None:
+        raise CodecError(f"{doc.name!r}: {what} needs INPUT and OUTPUT.")
+    if len(times) != len(values):
+        raise CodecError(
+            f"{doc.name!r}: {what} has {len(times)} keys but {len(values)} output values."
+        )
+    for key in ("in_tangents", "out_tangents"):
+        if key in out and len(out[key]) != len(times):
+            raise CodecError(
+                f"{doc.name!r}: {what} has {len(times)} keys but {len(out[key])} {key[:-1]} values."
+            )
+    out["times"] = times
+    out["values"] = values[:, 0] if values.shape[1] == 1 else values
+    cache[id(elem)] = out
+    return out
+
+
+@dataclasses.dataclass
+class _SidIndex:
+    """Where the walked nodes hold each sid, for breadth-first lookups.
+
+    The walk makes a forest (each node has one parent), numbered here in
+    preorder: the subtree of a node is the ranks ``first[node]`` up to
+    ``end[node]``, and breadth-first order below a node is ascending
+    ``key[rank]``, its depth times the node count plus its rank.
+    ``holders`` maps ``("node", sid)`` and ``("transform", sid)`` to the
+    ascending ranks of the nodes holding that node or transform sid;
+    ``trees`` caches the minimum tree over a holder list's keys.
+    """
+
+    first: list[int]
+    end: list[int]
+    node_at: list[int]
+    key: list[int]
+    holders: dict[tuple[str, str], list[int]]
+    kind_of: dict[tuple[int, str], str]
+    trees: dict[tuple[str, str], np.ndarray] = dataclasses.field(default_factory=dict)
+
+
+def _sid_index(st: _State) -> _SidIndex:
+    nodes = st.nodes
+    n = len(nodes)
+    has_parent = [False] * n
+    for node in nodes:
+        for child in node.children:
+            has_parent[child] = True
+    first = [0] * n
+    end = [0] * n
+    depth = [0] * n
+    node_at: list[int] = []
+    for root in range(n):
+        if has_parent[root]:
+            continue
+        stack = [root]
+        while stack:
+            idx = stack.pop()
+            if idx < 0:
+                end[~idx] = len(node_at)
+                continue
+            first[idx] = len(node_at)
+            node_at.append(idx)
+            stack.append(~idx)
+            children = nodes[idx].children
+            for child in children:
+                depth[child] = depth[idx] + 1
+            stack.extend(reversed(children))
+    holders: dict[tuple[str, str], list[int]] = {}
+    kind_of: dict[tuple[int, str], str] = {}
+    for rank, idx in enumerate(node_at):
+        extras = nodes[idx].extras
+        sid = extras.get("sid")
+        if isinstance(sid, str):
+            holders.setdefault(("node", sid), []).append(rank)
+        for t in extras.get("transforms", ()):
+            sid = t["sid"]
+            if isinstance(sid, str) and (idx, sid) not in kind_of:
+                kind_of[idx, sid] = t["kind"]
+                holders.setdefault(("transform", sid), []).append(rank)
+    key = [depth[idx] * n + rank for rank, idx in enumerate(node_at)]
+    return _SidIndex(first, end, node_at, key, holders, kind_of)
+
+
+def _min_tree(keys: list[int]) -> np.ndarray:
+    """Return a bottom-up minimum segment tree over ``keys``, leaves from the middle."""
+    size = 1 << max(len(keys) - 1, 0).bit_length()
+    tree = np.full(2 * size, np.iinfo(np.int64).max, dtype=np.int64)
+    tree[size : size + len(keys)] = keys
+    lo = size
+    while lo > 1:
+        tree[lo // 2 : lo] = np.minimum(
+            tree[lo : 2 * lo : 2], tree[lo + 1 : 2 * lo : 2]
+        )
+        lo //= 2
+    return tree
+
+
+def _tree_min(tree: np.ndarray, i: int, j: int) -> int:
+    """Return the minimum of leaves ``i`` up to ``j`` of a :func:`_min_tree`."""
+    size = len(tree) // 2
+    i += size
+    j += size
+    best = int(np.iinfo(np.int64).max)
+    while i < j:
+        if i & 1:
+            best = min(best, int(tree[i]))
+            i += 1
+        if j & 1:
+            j -= 1
+            best = min(best, int(tree[j]))
+        i >>= 1
+        j >>= 1
+    return best
+
+
+def _first_holder(
+    index: _SidIndex, what: str, sid: str, lo: int, hi: int
+) -> int | None:
+    """Return the node of rank ``lo`` up to ``hi`` first breadth-first to hold ``sid``."""
+    ranks = index.holders.get((what, sid))
+    if ranks is None:
+        return None
+    i = bisect.bisect_left(ranks, lo)
+    j = bisect.bisect_left(ranks, hi)
+    if i >= j:
+        return None
+    if j - i <= 32:
+        best = min(index.key[r] for r in ranks[i:j])
+    else:
+        tree = index.trees.get((what, sid))
+        if tree is None:
+            tree = index.trees[what, sid] = _min_tree([index.key[r] for r in ranks])
+        best = _tree_min(tree, i, j)
+    return index.node_at[best % len(index.first)]
+
+
+def _descendant_by_sid(index: _SidIndex, node_idx: int, sid: str) -> int | None:
+    """Return the first node below ``node_idx``, breadth-first, whose sid is ``sid``."""
+    return _first_holder(
+        index, "node", sid, index.first[node_idx] + 1, index.end[node_idx]
+    )
+
+
+def _transform_by_sid(
+    index: _SidIndex, node_idx: int, sid: str
+) -> tuple[int, str] | None:
+    """Return the node holding the transform ``sid`` and the transform's kind.
+
+    The node itself is looked at first, then the nodes below it,
+    breadth-first, so an address that skips the nodes between its id and
+    the transform still reaches it.
+    """
+    idx = _first_holder(
+        index, "transform", sid, index.first[node_idx], index.end[node_idx]
+    )
+    return None if idx is None else (idx, index.kind_of[idx, sid])
+
+
+def _targets(st: _State, index: _SidIndex, target: str) -> list[dict[str, Any]]:
+    """Return one target per node the address reaches.
+
+    A ``<library_nodes>`` node instanced twice is walked into two nodes that
+    share its id, and a channel addressing that id moves both, so each copy
+    gets the channel. Each sid of the address is looked up breadth-first
+    below the node before it, as the specification's address syntax says:
+    a node sid among its descendants, the transform sid on the node the
+    last of them reaches and then on its descendants.
+    """
+    parts = target.split("/")
+    if len(parts) < 2:
+        return []
+    last = parts[-1]
+    member: str | None = None
+    for i, ch in enumerate(last):
+        if ch in ".(":
+            member = last[i + 1 :] if ch == "." else last[i:]
+            last = last[:i]
+            break
+    out: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for node_idx in st.nodes_by_id.get(parts[0], []):
+        for part in parts[1:-1]:
+            node_idx = _descendant_by_sid(index, node_idx, part)
+            if node_idx is None:
+                break
+        if node_idx is None:
+            continue
+        hit = _transform_by_sid(index, node_idx, last) if last else None
+        # Nested nodes repeating an id can reach one transform twice.
+        if hit is not None and hit[0] not in seen:
+            seen.add(hit[0])
+            out.append(
+                {
+                    "node": hit[0],
+                    "path": _PATH_OF_KIND[hit[1]],
+                    "sid": last,
+                    "member": member,
+                }
+            )
+    return out
+
+
+def _read_animations(st: _State) -> list[dict[str, Any]]:
+    doc = st.doc
+    out: list[dict[str, Any]] = []
+    animations = _library(doc.root, "library_animations", "animation")
+    if not animations:
+        return out
+    index = _sid_index(st)
+    n_targets = 0
+    n_missed = 0
+    unreached: list[str] = []
+    for anim in animations:
+        # Per animation, so one reached from two owns its arrays in each.
+        cache: dict[int, dict[str, Any]] = {}
+        samplers: list[dict[str, Any]] = []
+        slot_of: dict[int, int] = {}
+        channels: list[dict[str, Any]] = []
+        for channel in (e for e in anim.iter() if _local(e.tag) == "channel"):
+            target_text = channel.get("target", "")
+            targets = _targets(st, index, target_text)
+            if "/" in target_text:
+                head = target_text.split("/", 1)[0]
+                n_missed += len(st.nodes_by_id.get(head, ())) - len(targets)
+                if n_missed > st.max_nodes:
+                    raise CodecError(
+                        f"{doc.name!r}: channels addressing instanced nodes miss "
+                        f"their transform on more than {st.max_nodes} copies, more "
+                        f"than a document of {doc.size} bytes is read into."
+                    )
+            if not targets:
+                unreached.append(target_text)
+                continue
+            elem = _ref(doc, channel.get("source"), f"channel {target_text!r}")
+            if _local(elem.tag) != "sampler":
+                raise CodecError(
+                    f"{doc.name!r}: channel {target_text!r} names {channel.get('source')!r}, "
+                    "which is not a sampler."
+                )
+            n_targets += len(targets)
+            if n_targets > st.max_nodes:
+                raise CodecError(
+                    f"{doc.name!r}: channels addressing instanced nodes expand "
+                    f"past {st.max_nodes} targets, more than a document of "
+                    f"{doc.size} bytes is read into."
+                )
+            sampler = _sampler(st, elem, cache)
+            width = 1 if sampler["values"].ndim == 1 else sampler["values"].shape[1]
+            # Every copy shares the address's member; only the kind can differ.
+            needs = [
+                _member_width(kind=_KIND_OF_PATH[t["path"]], member=t["member"])
+                for t in targets
+            ]
+            fits = [t for t, need in zip(targets, needs, strict=True) if need == width]
+            if len(fits) < len(targets):
+                need = next(n for n in needs if n != width)
+                _warn(
+                    f"{doc.name!r}: channel {target_text!r} has {width} values per "
+                    f"key where its target takes {need}; it is dropped"
+                    + (" where the width differs." if fits else ".")
+                )
+            if not fits:
+                continue
+            targets = fits
+            slot = slot_of.get(id(elem))
+            if slot is None:
+                slot = slot_of[id(elem)] = len(samplers)
+                samplers.append(sampler)
+            channels.extend({"sampler": slot, "target": t} for t in targets)
+        if not channels:
+            continue
+        out.append(
+            {
+                "name": anim.get("name") or anim.get("id", ""),
+                "channels": channels,
+                "samplers": samplers,
+            }
+        )
+    if unreached:
+        shown = ", ".join(repr(t) for t in unreached[:5])
+        more = f" and {len(unreached) - 5} more" if len(unreached) > 5 else ""
+        _warn(
+            f"{doc.name!r}: {len(unreached)} animation channel(s) target {shown}"
+            f"{more}, which reach no node transform (a material, light or camera "
+            "parameter, or a sid no node holds); they are dropped."
+        )
+    return out
+
+
 # =============================================================================
 # write
 # =============================================================================
@@ -1990,15 +2370,27 @@ def write_scene(
         ``global_attrs["mesh_name"]``, every node a ``<node>`` spelled with
         the transform elements it was read with when ``extras["transforms"]``
         still composes to its matrix, else one ``<matrix>``; materials
-        become phong effects. A node reached twice (a second parent, or the
+        become phong effects and animations channels targeting those
+        transform elements. The ``translation``, ``rotation`` and ``scale``
+        channels without a ``sid`` that animate a node written as one
+        ``<matrix>`` - glTF's, whose rotation is a quaternion no
+        ``<rotate>`` spells - are baked, per animation and node, into one
+        channel of matrix keys: the keys are every such channel's times, a
+        path none animates holds the node's rest value, and since COLLADA
+        blends a matrix element by element, extra keys split a span turning
+        more than 15 degrees (unless the rotation steps), each
+        ``CUBICSPLINE`` span in four, and hold a
+        ``STEP`` channel's value up to its next key when others blend. A
+        node reached twice (a second parent, or the
         root of a second scene) is written once in ``<library_nodes>`` and
         instanced from there by every parent; the schema lists those
         instances before a parent's child ``<node>`` elements, and a scene
         root reached so gets a wrapper node to hold its instance. A node
         the reader copied out of an ``<instance_node>`` - one holding the
         ``id`` of a node written before it, whose subtree it matches node
-        for node - is instanced from that node again, rather than written in
-        full under a generated id. COLLADA has no alpha mask: a material's
+        for node - is instanced from that node again, its channels written
+        once for both, rather than written in full under a generated id.
+        COLLADA has no alpha mask: a material's
         alpha goes out as an ``A_ONE`` transparency when it is below one or
         ``alpha_mode`` is not ``OPAQUE``, and ``alpha_mode`` and
         ``alpha_cutoff`` themselves are not written; nor are ``metallic``
@@ -2029,15 +2421,35 @@ def write_scene(
     Warns
     -----
     UserWarning
-        For the scene's ``skins`` and ``animations``, which are not written,
+        For the scene's ``skins``, which are not written, an animation
+        channel naming a node or sampler the written scene lacks, whose
+        target the written node lacks, whose ``member`` is neither a name
+        nor ``(i)(j)`` indices or whose keys are not the width its target
+        takes, a channel whose sampler has no keys, keys
+        or tangents that are not finite or key times that do not increase,
+        a second channel on a target the animation already animates, an
+        animation without channels (COLLADA cannot hold one), a channel
+        only a copy of an instanced node holds (it is written for
+        the node and reaches every instance), a channel without a ``sid``
+        on a node
+        spelled with its own transform elements whose path is ``rotation``
+        (a quaternion, not a ``<rotate>``'s axis and angle), whose node
+        spells no single element of its kind, or whose keys are not that
+        element's width or interpolation one COLLADA names, a channel to
+        bake whose keys are not its path's width, not finite or not
+        increasing, whose interpolation is not ``LINEAR``, ``STEP`` or
+        ``CUBICSPLINE``, or that animates a path of its node a second time
+        in one animation, a node to bake whose matrix holds a shear or
+        projection (its keys drop it), a node whose baked keys are not
+        finite (times or values too large to blend; its channel is dropped),
         for an asset key COLLADA has no place for (it keeps ``up_axis``,
         ``unit``, ``created``, ``modified``, ``author`` and ``copyright``,
         writes itself as the authoring tool, and replaces another format's
         ``version`` and ``generator`` silently), an asset ``created`` or
         ``modified`` that is not an ``xs:dateTime`` (the epoch is written;
         a ``datetime`` is written in ISO form), a unit name that is not an
-        XML name token (the unit is written without one), elements COLLADA cannot hold (points, volume
-        cells; a mesh with nothing else keeps its positions as a ``<mesh>``
+        XML name token (the unit is written without one), elements COLLADA
+        cannot hold (points, volume cells; a mesh with nothing else keeps its positions as a ``<mesh>``
         without primitives), vertex attributes it has no input for
         (``joints`` and ``weights`` among them), element attributes other
         than ``material``, a ``metallic_roughness_texture`` or
@@ -2071,8 +2483,12 @@ def write_scene(
         of the three, ``unit`` or the asset is not a dict or its meter not a
         finite positive number, a scene names a root node the scene lacks,
         or ``path`` is a text handle encoding something other than UTF-8,
-        unless the encoding spells ASCII as ASCII and the document is ASCII. Also when
-        a mesh's vertices are not (n, 3) real numbers, its element types not
+        unless the encoding spells ASCII as ASCII and the document is
+        ASCII, ``global_attrs["animations"]`` is not a list, an animation
+        entry, channel or sampler is not a dict, a sampler lacks ``times``
+        or ``values``, its values or tangents do not number its ``times``,
+        or its ``interpolation`` is not one of the six the specification
+        names. Also when a mesh's vertices are not (n, 3) real numbers, its element types not
         integer codes in 0..255, its offsets not integers rising from 0 to
         the connectivity's length, its connectivity names a vertex it lacks
         or an element has a vertex count its type does not allow, a node's
@@ -2235,11 +2651,10 @@ def write_scene(
             f"{name!r}: global_attrs {lost} of the scene have no COLLADA "
             "counterpart; they are dropped."
         )
-    dropped = [k for k in ("skins", "animations") if scene.global_attrs.get(k)]
-    if dropped:
+    if scene.global_attrs.get("skins"):
         _warn(
-            f"{name!r}: global_attrs {dropped} are not written; COLLADA "
-            "skins and animations are not supported yet."
+            f"{name!r}: global_attrs ['skins'] are not written; COLLADA skins "
+            "are not supported yet."
         )
 
     binds: list[str] = []
@@ -2249,6 +2664,12 @@ def write_scene(
         parts.append(xml)
         binds.append(_bind_xml(ids, used, textured, uv_set))
     parts.append("  </library_geometries>\n")
+
+    animations = _animations_xml(scene, ids, written, name)
+    if animations:
+        parts.append(
+            "  <library_animations>\n" + animations + "  </library_animations>\n"
+        )
 
     try:
         shared_order = _shared_nodes(scene, roots_per_scene, alias, name)
@@ -2453,6 +2874,9 @@ class _Ids:
     def scene(self, i: int) -> str:
         return self._of("scene", i)
 
+    def animation(self, i: int) -> str:
+        return self._of("animation", i)
+
     def node(self, i: int) -> str:
         return self.node_ids[i]
 
@@ -2505,6 +2929,13 @@ def _transform_sid(value: Any) -> str | None:
     return value if isinstance(value, str) and _TRANSFORM_SID.match(value) else None
 
 
+def _index(value: Any) -> int | None:
+    """Return ``value`` as a plain int when it is an integer, numpy's included."""
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        return None
+    return int(value)
+
+
 def _esc(text: str, what: str) -> str:
     if _XML_FORBIDDEN.search(text):
         raise CodecError(f"{what} holds a character XML cannot carry: {text!r}.")
@@ -2553,6 +2984,16 @@ def _source_xml(
         f'{pad}<source id="{sid}">\n'
         f'{pad}  <float_array id="{sid}-array" count="{count * stride}">{_nums(table)}</float_array>\n'
         f'{pad}  <technique_common><accessor source="#{sid}-array" count="{count}" stride="{stride}">{plist}</accessor></technique_common>\n'
+        f"{pad}</source>\n"
+    )
+
+
+def _name_source_xml(sid: str, names: list[str], param: str, *, indent: int = 8) -> str:
+    pad = " " * indent
+    return (
+        f'{pad}<source id="{sid}">\n'
+        f'{pad}  <Name_array id="{sid}-array" count="{len(names)}">{" ".join(names)}</Name_array>\n'
+        f'{pad}  <technique_common><accessor source="#{sid}-array" count="{len(names)}" stride="1"><param name="{param}" type="name"/></accessor></technique_common>\n'
         f"{pad}</source>\n"
     )
 
@@ -3519,3 +3960,700 @@ _PARAMS_OF_WIDTH = {
     4: ("X", "Y", "Z", "W"),
     16: ("TRANSFORM",),
 }
+
+
+def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -> str:
+    out: list[str] = []
+    animations = scene.global_attrs.get("animations", [])
+    if not isinstance(animations, (list, tuple)):
+        raise CodecError(
+            f"{name!r}: global_attrs['animations'] must be a list, not {animations!r}."
+        )
+    for a, anim in enumerate(animations):
+        if not isinstance(anim, dict):
+            raise CodecError(f"{name!r}: animation {a} is not a dict: {anim!r}.")
+        aid = ids.animation(a)
+        samplers = anim.get("samplers", [])
+        channel_list = anim.get("channels", [])
+        if not isinstance(samplers, (list, tuple)) or not isinstance(
+            channel_list, (list, tuple)
+        ):
+            raise CodecError(
+                f"{name!r}: animation {a} needs 'channels' and 'samplers' as lists."
+            )
+        sources: list[str] = []
+        sampler_xml: list[str] = []
+        # A node index holds the place of the one channel its baked keys get.
+        channels: list[str | int] = []
+        emitted: set[int] = set()
+        baked: dict[int, dict[str, Any]] = {}
+        # A reader gives each copy of an instanced node the channel of the
+        # node; written once for the node, it reaches every copy again.
+        copied: dict[tuple[Any, ...], bool] = {}
+        lone: dict[tuple[Any, ...], int] = {}
+        targeted: set[str] = set()
+        # A bake's keys are known only once every channel is seen, and may
+        # come out not finite; the first channel its address turned away
+        # waits to take the place if so.
+        bake_of: dict[str, int] = {}
+        waiting: dict[int, tuple[int, int, str]] = {}
+        unusable: dict[int, str | None] = {}
+        for c, channel in enumerate(channel_list):
+            if not isinstance(channel, dict):
+                raise CodecError(
+                    f"{name!r}: animation {a} channel {c} is not a dict: {channel!r}."
+                )
+            target = channel.get("target")
+            if not isinstance(target, dict):
+                target = {}
+            node_idx = _index(target.get("node"))
+            s = _index(channel.get("sampler"))
+            if (
+                node_idx is None
+                or node_idx not in written
+                or s is None
+                or not (0 <= s < len(samplers))
+            ):
+                _warn(
+                    f"{name!r}: animation {a} channel {c} names a node or sampler "
+                    "the written scene lacks; it is dropped."
+                )
+                continue
+            is_copy = node_idx in ids.alias
+            copy_idx = node_idx
+            node_idx = ids.alias.get(node_idx, node_idx)
+            key = (
+                node_idx,
+                s,
+                *(repr(target.get(k)) for k in ("sid", "path", "member")),
+            )
+            if not is_copy:
+                lone.pop(key, None)
+            if key in copied and (is_copy or copied[key]):
+                continue
+            if key not in copied and is_copy:
+                lone[key] = copy_idx
+            copied.setdefault(key, is_copy)
+            spelled, own = _spelled(scene.nodes[node_idx])
+            sid = target.get("sid")
+            path = target.get("path")
+            member = target.get("member")
+            if sid is None and not own and path in _BAKED_PATHS and not member:
+                tracks = baked.get(node_idx, {})
+                if path in tracks:
+                    _warn(
+                        f"{name!r}: animation {a} channel {c} animates the {path} of "
+                        f"node {node_idx} a second time; the first is kept."
+                    )
+                    continue
+                track = _trs_track(samplers[s], path, a, s, name)
+                if isinstance(track, str):
+                    _warn(
+                        f"{name!r}: animation {a} channel {c} has no sid and {track}; "
+                        "it is dropped."
+                    )
+                    continue
+                if not tracks:
+                    address = f"{ids.node(node_idx)}/transform"
+                    if address in targeted:
+                        _warn(
+                            f"{name!r}: animation {a} channel {c} animates "
+                            f"{address!r} a second time; the first is kept."
+                        )
+                        continue
+                    targeted.add(address)
+                    bake_of[address] = node_idx
+                    channels.append(node_idx)
+                    baked[node_idx] = tracks
+                tracks[path] = track
+                continue
+            if sid is None:
+                reason = _sidless_reason(spelled, path, member, samplers[s])
+                if reason is not None:
+                    _warn(
+                        f"{name!r}: animation {a} channel {c} has no sid and {reason}; "
+                        "it is dropped."
+                    )
+                    continue
+            hit = None
+            for t in spelled:
+                if (sid is not None and t.get("sid") == sid) or (
+                    sid is None and t["kind"] == _KIND_OF_PATH.get(path)
+                ):
+                    hit = t
+                    break
+            if hit is None or not hit.get("sid"):
+                _warn(
+                    f"{name!r}: animation {a} channel {c} targets {sid or path!r} on node "
+                    f"{node_idx}, which is written without such a transform; it is dropped."
+                )
+                continue
+            if (
+                member is not None
+                and member != ""
+                and (not isinstance(member, str) or not _MEMBER.match(member))
+            ):
+                _warn(
+                    f"{name!r}: animation {a} channel {c} has member {member!r}, "
+                    "which is neither a name nor (i)(j) indices; it is dropped."
+                )
+                continue
+            if s not in unusable:
+                unusable[s] = _keys_reason(samplers[s])
+            if unusable[s] is not None:
+                _warn(
+                    f"{name!r}: animation {a} channel {c} has {unusable[s]}; "
+                    "it is dropped."
+                )
+                continue
+            suffix = (
+                ""
+                if not member
+                else (member if member.startswith("(") else f".{member}")
+            )
+            address = f"{ids.node(node_idx)}/{hit['sid']}{suffix}"
+            width = _key_width(sampler=samplers[s])
+            need = _member_width(kind=hit["kind"], member=member)
+            if width is not None and width != need:
+                _warn(
+                    f"{name!r}: animation {a} channel {c} has {width} values per key "
+                    f"where {address!r} takes {need}; it is dropped."
+                )
+                continue
+            if address in targeted:
+                if address in bake_of and bake_of[address] not in waiting:
+                    waiting[bake_of[address]] = (c, s, address)
+                    continue
+                _warn(
+                    f"{name!r}: animation {a} channel {c} animates {address!r} "
+                    "a second time; the first is kept."
+                )
+                continue
+            targeted.add(address)
+            channels.append(
+                _channel_xml(
+                    samplers=samplers,
+                    s=s,
+                    aid=aid,
+                    a=a,
+                    address=address,
+                    emitted=emitted,
+                    sources=sources,
+                    sampler_xml=sampler_xml,
+                    name=name,
+                )
+            )
+        for key, copy_idx in lone.items():
+            _warn(
+                f"{name!r}: animation {a} animates node {copy_idx}, a copy of "
+                f"instanced node {key[0]}, alone; its channel is written for the "
+                "node and reaches every instance."
+            )
+        for k, (node_idx, tracks) in enumerate(baked.items()):
+            base = f"{aid}-bake{k}"
+            with np.errstate(over="ignore", invalid="ignore"):
+                keys = _bake_trs(scene.nodes[node_idx].matrix, tracks, node_idx, name)
+            if not (
+                np.isfinite(keys["times"]).all() and np.isfinite(keys["values"]).all()
+            ):
+                _warn(
+                    f"{name!r}: animation {a} bakes keys of node {node_idx} that "
+                    "are not finite (times or values too large to blend); its "
+                    "channel is dropped."
+                )
+                if node_idx in waiting:
+                    _, s, address = waiting[node_idx]
+                    channels[channels.index(node_idx)] = _channel_xml(
+                        samplers=samplers,
+                        s=s,
+                        aid=aid,
+                        a=a,
+                        address=address,
+                        emitted=emitted,
+                        sources=sources,
+                        sampler_xml=sampler_xml,
+                        name=name,
+                    )
+                else:
+                    channels.remove(node_idx)
+                continue
+            if node_idx in waiting:
+                c, _, address = waiting[node_idx]
+                _warn(
+                    f"{name!r}: animation {a} channel {c} animates {address!r} "
+                    "a second time; the first is kept."
+                )
+            src, smp = _sampler_xml(keys, base, a, len(samplers) + k, name)
+            sources.append(src)
+            sampler_xml.append(smp)
+            channels[channels.index(node_idx)] = (
+                f'      <channel source="#{base}-sampler" '
+                f'target="{ids.node(node_idx)}/transform"/>\n'
+            )
+        if not channel_list:
+            _warn(
+                f"{name!r}: animation {a} has no channels; COLLADA cannot write "
+                "an empty animation, so it is dropped."
+            )
+        if channels:
+            # The schema's sequence is every source, then every sampler, then
+            # every channel; interleaving them per sampler fails validation.
+            out.append(
+                f'    <animation id="{aid}"{_name_attr(str(anim.get("name") or ""))}>\n'
+                + "".join(sources)
+                + "".join(sampler_xml)
+                + "".join(channels)
+                + "    </animation>\n"
+            )
+    return "".join(out)
+
+
+def _channel_xml(
+    *,
+    samplers: list[Any],
+    s: int,
+    aid: str,
+    a: int,
+    address: str,
+    emitted: set[int],
+    sources: list[str],
+    sampler_xml: list[str],
+    name: str,
+) -> str:
+    """Return the ``<channel>`` of sampler ``s`` to ``address``, its sampler emitted once.
+
+    Parameters
+    ----------
+    samplers
+        The animation's samplers.
+    s
+        The index of the channel's sampler.
+    aid
+        The animation's id, the prefix of its sampler ids.
+    a
+        The animation's index, for messages.
+    address
+        The channel's target.
+    emitted
+        The samplers already written, updated in place.
+    sources, sampler_xml
+        The animation's sources and samplers, appended to in place.
+    name
+        The output's name, for messages.
+    """
+    base = f"{aid}-s{s}"
+    if s not in emitted:
+        emitted.add(s)
+        src, smp = _sampler_xml(samplers[s], base, a, s, name)
+        sources.append(src)
+        sampler_xml.append(smp)
+    return f'      <channel source="#{base}-sampler" target="{address}"/>\n'
+
+
+def _sidless_reason(
+    spelled: list[dict[str, Any]], path: Any, member: Any, sampler: Any
+) -> str | None:
+    """Return why a channel without a sid cannot be bound, None when it can.
+
+    Without a sid only the path says which element moves, so it binds when
+    exactly one element of the node has that kind and each key holds that
+    element's whole value. A ``rotation`` never does: a ``<rotate>`` is an
+    axis and an angle in degrees, while a channel with no sid comes from a
+    format whose rotation is a quaternion of the same width.
+    """
+    kind = _KIND_OF_PATH.get(path) if isinstance(path, str) else None
+    if kind is None or kind == "rotate":
+        return f"path {path!r}, which names no single COLLADA transform"
+    if member not in (None, ""):
+        return f"member {member!r}, which only a sid can place"
+    same = [t for t in spelled if t["kind"] == kind]
+    if len(same) != 1:
+        return f"its node spells {len(same)} <{kind}> elements, not one"
+    interp = (
+        sampler.get("interpolation", "LINEAR") if isinstance(sampler, dict) else None
+    )
+    if isinstance(interp, str):
+        interp = interp.upper()
+    if interp not in _INTERPOLATIONS:
+        return f"interpolation {interp!r}, which COLLADA does not name"
+    values = sampler.get("values") if isinstance(sampler, dict) else None
+    try:
+        width = _rows(np.asarray(values, dtype=np.float64)).shape[1]
+    except (TypeError, ValueError):
+        return None
+    if width != _KIND_SIZE[kind]:
+        return f"{width} values per key where <{kind}> holds {_KIND_SIZE[kind]}"
+    return None
+
+
+def _keys_reason(sampler: Any) -> str | None:
+    """Return why a sampler's keys cannot be written, None when they can.
+
+    A sampler :func:`_sampler_xml` refuses outright - not a dict, without
+    ``times`` or ``values``, or holding something other than numbers - is
+    left for it to refuse.
+    """
+    if (
+        not isinstance(sampler, dict)
+        or "times" not in sampler
+        or "values" not in sampler
+    ):
+        return None
+    try:
+        times = np.asarray(sampler["times"], dtype=np.float64).ravel()
+        values = np.asarray(sampler["values"], dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+    if not len(times):
+        return "a sampler without keys"
+    if not (np.isfinite(times).all() and np.isfinite(values).all()):
+        return "keys that are not finite"
+    if (np.diff(times) <= 0).any():
+        return "key times that do not increase"
+    for key in ("in_tangents", "out_tangents"):
+        try:
+            tangents = np.asarray(sampler.get(key, 0.0), dtype=np.float64)
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(tangents).all():
+            return f"{key} that are not finite"
+    return None
+
+
+def _key_width(*, sampler: Any) -> int | None:
+    """Return the values per key of a sampler, None when it holds no numbers."""
+    if not isinstance(sampler, dict) or "values" not in sampler:
+        return None
+    try:
+        return _rows(np.asarray(sampler["values"], dtype=np.float64)).shape[1]
+    except (TypeError, ValueError):
+        return None
+
+
+def _member_width(*, kind: str, member: Any) -> int:
+    """Return the values per key a channel on a ``kind`` element and ``member`` takes.
+
+    A named member (``X``, ``ANGLE``) or a ``(i)(j)`` matrix cell is one
+    value; one ``(i)`` index is a row of a ``<matrix>`` and a component of
+    any other element.
+    """
+    if not member:
+        return _KIND_SIZE[kind]
+    if kind == "matrix" and member.count("(") == 1:
+        return 4
+    return 1
+
+
+def _rows(values: np.ndarray) -> np.ndarray:
+    """Return ``values`` as one row per key, a matrix per key flattened to 16."""
+    if values.ndim == 2:
+        return values
+    n = values.shape[0] if values.ndim else 1
+    return values.reshape(n, values.size // n if n else 1)
+
+
+def _trs_track(
+    sampler: Any, path: str, a: int, s: int, name: str
+) -> tuple[np.ndarray, np.ndarray, str] | str:
+    """Return a glTF-style sampler as ``(times, values, interpolation)`` to bake.
+
+    Parameters
+    ----------
+    sampler
+        The animation's sampler the channel names.
+    path
+        ``translation``, ``rotation`` or ``scale``.
+    a, s
+        The animation and sampler indices, for messages.
+    name
+        The output's name, for messages.
+
+    Returns
+    -------
+    tuple or str
+        The key times, the values - ``(n, k)``, or ``(n, 3, k)`` in-tangent,
+        value, out-tangent rows for ``CUBICSPLINE`` - and the interpolation;
+        or the reason the channel cannot be baked.
+
+    Raises
+    ------
+    CodecError
+        When the sampler is not a dict holding numeric ``times`` and
+        ``values``, as :func:`_sampler_xml` refuses.
+    """
+    if (
+        not isinstance(sampler, dict)
+        or "times" not in sampler
+        or "values" not in sampler
+    ):
+        raise CodecError(
+            f"{name!r}: animation {a} sampler {s} needs 'times' and 'values'."
+        )
+    try:
+        times = np.asarray(sampler["times"], dtype=np.float64).ravel()
+        values = _rows(np.asarray(sampler["values"], dtype=np.float64))
+    except (TypeError, ValueError) as exc:
+        raise CodecError(
+            f"{name!r}: animation {a} sampler {s} has times or values that are not numbers."
+        ) from exc
+    interp = sampler.get("interpolation", "LINEAR")
+    if isinstance(interp, str):
+        interp = interp.upper()
+    if interp not in _BAKED_INTERPOLATIONS:
+        return f"interpolation {interp!r}, which a {path} key cannot be baked with"
+    width = 4 if path == "rotation" else 3
+    rows = 3 * len(times) if interp == "CUBICSPLINE" else len(times)
+    if not len(times):
+        return "a sampler without keys"
+    if values.shape != (rows, width):
+        return (
+            f"{values.shape[0]} keys of {values.shape[1]} values where its "
+            f"{len(times)} {interp} {path} keys need {rows} of {width}"
+        )
+    if not (np.isfinite(times).all() and np.isfinite(values).all()):
+        return "keys that are not finite"
+    if (np.diff(times) <= 0).any():
+        return "key times that do not increase"
+    if interp == "CUBICSPLINE":
+        values = values.reshape(len(times), 3, width)
+    return times, values, interp
+
+
+def _rotations_of_quats(q: np.ndarray) -> np.ndarray:
+    """Return the ``(n, 3, 3)`` rotation matrices of ``(n, 4)`` unit quaternions."""
+    x, y, z, w = q.T
+    return np.stack(
+        [
+            1 - 2 * (y * y + z * z),
+            2 * (x * y - z * w),
+            2 * (x * z + y * w),
+            2 * (x * y + z * w),
+            1 - 2 * (x * x + z * z),
+            2 * (y * z - x * w),
+            2 * (x * z - y * w),
+            2 * (y * z + x * w),
+            1 - 2 * (x * x + y * y),
+        ],
+        axis=1,
+    ).reshape(-1, 3, 3)
+
+
+def _unit_quats(q: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(q, axis=1, keepdims=True)
+    return np.where(norm > 0, q / np.where(norm > 0, norm, 1.0), [0.0, 0.0, 0.0, 1.0])
+
+
+def _slerp(q0: np.ndarray, q1: np.ndarray, u: np.ndarray) -> np.ndarray:
+    """Return the shortest-arc interpolation of quaternion rows at fractions ``u``."""
+    dot = np.sum(q0 * q1, axis=1)
+    q1 = np.where(dot[:, None] < 0, -q1, q1)
+    theta = np.arccos(np.clip(np.abs(dot), 0.0, 1.0))
+    sin = np.sin(theta)
+    near = sin < 1e-9
+    safe = np.where(near, 1.0, sin)
+    w0 = np.where(near, 1.0 - u, np.sin((1.0 - u) * theta) / safe)
+    w1 = np.where(near, u, np.sin(u * theta) / safe)
+    return _unit_quats(w0[:, None] * q0 + w1[:, None] * q1)
+
+
+def _evaluate(
+    track: tuple[np.ndarray, np.ndarray, str], at: np.ndarray, *, rotation: bool
+) -> np.ndarray:
+    """Return a track's value at every time of ``at``, held past its ends.
+
+    ``LINEAR`` blends a rotation by slerp, as glTF specifies, and
+    ``CUBICSPLINE`` is glTF's Hermite spline, its tangents scaled by the
+    key interval.
+    """
+    times, values, interp = track
+    keys = values[:, 1] if interp == "CUBICSPLINE" else values
+    n = len(times)
+    if n == 1 or interp == "STEP":
+        out = keys[np.clip(np.searchsorted(times, at, side="right") - 1, 0, n - 1)]
+    else:
+        k = np.clip(np.searchsorted(times, at, side="right") - 1, 0, n - 2)
+        dt = times[k + 1] - times[k]
+        u = np.clip((at - times[k]) / dt, 0.0, 1.0)
+        if interp == "LINEAR":
+            if rotation:
+                return _slerp(_unit_quats(keys[k]), _unit_quats(keys[k + 1]), u)
+            out = keys[k] + u[:, None] * (keys[k + 1] - keys[k])
+        else:
+            u2, u3 = u * u, u * u * u
+            out = (
+                (2 * u3 - 3 * u2 + 1)[:, None] * keys[k]
+                + (dt * (u3 - 2 * u2 + u))[:, None] * values[k, 2]
+                + (3 * u2 - 2 * u3)[:, None] * keys[k + 1]
+                + (dt * (u3 - u2))[:, None] * values[k + 1, 0]
+            )
+    return _unit_quats(out) if rotation else out
+
+
+def _bake_trs(
+    matrix: Any,
+    tracks: dict[str, tuple[np.ndarray, np.ndarray, str]],
+    node_idx: int,
+    name: str,
+) -> dict[str, Any]:
+    """Return one ``<matrix>`` sampler composing a node's translation, rotation and scale keys.
+
+    COLLADA animates a transform element, and the rotation a glTF-style
+    channel holds is a quaternion no ``<rotate>`` spells, so the node's
+    tracks are composed into its matrix instead. The keys are every track's
+    times; a path no track animates holds the node's rest value. Since
+    COLLADA blends a matrix element by element, a span rotating more than
+    ``_BAKE_MAX_DEGREES`` under a rotation that blends and every span of a
+    ``CUBICSPLINE`` track are split by extra keys. When some tracks are ``STEP`` and others are not,
+    a key just before each step holds the value before it; when all are,
+    the sampler is ``STEP``.
+
+    Parameters
+    ----------
+    matrix
+        The node's rest matrix.
+    tracks
+        ``path -> (times, values, interpolation)``, from :func:`_trs_track`.
+    node_idx
+        The node's index, for messages.
+    name
+        The output's name, for messages.
+
+    Returns
+    -------
+    dict
+        A sampler with ``times``, ``(n, 16)`` row-major ``values`` and an
+        ``interpolation``.
+    """
+    rest_t, rest_q, rest_s, exact = trs_of_matrix(matrix)
+    if not exact:
+        _warn(
+            f"{name!r}: node {node_idx} has a matrix that is not a translation, "
+            "rotation and scale; its baked animation keys drop the rest (shear "
+            "or projection)."
+        )
+    times = np.unique(np.concatenate([t[0] for t in tracks.values()]))
+    kinds = {t[2] for t in tracks.values()}
+    if kinds != {"STEP"}:
+        if "CUBICSPLINE" in kinds:
+            times = _split_spans(times, np.full(len(times) - 1, _BAKE_CUBIC_PIECES))
+        # A rotation that steps turns at its keys alone, which no split of
+        # the span before one brings under the cap. A cubic span can
+        # overshoot between its keys, so the spans are measured again after
+        # each split.
+        turning = "rotation" in tracks and tracks["rotation"][2] != "STEP"
+        for _ in range(_BAKE_MAX_PASSES if turning else 0):
+            q = _evaluate(tracks["rotation"], times, rotation=True)
+            dot = np.clip(np.abs(np.sum(q[:-1] * q[1:], axis=1)), 0.0, 1.0)
+            degrees = 2.0 * np.degrees(np.arccos(dot))
+            pieces = np.ceil(degrees / _BAKE_MAX_DEGREES - 1e-9).astype(np.int64)
+            if (pieces <= 1).all():
+                break
+            times = _split_spans(times, np.maximum(pieces, 1))
+        steps = [t[0][1:] for t in tracks.values() if t[2] == "STEP"]
+        if steps:
+            # Added after the splits, which would cut the span between a
+            # held key and its step into keys no float32 tells apart. Many
+            # importers read times as float32, where a float64 ulp before
+            # the step would land on the step itself.
+            at_step = np.concatenate(steps).astype(np.float32)
+            held = np.nextafter(at_step, np.float32(-np.inf)).astype(np.float64)
+            times = np.unique(np.concatenate([times, held]))
+    n = len(times)
+
+    def at(path: str, rest: np.ndarray) -> np.ndarray:
+        if path in tracks:
+            return _evaluate(tracks[path], times, rotation=path == "rotation")
+        return np.tile(rest, (n, 1))
+
+    keys = np.zeros((n, 4, 4), dtype=np.float64)
+    keys[:, :3, :3] = (
+        _rotations_of_quats(at("rotation", rest_q)) * at("scale", rest_s)[:, None, :]
+    )
+    keys[:, :3, 3] = at("translation", rest_t)
+    keys[:, 3, 3] = 1.0
+    return {
+        "times": times,
+        "values": keys.reshape(n, 16),
+        "interpolation": "STEP" if kinds == {"STEP"} else "LINEAR",
+    }
+
+
+def _split_spans(times: np.ndarray, pieces: np.ndarray) -> np.ndarray:
+    """Return ``times`` with span ``k`` cut into ``pieces[k]`` equal parts."""
+    span = np.repeat(np.arange(len(pieces)), pieces)
+    step = np.arange(len(span)) - np.repeat(np.cumsum(pieces) - pieces, pieces)
+    split = times[span] + (times[span + 1] - times[span]) * step / pieces[span]
+    return np.unique(np.concatenate([split, times]))
+
+
+def _sampler_xml(
+    sampler: dict[str, Any], base: str, a: int, s: int, name: str
+) -> tuple[str, str]:
+    """Return the sources and the ``<sampler>`` of one animation sampler, apart."""
+    if (
+        not isinstance(sampler, dict)
+        or "times" not in sampler
+        or "values" not in sampler
+    ):
+        raise CodecError(
+            f"{name!r}: animation {a} sampler {s} needs 'times' and 'values'."
+        )
+    try:
+        times = np.asarray(sampler["times"], dtype=np.float64).ravel()
+        values = np.asarray(sampler["values"], dtype=np.float64)
+    except (TypeError, ValueError) as exc:
+        raise CodecError(
+            f"{name!r}: animation {a} sampler {s} has times or values that are not numbers."
+        ) from exc
+    values = _rows(values)
+    if len(times) != len(values):
+        raise CodecError(
+            f"{name!r}: animation {a} sampler {s} has {len(times)} times but {len(values)} values."
+        )
+    width = values.shape[1]
+    params = _PARAMS_OF_WIDTH.get(width, tuple(f"C{k}" for k in range(width)))
+    spelled = str(sampler.get("interpolation", "LINEAR"))
+    interp = spelled.upper()
+    if interp not in _INTERPOLATIONS:
+        raise CodecError(
+            f"{name!r}: animation {a} sampler {s} has interpolation {spelled!r}; "
+            f"COLLADA names {', '.join(_INTERPOLATIONS)}."
+        )
+    body: list[str] = []
+    inputs = [
+        f'<input semantic="INPUT" source="#{base}-input"/>',
+        f'<input semantic="OUTPUT" source="#{base}-output"/>',
+        f'<input semantic="INTERPOLATION" source="#{base}-interpolation"/>',
+    ]
+    body.append(_source_xml(f"{base}-input", times.reshape(-1, 1), ("TIME",), indent=6))
+    body.append(_source_xml(f"{base}-output", values, params, indent=6))
+    body.append(
+        _name_source_xml(
+            f"{base}-interpolation", [interp] * len(times), "INTERPOLATION", indent=6
+        )
+    )
+    for key, semantic in (
+        ("in_tangents", "IN_TANGENT"),
+        ("out_tangents", "OUT_TANGENT"),
+    ):
+        tangents = sampler.get(key)
+        if tangents is not None:
+            try:
+                tangents = _rows(np.asarray(tangents, dtype=np.float64))
+            except (TypeError, ValueError) as exc:
+                raise CodecError(
+                    f"{name!r}: animation {a} sampler {s} has {key} that are not numbers."
+                ) from exc
+            if len(tangents) != len(times):
+                raise CodecError(
+                    f"{name!r}: animation {a} sampler {s} has {len(times)} times "
+                    f"but {len(tangents)} {key[:-1]} values."
+                )
+            tp = _PARAMS_OF_WIDTH.get(
+                tangents.shape[1], tuple(f"C{k}" for k in range(tangents.shape[1]))
+            )
+            body.append(_source_xml(f"{base}-{key}", tangents, tp, indent=6))
+            inputs.append(f'<input semantic="{semantic}" source="#{base}-{key}"/>')
+    return "".join(
+        body
+    ), f'      <sampler id="{base}-sampler">{"".join(inputs)}</sampler>\n'
