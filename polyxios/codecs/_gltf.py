@@ -16,6 +16,7 @@ import urllib.parse
 
 import numpy as np
 
+from polyxios import transforms
 from polyxios._element_types import ELEMENT_TYPES, QUADRATIC_SURFACE_CORNERS
 from polyxios._io import (
     Source,
@@ -298,13 +299,8 @@ def _read_accessor(
 # =============================================================================
 
 
-def _primitive_to_polydata(
-    gltf: dict,
-    primitive: dict,
-    buffers: list[bytes],
-    file_size: int,
-) -> PolyData:
-    """Convert one glTF mesh primitive to a PolyData.
+def _primitive_attributes(gltf: dict, primitive: Any, where: str) -> dict:
+    """Return the validated ``attributes`` object of a primitive.
 
     Parameters
     ----------
@@ -312,91 +308,61 @@ def _primitive_to_polydata(
         Parsed glTF JSON dict.
     primitive
         One entry from ``mesh["primitives"]``.
+    where
+        Names the primitive in error messages.
+
+    Returns
+    -------
+    dict
+        Attribute semantic to accessor index, with ``POSITION`` present and
+        every index naming an accessor of the file.
+
+    Raises
+    ------
+    CodecError
+        If the primitive or its attributes are not objects, ``POSITION`` is
+        missing, or an attribute names no accessor.
+    """
+    if not isinstance(primitive, dict):
+        raise CodecError(f"glTF: {where} is not an object.")
+    attrs = primitive.get("attributes")
+    if not isinstance(attrs, dict):
+        raise CodecError(f"glTF: {where} has no attributes object.")
+    if "POSITION" not in attrs:
+        raise CodecError("glTF primitive is missing a POSITION attribute.")
+    n_accessors = len(gltf.get("accessors", ()))
+    for name, acc in attrs.items():
+        if not _is_index(acc, n_accessors):
+            raise CodecError(
+                f"glTF: {where} attribute {name} names no accessor ({acc!r})."
+            )
+    return attrs
+
+
+def _read_vertex_set(gltf: dict, attrs: dict, buffers: list[bytes]) -> PolyData:
+    """Read the vertices and vertex attributes one ``attributes`` object names.
+
+    Parameters
+    ----------
+    gltf
+        Parsed glTF JSON dict.
+    attrs
+        A primitive's ``attributes``, as :func:`_primitive_attributes` returns.
     buffers
         Raw buffer bytes.
-    file_size
-        Total source file size, forwarded to :func:`validate_header`.
 
     Returns
     -------
     PolyData
-        Geometry and vertex attributes for this primitive.
+        The vertices and vertex attributes, with no elements.
+
+    Raises
+    ------
+    CodecError
+        If an attribute holds a different number of entries than ``POSITION``.
     """
-    attrs = primitive.get("attributes", {})
-    if "POSITION" not in attrs:
-        raise CodecError("glTF primitive is missing a POSITION attribute.")
-
-    pos_raw = _read_accessor(gltf, attrs["POSITION"], buffers)
-    vertices = pos_raw.astype(np.float64)
+    vertices = _read_accessor(gltf, attrs["POSITION"], buffers).astype(np.float64)
     n_verts = vertices.shape[0]
-
-    mode: int = primitive.get("mode", 4)
-
-    if "indices" in primitive:
-        idx_raw = _read_accessor(gltf, primitive["indices"], buffers)
-        indices = idx_raw.astype(np.int32).ravel()
-    else:
-        indices = np.arange(n_verts, dtype=np.int32)
-
-    if indices.size > 0 and indices.max() >= n_verts:
-        raise CodecError(
-            f"glTF: primitive has index {indices.max()} but only {n_verts} vertices."
-        )
-
-    if mode == 4:  # TRIANGLES — vectorized
-        n_tris = len(indices) // 3
-        connectivity = indices[: n_tris * 3].astype(np.int32)
-        offsets = np.arange(0, n_tris * 3 + 1, 3, dtype=np.int32)
-        element_types = np.full(n_tris, _TRI_CODE, dtype=np.uint8)
-        n_elements = n_tris
-        conn_size = n_tris * 3
-    else:
-        conn_list: list[int] = []
-        offsets_list: list[int] = [0]
-        type_codes: list[int] = []
-
-        if mode == 0:  # POINTS
-            conn_list = indices.tolist()
-            offsets_list = list(range(len(conn_list) + 1))
-            type_codes = [_VERTEX_CODE] * len(conn_list)
-        elif mode == 1:  # LINES
-            n_pairs = len(indices) // 2
-            pairs = indices[: n_pairs * 2].reshape(-1, 2)
-            conn_list = pairs.ravel().tolist()
-            offsets_list = list(range(0, len(conn_list) + 1, 2))
-            type_codes = [_LINE_CODE] * n_pairs
-        elif mode == 2:  # LINE_LOOP: strip + close
-            if len(indices) > 0:
-                loop = indices.tolist() + [int(indices[0])]
-                conn_list.extend(loop)
-                offsets_list.append(offsets_list[-1] + len(loop))
-                type_codes.append(_POLY_LINE_CODE)
-        elif mode == 3:  # LINE_STRIP
-            conn_list.extend(indices.tolist())
-            offsets_list.append(offsets_list[-1] + len(indices))
-            type_codes.append(_POLY_LINE_CODE)
-        elif mode == 5:  # TRIANGLE_STRIP
-            conn_list.extend(indices.tolist())
-            offsets_list.append(offsets_list[-1] + len(indices))
-            type_codes.append(_TRI_STRIP_CODE)
-        elif mode == 6:  # TRIANGLE_FAN: fan-triangulate
-            for i in range(1, len(indices) - 1):
-                conn_list.extend(
-                    [int(indices[0]), int(indices[i]), int(indices[i + 1])]
-                )
-                offsets_list.append(offsets_list[-1] + 3)
-                type_codes.append(_TRI_CODE)
-        else:
-            raise CodecError(f"glTF: unsupported primitive mode {mode}.")
-
-        n_elements = len(type_codes)
-        conn_size = len(conn_list)
-        connectivity = np.array(conn_list, dtype=np.int32)
-        offsets = np.array(offsets_list, dtype=np.int32)
-        element_types = np.array(type_codes, dtype=np.uint8)
-    validate_header(n_verts, n_elements, conn_size, file_size)
-
-    # Vertex attributes.
     vertex_attrs: dict[str, np.ndarray] = {}
 
     for gltf_name, poly_name in _ATTR_MAP.items():
@@ -426,24 +392,186 @@ def _primitive_to_polydata(
                 key = gltf_name.lower()
             vertex_attrs[key] = raw
 
-    mat_idx: int = primitive.get("material", -1)
-    element_attrs: dict[str, np.ndarray] = {}
-    if mat_idx >= 0:
-        element_attrs["material"] = np.full(n_elements, mat_idx, dtype=np.int32)
+    for key, arr in vertex_attrs.items():
+        if arr.shape[0] != n_verts:
+            raise CodecError(
+                f"glTF: vertex attribute '{key}' holds {arr.shape[0]} entries "
+                f"but POSITION holds {n_verts}."
+            )
 
     return PolyData(
         vertices=vertices,
-        connectivity=connectivity,
-        offsets=offsets,
-        element_types=element_types,
+        connectivity=np.array([], dtype=np.int32),
+        offsets=np.array([0], dtype=np.int32),
+        element_types=np.array([], dtype=np.uint8),
         vertex_attrs=vertex_attrs,
-        element_attrs=element_attrs,
     )
+
+
+def _primitive_elements(
+    gltf: dict,
+    primitive: dict,
+    buffers: list[bytes],
+    *,
+    n_verts: int,
+    file_size: int,
+    where: str,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Decode the elements of one glTF mesh primitive.
+
+    Parameters
+    ----------
+    gltf
+        Parsed glTF JSON dict.
+    primitive
+        One entry from ``mesh["primitives"]``.
+    buffers
+        Raw buffer bytes.
+    n_verts
+        Number of vertices the primitive's attributes hold.
+    file_size
+        Total source file size, forwarded to :func:`validate_header`.
+    where
+        Names the primitive in error messages.
+
+    Returns
+    -------
+    connectivity : numpy.ndarray
+        Vertex indices into the primitive's own vertex set; int32 unless
+        the set holds more than 2**31 vertices, then int64.
+    offsets : numpy.ndarray
+        int64 CSR offsets, starting at 0.
+    element_types : numpy.ndarray
+        uint8 polyxios type codes.
+
+    Raises
+    ------
+    CodecError
+        If ``indices`` names no accessor, or one that is not an unsigned
+        integer SCALAR or points past the vertex set, or the mode is
+        unsupported.
+    """
+    idx_dtype = np.int64 if n_verts > 2**31 else np.int32
+    if "indices" in primitive:
+        acc = primitive["indices"]
+        if not _is_index(acc, len(gltf.get("accessors", ()))):
+            raise CodecError(f"glTF: {where} indices names no accessor ({acc!r}).")
+        idx_raw = _read_accessor(gltf, acc, buffers)
+        if idx_raw.ndim != 1 or idx_raw.dtype.kind != "u":
+            raise CodecError(
+                f"glTF: {where} indices accessor {acc} is not an unsigned "
+                "integer SCALAR."
+            )
+        if idx_raw.size > 0 and int(idx_raw.max()) >= n_verts:
+            raise CodecError(
+                f"glTF: primitive has index {idx_raw.max()} but only "
+                f"{n_verts} vertices."
+            )
+        indices = idx_raw.astype(idx_dtype)
+    else:
+        indices = np.arange(n_verts, dtype=idx_dtype)
+    n_idx = len(indices)
+
+    mode: int = primitive.get("mode", 4)
+    if isinstance(mode, bool):
+        raise CodecError(f"glTF: unsupported primitive mode {mode}.")
+    if mode == 4:  # TRIANGLES
+        n_elements = n_idx // 3
+        connectivity = indices[: n_elements * 3]
+        offsets = np.arange(0, n_elements * 3 + 1, 3, dtype=np.int64)
+        element_types = np.full(n_elements, _TRI_CODE, dtype=np.uint8)
+    elif mode == 0:  # POINTS
+        connectivity = indices
+        offsets = np.arange(n_idx + 1, dtype=np.int64)
+        element_types = np.full(n_idx, _VERTEX_CODE, dtype=np.uint8)
+    elif mode == 1:  # LINES
+        n_elements = n_idx // 2
+        connectivity = indices[: n_elements * 2]
+        offsets = np.arange(0, n_elements * 2 + 1, 2, dtype=np.int64)
+        element_types = np.full(n_elements, _LINE_CODE, dtype=np.uint8)
+    elif mode == 2:  # LINE_LOOP: strip + close
+        connectivity = np.append(indices, indices[:1])
+        offsets = np.array([0, n_idx + 1] if n_idx else [0], dtype=np.int64)
+        element_types = np.full(min(n_idx, 1), _POLY_LINE_CODE, dtype=np.uint8)
+    elif mode in (3, 5):  # LINE_STRIP, TRIANGLE_STRIP
+        connectivity = indices
+        offsets = np.array([0, n_idx], dtype=np.int64)
+        code = _POLY_LINE_CODE if mode == 3 else _TRI_STRIP_CODE
+        element_types = np.array([code], dtype=np.uint8)
+    elif mode == 6:  # TRIANGLE_FAN: fan-triangulate
+        n_elements = max(n_idx - 2, 0)
+        connectivity = np.column_stack(
+            [
+                np.full(n_elements, indices[0] if n_idx else 0, dtype=idx_dtype),
+                indices[1 : 1 + n_elements],
+                indices[2 : 2 + n_elements],
+            ]
+        ).ravel()
+        offsets = np.arange(0, n_elements * 3 + 1, 3, dtype=np.int64)
+        element_types = np.full(n_elements, _TRI_CODE, dtype=np.uint8)
+    else:
+        raise CodecError(f"glTF: unsupported primitive mode {mode}.")
+
+    validate_header(n_verts, len(element_types), len(connectivity), file_size)
+    return connectivity, offsets, element_types
 
 
 # =============================================================================
 # Mesh → merged PolyData
 # =============================================================================
+
+
+def _stack_elements(
+    blocks: list[tuple[np.ndarray, np.ndarray, np.ndarray]],
+    *,
+    vertex_bases: list[int],
+    n_vertices: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Lay element blocks end to end over one vertex array.
+
+    Parameters
+    ----------
+    blocks
+        ``(connectivity, offsets, element_types)`` per primitive, as
+        :func:`_primitive_elements` returns them.
+    vertex_bases
+        Row of the merged vertex array where each block's vertex set starts.
+    n_vertices
+        Number of rows in the merged vertex array.
+
+    Returns
+    -------
+    connectivity : numpy.ndarray
+        Indices into the merged vertex array; int32 unless the vertex count
+        or the connectivity length reaches 2**31, then int64.
+    offsets : numpy.ndarray
+        CSR offsets, same dtype as ``connectivity``.
+    element_types : numpy.ndarray
+        uint8 polyxios type codes.
+    """
+    conn_sizes = [len(conn) for conn, _, _ in blocks]
+    idx_dtype = np.int64 if max(n_vertices, sum(conn_sizes)) >= 2**31 else np.int32
+    connectivity = np.concatenate(
+        [np.zeros(0, dtype=idx_dtype)]
+        + [
+            conn.astype(idx_dtype, copy=False) + base if base else conn
+            for (conn, _, _), base in zip(blocks, vertex_bases, strict=True)
+        ],
+        dtype=idx_dtype,
+    )
+    conn_starts = np.cumsum([0] + conn_sizes[:-1]).tolist()
+    offsets = np.concatenate(
+        [np.zeros(1, dtype=idx_dtype)]
+        + [
+            off[1:] + start
+            for (_, off, _), start in zip(blocks, conn_starts, strict=True)
+        ],
+        dtype=idx_dtype,
+    )
+    element_types = np.concatenate(
+        [np.zeros(0, dtype=np.uint8)] + [types for _, _, types in blocks]
+    )
+    return connectivity, offsets, element_types
 
 
 def _mesh_to_polydata(
@@ -468,11 +596,12 @@ def _mesh_to_polydata(
     Returns
     -------
     PolyData
-        All primitives merged; ``element_attrs["material"]`` holds per-element
-        material indices into the parent :class:`~polyxios._scene.SceneData`.
+        All primitives merged, their elements in primitive order;
+        ``element_attrs["material"]`` holds per-element material indices into
+        the parent :class:`~polyxios._scene.SceneData`, -1 for a primitive
+        with none. Primitives with the same ``attributes`` share one vertex
+        set, read once.
     """
-    from polyxios import transforms
-
     mesh = gltf["meshes"][mesh_index]
     primitives = mesh.get("primitives", [])
     if not primitives:
@@ -483,10 +612,57 @@ def _mesh_to_polydata(
             element_types=np.array([], dtype=np.uint8),
         )
 
-    polys = [
-        _primitive_to_polydata(gltf, prim, buffers, file_size) for prim in primitives
+    vertex_sets: dict[tuple, PolyData] = {}
+    set_keys: list[tuple] = []
+    for p, prim in enumerate(primitives):
+        attrs = _primitive_attributes(gltf, prim, f"mesh {mesh_index} primitive {p}")
+        key = tuple(sorted(attrs.items()))
+        if key not in vertex_sets:
+            vertex_sets[key] = _read_vertex_set(gltf, attrs, buffers)
+        set_keys.append(key)
+
+    sets = list(vertex_sets.values())
+    starts = np.cumsum([0] + [s.vertices.shape[0] for s in sets[:-1]])
+    set_start = dict(zip(vertex_sets, starts.tolist(), strict=True))
+    blocks = [
+        _primitive_elements(
+            gltf,
+            prim,
+            buffers,
+            n_verts=vertex_sets[key].vertices.shape[0],
+            file_size=file_size,
+            where=f"mesh {mesh_index} primitive {p}",
+        )
+        for p, (prim, key) in enumerate(zip(primitives, set_keys, strict=True))
     ]
-    result = transforms.merge(*polys) if len(polys) > 1 else polys[0]
+    connectivity, offsets, element_types = _stack_elements(
+        blocks,
+        vertex_bases=[set_start[key] for key in set_keys],
+        n_vertices=int(starts[-1]) + sets[-1].vertices.shape[0],
+    )
+
+    element_attrs: dict[str, np.ndarray] = {}
+    materials = [prim.get("material", -1) for prim in primitives]
+    n_materials = len(gltf.get("materials", ()))
+    for p, mat in enumerate(materials):
+        if mat != -1 and not _is_index(mat, n_materials):
+            raise CodecError(
+                f"glTF: mesh {mesh_index} primitive {p} names no material ({mat!r})."
+            )
+    if any(m >= 0 for m in materials):
+        element_attrs["material"] = np.repeat(
+            np.array(materials, dtype=np.int32),
+            [len(types) for _, _, types in blocks],
+        )
+
+    shared = transforms.merge(*sets)
+    result = dataclasses.replace(
+        shared,
+        connectivity=connectivity,
+        offsets=offsets,
+        element_types=element_types,
+        element_attrs=element_attrs,
+    )
     mesh_name: str = mesh.get("name", "")
     if mesh_name:
         result = dataclasses.replace(
