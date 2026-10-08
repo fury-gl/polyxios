@@ -37,6 +37,7 @@ from polyxios.codecs._gltf import (
     write_scene as gltf_write_scene,
 )
 from polyxios.exceptions import CodecError, LazyReadError
+from tests.codecs.test_gltf import _skinned_glb
 
 _NS = "http://www.collada.org/2005/11/COLLADASchema"
 _PARAM_TYPE = {"TRANSFORM": "float4x4"}
@@ -1644,51 +1645,861 @@ def test_read_morph_controller_warns(tmp_path: Path) -> None:
     assert "skins" not in scene.global_attrs
 
 
-def test_read_skin_warns_and_reads_the_mesh_in_bind_shape(tmp_path: Path) -> None:
-    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]]))
-    skin = (
-        '<controller id="c"><skin source="#g0">'
-        "<bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</bind_shape_matrix>"
-        + _source("c-j", ["hip"], "JOINT", kind="Name_array")
-        + _source("c-w", [1.0], "WEIGHT")
-        + '<joints><input semantic="JOINT" source="#c-j"/></joints>'
-        '<vertex_weights count="3"><input semantic="JOINT" source="#c-j" offset="0"/>'
-        '<input semantic="WEIGHT" source="#c-w" offset="1"/>'
-        "<vcount>1 1 1</vcount><v>0 0 0 0 0 0</v></vertex_weights>"
+def _skin_controller(
+    cid: str,
+    names: list[str],
+    v: str,
+    vcount: str,
+    *,
+    source: str = "#g0",
+    kind: str = "Name_array",
+    ibm=None,
+    weights=(1.0,),
+    bind_shape: str | None = None,
+) -> str:
+    """A ``<controller>`` whose ``<v>`` pairs index ``names`` and ``weights``."""
+    count = len(vcount.split())
+    ibm_xml = ""
+    ibm_input = ""
+    if ibm is not None:
+        ibm_xml = _source(f"{cid}-m", np.asarray(ibm).reshape(-1, 16), "TRANSFORM")
+        ibm_input = f'<input semantic="INV_BIND_MATRIX" source="#{cid}-m"/>'
+    bsm = (
+        ""
+        if bind_shape is None
+        else f"<bind_shape_matrix>{bind_shape}</bind_shape_matrix>"
+    )
+    return (
+        f'<controller id="{cid}"><skin source="{source}">{bsm}'
+        + _source(f"{cid}-j", names, "JOINT", kind=kind)
+        + ibm_xml
+        + _source(f"{cid}-w", list(weights), "WEIGHT")
+        + f'<joints><input semantic="JOINT" source="#{cid}-j"/>{ibm_input}</joints>'
+        f'<vertex_weights count="{count}">'
+        f'<input semantic="JOINT" source="#{cid}-j" offset="0"/>'
+        f'<input semantic="WEIGHT" source="#{cid}-w" offset="1"/>'
+        f"<vcount>{vcount}</vcount><v>{v}</v></vertex_weights>"
         "</skin></controller>"
     )
+
+
+def _skin_dae(controllers: str, nodes: str, *, library_nodes: str = "") -> str:
+    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]]))
+    lib = f"<library_nodes>{library_nodes}</library_nodes>" if library_nodes else ""
+    return _dae(
+        f"<library_geometries>{geo}</library_geometries>"
+        f"<library_controllers>{controllers}</library_controllers>{lib}"
+        f'<library_visual_scenes><visual_scene id="S">{nodes}</visual_scene>'
+        "</library_visual_scenes>"
+    )
+
+
+def _rig(prefix: str = "") -> str:
+    """A hip joint with a knee below it, ids prefixed, sids bare."""
+    return (
+        f'<node id="{prefix}hip" sid="hip" type="JOINT">'
+        f'<node id="{prefix}knee" sid="knee" type="JOINT">'
+        "<translate>0 1 0</translate></node></node>"
+    )
+
+
+def _hip_knee(cid: str = "c", **kw) -> str:
+    """Vertex 0 split half and half, vertex 1 on the hip, vertex 2 on the knee."""
+    return _skin_controller(
+        cid, ["hip", "knee"], "0 0 1 0 0 1 1 1", "2 1 1", weights=(0.5, 1.0), **kw
+    )
+
+
+def test_read_skin_attaches_joints_weights_and_a_skin(tmp_path: Path) -> None:
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[1, 1, 3] = -1.0
+    text = _skin_dae(
+        _hip_knee(ibm=ibm, bind_shape="1 0 0 5 0 1 0 0 0 0 1 0 0 0 0 1"),
+        _rig() + '<node id="n"><instance_controller url="#c"><skeleton>#hip</skeleton>'
+        "</instance_controller></node>",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scene = read_scene(_write(tmp_path, text))
+    mesh = scene.meshes[0]
+    np.testing.assert_array_equal(mesh.vertices, _TRI)
+    np.testing.assert_array_equal(
+        mesh.vertex_attrs["joints"], [[0, 1, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]]
+    )
+    assert mesh.vertex_attrs["joints"].dtype == np.int32
+    np.testing.assert_array_equal(
+        mesh.vertex_attrs["weights"], [[0.5, 0.5, 0, 0], [1, 0, 0, 0], [1, 0, 0, 0]]
+    )
+    (skin,) = scene.global_attrs["skins"]
+    assert skin["name"] == "c"
+    assert skin["joints"] == [0, 1]
+    assert skin["skeleton"] == 0
+    np.testing.assert_array_equal(skin["inverse_bind_matrices"], ibm)
+    assert skin["bind_shape_matrix"][0, 3] == 5.0
+    assert scene.nodes[2].extras["skin"] == 0 and scene.nodes[2].mesh == 0
+
+
+def test_read_skin_without_inverse_bind_matrices_or_bind_shape(tmp_path: Path) -> None:
+    text = _skin_dae(
+        _hip_knee(), _rig() + '<node id="n"><instance_controller url="#c"/></node>'
+    )
+    (skin,) = read_scene(_write(tmp_path, text)).global_attrs["skins"]
+    np.testing.assert_array_equal(
+        skin["inverse_bind_matrices"], np.tile(np.eye(4), (2, 1, 1))
+    )
+    assert "bind_shape_matrix" not in skin and "skeleton" not in skin
+    assert skin["joints"] == [0, 1]
+
+
+@pytest.mark.parametrize(
+    ("kind", "names"),
+    [
+        ("IDREF_array", ["hipnode", "kneenode"]),
+        ("SIDREF_array", ["hipnode/knee", "hip"]),
+        ("Name_array", ["hipnode", "kneenode"]),
+    ],
+)
+def test_read_skin_joint_names_by_id_or_address(
+    tmp_path: Path, kind: str, names: list[str]
+) -> None:
+    ctrl = _skin_controller("c", names, "0 0 0 0 0 0", "1 1 1", kind=kind)
+    rig = (
+        '<node id="hipnode" sid="hip" type="JOINT">'
+        '<node id="kneenode" sid="knee" type="JOINT"/></node>'
+    )
+    scene = read_scene(
+        _write(
+            tmp_path,
+            _skin_dae(
+                ctrl, rig + '<node id="n"><instance_controller url="#c"/></node>'
+            ),
+        )
+    )
+    expected = [1, 0] if kind == "SIDREF_array" else [0, 1]
+    assert scene.global_attrs["skins"][0]["joints"] == expected
+
+
+def test_read_skin_binds_each_rig_by_its_skeleton(tmp_path: Path) -> None:
+    """Two rigs spell the same sids; each instance's <skeleton> picks its own."""
+    text = _skin_dae(
+        _hip_knee(),
+        _rig("a_")
+        + _rig("b_")
+        + '<node id="n1"><instance_controller url="#c"><skeleton>#b_hip</skeleton>'
+        "</instance_controller></node>"
+        '<node id="n2"><instance_controller url="#c"><skeleton>#a_hip</skeleton>'
+        "</instance_controller></node>",
+    )
+    scene = read_scene(_write(tmp_path, text))
+    skins = scene.global_attrs["skins"]
+    assert [s["joints"] for s in skins] == [[2, 3], [0, 1]]
+    assert [scene.nodes[i].extras["skin"] for i in (4, 5)] == [0, 1]
+    assert scene.nodes[4].mesh == scene.nodes[5].mesh == 0
+    assert len(scene.meshes) == 1
+    skins[0]["inverse_bind_matrices"][0, 0, 0] = 9.0
+    assert skins[1]["inverse_bind_matrices"][0, 0, 0] == 1.0
+
+
+def test_read_skin_without_skeleton_binds_the_nearest_rig(tmp_path: Path) -> None:
+    text = _skin_dae(
+        _hip_knee(),
+        '<node id="A">' + _rig("a_") + '<node id="na"><instance_controller url="#c"/>'
+        '</node></node><node id="B">'
+        + _rig("b_")
+        + '<node id="nb"><instance_controller url="#c"/></node></node>',
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        scene = read_scene(_write(tmp_path, text))
+    by_node = {
+        scene.nodes[i].extras["id"]: scene.global_attrs["skins"][
+            scene.nodes[i].extras["skin"]
+        ]["joints"]
+        for i in range(len(scene.nodes))
+        if "skin" in scene.nodes[i].extras
+    }
+    ids = [n.extras.get("id") for n in scene.nodes]
+    assert by_node == {
+        "na": [ids.index("a_hip"), ids.index("a_knee")],
+        "nb": [ids.index("b_hip"), ids.index("b_knee")],
+    }
+
+
+def test_read_skin_tie_warns_and_binds_the_first(tmp_path: Path) -> None:
+    text = _skin_dae(
+        _hip_knee(),
+        _rig("a_") + _rig("b_") + '<node id="n"><instance_controller url="#c"/></node>',
+    )
+    with pytest.warns(UserWarning, match=r"joint\(s\) \['hip', 'knee'\] that several"):
+        scene = read_scene(_write(tmp_path, text))
+    assert scene.global_attrs["skins"][0]["joints"] == [0, 1]
+
+
+def test_read_skin_unresolved_names_are_minus_one(tmp_path: Path) -> None:
+    text = _skin_dae(
+        _hip_knee(),
+        '<node id="hip" sid="hip"/><node id="n"><instance_controller url="#c">'
+        "<skeleton>#nowhere</skeleton></instance_controller></node>",
+    )
+    with (
+        pytest.warns(UserWarning, match=r"<skeleton> root\(s\) \['nowhere'\]"),
+        pytest.warns(UserWarning, match=r"joint\(s\) \['knee'\] that no node"),
+    ):
+        scene = read_scene(_write(tmp_path, text))
+    assert scene.global_attrs["skins"][0]["joints"] == [0, -1]
+
+
+def test_read_skinned_instance_copies_bind_their_own_rig(tmp_path: Path) -> None:
+    character = (
+        '<node id="char">' + _rig() + '<node id="body"><instance_controller url="#c">'
+        "<skeleton>#hip</skeleton></instance_controller></node></node>"
+    )
+    text = _skin_dae(
+        _hip_knee(),
+        '<node id="p1"><instance_node url="#char"/></node>'
+        '<node id="p2"><instance_node url="#char"/></node>',
+        library_nodes=character,
+    )
+    scene = read_scene(_write(tmp_path, text))
+    skins = scene.global_attrs["skins"]
+    assert len(skins) == 2
+    holders = [i for i, n in enumerate(scene.nodes) if "skin" in n.extras]
+    for i, skin in zip(holders, skins, strict=True):
+        assert skin["skeleton"] == skin["joints"][0]
+        assert scene.nodes[skin["joints"][0]].extras["id"] == "hip"
+        # Each copy's rig sits beside its own body, under its own char copy.
+        parent = next(p for p, n in enumerate(scene.nodes) if i in n.children)
+        assert skin["joints"][0] in scene.nodes[parent].children
+    assert skins[0]["inverse_bind_matrices"] is not skins[1]["inverse_bind_matrices"]
+
+
+def test_read_geometry_plain_then_skinned_gets_a_skinned_variant(
+    tmp_path: Path,
+) -> None:
+    text = _skin_dae(
+        _hip_knee(),
+        _rig() + '<node id="plain"><instance_geometry url="#g0"/></node>'
+        '<node id="n"><instance_controller url="#c"/></node>',
+    )
+    scene = read_scene(_write(tmp_path, text))
+    assert len(scene.meshes) == 2
+    plain, skinned = scene.meshes
+    assert "joints" not in plain.vertex_attrs
+    assert skinned.vertices is plain.vertices
+    np.testing.assert_array_equal(skinned.vertex_attrs["weights"][:, 0], [0.5, 1, 1])
+    assert [n.mesh for n in scene.nodes if n.extras.get("id") in ("plain", "n")] == [
+        0,
+        1,
+    ]
+
+
+def test_read_skinned_geometry_bound_to_two_materials(tmp_path: Path) -> None:
+    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]], material="sym"))
+    mats = (
+        '<library_effects><effect id="e"><profile_COMMON><technique sid="t"><phong/>'
+        "</technique></profile_COMMON></effect></library_effects><library_materials>"
+        '<material id="m0"><instance_effect url="#e"/></material>'
+        '<material id="m1"><instance_effect url="#e"/></material></library_materials>'
+    )
+
+    def bound(m: str) -> str:
+        return (
+            "<bind_material><technique_common>"
+            f'<instance_material symbol="sym" target="#{m}"/>'
+            "</technique_common></bind_material>"
+        )
+
+    text = _dae(
+        mats + f"<library_geometries>{geo}</library_geometries>"
+        f"<library_controllers>{_hip_knee()}</library_controllers>"
+        '<library_visual_scenes><visual_scene id="S">'
+        + _rig()
+        + f'<node id="a"><instance_controller url="#c">{bound("m0")}'
+        "</instance_controller></node>"
+        f'<node id="b"><instance_controller url="#c">{bound("m1")}'
+        "</instance_controller></node>"
+        f'<node id="c"><instance_geometry url="#g0">{bound("m1")}'
+        "</instance_geometry></node>"
+        "</visual_scene></library_visual_scenes>"
+    )
+    scene = read_scene(_write(tmp_path, text))
+    assert len(scene.meshes) == 3
+    a, b, c = (scene.meshes[n.mesh] for n in scene.nodes[2:])
+    assert a.element_attrs["material"].tolist() == [0]
+    assert b.element_attrs["material"].tolist() == [1]
+    assert c.element_attrs["material"].tolist() == [1]
+    assert "joints" in a.vertex_attrs and "joints" in b.vertex_attrs
+    assert "joints" not in c.vertex_attrs
+    assert scene.nodes[2].extras["skin"] == scene.nodes[3].extras["skin"] == 0
+
+
+def test_read_skin_split_corners_take_their_position_weights(tmp_path: Path) -> None:
+    normals = _source("g0-n", [[0, 0, 1], [0, 0, -1]], "X Y Z")
+    prims = _triangles(
+        "g0",
+        [[0, 0, 1, 0, 2, 1], [0, 1, 2, 0, 1, 1]],
+        extra_inputs='<input semantic="NORMAL" source="#g0-n" offset="1"/>',
+    ).replace('offset="0"/>', 'offset="0"/>', 1)
+    geo = _geometry("g0", _TRI, prims, sources=normals)
     text = _dae(
         f"<library_geometries>{geo}</library_geometries>"
-        f"<library_controllers>{skin}</library_controllers>"
+        f"<library_controllers>{_hip_knee()}</library_controllers>"
         '<library_visual_scenes><visual_scene id="S">'
-        '<node id="hip" sid="hip" type="JOINT"/>'
-        '<node id="n"><instance_controller url="#c"><skeleton>#hip</skeleton>'
-        "</instance_controller></node></visual_scene></library_visual_scenes>"
+        + _rig()
+        + '<node id="n"><instance_controller url="#c"/></node>'
+        "</visual_scene></library_visual_scenes>"
     )
-    with pytest.warns(UserWarning, match=r"skins are not read; 1 skinned mesh"):
-        scene = read_scene(_write(tmp_path, text))
-    assert scene.nodes[1].mesh == 0
-    np.testing.assert_array_equal(scene.meshes[0].vertices, _TRI)
-    assert "joints" not in scene.meshes[0].vertex_attrs
-    assert "skins" not in scene.global_attrs
+    mesh = read_scene(_write(tmp_path, text)).meshes[0]
+    assert len(mesh.vertices) > 3
+    for v, w in zip(mesh.vertices, mesh.vertex_attrs["weights"], strict=True):
+        pos = int(np.flatnonzero((_TRI == v).all(axis=1))[0])
+        assert w[0] == (0.5 if pos == 0 else 1.0)
 
 
-def test_write_skins_warn_and_are_dropped(tmp_path: Path) -> None:
-    scene = SceneData(
-        meshes=(_surface(),),
-        nodes=(SceneNode(mesh=0),),
-        scenes=((0,),),
-        global_attrs={"skins": [{"joints": [0]}], "animations": [{"channels": []}]},
+def test_read_skin_crowded_and_bind_shape_influences_renormalised(
+    tmp_path: Path,
+) -> None:
+    names = ["a", "b", "c", "d", "e"]
+    rig = "".join(f'<node id="{n}" sid="{n}"/>' for n in names)
+    # Vertex 0: five influences; vertex 1: half on the bind shape; vertex 2: none.
+    ctrl = _skin_controller(
+        "c",
+        names,
+        "0 0 1 1 2 2 3 3 4 4 -1 5 1 5",
+        "5 2 0",
+        weights=(0.1, 0.2, 0.3, 0.15, 0.25, 0.5),
     )
-    out = tmp_path / "dropped.dae"
+    text = _skin_dae(ctrl, rig + '<node id="n"><instance_controller url="#c"/></node>')
     with (
-        pytest.warns(UserWarning, match=r"\['skins'\] are not written"),
-        pytest.warns(UserWarning, match="animation 0 has no channels"),
+        pytest.warns(UserWarning, match="more than four influences"),
+        pytest.warns(UserWarning, match=r"weights 1 vertex\(es\) to the bind shape"),
+    ):
+        mesh = read_scene(_write(tmp_path, text)).meshes[0]
+    j, w = mesh.vertex_attrs["joints"], mesh.vertex_attrs["weights"]
+    assert j[0].tolist() == [2, 4, 1, 3]
+    np.testing.assert_allclose(w[0], np.array([0.3, 0.25, 0.2, 0.15]) / 0.9)
+    assert j[1].tolist() == [1, 0, 0, 0]
+    np.testing.assert_allclose(w[1], [1, 0, 0, 0])
+    assert w[2].tolist() == [0, 0, 0, 0]
+
+
+def test_read_skin_short_vertex_weights_warns(tmp_path: Path) -> None:
+    ctrl = _skin_controller("c", ["hip"], "0 0", "1")
+    text = _skin_dae(
+        ctrl,
+        '<node id="hip" sid="hip"/><node id="n"><instance_controller url="#c"/></node>',
+    )
+    with pytest.warns(UserWarning, match="covers 1 of the geometry's 3 vertices"):
+        mesh = read_scene(_write(tmp_path, text)).meshes[0]
+    assert mesh.vertex_attrs["weights"][:, 0].tolist() == [1, 0, 0]
+
+
+def test_read_skin_vertex_weights_joint_source_mapped_by_name(tmp_path: Path) -> None:
+    ctrl = (
+        '<controller id="c"><skin source="#g0">'
+        + _source("c-j", ["hip", "knee"], "JOINT", kind="Name_array")
+        + _source("c-k", ["knee", "hip"], "JOINT", kind="Name_array")
+        + _source("c-w", [1.0], "WEIGHT")
+        + '<joints><input semantic="JOINT" source="#c-j"/></joints>'
+        '<vertex_weights count="3"><input semantic="JOINT" source="#c-k" offset="0"/>'
+        '<input semantic="WEIGHT" source="#c-w" offset="1"/>'
+        "<vcount>1 1 1</vcount><v>0 0 1 0 0 0</v></vertex_weights></skin></controller>"
+    )
+    text = _skin_dae(
+        ctrl, _rig() + '<node id="n"><instance_controller url="#c"/></node>'
+    )
+    mesh = read_scene(_write(tmp_path, text)).meshes[0]
+    assert mesh.vertex_attrs["joints"][:, 0].tolist() == [1, 0, 1]
+
+
+@pytest.mark.parametrize(
+    ("ctrl", "match"),
+    [
+        (
+            '<controller id="c"><skin source="#g0"><joints/></skin></controller>',
+            "no JOINT input",
+        ),
+        (_skin_controller("c", ["hip"], "0 0 0 0", "1 1 1"), "sums to 6 indices"),
+        (
+            _skin_controller("c", ["hip"], "0 0 0 0 0 0", "1 1 1").replace(
+                'vertex_weights count="3"', 'vertex_weights count="2"'
+            ),
+            "count=2 but <vcount> holds 3",
+        ),
+        (_skin_controller("c", ["hip"], "0 0 0 0 0 0 0 0", "1 1 1 1"), "covers 4"),
+        (_skin_controller("c", ["hip"], "0 0 0 0 0 9", "1 1 1"), "past the WEIGHT"),
+        (_skin_controller("c", ["hip"], "0 0 0 0 1 0", "1 1 1"), "past the JOINT"),
+        (_skin_controller("c", ["hip"], "0 0 0 0 -2 0", "1 1 1"), "only -1"),
+        (_skin_controller("c", ["hip"], "0 0 0 0", "1 -1 2"), "below 0"),
+        (_skin_controller("c", ["hip"], "0 0", "99 0 0"), "entry of 99"),
+        (
+            _skin_controller(
+                "c", ["hip"], "0 0 0 0 0 0", "1 1 1", ibm=np.eye(4)[None].repeat(2, 0)
+            ),
+            "1 joints but holds 2",
+        ),
+        (
+            _skin_controller("c", ["hip"], "0 0 0 0 0 0", "1 1 1", bind_shape="1 0 0"),
+            "bind_shape_matrix",
+        ),
+        (
+            _skin_controller("c", ["hip"], "0 0 0 0 0 0", "1 1 1").replace(
+                '<input semantic="WEIGHT" source="#c-w" offset="1"/>', ""
+            ),
+            "needs JOINT and WEIGHT",
+        ),
+    ],
+)
+def test_read_skin_malformed_is_refused(tmp_path: Path, ctrl: str, match: str) -> None:
+    text = _skin_dae(
+        ctrl,
+        '<node id="hip" sid="hip"/><node id="n"><instance_controller url="#c"/></node>',
+    )
+    with pytest.raises(CodecError, match=match):
+        read_scene(_write(tmp_path, text))
+
+
+def test_read_skin_inverse_bind_stride_refused(tmp_path: Path) -> None:
+    ctrl = (
+        _skin_controller("c", ["hip"], "0 0 0 0 0 0", "1 1 1", ibm=np.eye(4))
+        .replace(
+            'stride="16"><param name="TRANSFORM" type="float4x4"/>',
+            'stride="8"><param name="TRANSFORM" type="float4x4"/>',
+        )
+        .replace('count="1" stride="8"', 'count="2" stride="8"')
+    )
+    text = _skin_dae(
+        ctrl,
+        '<node id="hip" sid="hip"/><node id="n"><instance_controller url="#c"/></node>',
+    )
+    with pytest.raises(CodecError, match="stride 8, not 16"):
+        read_scene(_write(tmp_path, text))
+
+
+def test_read_skin_copies_are_capped(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(_collada, "_MIN_COPY_CAP", 0)
+    names = [f"j{k}" for k in range(200)]
+    rig = "".join(f'<node id="j{k}" sid="j{k}"/>' for k in range(200))
+    character = (
+        f'<node id="char">{rig}<node id="body"><instance_controller url="#c"/>'
+        "</node></node>"
+    )
+    ctrl = _skin_controller(
+        "c", names, "0 0 0 0 0 0", "1 1 1", ibm=np.tile(np.eye(4), (200, 1, 1))
+    )
+    parents = "".join(
+        f'<node id="p{k}"><instance_node url="#char"/></node>' for k in range(40)
+    )
+    text = _skin_dae(ctrl, parents, library_nodes=character)
+    with pytest.raises(CodecError, match="instances of skin 'c' need copies past"):
+        read_scene(_write(tmp_path, text))
+
+
+def test_read_skin_bindings_are_capped(tmp_path: Path, monkeypatch) -> None:
+    """Without a <skeleton>, each instance in its own place binds afresh."""
+    monkeypatch.setattr(_collada, "_MIN_NODE_CAP", 0)
+    names = [f"j{k}" for k in range(2000)]
+    rig = "".join(f'<node id="j{k}" sid="j{k}"/>' for k in range(2000))
+    character = (
+        '<node id="char"><node id="body"><instance_controller url="#c"/></node></node>'
+    )
+    ctrl = _skin_controller("c", names, "0 0 0 0 0 0", "1 1 1")
+    parents = "".join(
+        f'<node id="p{k}"><instance_node url="#char"/></node>' for k in range(300)
+    )
+    text = _skin_dae(ctrl, rig + parents, library_nodes=character)
+    with pytest.raises(CodecError, match="bind joints past"):
+        read_scene(_write(tmp_path, text))
+
+
+def test_read_skin_shared_skeleton_binds_once(tmp_path: Path, monkeypatch) -> None:
+    """The same <skeleton> picks the same joints wherever the instance sits."""
+    monkeypatch.setattr(_collada, "_MIN_NODE_CAP", 0)
+    names = [f"j{k}" for k in range(2000)]
+    rig = (
+        '<node id="rig">'
+        + "".join(f'<node id="j{k}" sid="j{k}"/>' for k in range(2000))
+        + "</node>"
+    )
+    character = (
+        '<node id="char"><node id="body"><instance_controller url="#c">'
+        "<skeleton>#rig</skeleton></instance_controller></node></node>"
+    )
+    ctrl = _skin_controller("c", names, "0 0 0 0 0 0", "1 1 1")
+    parents = "".join(
+        f'<node id="p{k}"><instance_node url="#char"/></node>' for k in range(300)
+    )
+    text = _skin_dae(ctrl, rig + parents, library_nodes=character)
+    scene = read_scene(_write(tmp_path, text))
+    assert len(scene.global_attrs["skins"]) == 1
+
+
+def test_write_skin_round_trips_a_collada_rig(tmp_path: Path) -> None:
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[1, 1, 3] = -1.0
+    text = _skin_dae(
+        _hip_knee(ibm=ibm, bind_shape="1 0 0 5 0 1 0 0 0 0 1 0 0 0 0 1"),
+        _rig() + '<node id="n"><instance_controller url="#c"><skeleton>#hip</skeleton>'
+        "</instance_controller></node>",
+    )
+    scene = read_scene(_write(tmp_path, text))
+    out = tmp_path / "again.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    written = out.read_text()
+    assert (
+        '<Name_array id="controller0-joints-array" count="2">hip knee</Name_array>'
+        in written
+    )
+    assert "<skeleton>#hip</skeleton>" in written
+    back = read_scene(out)
+    assert back.global_attrs["skins"][0]["name"] == "c"
+    assert SceneData(meshes=back.meshes, nodes=()) == SceneData(
+        meshes=scene.meshes, nodes=()
+    )
+    assert [n.extras.get("skin") for n in back.nodes] == [None, None, 0]
+    for key, value in scene.global_attrs["skins"][0].items():
+        np.testing.assert_array_equal(back.global_attrs["skins"][0][key], value)
+
+
+def test_write_skin_from_gltf_round_trips(tmp_path: Path) -> None:
+    data, ibm = _skinned_glb()
+    glb = tmp_path / "skin.glb"
+    glb.write_bytes(data)
+    scene = gltf_read_scene(glb)
+    out = tmp_path / "skin.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    back = read_scene(out)
+    (skin,) = back.global_attrs["skins"]
+    assert skin["joints"] == [1, 2]
+    assert skin["skeleton"] == 1
+    np.testing.assert_array_equal(skin["inverse_bind_matrices"], ibm)
+    assert back.nodes[0].extras["skin"] == 0
+    mesh, original = back.meshes[0], scene.meshes[0]
+    np.testing.assert_array_equal(
+        mesh.vertex_attrs["joints"], original.vertex_attrs["joints"]
+    )
+    np.testing.assert_allclose(
+        mesh.vertex_attrs["weights"], original.vertex_attrs["weights"]
+    )
+    assert [back.nodes[j].extras.get("type") for j in (1, 2)] == ["JOINT", "JOINT"]
+    np.testing.assert_allclose(
+        back.to_polydata().vertices, scene.to_polydata().vertices
+    )
+
+
+def test_write_skin_zero_weights_pack_to_the_front(tmp_path: Path) -> None:
+    poly = make_polydata(
+        _TRI,
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={
+            "joints": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0]], np.uint8),
+            "weights": np.array([[0.0, 1, 0, 0], [0.25, 0.75, 0, 0], [0, 0, 0, 0]]),
+        },
+    )
+    scene = _skinned_scene(poly)
+    out = tmp_path / "zero.dae"
+    write_scene(scene, out)
+    mesh = read_scene(out).meshes[0]
+    assert mesh.vertex_attrs["joints"].tolist() == [
+        [0, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0],
+    ]
+    assert mesh.vertex_attrs["weights"].tolist() == [
+        [1, 0, 0, 0],
+        [0.25, 0.75, 0, 0],
+        [0, 0, 0, 0],
+    ]
+
+
+def _skinned_scene(poly: PolyData, **skin: Any) -> SceneData:
+    """A mesh node skinned to a two-joint rig, nodes 1 and 2."""
+    return SceneData(
+        meshes=(poly,),
+        nodes=(
+            SceneNode(mesh=0, extras={"skin": 0}),
+            SceneNode(name="hip", children=(2,)),
+            SceneNode(name="knee"),
+        ),
+        scenes=((0, 1),),
+        global_attrs={"skins": [{"joints": [1, 2], **skin}]},
+    )
+
+
+def _weighted() -> PolyData:
+    return make_polydata(
+        _TRI,
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={
+            "joints": np.array([[0, 1, 0, 0]] * 3, np.int32),
+            "weights": np.array([[0.5, 0.5, 0, 0]] * 3),
+        },
+    )
+
+
+def test_write_skin_names_repeated_sids_by_id(tmp_path: Path) -> None:
+    """Two rigs under one root share sids; the joints go out as ids."""
+    scene = SceneData(
+        meshes=(_weighted(),),
+        nodes=(
+            SceneNode(mesh=0, extras={"skin": 0}),
+            SceneNode(name="root", children=(2, 3)),
+            SceneNode(name="a", extras={"sid": "bone"}),
+            SceneNode(name="b", extras={"sid": "bone"}),
+        ),
+        scenes=((0, 1),),
+        global_attrs={"skins": [{"joints": [3, 2], "skeleton": 1}]},
+    )
+    out = tmp_path / "idref.dae"
+    write_scene(scene, out)
+    assert "<IDREF_array" in out.read_text()
+    assert read_scene(out).global_attrs["skins"][0]["joints"] == [3, 2]
+
+
+def test_write_skin_generated_sid_avoids_a_given_one(tmp_path: Path) -> None:
+    scene = SceneData(
+        meshes=(_weighted(),),
+        nodes=(
+            SceneNode(mesh=0, extras={"skin": 0}),
+            SceneNode(name="hip", children=(2,), extras={"sid": "node2"}),
+            SceneNode(name="knee"),
+        ),
+        scenes=((0, 1),),
+        global_attrs={"skins": [{"joints": [1, 2]}]},
+    )
+    out = tmp_path / "sid.dae"
+    write_scene(scene, out)
+    assert "<Name_array" in out.read_text()
+    back = read_scene(out)
+    assert back.global_attrs["skins"][0]["joints"] == [1, 2]
+    assert back.nodes[1].extras["sid"] == "node2"
+    assert back.nodes[2].extras["sid"] not in ("node2", None)
+
+
+def test_write_skin_on_a_shared_rig_names_joints_by_id(tmp_path: Path) -> None:
+    """A rig under two parents is written once and copied; ids reach each copy."""
+    scene = SceneData(
+        meshes=(_weighted(),),
+        nodes=(
+            SceneNode(name="p1", children=(2, 4)),
+            SceneNode(name="p2", children=(2,)),
+            SceneNode(name="hip", children=(3,)),
+            SceneNode(name="knee"),
+            SceneNode(mesh=0, extras={"skin": 0}),
+        ),
+        scenes=((0, 1),),
+        global_attrs={"skins": [{"joints": [2, 3]}]},
+    )
+    out = tmp_path / "shared.dae"
+    write_scene(scene, out)
+    assert "<IDREF_array" in out.read_text()
+    back = read_scene(out)
+    joints = back.global_attrs["skins"][0]["joints"]
+    holder = next(i for i, n in enumerate(back.nodes) if "skin" in n.extras)
+    parent = next(p for p, n in enumerate(back.nodes) if holder in n.children)
+    assert joints[0] in back.nodes[parent].children
+
+
+def test_write_skinned_instance_copies_round_trip(tmp_path: Path) -> None:
+    character = (
+        '<node id="char">' + _rig() + '<node id="body"><instance_controller url="#c">'
+        "<skeleton>#hip</skeleton></instance_controller></node></node>"
+    )
+    text = _skin_dae(
+        _hip_knee(),
+        '<node id="p1"><instance_node url="#char"/></node>'
+        '<node id="p2"><instance_node url="#char"/></node>',
+        library_nodes=character,
+    )
+    scene = read_scene(_write(tmp_path, text))
+    out = tmp_path / "copies.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    written = out.read_text()
+    assert written.count("<controller ") == 1
+    assert written.count('<instance_node url="#char"/>') == 2
+    back = read_scene(out)
+    assert len(back.global_attrs["skins"]) == 2
+    assert [_shape(back, r) for r in back.scenes[0]] == [
+        _shape(scene, r) for r in scene.scenes[0]
+    ]
+
+
+def test_write_skinned_copy_whose_skin_moved_elsewhere_is_written_in_full(
+    tmp_path: Path,
+) -> None:
+    character = (
+        '<node id="char">' + _rig() + '<node id="body"><instance_controller url="#c">'
+        "<skeleton>#hip</skeleton></instance_controller></node></node>"
+    )
+    text = _skin_dae(
+        _hip_knee(),
+        '<node id="p1"><instance_node url="#char"/></node>'
+        '<node id="p2"><instance_node url="#char"/></node>',
+        library_nodes=character,
+    )
+    scene = read_scene(_write(tmp_path, text))
+    skins = scene.global_attrs["skins"]
+    skins[1] = {**skins[1], "joints": list(skins[0]["joints"])}
+    with pytest.warns(UserWarning, match="generated"):
+        write_scene(scene, tmp_path / "moved.dae")
+
+
+def test_write_two_skins_over_one_mesh_get_a_controller_each(tmp_path: Path) -> None:
+    scene = SceneData(
+        meshes=(_weighted(),),
+        nodes=(
+            SceneNode(mesh=0, extras={"skin": 0}),
+            SceneNode(mesh=0, extras={"skin": 1}),
+            SceneNode(mesh=0, extras={"skin": 0}),
+            SceneNode(name="a"),
+            SceneNode(name="b"),
+        ),
+        scenes=((0, 1, 2, 3, 4),),
+        global_attrs={"skins": [{"joints": [3, 4]}, {"joints": [4, 3]}]},
+    )
+    out = tmp_path / "two.dae"
+    write_scene(scene, out)
+    assert out.read_text().count("<controller ") == 2
+    back = read_scene(out)
+    assert [s["joints"] for s in back.global_attrs["skins"]] == [[3, 4], [4, 3]]
+    assert [n.extras.get("skin") for n in back.nodes[:3]] == [0, 1, 0]
+
+
+@pytest.mark.parametrize(
+    ("skin", "match"),
+    [
+        ("nope", "is not a dict"),
+        ({}, "has no joints list"),
+        ({"joints": [1, 9]}, r"joint\(s\) \[9\] that are not written"),
+        ({"joints": [1, 2], "inverseBindMatrices": 0}, "never decoded"),
+        ({"joints": [1, 2], "inverse_bind_matrices": np.eye(4)}, "not 2 finite 4x4"),
+        (
+            {"joints": [1, 2], "inverse_bind_matrices": np.full((2, 4, 4), np.nan)},
+            "not 2 finite 4x4",
+        ),
+        ({"joints": [1, 2], "bind_shape_matrix": [1, 2]}, "bind_shape_matrix"),
+        ({"joints": [1, 2], "bind_shape_matrix": "x"}, "bind_shape_matrix"),
+        ({"joints": [1, 2], "inverse_bind_matrices": "x"}, "not 2 finite 4x4"),
+    ],
+)
+def test_write_unwritable_skin_warns_and_writes_the_mesh_plain(
+    tmp_path: Path, skin: Any, match: str
+) -> None:
+    scene = dataclasses.replace(
+        _skinned_scene(_weighted()), global_attrs={"skins": [skin]}
+    )
+    out = tmp_path / "bad.dae"
+    with (
+        pytest.warns(UserWarning, match=match),
+        pytest.warns(UserWarning, match=r"\['joints', 'weights'\].*dropped"),
     ):
         write_scene(scene, out)
-    text = out.read_text()
-    assert "<library_controllers>" not in text
-    assert "<library_animations>" not in text
+    assert "<controller" not in out.read_text()
+    assert "<instance_geometry" in out.read_text()
+
+
+def test_write_skin_unknown_keys_dropped_with_warning(tmp_path: Path) -> None:
+    scene = _skinned_scene(_weighted(), extras={"x": 1}, name="rig")
+    out = tmp_path / "keys.dae"
+    with pytest.warns(UserWarning, match=r"keys \['extras'\] have no COLLADA"):
+        write_scene(scene, out)
+    assert read_scene(out).global_attrs["skins"][0]["name"] == "rig"
+
+
+def test_write_skin_reference_problems_warn(tmp_path: Path) -> None:
+    scene = SceneData(
+        meshes=(_weighted(),),
+        nodes=(
+            SceneNode(mesh=0, extras={"skin": 5}),
+            SceneNode(extras={"skin": 0}),
+            SceneNode(name="hip"),
+        ),
+        scenes=((0, 1, 2),),
+        global_attrs={"skins": [{"joints": [2]}, {"joints": [2]}]},
+    )
+    out = tmp_path / "refs.dae"
+    with (
+        pytest.warns(UserWarning, match=r"node\(s\) \[0\] name a skin"),
+        pytest.warns(UserWarning, match=r"node\(s\) \[1\] name a skin but no mesh"),
+        pytest.warns(UserWarning, match=r"skin\(s\) \[1\] deform no written"),
+        pytest.warns(UserWarning, match=r"\['joints', 'weights'\].*dropped"),
+    ):
+        write_scene(scene, out)
+    assert "<controller" not in out.read_text()
+
+
+def test_write_skin_list_must_be_a_list(tmp_path: Path) -> None:
+    scene = dataclasses.replace(_skinned_scene(_weighted()), global_attrs={"skins": 3})
+    with pytest.raises(CodecError, match="must be a list"):
+        write_scene(scene, tmp_path / "x.dae")
+
+
+@pytest.mark.parametrize(
+    ("attrs", "match"),
+    [
+        ({}, "has no joints and weights"),
+        (
+            {"joints": np.zeros((3, 4), np.int32), "weights": np.ones((3, 3))},
+            "of one shape",
+        ),
+        (
+            {"joints": np.zeros((3, 4)), "weights": np.ones((3, 4))},
+            "needs integer joints",
+        ),
+        (
+            {"joints": np.zeros((2, 4), np.int32), "weights": np.ones((2, 4))},
+            "one row per vertex",
+        ),
+    ],
+)
+def test_write_skinned_mesh_without_usable_weights_is_written_plain(
+    tmp_path: Path, attrs: dict, match: str
+) -> None:
+    poly = make_polydata(
+        _TRI, [("triangle", np.array([[0, 1, 2]]))], vertex_attrs=attrs
+    )
+    out = tmp_path / "plain.dae"
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        write_scene(_skinned_scene(poly), out)
+    assert any(re.search(match, str(w.message)) for w in record)
+    assert "<controller" not in out.read_text()
+
+
+def test_write_skin_bad_influences_dropped_with_warning(tmp_path: Path) -> None:
+    poly = make_polydata(
+        _TRI,
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={
+            "joints": np.array([[0, 1, 0, 0], [7, 0, 0, 0], [0, 0, 0, 0]], np.int32),
+            "weights": np.array(
+                [[-1.0, 1, 0, 0], [0.5, 0.5, 0, 0], [np.nan, np.inf, 0, 0]]
+            ),
+        },
+    )
+    out = tmp_path / "bad.dae"
+    with (
+        pytest.warns(UserWarning, match=r"3 negative or non-finite weight\(s\)"),
+        pytest.warns(UserWarning, match=r"1 influence\(s\) on a joint outside"),
+    ):
+        write_scene(_skinned_scene(poly), out)
+    mesh = read_scene(out).meshes[0]
+    assert mesh.vertex_attrs["joints"].tolist() == [
+        [1, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ]
+    assert mesh.vertex_attrs["weights"].tolist() == [
+        [1, 0, 0, 0],
+        [0.5, 0, 0, 0],
+        [0, 0, 0, 0],
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -4785,6 +5596,24 @@ def test_reference_reads_our_shared_nodes(tmp_path: Path) -> None:
     write_scene(scene, out)
     doc = collada.Collada(str(out))
     assert len(list(doc.scene.objects("geometry"))) == 2
+
+
+@pytest.mark.filterwarnings("ignore")
+def test_reference_reads_our_skin(tmp_path: Path) -> None:
+    collada = pytest.importorskip("collada")
+    data, ibm = _skinned_glb()
+    glb = tmp_path / "skin.glb"
+    glb.write_bytes(data)
+    out = tmp_path / "skin.dae"
+    write_scene(gltf_read_scene(glb), out)
+    doc = collada.Collada(str(out))
+    (skin,) = doc.controllers
+    names = [str(n) for n in skin.weight_joints]
+    assert names == ["node1", "node2"]
+    np.testing.assert_allclose(skin.joint_matrices["node2"], ibm[1])
+    assert skin.vcounts.tolist() == [2, 2, 2]
+    np.testing.assert_allclose(skin.weights.data.ravel(), [0.5] * 6)
+    assert [type(o).__name__ for o in doc.scene.objects("controller")] == ["BoundSkin"]
 
 
 @pytest.mark.filterwarnings("ignore")

@@ -79,9 +79,7 @@ New features
   spells 1.4.1 with fixed timestamps, so a scene always writes the same
   bytes, refuses connectivity a reader could not read back, and writes a
   node shared by two parents once in ``<library_nodes>``, instanced from
-  there. ``read()`` flattens with a warning, ``lazy=True`` raises. Skins are
-  not read or written yet: a skinned mesh reads in its bind shape, with a
-  warning.
+  there. ``read()`` flattens with a warning, ``lazy=True`` raises.
 - COLLADA animations are read and written. ``<animation>`` channels land
   under ``global_attrs["animations"]`` in the shape glTF uses, each target
   holding the node, the path, the transform ``sid`` and its member; a
@@ -93,6 +91,19 @@ New features
   from the rotation, so a glTF animation goes to COLLADA and comes back as
   translation, rotation and scale channels holding its values at its key
   times.
+- COLLADA skins are read and written. An ``<instance_controller>`` gives
+  its mesh ``joints`` and ``weights`` (the four heaviest influences per
+  vertex) and its node a ``skin`` index into ``global_attrs["skins"]``,
+  each entry holding the joints bound to node indices, the inverse bind
+  matrices and the bind shape matrix in the shape a glTF read gives.
+  Joint names bind by sid under the instance's ``<skeleton>`` roots, else
+  to the nearest node holding them, so two rigs sharing bone names and
+  each copy of an instanced character bind their own. A geometry skinned
+  by one instance and not another gets a mesh per use. Write builds a
+  ``<controller>`` per skinned mesh, names each joint by sid where a
+  reader cannot mistake it and by id elsewhere, and spells the rig's top
+  joints as ``<skeleton>`` roots, so a rigged glTF scene keeps its skin
+  through COLLADA.
 - A glTF read decodes each skin's ``inverseBindMatrices`` accessor into
   ``inverse_bind_matrices`` (row-major, one per joint), so a format that
   stores the bind pose by matrix can write a skinned glTF scene. A skin
