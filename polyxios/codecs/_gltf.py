@@ -10,6 +10,7 @@ import base64
 import dataclasses
 import json
 from pathlib import Path
+import re
 import struct
 from typing import Any
 import urllib.parse
@@ -1286,7 +1287,11 @@ def _make_glb(gltf_dict: dict, bin_data: bytes) -> bytes:
             pad_byte=b" ",
         )
     except ValueError as exc:
-        raise CodecError("glTF: mesh data contains NaN or Inf values") from exc
+        raise CodecError(
+            "glTF: a value is NaN or Inf; the scene cannot be written."
+        ) from exc
+    except TypeError as exc:
+        raise CodecError(f"glTF: {exc}; the scene cannot be written.") from exc
     chunks: list[bytes] = []
     chunks.append(struct.pack("<II", len(json_bytes), _CHUNK_JSON) + json_bytes)
     if bin_data:
@@ -1408,9 +1413,9 @@ _GLTF_ATTR_MAP: dict[str, tuple[str, int]] = {
     "texcoords_1": ("TEXCOORD_1", 5126),
     "colors": ("COLOR_0", 5126),
     "tangents": ("TANGENT", 5126),
-    "joints": ("JOINTS_0", 5121),  # UBYTE
-    "weights": ("WEIGHTS_0", 5126),
 }
+
+_INFLUENCE_KEY = re.compile(r"(joints|weights)(_[1-9][0-9]*)?")
 
 _GLTF_ACC_TYPE: dict[str, str] = {
     "normals": "VEC3",
@@ -1435,6 +1440,8 @@ def _polydata_to_primitives(
     poly: PolyData,
     bb: _BinBuilder,
     mat_remap: dict[int, int] | None = None,
+    *,
+    what: str = "glTF",
 ) -> list[dict]:
     """Convert a PolyData into a list of glTF primitive dicts.
 
@@ -1449,11 +1456,15 @@ def _polydata_to_primitives(
         sequential indices used in the output ``materials`` array.  ``None``
         passes raw values through unchanged (valid when material indices are
         already dense and zero-based).
+    what
+        The mesh's name in the warnings, ``glTF`` alone or with its index.
 
     Returns
     -------
     list[dict]
-        glTF primitive dicts ready for ``mesh["primitives"]``.
+        glTF primitive dicts ready for ``mesh["primitives"]``. Vertex and
+        element attributes glTF has no place for, and tags, are left out
+        with a warning.
     """
     # POSITION accessor (float32).
     pos_f32 = poly.vertices.astype(np.float32)
@@ -1461,19 +1472,32 @@ def _polydata_to_primitives(
 
     # Vertex attribute accessors.
     va_accessors: dict[str, int] = {}
+    handled: set[str] = set()
+    sets, rejected = _influence_sets(poly.vertex_attrs, what=what)
+    if rejected:
+        handled.update(k for k in poly.vertex_attrs if _INFLUENCE_KEY.fullmatch(k))
+    for n, (joints_key, weights_key) in enumerate(sets):
+        joints = np.asarray(poly.vertex_attrs[joints_key])
+        weights = np.asarray(poly.vertex_attrs[weights_key])
+        wide = joints.size > 0 and joints.max() > 255
+        va_accessors[f"JOINTS_{n}"] = bb.add(
+            joints.astype(np.uint16 if wide else np.uint8),
+            acc_type="VEC4",
+            component_type=5123 if wide else 5121,
+        )
+        if weights.dtype.kind == "u":
+            weights = weights / np.iinfo(weights.dtype).max
+        va_accessors[f"WEIGHTS_{n}"] = bb.add(
+            weights.astype(np.float32), acc_type="VEC4", component_type=5126
+        )
+        handled.update((joints_key, weights_key))
     for key, (semantic, comp_type) in _GLTF_ATTR_MAP.items():
         if key not in poly.vertex_attrs:
             continue
+        handled.add(key)
         arr = poly.vertex_attrs[key]
 
-        if key == "joints":
-            # Joints with index > 255 require UNSIGNED_SHORT.
-            if arr.size > 0 and arr.max() > 255:
-                data = arr.astype(np.uint16)
-                comp_type = 5123  # UNSIGNED_SHORT
-            else:
-                data = arr.astype(np.uint8)
-        elif key == "colors":
+        if key == "colors":
             # Integer color arrays must be divided by 255 before writing as float32.
             if np.issubdtype(arr.dtype, np.integer):
                 data = (arr / 255.0).astype(np.float32)
@@ -1498,6 +1522,24 @@ def _polydata_to_primitives(
 
         va_accessors[semantic] = bb.add(
             data, acc_type=acc_type, component_type=comp_type
+        )
+    unwritten = sorted(set(poly.vertex_attrs) - handled)
+    if unwritten:
+        _warn_caller(
+            f"{what}: vertex attribute(s) {unwritten} have no glTF semantic; they "
+            "are not written."
+        )
+    others = sorted(k for k in poly.element_attrs if k != "material")
+    if others:
+        _warn_caller(
+            f"{what}: element attribute(s) {others} have no glTF counterpart "
+            "(only material does); they are not written."
+        )
+    tags = sorted({*poly.vertex_tags, *poly.element_tags})
+    if tags:
+        _warn_caller(
+            f"{what}: tag group(s) {tags} have no glTF counterpart; they are not "
+            "written."
         )
 
     # Group elements by (element_type_code, material_index).
@@ -1598,6 +1640,96 @@ def _polydata_to_primitives(
     return primitives
 
 
+def _influence_key(name: str, n: int) -> str:
+    """Return the vertex attribute holding influence set ``n`` of ``name``."""
+    return name if n == 0 else f"{name}_{n}"
+
+
+def _influence_sets(
+    attrs: dict[str, Any], *, what: str
+) -> tuple[list[tuple[str, str]], bool]:
+    """Return the ``(joints, weights)`` keys of the influence sets to write.
+
+    Set ``n`` is ``joints`` and ``weights`` for 0, ``joints_<n>`` and
+    ``weights_<n>`` after, as a read names ``JOINTS_<n>`` and
+    ``WEIGHTS_<n>``. glTF numbers them from 0 with no gap, so the first set
+    that cannot be written ends the list, with a warning.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's vertex attributes.
+    what
+        The mesh's name in the warning.
+
+    Returns
+    -------
+    tuple
+        The keys of each set, in order, and whether a set was rejected, its
+        warning then covering every influence key left out.
+    """
+    sets: list[tuple[str, str]] = []
+    while True:
+        n = len(sets)
+        keys = (_influence_key("joints", n), _influence_key("weights", n))
+        if keys[0] not in attrs and keys[1] not in attrs:
+            return sets, False
+        why = _unwritable_influences(attrs, *keys)
+        if why is not None:
+            _warn_caller(
+                f"{what}: {why}; JOINTS_{n} and WEIGHTS_{n} are not written, nor "
+                "any set after them."
+            )
+            return sets, True
+        sets.append(keys)
+
+
+def _unwritable_influences(
+    attrs: dict[str, Any], joints_key: str, weights_key: str
+) -> str | None:
+    """Return why an influence set cannot go out, None when it can.
+
+    glTF takes it as a pair of ``VEC4`` accessors, one row per vertex,
+    joints whole numbers in 0..65535 and weights floats, or uint8 or uint16
+    normalised as glTF stores them.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's vertex attributes, holding at least one of the two keys.
+    joints_key, weights_key
+        The keys of the set's joints and weights.
+
+    Returns
+    -------
+    str or None
+        The reason, for the warning.
+    """
+    if joints_key not in attrs or weights_key not in attrs:
+        return f"{joints_key} and {weights_key} come as a pair, and only one is given"
+    joints = np.asarray(attrs[joints_key])
+    weights = np.asarray(attrs[weights_key])
+    if joints.ndim != 2 or joints.shape[1] != 4 or weights.shape != joints.shape:
+        return (
+            f"{joints_key} {joints.shape} and {weights_key} {weights.shape} are "
+            "not four per vertex"
+        )
+    if weights.dtype.kind != "f" and weights.dtype not in (np.uint8, np.uint16):
+        return f"{weights_key} are neither floats nor normalised uint8 or uint16"
+    bad = f"{joints_key} are not integers in 0..65535"
+    if joints.dtype.kind not in "iuf":
+        return bad
+    if joints.size == 0:
+        return None
+    if joints.dtype.kind == "f" and not (
+        np.isfinite(joints).all() and np.array_equal(joints, np.round(joints))
+    ):
+        return bad
+    if joints.min() < 0 or joints.max() > 65535:
+        return bad
+    return None
+
+
 # =============================================================================
 # write
 # =============================================================================
@@ -1628,6 +1760,15 @@ def write(
         If no writable elements remain after filtering, or if
         ``binary=False`` and *path* is a stream rather than a filesystem
         path.
+
+    Notes
+    -----
+    ``global_attrs["mesh_name"]`` becomes the mesh's ``name``, and
+    ``global_attrs["asset"]`` gives its ``copyright``. Vertex attributes
+    glTF has no semantic for, element attributes other than ``material``,
+    tags and other globals are not written, each with a warning.
+    Influences are written as :func:`write_scene` writes them, but with
+    no skin: a flat write has no node to hang one on.
     """
     if binary is None:
         binary = format_suffix(path).lower() != ".gltf"
@@ -1652,6 +1793,7 @@ def write(
 
     bb = _BinBuilder()
     primitives = _polydata_to_primitives(poly, bb, mat_remap=mat_remap or None)
+    mesh_entry = _mesh_entry(primitives, poly.global_attrs, "glTF", keep={"asset"})
 
     if not primitives:
         raise CodecError(
@@ -1669,7 +1811,7 @@ def write(
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0}],
-        "meshes": [{"primitives": primitives}],
+        "meshes": [mesh_entry],
         "accessors": bb.accessors,
         "bufferViews": bb.buffer_views,
         "buffers": [{"byteLength": len(bb.bin_data)}],
@@ -1711,16 +1853,45 @@ def write_scene(
     ------
     CodecError
         If ``binary=False`` and *path* is a stream, if any mesh produces
-        no writable primitives, or if the matrix of an animated node holds
-        NaN or Inf.
+        no writable primitives, if the matrix of an animated node holds
+        NaN or Inf, or if a value passed through as it is, such as an
+        animation target's ``extras``, is not JSON.
 
     Notes
     -----
-    ``write_scene`` is lossy for skinned meshes: skin definitions
-    (``global_attrs["skins"]``), ``JOINTS_0`` / ``WEIGHTS_0`` vertex
-    attributes, and per-node ``skin`` / ``camera`` extras are not written.
-    Use the round-tripped ``SceneData`` of a skinned scene only for static
-    geometry and material inspection.
+    Skins in ``global_attrs["skins"]`` are written with their ``name``,
+    ``joints`` and ``skeleton`` node indices, their ``extras`` and their
+    decoded ``inverse_bind_matrices`` (identity when absent) as a float
+    MAT4 accessor; a node's ``extras["skin"]`` index becomes its ``skin``,
+    and its mesh's ``joints`` and ``weights`` its ``JOINTS_0`` and
+    ``WEIGHTS_0``. A ``bind_shape_matrix``, which glTF lacks, is folded
+    into every inverse bind matrix: a joint then moves the bind shape the
+    same way. A skin is not written, with a warning, when it is not a dict,
+    its joints are not distinct node indices sharing one root, its inverse
+    bind matrices are not one finite 4x4 per joint float32 can hold, with
+    a last row of ``[0, 0, 0, 1]`` once the bind shape is folded in (or an
+    ``inverseBindMatrices`` accessor was never decoded) or its
+    ``bind_shape_matrix`` is not a finite 4x4; a ``skeleton`` that is not
+    an ancestor of (or is) every joint is dropped, and so are a ``name``
+    that is not a string, ``extras`` that are not JSON, ``extensions``
+    (whose ``extensionsUsed`` the writer does not keep) and keys glTF has
+    no place for, each with a warning. A node keeps no ``skin``, with a
+    warning, when it names one the scene lacks, has no mesh, or its mesh
+    has no ``JOINTS_0`` and ``WEIGHTS_0`` or a joint index past the skin's
+    joints. ``joints`` and ``weights`` are written as a pair, four per
+    vertex, joints whole numbers in 0..65535 and weights floats; uint8 and
+    uint16 weights are taken as normalised, as glTF stores them, and
+    written divided by 255 or 65535. ``joints_<n>`` and ``weights_<n>``
+    go out as ``JOINTS_<n>`` and ``WEIGHTS_<n>``, numbered from 1 with no
+    gap; the first set that breaks any of this is not written, nor any
+    set after it, with a warning. Per-node ``camera`` extras are not
+    written.
+
+    Each mesh's ``global_attrs["mesh_name"]`` becomes its ``name``, and the
+    scene's ``global_attrs["extras"]`` the file's ``extras``. Vertex
+    attributes glTF has no semantic for, element attributes other than
+    ``material``, tags, other mesh globals, the scene's ``extensions``
+    and other scene globals are not written, each with a warning.
 
     An animation channel that is not a glTF one is skipped with a warning
     rather than written with the wrong meaning: a target with fields glTF
@@ -1757,13 +1928,15 @@ def write_scene(
     # Meshes.
     gltf_meshes: list[dict] = []
     for mesh_idx, mesh_poly in enumerate(scene.meshes):
-        prims = _polydata_to_primitives(mesh_poly, bb)
+        what = f"glTF: mesh {mesh_idx}"
+        prims = _polydata_to_primitives(mesh_poly, bb, what=what)
         if not prims:
             raise CodecError(
                 f"glTF: mesh {mesh_idx} produced no writable primitives; "
                 "remove it or filter out unsupported element types first."
             )
-        gltf_meshes.append({"primitives": prims})
+        gltf_meshes.append(_mesh_entry(prims, mesh_poly.global_attrs, what))
+    gltf_skins, skin_of = _skins_of_nodes(scene, bb, gltf_meshes)
 
     # Materials.
     gltf_materials: list[dict] = [_scene_material_to_gltf(m) for m in scene.materials]
@@ -1832,6 +2005,8 @@ def write_scene(
             n_entry["name"] = node.name
         if node.mesh is not None:
             n_entry["mesh"] = node.mesh
+        if node_i in skin_of:
+            n_entry["skin"] = skin_of[node_i]
         if node.children:
             n_entry["children"] = list(node.children)
         if node_i in animated_node_indices:
@@ -1900,10 +2075,415 @@ def write_scene(
         gltf_dict["textures"] = gltf_textures
     if gltf_samplers:
         gltf_dict["samplers"] = gltf_samplers
+    if gltf_skins:
+        gltf_dict["skins"] = gltf_skins
+    extras = _scene_extras(scene.global_attrs)
+    if extras is not None:
+        gltf_dict["extras"] = extras
     if gltf_animations:
         gltf_dict["animations"] = gltf_animations
 
     _write_output(gltf_dict, bb.bin_data, path, binary=binary)
+
+
+def _mesh_entry(
+    primitives: list[dict],
+    global_attrs: dict[str, Any],
+    what: str,
+    *,
+    keep: frozenset[str] | set[str] = frozenset(),
+) -> dict:
+    """Return the glTF mesh object of ``primitives``, named by ``mesh_name``.
+
+    Parameters
+    ----------
+    primitives
+        The mesh's primitives.
+    global_attrs
+        The mesh's global attributes; ``mesh_name`` becomes its ``name``.
+    what
+        The mesh's name in the warnings.
+    keep
+        Further keys the caller writes elsewhere; any other is left out
+        with a warning.
+
+    Returns
+    -------
+    dict
+        The mesh object.
+    """
+    entry: dict = {"primitives": primitives}
+    name = global_attrs.get("mesh_name")
+    if isinstance(name, str):
+        if name:
+            entry["name"] = name
+    elif name is not None:
+        _warn_caller(f"{what}: mesh_name {name!r} is not a string; it is dropped.")
+    lost = sorted(str(k) for k in global_attrs if k != "mesh_name" and k not in keep)
+    if lost:
+        _warn_caller(
+            f"{what}: global_attrs {lost} have no glTF counterpart (only "
+            "mesh_name does); they are not written."
+        )
+    return entry
+
+
+# The scene globals a write reads; ``extensions`` is not among them, since an
+# extension must also be listed in ``extensionsUsed``.
+_SCENE_KEYS = frozenset({"asset", "skins", "animations", "extras"})
+
+
+def _scene_extras(global_attrs: dict[str, Any]) -> Any:
+    """Return the scene's ``extras`` to write, None when there are none.
+
+    ``extras`` that are not JSON, ``extensions`` and globals glTF has no
+    place for are left out with a warning.
+    """
+    extras = global_attrs.get("extras")
+    if extras is not None and not _is_json(extras):
+        _warn_caller("glTF: global_attrs['extras'] are not JSON; they are dropped.")
+        extras = None
+    if "extensions" in global_attrs:
+        _warn_caller(
+            "glTF: global_attrs['extensions'] are not written: glTF needs each "
+            "listed in extensionsUsed, which the writer does not keep."
+        )
+    lost = sorted(
+        str(k) for k in global_attrs if k not in _SCENE_KEYS and k != "extensions"
+    )
+    if lost:
+        _warn_caller(
+            f"glTF: global_attrs {lost} have no glTF counterpart; they are not written."
+        )
+    return extras
+
+
+# The keys of a ``global_attrs["skins"]`` entry a write reads; the raw
+# ``inverseBindMatrices`` accessor index is superseded by its decoded matrices,
+# and COLLADA's ``bind_shape_matrix`` is folded into them. ``extensions`` is
+# left out: an extension must also be listed in ``extensionsUsed``, which the
+# writer does not keep.
+_SKIN_KEYS = frozenset(
+    {
+        "name",
+        "joints",
+        "skeleton",
+        "inverse_bind_matrices",
+        "inverseBindMatrices",
+        "bind_shape_matrix",
+        "extras",
+    }
+)
+
+
+def _node_index(value: Any, n: int) -> int | None:
+    """Return ``value`` as an index below ``n``, None when it is not one."""
+    if isinstance(value, np.integer):
+        value = int(value)
+    return value if _is_index(value, n) else None
+
+
+def _matrices(value: Any, shape: tuple[int, ...]) -> np.ndarray | None:
+    """Return ``value`` as finite float64 of ``shape``, None when it is not."""
+    try:
+        arr = np.asarray(value, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+    if arr.shape != shape or not np.isfinite(arr).all():
+        return None
+    return arr
+
+
+def _is_json(value: Any) -> bool:
+    """Return whether ``value`` serialises to JSON with no NaN or Inf."""
+    try:
+        json.dumps(value, allow_nan=False, default=_json_default)
+    except (TypeError, ValueError, RecursionError):
+        return False
+    return True
+
+
+def _skin_matrices(
+    what: str, skin: dict, n_joints: int
+) -> tuple[bool, np.ndarray | None]:
+    """Return the inverse bind matrices skin ``what`` writes, bind shape folded in.
+
+    Parameters
+    ----------
+    what
+        The skin's name in the warnings.
+    skin
+        The ``global_attrs["skins"]`` entry.
+    n_joints
+        The number of its joints.
+
+    Returns
+    -------
+    tuple
+        Whether the skin can be written (False comes with a warning), and
+        its ``(n_joints, 4, 4)`` row-major matrices, None when it has neither
+        matrices nor bind shape, glTF's identity.
+    """
+    ibm = skin.get("inverse_bind_matrices")
+    if ibm is None and skin.get("inverseBindMatrices") is not None:
+        _warn_caller(
+            f"{what} names inverse bind matrices that were never decoded; it is "
+            "not written."
+        )
+        return False, None
+    shape = (n_joints, 4, 4)
+    matrices = None if ibm is None else _matrices(ibm, shape)
+    if ibm is not None and matrices is None:
+        _warn_caller(
+            f"{what} has inverse bind matrices that are not {n_joints} finite "
+            "4x4 matrices, one per joint; it is not written."
+        )
+        return False, None
+    bsm = skin.get("bind_shape_matrix")
+    if bsm is not None:
+        bind_shape = _matrices(bsm, (4, 4))
+        if bind_shape is None:
+            _warn_caller(
+                f"{what} has a bind_shape_matrix that is not a finite 4x4 matrix; "
+                "it is not written."
+            )
+            return False, None
+        if matrices is None:
+            matrices = np.broadcast_to(np.eye(4), shape)
+        matrices = matrices @ bind_shape
+    if matrices is None:
+        return True, None
+    if np.abs(matrices).max() > np.finfo(np.float32).max:
+        _warn_caller(
+            f"{what} has inverse bind matrices float32 cannot hold; it is not written."
+        )
+        return False, None
+    if not np.allclose(matrices[:, 3], [0.0, 0.0, 0.0, 1.0], rtol=0.0, atol=1e-6):
+        _warn_caller(
+            f"{what} has inverse bind matrices whose last row is not "
+            "[0, 0, 0, 1], which glTF requires; it is not written."
+        )
+        return False, None
+    matrices = matrices.copy()
+    matrices[:, 3] = (0.0, 0.0, 0.0, 1.0)
+    return True, matrices
+
+
+def _encode_skin(
+    k: int, skin: Any, bb: _BinBuilder, parent: dict[int, int], n_nodes: int
+) -> dict | None:
+    """Return skin ``k`` as a glTF skin object, None when it cannot be one.
+
+    Parameters
+    ----------
+    k
+        The skin's index in ``global_attrs["skins"]``, for the warnings.
+    skin
+        The entry itself.
+    bb
+        The buffer builder its inverse bind matrices are appended to.
+    parent
+        Each node's parent, for checking that the joints share a root and
+        that ``skeleton`` is an ancestor of them.
+    n_nodes
+        The number of nodes of the scene.
+
+    Returns
+    -------
+    dict or None
+        None, with a warning, when the skin is not written.
+    """
+    what = f"glTF: skin {k}"
+    if not isinstance(skin, dict):
+        _warn_caller(f"{what} is not a dict; it is not written.")
+        return None
+    joints = skin.get("joints")
+    if isinstance(joints, np.ndarray):
+        joints = joints.tolist()
+    nodes = (
+        [_node_index(j, n_nodes) for j in joints]
+        if isinstance(joints, (list, tuple))
+        else []
+    )
+    if not nodes or None in nodes or len(set(nodes)) != len(nodes):
+        _warn_caller(
+            f"{what} joints {joints!r} are not distinct node indices; it is not "
+            "written."
+        )
+        return None
+    if len({_root(j, parent) for j in nodes}) > 1:
+        _warn_caller(
+            f"{what} joints {nodes} do not share a root node, which glTF "
+            "requires; it is not written."
+        )
+        return None
+    ok, matrices = _skin_matrices(what, skin, len(nodes))
+    if not ok:
+        return None
+    entry: dict = {}
+    name = skin.get("name")
+    if isinstance(name, str):
+        entry["name"] = name
+    elif name is not None:
+        _warn_caller(f"{what} name {name!r} is not a string; it is dropped.")
+    entry["joints"] = nodes
+    if matrices is not None:
+        column_major = matrices.transpose(0, 2, 1).astype(np.float32)
+        entry["inverseBindMatrices"] = bb.add(
+            np.ascontiguousarray(column_major).reshape(-1, 16),
+            acc_type="MAT4",
+            component_type=5126,
+            target=None,
+        )
+    if skin.get("skeleton") is not None:
+        top = _node_index(skin["skeleton"], n_nodes)
+        if top is not None and all(_rooted(j, top, parent) for j in nodes):
+            entry["skeleton"] = top
+        else:
+            _warn_caller(
+                f"{what} skeleton {skin['skeleton']!r} is not an ancestor of every "
+                "joint; it is dropped."
+            )
+    if skin.get("extras") is not None:
+        if _is_json(skin["extras"]):
+            entry["extras"] = skin["extras"]
+        else:
+            _warn_caller(f"{what} extras are not JSON; they are dropped.")
+    if "extensions" in skin:
+        _warn_caller(
+            f"{what} extensions are not written: glTF needs each listed in "
+            "extensionsUsed, which the writer does not keep."
+        )
+    dropped = sorted(
+        str(key) for key in skin if key not in _SKIN_KEYS and key != "extensions"
+    )
+    if dropped:
+        _warn_caller(f"{what} keys {dropped} have no glTF field; they are not written.")
+    return entry
+
+
+def _root(node: int, parent: dict[int, int]) -> int:
+    """Return the topmost ancestor of ``node``, ``node`` itself when it has none."""
+    seen = {node}
+    while node in parent and parent[node] not in seen:
+        node = parent[node]
+        seen.add(node)
+    return node
+
+
+def _rooted(node: int, top: int, parent: dict[int, int]) -> bool:
+    """Return whether ``top`` is ``node`` or one of its ancestors."""
+    seen: set[int] = set()
+    while node != top:
+        if node not in parent or node in seen:
+            return False
+        seen.add(node)
+        node = parent[node]
+    return True
+
+
+def _skins_of_nodes(
+    scene: SceneData, bb: _BinBuilder, gltf_meshes: list[dict]
+) -> tuple[list[dict], dict[int, int]]:
+    """Return the glTF skins of ``scene`` and the skin each node takes.
+
+    Parameters
+    ----------
+    scene
+        The scene being written.
+    bb
+        The buffer builder the inverse bind matrices are appended to.
+    gltf_meshes
+        The meshes as written, whose primitives say whether ``JOINTS_0``
+        and ``WEIGHTS_0`` went out.
+
+    Returns
+    -------
+    tuple
+        The ``skins`` array and a ``node -> skin`` map over the nodes whose
+        ``extras["skin"]`` names a written skin their mesh can wear; a node
+        naming a skin that was not written is left unskinned silently, the
+        skin's own warning covering it.
+    """
+    skins = scene.global_attrs.get("skins")
+    if skins is None:
+        skins = []
+    elif not isinstance(skins, (list, tuple)):
+        _warn_caller("glTF: global_attrs['skins'] is not a list; it is not written.")
+        skins = []
+    n_nodes = len(scene.nodes)
+    parent: dict[int, int] = {}
+    for i, node in enumerate(scene.nodes):
+        for child in node.children:
+            parent.setdefault(child, i)
+    out: list[dict] = []
+    written: dict[int, int] = {}
+    for k, skin in enumerate(skins):
+        entry = _encode_skin(k, skin, bb, parent, n_nodes)
+        if entry is not None:
+            written[k] = len(out)
+            out.append(entry)
+
+    skin_of: dict[int, int] = {}
+    unskinned: dict[str, list[int]] = {}
+    for i, node in enumerate(scene.nodes):
+        ref = node.extras.get("skin")
+        if ref is None:
+            continue
+        k = _node_index(ref, len(skins))
+        mesh = _node_index(node.mesh, len(gltf_meshes))
+        if k is None:
+            why = "name a skin global_attrs['skins'] lacks"
+        elif k not in written:
+            continue
+        elif mesh is None:
+            why = "name a skin but no mesh for it to deform"
+        else:
+            why = _misfit(scene.meshes[mesh], gltf_meshes[mesh], out[written[k]])
+            if why is None:
+                skin_of[i] = written[k]
+                continue
+        unskinned.setdefault(why, []).append(i)
+    for why, nodes in unskinned.items():
+        _warn_caller(f"glTF: node(s) {_few(nodes)} {why}; they are written unskinned.")
+    return out, skin_of
+
+
+def _few(indices: list[int], *, limit: int = 10) -> str:
+    """Return ``indices`` for a warning, the first ``limit`` and a count of the rest."""
+    if len(indices) <= limit:
+        return str(indices)
+    return f"{indices[:limit]} and {len(indices) - limit} more"
+
+
+def _misfit(poly: PolyData, mesh: dict, skin: dict) -> str | None:
+    """Return why ``mesh`` cannot wear ``skin``, None when it can.
+
+    Every primitive of a skinned mesh needs ``JOINTS_0`` and ``WEIGHTS_0``,
+    and every joint index of every ``JOINTS_<n>`` must name one of the
+    skin's joints, a padding slot of zero weight included.
+    """
+    if not all(
+        "JOINTS_0" in p["attributes"] and "WEIGHTS_0" in p["attributes"]
+        for p in mesh["primitives"]
+    ):
+        return "name a skin but their mesh has no JOINTS_0 and WEIGHTS_0"
+    attributes = mesh["primitives"][0]["attributes"]
+    top = max(
+        int(joints.max()) if joints.size else -1
+        for joints in (
+            np.asarray(poly.vertex_attrs[_influence_key("joints", n)])
+            for n in range(len(attributes))
+            if f"JOINTS_{n}" in attributes
+        )
+    )
+    n_joints = len(skin["joints"])
+    if top >= n_joints:
+        return (
+            f"name a skin of {n_joints} joint(s) but their mesh's joints reach "
+            f"index {top}"
+        )
+    return None
 
 
 _GLTF_PATHS = frozenset({"translation", "rotation", "scale", "weights", "pointer"})
@@ -2510,5 +3090,9 @@ def _write_output(
             gltf_dict, indent=2, allow_nan=False, default=_json_default
         )
     except ValueError as exc:
-        raise CodecError("glTF: mesh data contains NaN or Inf values") from exc
+        raise CodecError(
+            "glTF: a value is NaN or Inf; the scene cannot be written."
+        ) from exc
+    except TypeError as exc:
+        raise CodecError(f"glTF: {exc}; the scene cannot be written.") from exc
     write_text(path, json_str, encoding="utf-8")

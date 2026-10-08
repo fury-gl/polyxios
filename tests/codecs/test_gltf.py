@@ -1770,6 +1770,506 @@ def test_skins_that_are_not_a_list_are_kept_with_a_warning() -> None:
         assert _decode_skins({}, skins, []) is skins
 
 
+def _translation(x: float, y: float, z: float) -> np.ndarray:
+    m = np.eye(4)
+    m[:3, 3] = (x, y, z)
+    return m
+
+
+def _skinned_scene(
+    skin: Any,
+    *,
+    joints: Any = None,
+    weights: Any = None,
+    node_skin: Any = 0,
+    mesh: int | None = 0,
+    omit: tuple[str, ...] = (),
+    extra_attrs: dict[str, Any] | None = None,
+) -> SceneData:
+    """Return a triangle skinned by ``skin`` over a two-bone chain.
+
+    Node 0 holds the mesh, node 1 is the hip and node 2 the knee below it.
+    """
+    if joints is None:
+        joints = np.array([[0, 1, 0, 0]] * 3, dtype=np.uint8)
+    if weights is None:
+        weights = np.array([[0.5, 0.5, 0, 0]] * 3, dtype=np.float32)
+    influences = {"joints": joints, "weights": weights, **(extra_attrs or {})}
+    poly = make_polydata(
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={k: v for k, v in influences.items() if k not in omit},
+    )
+    return SceneData(
+        meshes=(poly,),
+        nodes=(
+            SceneNode(mesh=mesh, extras={"skin": node_skin}),
+            SceneNode(name="hip", children=(2,)),
+            SceneNode(name="knee", matrix=_translation(1.0, 0.0, 0.0)),
+        ),
+        scenes=((0, 1),),
+        global_attrs={"skins": [skin]},
+    )
+
+
+def _written_json(scene: SceneData, tmp_path: Path) -> dict:
+    p = tmp_path / "skin.gltf"
+    write_scene(scene, p, binary=False)
+    return json.loads(p.read_text())
+
+
+def test_skin_round_trips(tmp_path: Path) -> None:
+    data, ibm = _skinned_glb()
+    src = tmp_path / "in.glb"
+    src.write_bytes(data)
+    scene = read_scene(src)
+    out = tmp_path / "out.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    back = read_scene(out)
+    (skin,) = back.global_attrs["skins"]
+    assert skin["joints"] == [1, 2]
+    np.testing.assert_allclose(skin["inverse_bind_matrices"], ibm)
+    assert back.nodes[0].extras["skin"] == 0
+    for key in ("joints", "weights"):
+        np.testing.assert_array_equal(
+            back.meshes[0].vertex_attrs[key], scene.meshes[0].vertex_attrs[key]
+        )
+
+
+def test_skin_is_written_with_its_name_skeleton_and_matrices(tmp_path: Path) -> None:
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[1, 0, 3] = -1.0
+    skin = {"name": "rig", "joints": [1, 2], "skeleton": 1}
+    gltf = _written_json(
+        _skinned_scene({**skin, "inverse_bind_matrices": ibm}), tmp_path
+    )
+    (out,) = gltf["skins"]
+    acc = gltf["accessors"][out.pop("inverseBindMatrices")]
+    assert out == skin
+    assert (acc["type"], acc["componentType"], acc["count"]) == ("MAT4", 5126, 2)
+    assert "target" not in gltf["bufferViews"][acc["bufferView"]]
+    assert gltf["nodes"][0]["skin"] == 0
+
+
+def test_skin_without_matrices_writes_no_accessor(tmp_path: Path) -> None:
+    gltf = _written_json(_skinned_scene({"joints": np.array([1, 2])}), tmp_path)
+    assert gltf["skins"] == [{"joints": [1, 2]}]
+
+
+def test_bind_shape_matrix_is_folded_into_the_inverse_bind_matrices(
+    tmp_path: Path,
+) -> None:
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[1, 0, 3] = -1.0
+    bsm = _translation(0.0, 0.0, 2.0)
+    skin = {"joints": [1, 2], "inverse_bind_matrices": ibm, "bind_shape_matrix": bsm}
+    out = tmp_path / "bsm.glb"
+    write_scene(_skinned_scene(skin), out)
+    (back,) = read_scene(out).global_attrs["skins"]
+    assert "bind_shape_matrix" not in back
+    np.testing.assert_allclose(back["inverse_bind_matrices"], ibm @ bsm)
+
+
+@pytest.mark.parametrize(
+    ("skin", "match"),
+    [
+        ("rig", "is not a dict"),
+        ({"joints": []}, "are not distinct node indices"),
+        ({"joints": [1, 9]}, "are not distinct node indices"),
+        ({"joints": [1, 1]}, "are not distinct node indices"),
+        ({"joints": [1, True]}, "are not distinct node indices"),
+        ({"joints": [1, 2], "inverseBindMatrices": 3}, "never decoded"),
+        ({"joints": [1, 2], "inverse_bind_matrices": np.eye(4)}, "one per joint"),
+        (
+            {"joints": [1, 2], "inverse_bind_matrices": np.full((2, 4, 4), np.nan)},
+            "one per joint",
+        ),
+        (
+            {"joints": [1, 2], "inverse_bind_matrices": np.full((2, 4, 4), 1e300)},
+            "float32 cannot hold",
+        ),
+        ({"joints": [1, 2], "bind_shape_matrix": "eye"}, "bind_shape_matrix"),
+        (
+            {"joints": [1, 2], "inverse_bind_matrices": np.full((2, 4, 4), 0.5)},
+            r"last row is not \[0, 0, 0, 1\]",
+        ),
+        (
+            {"joints": [1, 2], "bind_shape_matrix": np.diag([1.0, 1.0, 1.0, 2.0])},
+            r"last row is not \[0, 0, 0, 1\]",
+        ),
+        ({"joints": [0, 1]}, "do not share a root node"),
+    ],
+)
+def test_unwritable_skin_is_left_out_with_a_warning(
+    tmp_path: Path, skin: Any, match: str
+) -> None:
+    with pytest.warns(UserWarning, match=match):
+        gltf = _written_json(_skinned_scene(skin), tmp_path)
+    assert "skins" not in gltf
+    assert "skin" not in gltf["nodes"][0]
+
+
+def test_last_row_noise_is_written_as_exactly_affine(tmp_path: Path) -> None:
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[:, 3, 0] = 1e-9
+    out = tmp_path / "noise.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(
+            _skinned_scene({"joints": [1, 2], "inverse_bind_matrices": ibm}), out
+        )
+    (back,) = read_scene(out).global_attrs["skins"]
+    np.testing.assert_array_equal(
+        back["inverse_bind_matrices"][:, 3], [[0, 0, 0, 1]] * 2
+    )
+
+
+def test_skeleton_that_does_not_root_the_joints_is_dropped(tmp_path: Path) -> None:
+    with pytest.warns(UserWarning, match="not an ancestor of every joint"):
+        gltf = _written_json(
+            _skinned_scene({"joints": [1, 2], "skeleton": 2}), tmp_path
+        )
+    assert gltf["skins"] == [{"joints": [1, 2]}]
+
+
+def test_skin_extras_are_written(tmp_path: Path) -> None:
+    skin = {"joints": [1, 2], "extras": {"a": np.int64(1), "b": [np.float32(0.5)]}}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        gltf = _written_json(_skinned_scene(skin), tmp_path)
+    assert gltf["skins"] == [{"joints": [1, 2], "extras": {"a": 1, "b": [0.5]}}]
+
+
+@pytest.mark.parametrize(
+    ("extra", "match"),
+    [
+        ({"extras": {"a": object()}}, "extras are not JSON"),
+        ({"extras": {"a": float("nan")}}, "extras are not JSON"),
+        ({"extensions": {"EXT_x": {}}}, "extensions are not written: glTF needs"),
+        ({"pose": 1}, r"keys \['pose'\] have no glTF field"),
+        ({"name": b"rig"}, "is not a string"),
+    ],
+)
+def test_skin_parts_glTF_cannot_hold_are_dropped_with_a_warning(
+    tmp_path: Path, extra: dict, match: str
+) -> None:
+    with pytest.warns(UserWarning, match=match):
+        gltf = _written_json(_skinned_scene({"joints": [1, 2], **extra}), tmp_path)
+    assert gltf["skins"] == [{"joints": [1, 2]}]
+    assert gltf["nodes"][0]["skin"] == 0
+
+
+def test_float32_overflow_warns_of_nothing_but_the_skin(tmp_path: Path) -> None:
+    skin = {
+        "joints": [1, 2],
+        "inverse_bind_matrices": np.full((2, 4, 4), 1e300),
+        "extensions": {},
+    }
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        gltf = _written_json(_skinned_scene(skin), tmp_path)
+    assert [str(w.message) for w in caught] == [
+        "glTF: skin 0 has inverse bind matrices float32 cannot hold; it is not written."
+    ]
+    assert "skins" not in gltf
+
+
+def test_nodes_follow_their_skin_past_one_left_out(tmp_path: Path) -> None:
+    scene = _skinned_scene({"joints": [1, 2]}, node_skin=1)
+    scene = dataclasses.replace(
+        scene,
+        nodes=(*scene.nodes, SceneNode(mesh=0, extras={"skin": 0})),
+        scenes=((0, 1, 3),),
+        global_attrs={"skins": ["rig", {"name": "b", "joints": [1, 2]}]},
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        gltf = _written_json(scene, tmp_path)
+    assert [str(w.message) for w in caught] == [
+        "glTF: skin 0 is not a dict; it is not written."
+    ]
+    assert gltf["skins"] == [{"name": "b", "joints": [1, 2]}]
+    assert gltf["nodes"][0]["skin"] == 0
+    assert "skin" not in gltf["nodes"][3]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"node_skin": 3}, "name a skin global_attrs"),
+        ({"mesh": None}, "no mesh for it to deform"),
+        (
+            {"joints": np.array([[0, 2, 0, 0]] * 3, dtype=np.uint8)},
+            r"skin of 2 joint\(s\) but their mesh's joints reach index 2",
+        ),
+    ],
+)
+def test_node_that_cannot_wear_its_skin_is_written_unskinned(
+    tmp_path: Path, kwargs: dict, match: str
+) -> None:
+    with pytest.warns(UserWarning, match=match):
+        gltf = _written_json(_skinned_scene({"joints": [1, 2]}, **kwargs), tmp_path)
+    assert "skin" not in gltf["nodes"][0]
+
+
+@pytest.mark.parametrize(
+    "joints",
+    [
+        np.array([[0.5, 1, 0, 0]] * 3),
+        np.array([[0, -1, 0, 0]] * 3, dtype=np.int16),
+        np.array([[0, 70000, 0, 0]] * 3),
+        np.array([["a", "b", "c", "d"]] * 3),
+    ],
+)
+def test_joints_glTF_cannot_hold_are_not_written(
+    tmp_path: Path, joints: np.ndarray
+) -> None:
+    with (
+        pytest.warns(UserWarning, match="has no JOINTS_0 and WEIGHTS_0"),
+        pytest.warns(UserWarning, match="not integers in 0..65535"),
+    ):
+        gltf = _written_json(
+            _skinned_scene({"joints": [1, 2]}, joints=joints), tmp_path
+        )
+    attrs = gltf["meshes"][0]["primitives"][0]["attributes"]
+    assert "JOINTS_0" not in attrs and "WEIGHTS_0" not in attrs
+
+
+@pytest.mark.parametrize(
+    ("influences", "match"),
+    [
+        ({"joints": np.array([0, 1, 0])}, "are not four per vertex"),
+        ({"joints": np.array([[0, 1]] * 3)}, "are not four per vertex"),
+        (
+            {"weights": np.array([[1.0, 0.0]] * 3, dtype=np.float32)},
+            "are not four per vertex",
+        ),
+        ({"omit": ("weights",)}, "only one is given"),
+        ({"omit": ("joints",)}, "only one is given"),
+        ({"weights": np.array([["a"] * 4] * 3)}, "weights are neither floats"),
+        ({"weights": np.array([[1, 0, 0, 0]] * 3)}, "weights are neither floats"),
+    ],
+)
+def test_influences_that_are_not_two_vec4_are_not_written(
+    tmp_path: Path, influences: dict, match: str
+) -> None:
+    with (
+        pytest.warns(UserWarning, match="has no JOINTS_0 and WEIGHTS_0"),
+        pytest.warns(UserWarning, match=match),
+    ):
+        gltf = _written_json(_skinned_scene({"joints": [1, 2]}, **influences), tmp_path)
+    attrs = gltf["meshes"][0]["primitives"][0]["attributes"]
+    assert "JOINTS_0" not in attrs and "WEIGHTS_0" not in attrs
+    assert "skin" not in gltf["nodes"][0]
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16])
+def test_integer_weights_are_written_normalised(tmp_path: Path, dtype: type) -> None:
+    top = np.iinfo(dtype).max
+    weights = np.array([[top, 0, 0, 0]] * 3, dtype=dtype)
+    out = tmp_path / "w.glb"
+    write_scene(_skinned_scene({"joints": [1, 2]}, weights=weights), out)
+    np.testing.assert_allclose(
+        read_scene(out).meshes[0].vertex_attrs["weights"], [[1, 0, 0, 0]] * 3
+    )
+
+
+@pytest.mark.parametrize("binary", [True, False])
+def test_a_value_json_cannot_hold_raises_a_codec_error(
+    tmp_path: Path, binary: bool
+) -> None:
+    scene = _channel_scene(
+        {"sampler": 0, "target": {"node": 0, "path": "scale", "extras": object()}}
+    )
+    with pytest.raises(CodecError, match="not JSON serializable"):
+        write_scene(scene, tmp_path / ("a.glb" if binary else "a.gltf"))
+
+
+def test_nan_in_a_passed_through_value_is_not_blamed_on_the_mesh(
+    tmp_path: Path,
+) -> None:
+    scene = _channel_scene(
+        {"sampler": 0, "target": {"node": 0, "path": "scale", "extras": [np.nan]}}
+    )
+    with pytest.raises(CodecError, match="a value is NaN or Inf"):
+        write_scene(scene, tmp_path / "a.glb")
+
+
+def test_many_unskinned_nodes_are_counted_past_ten(tmp_path: Path) -> None:
+    scene = _skinned_scene({"joints": [1, 2]}, node_skin=7)
+    scene = dataclasses.replace(scene, nodes=(*scene.nodes, *[scene.nodes[0]] * 11))
+    with pytest.warns(UserWarning, match=r"11\] and 2 more name a skin"):
+        _written_json(scene, tmp_path)
+
+
+def test_second_influence_set_is_written(tmp_path: Path) -> None:
+    second = {
+        "joints_1": np.array([[1, 0, 0, 0]] * 3, dtype=np.uint8),
+        "weights_1": np.array([[0.5, 0, 0, 0]] * 3),
+    }
+    weights = np.array([[0.25, 0.25, 0, 0]] * 3)
+    scene = _skinned_scene({"joints": [1, 2]}, weights=weights, extra_attrs=second)
+    out = tmp_path / "eight.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    back = read_scene(out)
+    attrs = back.meshes[0].vertex_attrs
+    np.testing.assert_array_equal(attrs["joints_1"], second["joints_1"])
+    np.testing.assert_allclose(attrs["weights_1"], second["weights_1"])
+    np.testing.assert_allclose(attrs["weights"].sum(1) + attrs["weights_1"].sum(1), 1)
+    assert back.nodes[0].extras["skin"] == 0
+
+
+@pytest.mark.parametrize(
+    ("second", "match"),
+    [
+        (
+            {
+                "joints_1": np.array([[0, 2, 0, 0]] * 3),
+                "weights_1": np.zeros((3, 4)),
+            },
+            r"skin of 2 joint\(s\) but their mesh's joints reach index 2",
+        ),
+        (
+            {"joints_1": np.array([[0, 1]] * 3), "weights_1": np.zeros((3, 2))},
+            "JOINTS_1 and WEIGHTS_1 are not written",
+        ),
+        (
+            {"joints_2": np.zeros((3, 4)), "weights_2": np.zeros((3, 4))},
+            r"vertex attribute\(s\) \['joints_2', 'weights_2'\] have no glTF",
+        ),
+    ],
+)
+def test_second_influence_set_glTF_cannot_hold_warns(
+    tmp_path: Path, second: dict, match: str
+) -> None:
+    with pytest.warns(UserWarning, match=match):
+        gltf = _written_json(
+            _skinned_scene({"joints": [1, 2]}, extra_attrs=second), tmp_path
+        )
+    assert "JOINTS_0" in gltf["meshes"][0]["primitives"][0]["attributes"]
+
+
+def test_mesh_name_round_trips(tmp_path: Path) -> None:
+    scene = _skinned_scene({"joints": [1, 2]})
+    poly = dataclasses.replace(scene.meshes[0], global_attrs={"mesh_name": "body"})
+    out = tmp_path / "named.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(dataclasses.replace(scene, meshes=(poly,)), out)
+        write(poly, tmp_path / "flat.glb")
+    assert read_scene(out).meshes[0].global_attrs["mesh_name"] == "body"
+    assert read_scene(tmp_path / "flat.glb").meshes[0].global_attrs["mesh_name"] == (
+        "body"
+    )
+
+
+@pytest.mark.parametrize(
+    ("mesh_globals", "match"),
+    [
+        ({"mesh_name": 3}, "mesh_name 3 is not a string"),
+        ({"gnum": 1}, r"mesh 0: global_attrs \['gnum'\] have no glTF"),
+    ],
+)
+def test_mesh_globals_glTF_cannot_hold_warn(
+    tmp_path: Path, mesh_globals: dict, match: str
+) -> None:
+    scene = _skinned_scene({"joints": [1, 2]})
+    poly = dataclasses.replace(scene.meshes[0], global_attrs=mesh_globals)
+    with pytest.warns(UserWarning, match=match):
+        gltf = _written_json(dataclasses.replace(scene, meshes=(poly,)), tmp_path)
+    assert "name" not in gltf["meshes"][0]
+
+
+def test_scene_extras_round_trip(tmp_path: Path) -> None:
+    scene = dataclasses.replace(
+        _skinned_scene({"joints": [1, 2]}),
+        global_attrs={"skins": [{"joints": [1, 2]}], "extras": {"a": [1, 2]}},
+    )
+    out = tmp_path / "extras.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    assert read_scene(out).global_attrs["extras"] == {"a": [1, 2]}
+
+
+@pytest.mark.parametrize(
+    ("extra", "match"),
+    [
+        ({"extras": {"a": object()}}, r"global_attrs\['extras'\] are not JSON"),
+        ({"extensions": {}}, r"global_attrs\['extensions'\] are not written"),
+        ({"units": "m"}, r"global_attrs \['units'\] have no glTF counterpart"),
+    ],
+)
+def test_scene_globals_glTF_cannot_hold_warn(
+    tmp_path: Path, extra: dict, match: str
+) -> None:
+    scene = _skinned_scene({"joints": [1, 2]})
+    scene = dataclasses.replace(scene, global_attrs={**scene.global_attrs, **extra})
+    with pytest.warns(UserWarning, match=match):
+        gltf = _written_json(scene, tmp_path)
+    assert "extras" not in gltf
+
+
+def test_skinned_collada_scene_keeps_its_rig_in_gltf(tmp_path: Path) -> None:
+    ibm = np.tile(np.eye(4), (2, 1, 1))
+    ibm[1, 0, 3] = -1.0
+    bsm = _translation(0.0, 0.0, 2.0)
+    scene = _skinned_scene(
+        {
+            "name": "rig",
+            "joints": [1, 2],
+            "skeleton": 1,
+            "inverse_bind_matrices": ibm,
+            "bind_shape_matrix": bsm,
+        }
+    )
+    dae = tmp_path / "mid.dae"
+    glb = tmp_path / "back.glb"
+    _collada.write_scene(scene, dae)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mid = _collada.read_scene(dae)
+        write_scene(mid, glb)
+    back = read_scene(glb)
+    (skin,) = back.global_attrs["skins"]
+    assert [back.nodes[j].name for j in skin["joints"]] == ["hip", "knee"]
+    assert back.nodes[skin["skeleton"]].name == "hip"
+    np.testing.assert_allclose(skin["inverse_bind_matrices"], ibm @ bsm, atol=1e-6)
+    (skinned,) = [n for n in back.nodes if n.extras.get("skin") == 0]
+    mesh = back.meshes[skinned.mesh]
+    order = np.lexsort(mesh.vertices.T[::-1])
+    source = scene.meshes[0]
+    expect = np.lexsort(source.vertices.T[::-1])
+    for key in ("joints", "weights"):
+        np.testing.assert_array_equal(
+            mesh.vertex_attrs[key][order], source.vertex_attrs[key][expect]
+        )
+
+
+def test_whole_float_joints_are_written_as_integers(tmp_path: Path) -> None:
+    joints = np.array([[0.0, 1.0, 0.0, 0.0]] * 3)
+    gltf = _written_json(_skinned_scene({"joints": [1, 2]}, joints=joints), tmp_path)
+    attrs = gltf["meshes"][0]["primitives"][0]["attributes"]
+    assert gltf["accessors"][attrs["JOINTS_0"]]["componentType"] == 5121
+    assert gltf["nodes"][0]["skin"] == 0
+
+
+def test_skins_that_are_not_a_list_are_not_written(tmp_path: Path) -> None:
+    scene = dataclasses.replace(
+        _skinned_scene({"joints": [1, 2]}), global_attrs={"skins": {"joints": [1]}}
+    )
+    with (
+        pytest.warns(UserWarning, match="name a skin global_attrs"),
+        pytest.warns(UserWarning, match="is not a list; it is not written"),
+    ):
+        gltf = _written_json(scene, tmp_path)
+    assert "skins" not in gltf
+
+
 def _channel_scene(channel: Any, *, matrix: np.ndarray | None = None) -> SceneData:
     """Return a one-node scene whose one animation holds ``channel``."""
     sampler = {

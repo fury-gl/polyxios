@@ -110,6 +110,28 @@ New features
   with no joints, or whose accessor is missing, is not float MAT4, has no
   ``bufferView`` (all zeros), cannot be read or holds fewer matrices than
   joints, is kept undecoded with a warning rather than failing the read.
+- glTF ``write_scene`` writes skins, so a skinned scene keeps its rig on
+  its way back to glTF: each entry of ``global_attrs["skins"]`` becomes a
+  glTF skin with its ``name``, ``joints``, ``skeleton``, ``extras`` and
+  its ``inverse_bind_matrices`` as a float MAT4 accessor, and a node's
+  ``extras["skin"]`` its ``skin``. A ``bind_shape_matrix``, which glTF
+  lacks, is folded into the inverse bind matrices. A skin glTF cannot
+  hold (joints that are not distinct nodes under one root, matrices that
+  are not one finite affine 4x4 per joint, an accessor never decoded) is left
+  out with a warning, as is a node's skin when it has no mesh or its
+  mesh's ``joints`` and ``weights`` do not fit it. Joints that are not
+  whole numbers in 0..65535 are no longer cast into wrapped indices, nor
+  influences that are not four per vertex written as another accessor
+  type: they and their weights are left out with a warning. uint8 and
+  uint16 weights are written normalised rather than as raw counts, and a
+  second influence set (``joints_1``, ``weights_1``, ...) is written as
+  ``JOINTS_1`` and ``WEIGHTS_1`` rather than dropped, so a vertex with
+  eight influences keeps weights summing to one. A mesh's ``mesh_name``
+  and the scene's ``extras`` are written; vertex and element attributes,
+  tags and globals glTF has no place for, once dropped silently, now
+  warn. A value that is not JSON raises
+  :class:`~polyxios.exceptions.CodecError` rather than a bare
+  ``TypeError``, and a NaN in one no longer blames the mesh data.
 - PVD (``.pvd``), ParaView's collection of datasets over time, is read and
   written. Every dataset at one ``timestep`` is read through its own codec
   and merged, tagged by ``group`` or ``part_<n>``, with the step's time

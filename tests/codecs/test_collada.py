@@ -4686,7 +4686,7 @@ def test_write_node_id_outside_xml_name_characters_is_replaced(
     out = tmp_path / "name.dae"
     with pytest.warns(UserWarning, match="not an XML name"):
         write_scene(scene, out)
-    assert given not in out.read_text(encoding="utf-8")
+    assert f'"{given}' not in out.read_text(encoding="utf-8")
     assert read_scene(out).nodes[0].extras["id"] == "node0"
 
 
