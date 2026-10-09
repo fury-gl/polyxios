@@ -2538,7 +2538,9 @@ Node world transforms are applied during to_polydata(): vertices are multiplied 
 
 Animation data is preserved in global_attrs["animations"] as decoded numpy arrays and re-encoded on write_scene; a malformed animation, channel or sampler, or a sampler whose input or output is not the index of an accessor, raises CodecError on read.  Animated nodes are forced to TRS form (never matrix) as the glTF spec requires; a rest matrix that mirrors carries the reflection as a negative x scale, as a split key does, and one holding a shear or projection loses it with a warning. A channel whose meaning glTF lacks, targeting a node the scene does not have, whose sampler is not an object, holds no key, NaN, Inf or a value float32 cannot hold, times that are not strictly increasing, a rotation of zero length, or values that are not three per key for a translation or scale and four for a rotation, or animating a node path an earlier channel of its animation already animates, is skipped with a warning; a matrix channel of LINEAR or STEP keys animating a node’s whole transform is split into translation, rotation and scale channels, a key holding a shear or projection losing it with a warning, and is skipped with a warning when another channel of its animation already animates one of those paths; keys that change handedness from one to the next warn, since the rotation between them swings through the reflection. Key times that float32 would collapse onto their neighbour are nudged down to stay strictly increasing, on every channel, or up when down would make the first time negative. A sampler several channels share is written once, as is a times array several samplers share. The values of a pointer channel, one row per key, are written as the accessor type as wide as a row (scalar, VEC2 to VEC4, MAT3 or MAT4); any other shape is skipped with a warning.
 
-Skins are kept in global_attrs["skins"] as their glTF dicts, each with its inverseBindMatrices accessor also decoded into inverse_bind_matrices, (len(joints), 4, 4) row-major float64; a skin with no joints, or whose accessor is not float MAT4, has no bufferView, cannot be read or holds fewer matrices than joints, is left undecoded with a warning. write_scene does not write skins.
+Skins are kept in global_attrs["skins"] as their glTF dicts, each with its inverseBindMatrices accessor also decoded into inverse_bind_matrices, (len(joints), 4, 4) row-major float64; a skin with no joints, or whose accessor is not float MAT4, has no bufferView, cannot be read or holds fewer matrices than joints, is left undecoded with a warning. write_scene writes each skin back with its name, joints, skeleton, extras and its inverse_bind_matrices as a float MAT4 accessor (none when the skin has no matrices, glTF’s identity), and a node’s extras["skin"] as its skin. A bind_shape_matrix, which glTF lacks, is folded into the inverse bind matrices. A skin whose joints are not distinct node indices under one root, whose matrices are not one finite 4x4 per joint with a last row of [0, 0, 0, 1] once the bind shape is folded in, or whose inverseBindMatrices was never decoded is left out with a warning; so is a skin’s extensions, since the writer keeps no extensionsUsed, and a node’s skin when it names no written skin, has no mesh, or its mesh has no joints and weights or a joint index past the skin’s joints. joints and weights go out as a pair of VEC4; uint8 and uint16 weights are taken as normalised and written as floats. Joints that are not whole numbers in 0..65535, or influences that are not four per vertex, are left out with their weights and a warning. joints_<n> and weights_<n> go out as JOINTS_<n> and WEIGHTS_<n>, as a read names them.
+
+On write, a mesh’s global_attrs["mesh_name"] becomes its name and a scene’s global_attrs["extras"] the file’s extras. Vertex attributes glTF has no semantic for, element attributes other than material, tags, other globals and extensions (the writer keeps no extensionsUsed) are left out with a warning.
 
 Textures with image: -1 are placeholder entries that preserve index alignment for KHR_texture_basisu / EXT_texture_webp extensions; they are read and written without a source key.
 
@@ -7068,6 +7070,29 @@ with no joints, or whose accessor is missing, is not float MAT4, has no
 bufferView (all zeros), cannot be read or holds fewer matrices than
 joints, is kept undecoded with a warning rather than failing the read.
 
+glTF write_scene writes skins, so a skinned scene keeps its rig on
+its way back to glTF: each entry of global_attrs["skins"] becomes a
+glTF skin with its name, joints, skeleton, extras and
+its inverse_bind_matrices as a float MAT4 accessor, and a node’s
+extras["skin"] its skin. A bind_shape_matrix, which glTF
+lacks, is folded into the inverse bind matrices. A skin glTF cannot
+hold (joints that are not distinct nodes under one root, matrices that
+are not one finite affine 4x4 per joint, an accessor never decoded) is left
+out with a warning, as is a node’s skin when it has no mesh or its
+mesh’s joints and weights do not fit it. Joints that are not
+whole numbers in 0..65535 are no longer cast into wrapped indices, nor
+influences that are not four per vertex written as another accessor
+type: they and their weights are left out with a warning. uint8 and
+uint16 weights are written normalised rather than as raw counts, and a
+second influence set (joints_1, weights_1, …) is written as
+JOINTS_1 and WEIGHTS_1 rather than dropped, so a vertex with
+eight influences keeps weights summing to one. A mesh’s mesh_name
+and the scene’s extras are written; vertex and element attributes,
+tags and globals glTF has no place for, once dropped silently, now
+warn. A value that is not JSON raises
+CodecError rather than a bare
+TypeError, and a NaN in one no longer blames the mesh data.
+
 PVD (.pvd), ParaView’s collection of datasets over time, is read and
 written. Every dataset at one timestep is read through its own codec
 and merged, tagged by group or part_<n>, with the step’s time
@@ -7443,7 +7468,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:475: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:497: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -7514,7 +7539,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:539: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:561: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -7752,7 +7777,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:763: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:785: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -7790,7 +7815,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:799: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:821: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -8755,7 +8780,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1659: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1681: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -8839,7 +8864,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1727: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1749: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -8887,7 +8912,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1758: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1780: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -8902,7 +8927,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1770: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1792: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -9008,7 +9033,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1843: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1865: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=3fe63002"></script>
+    <script src="_static/documentation_options.js?v=44675a4e"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -665,6 +665,28 @@ stores the bind pose by matrix can write a skinned glTF scene. A skin
 with no joints, or whose accessor is missing, is not float MAT4, has no
 <code class="docutils literal notranslate"><span class="pre">bufferView</span></code> (all zeros), cannot be read or holds fewer matrices than
 joints, is kept undecoded with a warning rather than failing the read.</p></li>
+<li><p>glTF <code class="docutils literal notranslate"><span class="pre">write_scene</span></code> writes skins, so a skinned scene keeps its rig on
+its way back to glTF: each entry of <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;skins&quot;]</span></code> becomes a
+glTF skin with its <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">joints</span></code>, <code class="docutils literal notranslate"><span class="pre">skeleton</span></code>, <code class="docutils literal notranslate"><span class="pre">extras</span></code> and
+its <code class="docutils literal notranslate"><span class="pre">inverse_bind_matrices</span></code> as a float MAT4 accessor, and a node’s
+<code class="docutils literal notranslate"><span class="pre">extras[&quot;skin&quot;]</span></code> its <code class="docutils literal notranslate"><span class="pre">skin</span></code>. A <code class="docutils literal notranslate"><span class="pre">bind_shape_matrix</span></code>, which glTF
+lacks, is folded into the inverse bind matrices. A skin glTF cannot
+hold (joints that are not distinct nodes under one root, matrices that
+are not one finite affine 4x4 per joint, an accessor never decoded) is left
+out with a warning, as is a node’s skin when it has no mesh or its
+mesh’s <code class="docutils literal notranslate"><span class="pre">joints</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code> do not fit it. Joints that are not
+whole numbers in 0..65535 are no longer cast into wrapped indices, nor
+influences that are not four per vertex written as another accessor
+type: they and their weights are left out with a warning. uint8 and
+uint16 weights are written normalised rather than as raw counts, and a
+second influence set (<code class="docutils literal notranslate"><span class="pre">joints_1</span></code>, <code class="docutils literal notranslate"><span class="pre">weights_1</span></code>, …) is written as
+<code class="docutils literal notranslate"><span class="pre">JOINTS_1</span></code> and <code class="docutils literal notranslate"><span class="pre">WEIGHTS_1</span></code> rather than dropped, so a vertex with
+eight influences keeps weights summing to one. A mesh’s <code class="docutils literal notranslate"><span class="pre">mesh_name</span></code>
+and the scene’s <code class="docutils literal notranslate"><span class="pre">extras</span></code> are written; vertex and element attributes,
+tags and globals glTF has no place for, once dropped silently, now
+warn. A value that is not JSON raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> rather than a bare
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>, and a NaN in one no longer blames the mesh data.</p></li>
 <li><p>PVD (<code class="docutils literal notranslate"><span class="pre">.pvd</span></code>), ParaView’s collection of datasets over time, is read and
 written. Every dataset at one <code class="docutils literal notranslate"><span class="pre">timestep</span></code> is read through its own codec
 and merged, tagged by <code class="docutils literal notranslate"><span class="pre">group</span></code> or <code class="docutils literal notranslate"><span class="pre">part_&lt;n&gt;</span></code>, with the step’s time
