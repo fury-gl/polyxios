@@ -4447,7 +4447,9 @@ def test_write_texture_shared_by_two_slots_declares_one_sampler(tmp_path: Path) 
 
 def test_write_fully_transparent_material_roundtrips(tmp_path: Path) -> None:
     scene = _material_scene()
-    clear = SceneMaterial(name="Clear", base_color=(1.0, 0.0, 0.0, 0.0))
+    clear = SceneMaterial(
+        name="Clear", base_color=(1.0, 0.0, 0.0, 0.0), alpha_mode="BLEND"
+    )
     scene = SceneData(
         meshes=scene.meshes,
         nodes=scene.nodes,
@@ -4905,6 +4907,43 @@ def test_gltf_copyright_survives_a_collada_round_trip(tmp_path: Path) -> None:
     )
 
 
+def test_gltf_pbr_material_survives_a_collada_round_trip(tmp_path: Path) -> None:
+    pbr = SceneMaterial(
+        name="pbr",
+        base_color=(0.5, 0.6, 0.7, 1.0),
+        metallic=0.2,
+        roughness=0.8,
+        alpha_mode="MASK",
+        alpha_cutoff=0.25,
+        base_color_texture=0,
+        metallic_roughness_texture=0,
+        occlusion_texture=0,
+    )
+    glb = tmp_path / "a.glb"
+    gltf_write_scene(
+        SceneData(
+            meshes=(
+                dataclasses.replace(
+                    _surface(),
+                    vertex_attrs={"texcoords": np.zeros((5, 2))},
+                    element_attrs={"material": np.zeros(2, dtype=np.int32)},
+                ),
+            ),
+            nodes=(SceneNode(mesh=0),),
+            materials=(pbr,),
+            textures=(SceneTexture(image=0),),
+            images=(SceneImage(data=b"\x89PNGxx", media_type="image/png"),),
+            scenes=((0,),),
+        ),
+        glb,
+    )
+    dae = tmp_path / "b.dae"
+    write_scene(gltf_read_scene(glb), dae)
+    gltf_write_scene(read_scene(dae), tmp_path / "c.glb")
+    back = gltf_read_scene(tmp_path / "c.glb").materials[0]
+    assert dataclasses.replace(back, extras={}) == pbr
+
+
 def test_write_asset_key_without_a_counterpart_warns(tmp_path: Path) -> None:
     poly = dataclasses.replace(
         _surface(), global_attrs={"asset": {"minVersion": "2.0", "copyright": "x"}}
@@ -5044,22 +5083,56 @@ def test_write_textured_material_binds_the_lowest_written_set(
     assert "bind_vertex_input" not in out.read_text()
 
 
-def test_write_dropped_base_colour_warns(tmp_path: Path) -> None:
+def test_write_base_colour_beside_its_texture_round_trips(tmp_path: Path) -> None:
     base = _material_scene()
     tinted = dataclasses.replace(base.materials[0], base_color=(1.0, 0.0, 0.0, 0.5))
-    scene = dataclasses.replace(base, materials=(tinted, base.materials[1]))
-    out = tmp_path / "tint.dae"
-    with pytest.warns(UserWarning, match=r"tint is dropped"):
-        write_scene(scene, out)
-    assert read_scene(out).materials[0].base_color == (1.0, 1.0, 1.0, 0.5)
     constant = dataclasses.replace(
         base.materials[1],
         base_color=(0.0, 1.0, 0.0, 1.0),
         extras={"shading": "constant"},
     )
-    scene = dataclasses.replace(base, materials=(base.materials[0], constant))
-    with pytest.warns(UserWarning, match=r"constant shading, which has no diffuse"):
+    scene = dataclasses.replace(base, materials=(tinted, constant))
+    out = tmp_path / "tint.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         write_scene(scene, out)
+    back = read_scene(out).materials
+    assert back[0].base_color == (1.0, 0.0, 0.0, 0.5)
+    assert back[0].base_color_texture == 0
+    assert back[1].base_color == (0.0, 1.0, 0.0, 1.0)
+    diffuse = ET.parse(out).find(f".//{{{_NS}}}diffuse")
+    assert diffuse.find(f"{{{_NS}}}texture") is not None
+    assert diffuse.find(f"{{{_NS}}}color") is None
+
+
+def test_write_constant_material_drops_its_base_colour_texture(
+    tmp_path: Path,
+) -> None:
+    base = _material_scene()
+    constant = dataclasses.replace(base.materials[0], extras={"shading": "constant"})
+    scene = dataclasses.replace(base, materials=(constant, base.materials[1]))
+    with pytest.warns(UserWarning, match=r"constant shading, which has no diffuse"):
+        write_scene(scene, tmp_path / "constant.dae")
+
+
+def test_write_constant_material_drops_the_tint_of_its_texture(
+    tmp_path: Path,
+) -> None:
+    """The tint scales the dropped texture, so it is no flat colour either."""
+    base = _material_scene()
+    constant = dataclasses.replace(
+        base.materials[0],
+        base_color=(1.0, 0.0, 0.0, 1.0),
+        extras={"shading": "constant"},
+    )
+    scene = dataclasses.replace(base, materials=(constant, base.materials[1]))
+    out = tmp_path / "constant.dae"
+    with pytest.warns(UserWarning, match=r"base colour texture and its tint"):
+        write_scene(scene, out)
+    assert "<base_color>" not in out.read_text()
+    back = read_scene(out).materials[0]
+    assert back.base_color_texture is None
+    assert back.base_color == (1.0, 1.0, 1.0, 1.0)
 
 
 @pytest.mark.parametrize(
@@ -5312,19 +5385,293 @@ def test_write_edited_matrix_of_a_far_node_not_reverted(tmp_path: Path) -> None:
     np.testing.assert_array_equal(read_scene(out).nodes[0].matrix, matrix)
 
 
-def test_write_pbr_only_textures_dropped_with_warning(tmp_path: Path) -> None:
+def test_write_pbr_terms_round_trip(tmp_path: Path) -> None:
+    pbr = SceneMaterial(
+        name="pbr",
+        metallic=0.25,
+        roughness=0.5,
+        alpha_mode="MASK",
+        alpha_cutoff=0.3,
+        occlusion_texture=0,
+        metallic_roughness_texture=1,
+    )
+    scene = dataclasses.replace(_material_scene(), materials=(pbr, SceneMaterial()))
+    out = tmp_path / "pbr.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+        back = read_scene(out)
+    mat = back.materials[0]
+    image = {
+        t: back.textures[getattr(mat, t)].image
+        for t in ("occlusion_texture", "metallic_roughness_texture")
+    }
+    assert image == {"occlusion_texture": 0, "metallic_roughness_texture": 1}
+    expected_slots = {
+        "occlusion_texture": 0,
+        "metallic_roughness_texture": 1,
+        "extras": {},
+    }
+    assert dataclasses.replace(mat, **expected_slots) == pbr
+    assert back.materials[1].metallic == 1.0
+    techniques = [t.get("profile") for t in ET.parse(out).iter(f"{{{_NS}}}technique")]
+    assert techniques.count("polyxios") == 2
+
+
+def test_write_material_at_the_common_profile_defaults_has_no_extra(
+    tmp_path: Path,
+) -> None:
+    plain = SceneMaterial(name="plain", metallic=0.0, base_color=(0.2, 0.4, 0.6, 1.0))
+    scene = dataclasses.replace(_material_scene(), materials=(plain, plain))
+    out = tmp_path / "plain.dae"
+    write_scene(scene, out)
+    assert 'profile="polyxios"' not in out.read_text()
+    assert read_scene(out).materials[0].base_color == (0.2, 0.4, 0.6, 1.0)
+
+
+def test_write_opaque_mode_beside_an_alpha_round_trips(tmp_path: Path) -> None:
+    """glTF ignores the alpha of an OPAQUE material; the mode is kept."""
+    opaque = SceneMaterial(base_color=(1.0, 1.0, 1.0, 0.5), alpha_mode="OPAQUE")
+    scene = dataclasses.replace(_material_scene(), materials=(opaque, opaque))
+    out = tmp_path / "opaque.dae"
+    write_scene(scene, out)
+    back = read_scene(out).materials[0]
+    assert (back.alpha_mode, back.base_color[3]) == ("OPAQUE", 0.5)
+
+
+def test_write_pbr_term_not_finite_refused(tmp_path: Path) -> None:
     scene = dataclasses.replace(
         _material_scene(),
-        materials=(
-            SceneMaterial(occlusion_texture=0, metallic_roughness_texture=1),
-            SceneMaterial(),
-        ),
+        materials=(SceneMaterial(roughness=float("nan")), SceneMaterial()),
     )
-    with pytest.warns(UserWarning, match="no slot for") as record:
-        write_scene(scene, tmp_path / "pbr.dae")
-    message = next(str(w.message) for w in record if "no slot for" in str(w.message))
-    assert "occlusion_texture" in message
-    assert "metallic_roughness_texture" in message
+    with pytest.raises(CodecError, match="roughness must be a finite number"):
+        write_scene(scene, tmp_path / "nan.dae")
+
+
+def test_write_unknown_alpha_mode_dropped_with_warning(tmp_path: Path) -> None:
+    scene = dataclasses.replace(
+        _material_scene(),
+        materials=(SceneMaterial(alpha_mode="CUTOUT"), SceneMaterial()),
+    )
+    out = tmp_path / "mode.dae"
+    with pytest.warns(UserWarning, match="alpha_mode 'CUTOUT'"):
+        write_scene(scene, out)
+    assert read_scene(out).materials[0].alpha_mode == "OPAQUE"
+
+
+@pytest.mark.parametrize(
+    ("term", "match"),
+    [
+        ("<alpha_mode>CUTOUT</alpha_mode>", "alpha_mode 'CUTOUT'"),
+        ("<metallic><float>NaN</float></metallic>", "metallic is not finite"),
+        (
+            "<base_color><color>INF 0 0 1</color></base_color>",
+            "base_color is not finite",
+        ),
+        ("<metallic><float>abc</float></metallic>", "metallic is not numbers"),
+        ("<roughness><float>1 2</float></roughness>", "roughness needs 1 number,"),
+        (
+            "<base_color><color>1 0</color></base_color>",
+            "base_color needs 3 or 4 numbers",
+        ),
+        ("<emissive><color>x 0 0</color></emissive>", "emissive is not numbers"),
+        ("<metallic>0.3</metallic>", "metallic holds no <float>"),
+        ("<base_color>1 0 0</base_color>", "base_color holds no <color>"),
+    ],
+)
+def test_read_bad_pbr_term_ignored_with_warning(
+    tmp_path: Path, term: str, match: str
+) -> None:
+    base = _material_scene()
+    red = dataclasses.replace(base.materials[0], metallic=0.0)
+    out = tmp_path / "bad.dae"
+    write_scene(dataclasses.replace(base, materials=(red, red)), out)
+    assert 'profile="polyxios"' not in out.read_text()
+    text = out.read_text().replace(
+        "</technique>\n",
+        f'<extra><technique profile="polyxios">{term}'
+        "</technique></extra></technique>\n",
+        1,
+    )
+    out.write_text(text)
+    with pytest.warns(UserWarning, match=match):
+        back = read_scene(out).materials[0]
+    assert back.alpha_mode == "BLEND"
+    assert back.base_color[:3] == (1.0, 1.0, 1.0)
+
+
+def test_read_pbr_tint_of_an_unresolved_texture_ignored(tmp_path: Path) -> None:
+    """A tint scales its texture; without the texture it is not a colour."""
+    base = _material_scene()
+    lit = dataclasses.replace(
+        base.materials[0],
+        base_color=(1.0, 0.0, 0.0, 0.5),
+        emissive=(0.5, 0.5, 0.5),
+        emissive_texture=0,
+    )
+    out = tmp_path / "lost.dae"
+    write_scene(dataclasses.replace(base, materials=(lit, base.materials[1])), out)
+    assert "<emissive>" in out.read_text()
+    text = re.sub(
+        r'(<surface type="2D"><init_from>)[^<]*', r"\1missing", out.read_text()
+    )
+    out.write_text(text)
+    with pytest.warns(UserWarning, match="reaches no image"):
+        back = read_scene(out).materials[0]
+    assert back.base_color_texture is None
+    assert back.emissive_texture is None
+    assert back.base_color == (1.0, 1.0, 1.0, 0.5)
+    assert back.emissive == (0.0, 0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        "</profile_COMMON>",
+        "</effect>",
+    ],
+)
+def test_read_pbr_technique_outside_the_common_technique_ignored(
+    tmp_path: Path, where: str
+) -> None:
+    """Only the common technique's ``<extra>`` is where a write puts the terms."""
+    base = _material_scene()
+    red = dataclasses.replace(base.materials[0], metallic=0.0)
+    out = tmp_path / "elsewhere.dae"
+    write_scene(dataclasses.replace(base, materials=(red, red)), out)
+    term = (
+        '<extra><technique profile="polyxios">'
+        "<metallic><float>0.5</float></metallic></technique></extra>"
+    )
+    if where == "</effect>":
+        text = out.read_text().replace(where, term + where, 1)
+    else:
+        text = out.read_text().replace(
+            where,
+            f'<extra><technique profile="other">{term}</technique></extra>{where}',
+            1,
+        )
+    out.write_text(text)
+    assert read_scene(out).materials[0].metallic == 0.0
+
+
+def test_write_alpha_cutoff_only_for_mask(tmp_path: Path) -> None:
+    """glTF uses ``alpha_cutoff`` under ``MASK`` alone, and so does a write."""
+    blend = SceneMaterial(metallic=0.0, alpha_mode="BLEND", base_color=(1, 1, 1, 0.5))
+    unused = (
+        dataclasses.replace(blend, alpha_cutoff=float("nan")),
+        dataclasses.replace(blend, alpha_cutoff=0.3),
+    )
+    scene = dataclasses.replace(_material_scene(), materials=unused)
+    out = tmp_path / "cutoff.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    assert 'profile="polyxios"' not in out.read_text()
+    masked = dataclasses.replace(unused[0], alpha_mode="MASK")
+    scene = dataclasses.replace(scene, materials=(masked, masked))
+    with pytest.raises(CodecError, match="alpha_cutoff must be a finite number"):
+        write_scene(scene, out)
+
+
+@pytest.mark.parametrize(
+    "material",
+    [
+        SceneMaterial(metallic=np.array([0.5])),
+        SceneMaterial(metallic=0.0, extras={"shininess": np.array([2.0])}),
+    ],
+)
+def test_write_array_material_scalar_refused(
+    tmp_path: Path, material: SceneMaterial
+) -> None:
+    scene = dataclasses.replace(_material_scene(), materials=(material, material))
+    with pytest.raises(CodecError, match="must be a finite number"):
+        write_scene(scene, tmp_path / "array.dae")
+
+
+@pytest.mark.parametrize(
+    "material",
+    [
+        SceneMaterial(metallic="0.5"),
+        SceneMaterial(metallic=b"0.5"),
+        SceneMaterial(roughness=True),
+        SceneMaterial(roughness=np.bool_(False)),
+        SceneMaterial(metallic=np.str_("0.5")),
+        SceneMaterial(metallic=0.0, extras={"shininess": "2"}),
+        SceneMaterial(metallic=10**400),
+    ],
+)
+def test_write_material_scalar_string_or_bool_refused(
+    tmp_path: Path, material: SceneMaterial
+) -> None:
+    """``float`` parses a string and a boolean; neither is a number."""
+    scene = dataclasses.replace(_material_scene(), materials=(material, material))
+    with pytest.raises(CodecError, match="must be a finite number"):
+        write_scene(scene, tmp_path / "typed.dae")
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["", "<alpha_mode>BLEND</alpha_mode>", "<alpha_mode>CUTOUT</alpha_mode>"],
+)
+def test_read_alpha_cutoff_outside_mask_ignored(tmp_path: Path, mode: str) -> None:
+    """glTF reads ``alpha_cutoff`` under ``MASK`` alone, and a write puts it there."""
+    base = _material_scene()
+    red = dataclasses.replace(base.materials[0], metallic=0.0)
+    out = tmp_path / "cutoff.dae"
+    write_scene(dataclasses.replace(base, materials=(red, red)), out)
+    text = out.read_text().replace(
+        "</technique>\n",
+        '<extra><technique profile="polyxios">'
+        f"<alpha_cutoff><float>0.25</float></alpha_cutoff>{mode}"
+        "</technique></extra></technique>\n",
+        1,
+    )
+    out.write_text(text)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        back = read_scene(out).materials[0]
+    assert back.alpha_mode == "BLEND"
+    assert back.alpha_cutoff == 0.5
+    masked = text.replace(
+        f"{mode}</technique>", "<alpha_mode>MASK</alpha_mode></technique>", 1
+    )
+    out.write_text(masked)
+    back = read_scene(out).materials[0]
+    assert (back.alpha_mode, back.alpha_cutoff) == ("MASK", 0.25)
+
+
+def test_read_pbr_extra_of_a_technique_without_shading(tmp_path: Path) -> None:
+    """A technique naming no shading still holds the terms its extra spells."""
+    base = _material_scene()
+    pbr = dataclasses.replace(base.materials[0], metallic=0.5, roughness=0.25)
+    out = tmp_path / "bare.dae"
+    write_scene(dataclasses.replace(base, materials=(pbr, pbr)), out)
+    text = re.sub(r"<phong>.*?</phong>", "", out.read_text(), count=1, flags=re.S)
+    out.write_text(text)
+    back = read_scene(out).materials[0]
+    assert (back.metallic, back.roughness) == (0.5, 0.25)
+    assert back.extras["shading"] == "phong"
+
+
+@pytest.mark.parametrize("key", ["base_color", "emissive"])
+def test_read_pbr_tint_without_a_texture_warns(tmp_path: Path, key: str) -> None:
+    """A tint beside no texture is not applied, and the drop is reported."""
+    base = _material_scene()
+    plain = dataclasses.replace(base.materials[1], metallic=0.0)
+    out = tmp_path / "bare.dae"
+    write_scene(dataclasses.replace(base, materials=(plain, plain)), out)
+    assert 'profile="polyxios"' not in out.read_text()
+    text = out.read_text().replace(
+        "</technique>\n",
+        f'<extra><technique profile="polyxios"><{key}><color>0 0 1</color></{key}>'
+        "</technique></extra></technique>\n",
+        1,
+    )
+    out.write_text(text)
+    with pytest.warns(UserWarning, match=f"{key} tints a texture the effect lacks"):
+        back, other = read_scene(out).materials
+    assert back == other
 
 
 def test_write_every_attribute_the_reader_names_round_trips(tmp_path: Path) -> None:
@@ -5538,7 +5885,7 @@ def test_write_points_only_mesh_keeps_its_vertex_attributes(tmp_path: Path) -> N
     assert "texcoords_1" not in back.vertex_attrs
 
 
-def test_write_emissive_tint_on_a_texture_warns(tmp_path: Path) -> None:
+def test_write_emissive_tint_on_a_texture_round_trips(tmp_path: Path) -> None:
     scene = dataclasses.replace(
         _material_scene(),
         materials=(
@@ -5547,10 +5894,11 @@ def test_write_emissive_tint_on_a_texture_warns(tmp_path: Path) -> None:
         ),
     )
     out = tmp_path / "glow.dae"
-    with pytest.warns(UserWarning, match="tints its emissive texture"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         write_scene(scene, out)
     back = read_scene(out).materials[0]
-    assert back.emissive_texture == 0 and back.emissive == (1.0, 1.0, 1.0)
+    assert back.emissive_texture == 0 and back.emissive == (0.5, 0.2, 0.1)
 
 
 # ---------------------------------------------------------------------------
