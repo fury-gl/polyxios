@@ -678,9 +678,18 @@ CAPABILITIES: dict[str, Cap] = {
         "surface",
         geometry=False,
         n_elements=3,
-        warns=(r"scene format.*read_scene",),
+        warns=(
+            r"vertex attribute\(s\) \['scalar', 'vector'\]",
+            r"element attribute\(s\) \['efloat', 'eint'\]",
+            r"tag group\(s\) \['a', 'b', 'vgroup'\]",
+            r"global_attrs \['gnum'\]",
+            r"scene format.*read_scene",
+        ),
         note="glTF fan-triangulates quads into triangles on write (mode 4 "
-        "only); read() warns that flattening loses scene hierarchy.",
+        "only) and holds only its named vertex attributes and a material per "
+        "element: every other attribute, the tags and the globals are dropped "
+        "on write with a warning, and read() warns that flattening loses scene "
+        "hierarchy.",
     ),
     ".dae": Cap(
         "surface",
