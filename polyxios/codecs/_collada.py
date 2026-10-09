@@ -265,7 +265,17 @@ _SHADING_TERMS = {
 }
 _OPAQUE_MODES = ("A_ONE", "A_ZERO", "RGB_ZERO", "RGB_ONE")
 _INTERPOLATIONS = ("LINEAR", "BEZIER", "HERMITE", "CARDINAL", "BSPLINE", "STEP")
-_MATERIAL_TEXTURES = ("base_color_texture", "normal_texture", "emissive_texture")
+_MATERIAL_TEXTURES = (
+    "base_color_texture",
+    "normal_texture",
+    "emissive_texture",
+    "metallic_roughness_texture",
+    "occlusion_texture",
+)
+# The common profile is phong-era; the glTF PBR terms it has no slot for ride
+# in an <extra> technique of this profile, which other readers skip.
+_PBR_PROFILE = "polyxios"
+_ALPHA_MODES = ("OPAQUE", "MASK", "BLEND")
 
 # Paths of a channel without a sid that are baked into ``<matrix>`` keys, and
 # the interpolations such a channel may use.
@@ -316,9 +326,14 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         whose visual scenes hold no node (or that has none) gets one root
         node per geometry, all in one scene, so its meshes still show.
         COLLADA has no alpha mask, so ``alpha_mode`` is ``BLEND`` when the
-        material's alpha is below one and ``OPAQUE`` otherwise. Positions,
-        vertex attributes, matrices and sampler keys are float64 whatever precision or
-        array type the file's text carries. Every ``<vertices>`` position is
+        material's alpha is below one and ``OPAQUE`` otherwise, and a
+        material has ``metallic=0``, unless the effect holds a polyxios
+        ``<extra>`` technique: its ``metallic``, ``roughness``,
+        ``alpha_mode``, ``alpha_cutoff`` (under ``MASK`` alone),
+        metallic-roughness and occlusion textures, and a base colour or
+        emissive beside a texture replace what the common profile gives.
+        Positions, vertex attributes, matrices and sampler keys are float64
+        whatever precision or array type the file's text carries. Every ``<vertices>`` position is
         a vertex, whether or not a primitive names it. A mesh without
         texture coordinate set 0 has its sets renumbered down from the
         lowest, so its first set is ``texcoords``; a ``P`` column that is
@@ -683,7 +698,8 @@ def _ints(text: str | None, what: str) -> np.ndarray:
 def _floats(text: str | None, what: str, *, n: int | None = None) -> np.ndarray:
     values = (text or "").split()
     if n is not None and len(values) != n:
-        raise CodecError(f"{what} needs {n} numbers, got {len(values)}.")
+        noun = "number" if n == 1 else "numbers"
+        raise CodecError(f"{what} needs {n} {noun}, got {len(values)}.")
     try:
         return np.array(values, dtype=np.float64)
     except ValueError as exc:
@@ -1041,15 +1057,29 @@ def _read_effect(
     extras: dict[str, Any] = {
         "shading": _local(shading_elem.tag) if shading_elem is not None else "phong"
     }
-    if shading_elem is None:
-        return SceneMaterial(name=name, metallic=0.0, extras=extras)
-
     # Effect-scope params, then the common profile's, which shadow them; a
     # GLSL or CG profile's param of the same sid is not the common one's.
     params = {p.get("sid"): p for p in _children(effect, "newparam")}
-    params.update(
-        (p.get("sid"), p) for p in profile.iter() if _local(p.tag) == "newparam"
+    if profile is not None:
+        params.update(
+            (p.get("sid"), p) for p in profile.iter() if _local(p.tag) == "newparam"
+        )
+    pbr = next(
+        (
+            t
+            for x in _children(technique, "extra")
+            for t in _children(x, "technique")
+            if t.get("profile") == _PBR_PROFILE
+        ),
+        None,
     )
+    if shading_elem is None:
+        material = SceneMaterial(name=name, metallic=0.0, extras=extras)
+        if pbr is None:
+            return material
+        return _read_pbr(
+            doc, effect, params, pbr, material, tex_table, spelled=frozenset()
+        )
     diffuse = _child(shading_elem, "diffuse")
     base = _color_of(diffuse, f"{what} diffuse") or (1.0, 1.0, 1.0, 1.0)
     base_tex = _texture_of(doc, effect, params, diffuse, tex_table)
@@ -1118,7 +1148,7 @@ def _read_effect(
         _local(e.tag) == "double_sided" and (e.text or "").strip() in ("1", "true")
         for e in effect.iter()
     )
-    return SceneMaterial(
+    material = SceneMaterial(
         name=name,
         base_color=(base[0], base[1], base[2], alpha),
         metallic=0.0,
@@ -1131,6 +1161,115 @@ def _read_effect(
         emissive_texture=emissive_tex,
         extras=extras,
     )
+    if pbr is None:
+        return material
+    spelled = frozenset(
+        key
+        for key, elem in (("base_color", diffuse), ("emissive", emission))
+        if _child(elem, "texture") is not None
+    )
+    return _read_pbr(doc, effect, params, pbr, material, tex_table, spelled=spelled)
+
+
+def _read_pbr(
+    doc: _Doc,
+    effect: ET.Element,
+    params: dict[str | None, ET.Element],
+    pbr: ET.Element,
+    material: SceneMaterial,
+    tex_table: _Textures,
+    *,
+    spelled: frozenset[str],
+) -> SceneMaterial:
+    """Return ``material`` with the terms a polyxios ``<extra>`` technique holds.
+
+    Parameters
+    ----------
+    doc
+        The document being read.
+    effect
+        The ``<effect>`` holding the technique.
+    params
+        The effect's ``<newparam>`` elements by sid.
+    pbr
+        The ``<technique profile="polyxios">`` element.
+    material
+        The material read from the common profile.
+    tex_table
+        The texture table of the read.
+    spelled
+        The tints (``base_color``, ``emissive``) whose texture the common
+        profile spells, resolved or not; one that did not resolve has
+        already been warned about.
+
+    Returns
+    -------
+    SceneMaterial
+        ``material`` with each term the technique spells replacing the
+        common profile's, also when the effect has no shading element. A
+        term that is not finite numbers of the right count is ignored with
+        a warning, as is a ``base_color`` or ``emissive`` tint whose
+        texture is absent or did not resolve (the base colour tint is kept under
+        ``constant`` shading, which has no diffuse). An ``alpha_cutoff``
+        is applied only when the material ends up ``MASK``, the one mode
+        glTF reads it under, as a write puts it there alone.
+    """
+    what = f"{doc.name!r}: effect '{effect.get('id', '?')}' {_PBR_PROFILE}"
+    terms: dict[str, Any] = {}
+    readers = (
+        ("metallic", _float_of),
+        ("roughness", _float_of),
+        ("alpha_cutoff", _float_of),
+        ("base_color", _color_of),
+        ("emissive", _color_of),
+    )
+    for key, read in readers:
+        elem = _child(pbr, key)
+        if elem is None:
+            continue
+        try:
+            value = read(elem, f"{what} {key}")
+        except CodecError as exc:
+            _warn(f"{exc} It is ignored.")
+            continue
+        if value is None:
+            inner = "float" if read is _float_of else "color"
+            _warn(f"{what} {key} holds no <{inner}>; it is ignored.")
+            continue
+        if isinstance(value, tuple):
+            value = value[:3]
+        if np.isfinite(value).all():
+            terms[key] = value
+        else:
+            _warn(f"{what} {key} is not finite; it is ignored.")
+    # A tint scales its texture; with the texture lost it is no colour at all.
+    constant = material.extras["shading"] == "constant"
+    lost = (
+        ("base_color", material.base_color_texture is None and not constant),
+        ("emissive", material.emissive_texture is None),
+    )
+    for key, untextured in lost:
+        if untextured and terms.pop(key, None) is not None and key not in spelled:
+            _warn(f"{what} {key} tints a texture the effect lacks; it is ignored.")
+    if "base_color" in terms:
+        terms["base_color"] = (*terms["base_color"], material.base_color[3])
+    mode = _child(pbr, "alpha_mode")
+    if mode is not None:
+        text = (mode.text or "").strip()
+        if text in _ALPHA_MODES:
+            terms["alpha_mode"] = text
+        else:
+            _warn(
+                f"{what} alpha_mode {text!r} is not one of "
+                f"{', '.join(_ALPHA_MODES)}; it is ignored."
+            )
+    if terms.get("alpha_mode", material.alpha_mode) != "MASK":
+        terms.pop("alpha_cutoff", None)
+    for key in ("metallic_roughness_texture", "occlusion_texture"):
+        slot = _texture_of(doc, effect, params, _child(pbr, key), tex_table)
+        if slot is not None:
+            terms[key] = slot
+    return dataclasses.replace(material, **terms)
 
 
 def _read_materials(
@@ -2973,13 +3112,18 @@ def write_scene(
         once for both, rather than written in full under a generated id.
         COLLADA has no alpha mask: a material's
         alpha goes out as an ``A_ONE`` transparency when it is below one or
-        ``alpha_mode`` is not ``OPAQUE``, and ``alpha_mode`` and
-        ``alpha_cutoff`` themselves are not written; nor are ``metallic``
-        and ``roughness``, which phong has no term for. Integer ``colors``
-        are scaled to COLLADA's 0..1 floats by their dtype's maximum (255
-        for a signed dtype, with a warning when one holds values outside
-        0..255) and read back as float64. A mesh is written as one primitive
-        block (``<triangles>``, ``<polylist>``, ``<lines>``,
+        ``alpha_mode`` is not ``OPAQUE``. The PBR terms the common profile
+        has no slot for - ``metallic`` other than 0, ``roughness`` other
+        than 1, an ``alpha_mode`` the alpha does not imply, an
+        ``alpha_cutoff`` other than 0.5 of a ``MASK`` material, the
+        metallic-roughness and occlusion textures, and a base colour or
+        emissive tinting its texture - go in an ``<extra>`` technique of
+        profile ``polyxios``,
+        which a polyxios read restores and other readers skip. Integer
+        ``colors`` are scaled to COLLADA's 0..1 floats by their dtype's
+        maximum (255 for a signed dtype, with a warning when one holds
+        values outside 0..255) and read back as float64. A mesh is written
+        as one primitive block (``<triangles>``, ``<polylist>``, ``<lines>``,
         ``<linestrips>``, ``<tristrips>``) per material, so elements whose
         kinds or materials interleave read back grouped by block and
         material, each group in its first element's place: lines and
@@ -3039,18 +3183,18 @@ def write_scene(
         ``modified`` that is not an ``xs:dateTime`` (the epoch is written;
         a ``datetime`` is written in ISO form), a unit name that is not an
         XML name token (the unit is written without one), elements COLLADA
-        cannot hold (points, volume cells; a mesh with nothing else keeps its positions as a ``<mesh>``
-        without primitives), vertex attributes it has no input for
+        cannot hold (points, volume cells; a mesh with nothing else keeps
+        its positions as a ``<mesh>`` without primitives), vertex
+        attributes it has no input for
         (``joints`` and ``weights`` among them, unless a skinned node
         instances the mesh), element attributes other
-        than ``material``, a ``metallic_roughness_texture`` or
-        ``occlusion_texture`` (the common profile has no slot for either),
-        a base colour or emissive tinting its texture, a base colour on a
-        ``constant`` material (a diffuse holds a colour or a texture, and
-        ``constant`` has none), a set suffix of ``normals``, ``texcoords``,
-        ``colors``, ``tangent``, ``binormal``, ``textangent`` or
-        ``texbinormal`` that is not a free number (it is written under the
-        lowest free one and reads back under it), a node no scene reaches
+        than ``material``, a base colour texture on a ``constant``
+        material and the tint on it (``constant`` has no diffuse), an
+        ``alpha_mode`` other than ``OPAQUE``, ``MASK`` or ``BLEND``, a set
+        suffix of ``normals``, ``texcoords``, ``colors``, ``tangent``,
+        ``binormal``, ``textangent`` or ``texbinormal`` that is not a free
+        number (it is written under the lowest free one and reads back
+        under it), a node no scene reaches
         (it is not written), a node ``id`` or ``sid`` that is not an XML
         name or an ``id`` an earlier node holds (a fresh id is written), a
         transform ``sid`` that is not a name (a letter or ``_``, then
@@ -3084,8 +3228,9 @@ def write_scene(
         integer codes in 0..255, its offsets not integers rising from 0 to
         the connectivity's length, its connectivity names a vertex it lacks
         or an element has a vertex count its type does not allow, a node's
-        matrix is not 4x4 real numbers, or a material's ``base_color`` is
-        not 3 or 4 numbers.
+        matrix is not 4x4 real numbers, a material's ``base_color`` is
+        not 3 or 4 numbers, or its ``metallic``, ``roughness`` or
+        ``alpha_cutoff`` (of a ``MASK`` material) is not a finite number.
     """
     name = source_name(path)
     asset = scene.global_attrs.get("asset", {})
@@ -3660,26 +3805,126 @@ def _extra_color(
     return tuple(rgba.tolist())
 
 
+def _finite_scalar(value: Any, what: str) -> float:
+    """Return ``value`` as a finite float.
+
+    Parameters
+    ----------
+    value
+        The value to convert.
+    what
+        What the value is, for the message.
+
+    Returns
+    -------
+    float
+        ``value`` as a Python float.
+
+    Raises
+    ------
+    CodecError
+        When ``value`` is not a finite scalar number (an integer too large
+        for a float included); a string, bytes or a boolean is refused
+        although ``float`` would parse it.
+    """
+    try:
+        array = np.asarray(value)
+        number = (
+            float(array)
+            if array.ndim == 0 and array.dtype.kind not in "bSUV"
+            else float("nan")
+        )
+    except (TypeError, ValueError, OverflowError):
+        number = float("nan")
+    if not np.isfinite(number):
+        raise CodecError(f"{what} must be a finite number, not {value!r}.")
+    return number
+
+
 def _extra_float(mat: SceneMaterial, key: str, i: int, name: str) -> float | None:
     """Return ``mat.extras[key]`` as a finite float, None when absent."""
     value = mat.extras.get(key)
     if value is None:
         return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        number = float("nan")
-    if not np.isfinite(number):
-        raise CodecError(
-            f"{name!r}: material {i} extras[{key!r}] must be a finite number, "
-            f"not {value!r}."
-        )
-    return number
+    return _finite_scalar(value, f"{name!r}: material {i} extras[{key!r}]")
 
 
 def _color_xml(tag: str, rgba: tuple[float, ...]) -> str:
     values = tuple(rgba) + (1.0,) * (4 - len(rgba))
     return f"          <{tag}><color>{_nums(np.array(values[:4]))}</color></{tag}>\n"
+
+
+def _pbr_xml(
+    mat: SceneMaterial, i: int, name: str, shading: str, samplers: dict[str, str]
+) -> str:
+    """Return the polyxios ``<extra>`` of material ``i``, or ``""``.
+
+    It holds each term a read of the common profile alone would not give
+    back: ``metallic`` other than 0, ``roughness`` other than 1, an
+    ``alpha_mode`` other than the one the alpha implies, an ``alpha_cutoff``
+    other than 0.5 of a ``MASK`` material, the metallic-roughness and
+    occlusion textures, and a
+    base colour or emissive tinting its texture, and the base colour of an
+    untextured ``constant`` effect, which has no diffuse to hold it.
+
+    Parameters
+    ----------
+    mat
+        The material, its ``base_color`` already four values.
+    i
+        The material's index, for messages.
+    name
+        The file name, for messages.
+    shading
+        The common-profile shading the effect is written in.
+    samplers
+        The sampler sid of each texture the effect writes, by material key.
+
+    Returns
+    -------
+    str
+        The ``<extra>`` element, or ``""`` when every term reads back from
+        the common profile.
+    """
+    body: list[str] = []
+    keys = [("metallic", 0.0), ("roughness", 1.0)]
+    if mat.alpha_mode == "MASK":
+        keys.append(("alpha_cutoff", 0.5))
+    for key, unset in keys:
+        value = _finite_scalar(getattr(mat, key), f"{name!r}: material {i} {key}")
+        if value != unset:
+            body.append(f"<{key}><float>{value!r}</float></{key}>")
+    rgb = tuple(float(v) for v in mat.base_color[:3])
+    textured = "base_color_texture" in samplers
+    if rgb != (1.0, 1.0, 1.0) and textured != (shading == "constant"):
+        body.append(
+            f"<base_color><color>{_nums(np.array([*rgb, 1.0]))}</color></base_color>"
+        )
+    glow = tuple(float(v) for v in mat.emissive[:3])
+    if "emissive_texture" in samplers and glow != (1.0, 1.0, 1.0):
+        body.append(
+            f"<emissive><color>{_nums(np.array([*glow, 1.0]))}</color></emissive>"
+        )
+    implied = "BLEND" if float(mat.base_color[3]) < 1.0 else "OPAQUE"
+    if mat.alpha_mode not in _ALPHA_MODES:
+        _warn(
+            f"{name!r}: material {i} has alpha_mode {mat.alpha_mode!r}, which is "
+            f"not one of {', '.join(_ALPHA_MODES)}; it is dropped."
+        )
+    elif mat.alpha_mode != implied:
+        body.append(f"<alpha_mode>{mat.alpha_mode}</alpha_mode>")
+    body.extend(
+        f'<{key}><texture texture="{samplers[key]}" texcoord="UVMap"/></{key}>'
+        for key in ("metallic_roughness_texture", "occlusion_texture")
+        if key in samplers
+    )
+    if not body:
+        return ""
+    return (
+        f'        <extra><technique profile="{_PBR_PROFILE}">'
+        + "".join(body)
+        + "</technique></extra>\n"
+    )
 
 
 def _effect_xml(
@@ -3738,16 +3983,6 @@ def _effect_xml(
             )
         samplers[key] = sampler
 
-    lost = [
-        key
-        for key in ("metallic_roughness_texture", "occlusion_texture")
-        if getattr(mat, key) is not None
-    ]
-    if lost:
-        _warn(
-            f"{name!r}: material {i} has {lost}, which the COLLADA common "
-            "profile has no slot for; they are dropped."
-        )
     shading = mat.extras.get("shading", "phong")
     if shading not in _SHADINGS:
         _warn(
@@ -3776,23 +4011,10 @@ def _effect_xml(
         elif rgba is not None:
             body.append(_color_xml(tag, rgba))
 
-    tinted = tuple(float(v) for v in mat.base_color[:3]) != (1.0, 1.0, 1.0)
-    if shading == "constant" and (tinted or "base_color_texture" in samplers):
+    if shading == "constant" and "base_color_texture" in samplers:
         _warn(
             f"{name!r}: material {i} has constant shading, which has no diffuse; "
-            "its base colour and base colour texture are dropped."
-        )
-    elif tinted and "base_color_texture" in samplers:
-        _warn(
-            f"{name!r}: material {i} tints its base colour texture by "
-            f"{tuple(mat.base_color[:3])}; a COLLADA diffuse holds a texture or a "
-            "colour, not both, so the tint is dropped."
-        )
-    if "emissive_texture" in samplers and glow != (1.0,) * 3:
-        _warn(
-            f"{name!r}: material {i} tints its emissive texture by {glow}; a "
-            "COLLADA emission holds a texture or a colour, not both, so the tint "
-            "is dropped."
+            "its base colour texture and its tint are dropped."
         )
     channel("emission", "emissive_texture", glow)
     if shading != "constant":
@@ -3839,6 +4061,7 @@ def _effect_xml(
             '        <extra><technique profile="FCOLLADA"><bump>'
             f'<texture texture="{bump}" texcoord="UVMap"/></bump></technique></extra>\n'
         )
+    extra += _pbr_xml(mat, i, name, shading, samplers)
     double = (
         '      <extra><technique profile="GOOGLEEARTH"><double_sided>1</double_sided></technique></extra>\n'
         if mat.double_sided
