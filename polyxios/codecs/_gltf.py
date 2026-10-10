@@ -1436,6 +1436,158 @@ _ATTR_MAP: dict[str, str] = {
 }
 
 
+_FRAMES = (("textangent", "texbinormal"), ("tangent", "binormal"))
+
+
+def _rows(attrs: dict[str, Any], *, key: str, n: int, width: int) -> np.ndarray | None:
+    """Return ``attrs[key]`` as float64 when it is ``width`` numbers per vertex.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's vertex attributes.
+    key
+        The attribute to look up.
+    n
+        The mesh's vertex count.
+    width
+        The numbers each vertex must hold.
+
+    Returns
+    -------
+    ndarray or None
+        ``(n, width)`` float64, None when the key is missing or of another
+        shape or kind.
+    """
+    arr = np.asarray(attrs.get(key))
+    if arr.shape != (n, width) or arr.dtype.kind not in "iuf":
+        return None
+    return arr.astype(np.float64)
+
+
+_SAFE_BAND = (1e-100, 1e100)
+
+
+def scaled_rows(rows: np.ndarray) -> np.ndarray:
+    """Return ``rows`` each divided by its largest magnitude.
+
+    A row keeps its direction and side but no longer overflows or underflows
+    a norm or a dot product, as a finite row of values near the float64
+    limit, or near its smallest normal number, would. A row of zeros or
+    holding a non-finite value is left as is.
+
+    Parameters
+    ----------
+    rows
+        ``(n, 3)`` float64 rows.
+
+    Returns
+    -------
+    ndarray
+        The scaled rows, or ``rows`` itself when every nonzero finite row's
+        largest magnitude lies within ``_SAFE_BAND``.
+    """
+    size = np.abs(rows)
+    peak = np.maximum(np.maximum(size[:, 0], size[:, 1]), size[:, 2])
+    scale = np.isfinite(peak) & (peak > 0)
+    low, high = _SAFE_BAND
+    if not (scale & ((peak < low) | (peak > high))).any():
+        return rows
+    return rows / np.where(scale, peak, 1.0)[:, None]
+
+
+def _tangents_of_frame(
+    attrs: dict[str, Any], *, n: int, what: str
+) -> tuple[np.ndarray | None, tuple[str, ...]]:
+    """Return glTF tangents rebuilt from a COLLADA tangent frame, and its keys.
+
+    A COLLADA read names a tangent frame ``textangent`` and ``texbinormal``
+    (or ``tangent`` and ``binormal``), where glTF holds the tangent's xyz and
+    the handedness ``w`` of the bitangent ``w * cross(normal, tangent)``.
+    Only set 0 of each is looked at. The first frame holding both a tangent
+    and a bitangent of 3 numbers per vertex is taken, else the first holding
+    a tangent alone, whose handedness is then +1, with a warning; so is
+    that of a row whose bitangent lies on neither side of
+    ``cross(normal, tangent)`` (zero, NaN, or at right angles to it to
+    within rounding, where the side is noise).
+
+    Parameters
+    ----------
+    attrs
+        The mesh's vertex attributes, without ``tangents`` glTF can hold.
+    n
+        The mesh's vertex count.
+    what
+        The mesh's name in the warnings.
+
+    Returns
+    -------
+    tangents : ndarray or None
+        ``(n, 4)`` float64 tangents of unit xyz, None when no frame holds a
+        tangent of 3 numbers per vertex, or, with a warning, when the mesh
+        has no ``normals`` of 3 columns (glTF has clients ignore a
+        ``TANGENT`` without a ``NORMAL``) or a tangent row of zero or
+        non-finite length, which no unit vector stands for.
+    keys : tuple of str
+        The attributes the tangents stand for, or the frame left out.
+    """
+    vec = {
+        key: arr
+        for frame in _FRAMES
+        for key in frame
+        if (arr := _rows(attrs, key=key, n=n, width=3)) is not None
+    }
+    tangents = [t for t, _ in _FRAMES if t in vec]
+    if not tangents:
+        return None, ()
+    complete = [(t, b) for t, b in _FRAMES if t in vec and b in vec]
+    t_key, b_key = complete[0] if complete else (tangents[0], None)
+    keys = (t_key, b_key) if b_key else (t_key,)
+    normals = _rows(attrs, key="normals", n=n, width=3)
+    if normals is None:
+        _warn_caller(
+            f"{what}: {t_key} has no normals of 3 columns beside it, and glTF "
+            "ignores a TANGENT without a NORMAL; it is not written."
+        )
+        return None, keys
+    tangent = scaled_rows(vec[t_key])
+    length = np.linalg.norm(tangent, axis=1)
+    bad = ~(np.isfinite(length) & (length > 0))
+    if bad.any():
+        _warn_caller(
+            f"{what}: {t_key} holds {int(bad.sum())} row(s) of zero or "
+            "non-finite length, which a glTF TANGENT of unit length cannot "
+            "hold; it is not written."
+        )
+        return None, keys
+    tangent /= length[:, None]
+    if b_key is None:
+        _warn_caller(
+            f"{what}: {t_key} goes out as TANGENT without a bitangent of 3 "
+            "columns to give its handedness; it is taken as +1."
+        )
+        return np.column_stack([tangent, np.ones(n)]), keys
+    across = np.cross(scaled_rows(normals), tangent)
+    bitangent = scaled_rows(vec[b_key])
+    side = np.einsum("ij,ij->i", across, bitangent)
+    # The dot product carries a rounding error of a few ulps of the product
+    # of the lengths, so a side within that is no side at all.
+    noise = (
+        8
+        * np.finfo(np.float64).eps
+        * np.linalg.norm(across, axis=1)
+        * np.linalg.norm(bitangent, axis=1)
+    )
+    flat = ~(np.abs(side) > noise)
+    if flat.any():
+        _warn_caller(
+            f"{what}: {b_key} holds {int(flat.sum())} row(s) on neither side of "
+            f"cross(normals, {t_key}); their handedness is taken as +1."
+        )
+    w = np.where((side < 0) & ~flat, -1.0, 1.0)
+    return np.column_stack([tangent, w]), keys
+
+
 def _polydata_to_primitives(
     poly: PolyData,
     bb: _BinBuilder,
@@ -1491,8 +1643,20 @@ def _polydata_to_primitives(
             weights.astype(np.float32), acc_type="VEC4", component_type=5126
         )
         handled.update((joints_key, weights_key))
+    n_verts = len(pos_f32)
+    own_tangents = (
+        _rows(poly.vertex_attrs, key="tangents", n=n_verts, width=4) is not None
+    )
+    if "tangents" in poly.vertex_attrs and not own_tangents:
+        handled.add("tangents")
+        _warn_caller(
+            f"{what}: tangents of shape "
+            f"{np.shape(poly.vertex_attrs['tangents'])} are not the 4 numbers "
+            f"for each of the {n_verts} vertices a glTF TANGENT holds; they "
+            "are not written."
+        )
     for key, (semantic, comp_type) in _GLTF_ATTR_MAP.items():
-        if key not in poly.vertex_attrs:
+        if key not in poly.vertex_attrs or key in handled:
             continue
         handled.add(key)
         arr = poly.vertex_attrs[key]
@@ -1523,6 +1687,13 @@ def _polydata_to_primitives(
         va_accessors[semantic] = bb.add(
             data, acc_type=acc_type, component_type=comp_type
         )
+    if not own_tangents:
+        tangents, keys = _tangents_of_frame(poly.vertex_attrs, n=n_verts, what=what)
+        if tangents is not None:
+            va_accessors["TANGENT"] = bb.add(
+                tangents.astype(np.float32), acc_type="VEC4", component_type=5126
+            )
+        handled.update(keys)
     unwritten = sorted(set(poly.vertex_attrs) - handled)
     if unwritten:
         _warn_caller(
