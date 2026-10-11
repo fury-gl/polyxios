@@ -79,7 +79,7 @@ _ENTITY_DECLS = tuple(
     "<!ENTITY".encode(enc) for enc in ("utf-8", "utf-16-le", "utf-16-be")
 )
 
-_XML_FORBIDDEN = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
+_XML_FORBIDDEN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 # XML's NameStartChar and NameChar, less the colon an NCName forbids;
 # ``\w`` admits digits and marks of other scripts that no name starts with.
 _NAME_START = (

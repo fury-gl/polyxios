@@ -67,7 +67,7 @@ _INT_COLOR_MAX: float = 255.0
 _HEX_COLOR = re.compile(r"^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 # XML 1.0 admits no control character but tab, newline and return; a lone
 # surrogate has no UTF-8 spelling at all.
-_XML_FORBIDDEN = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff￾￿]")
+_XML_FORBIDDEN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 
 _TRIANGLE: int = ELEMENT_TYPES["triangle"]
 _QUAD: int = ELEMENT_TYPES["quad"]
