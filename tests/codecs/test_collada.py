@@ -15,7 +15,6 @@ import base64
 import dataclasses
 from datetime import datetime
 import io
-import json
 from pathlib import Path
 import re
 import tracemalloc
@@ -2589,10 +2588,8 @@ def test_read_instanced_node_animates_every_copy(tmp_path: Path) -> None:
     assert [c["target"]["node"] for c in channels] == [1, 3]
 
 
-def test_read_channels_on_instanced_nodes_capped(tmp_path: Path) -> None:
-    """Every channel gets a target per copy of the node it addresses, so the
-    targets are capped as the copies are."""
-    depth = 10
+def _instanced_channels_dae(depth: int, target: str, n_channels: int) -> str:
+    """A leaf node instanced ``2**depth`` times, ``n_channels`` channels on it."""
     lib = "".join(
         f'<node id="n{i}"><instance_node url="#n{i + 1}"/>'
         f'<instance_node url="#n{i + 1}"/></node>'
@@ -2604,48 +2601,77 @@ def test_read_channels_on_instanced_nodes_capped(tmp_path: Path) -> None:
         + _source("a-tr", np.zeros((2, 3)), "X Y Z")
         + '<sampler id="s"><input semantic="INPUT" source="#a-t"/>'
         '<input semantic="OUTPUT" source="#a-tr"/></sampler>'
-        + f'<channel source="#s" target="n{depth}/t"/>'
-        * 300
+        + f'<channel source="#s" target="n{depth}/{target}"/>'
+        * n_channels
     )
-    text = _dae(
+    return _dae(
         f"<library_nodes>{lib}{leaf}</library_nodes>"
         f'<library_animations><animation id="a">{body}</animation>'
         "</library_animations>"
         '<library_visual_scenes><visual_scene id="S"><instance_node url="#n0"/>'
         "</visual_scene></library_visual_scenes>"
     )
-    with pytest.raises(CodecError, match="expand past 262144 targets"):
+
+
+def test_read_channels_on_instanced_nodes_capped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every channel gets a target per copy of the node it addresses, so the
+    targets are capped at a multiple of the node cap."""
+    monkeypatch.setattr(_collada, "_MIN_NODE_CAP", 4096)
+    text = _instanced_channels_dae(10, "t", 17)
+    with pytest.raises(CodecError, match="expand past 16384 targets"):
         read_scene(_write(tmp_path, text))
 
 
-def test_read_channels_missing_on_instanced_nodes_capped(tmp_path: Path) -> None:
-    """A channel that reaches no transform still looks at every copy, so
-    the copies it misses on are capped as the targets are."""
-    depth = 10
-    lib = "".join(
-        f'<node id="n{i}"><instance_node url="#n{i + 1}"/>'
-        f'<instance_node url="#n{i + 1}"/></node>'
-        for i in range(depth)
-    )
-    leaf = f'<node id="n{depth}"><translate sid="t">0 0 0</translate></node>'
+def test_read_several_channels_on_a_node_instanced_past_half_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Three channels on a node with more copies than half the node cap are
+    read, a target per copy each."""
+    monkeypatch.setattr(_collada, "_MIN_NODE_CAP", 4096)
+    text = _instanced_channels_dae(11, "t", 3)
+    channels = read_scene(_write(tmp_path, text)).global_attrs["animations"][0][
+        "channels"
+    ]
+    assert len(channels) == 3 * 2048
+
+
+def test_read_channels_missing_on_instanced_nodes_counted_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copies of one node share its subtree: a channel missing its transform
+    on the first misses on all, and counts once, not once per copy."""
+    monkeypatch.setattr(_collada, "_MIN_NODE_CAP", 4096)
+    text = _instanced_channels_dae(11, "visibility", 3)
+    with pytest.warns(UserWarning, match="3 animation channel"):
+        scene = read_scene(_write(tmp_path, text))
+    assert "animations" not in scene.global_attrs
+
+
+def test_read_channels_missing_on_many_nodes_capped(tmp_path: Path) -> None:
+    """Distinct nodes sharing an id are each looked at, so the misses on
+    them are capped."""
+    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]]))
+    nodes = '<node id="x"/>' * 1000
     body = (
         _source("a-t", [0.0, 1.0], "TIME")
         + _source("a-tr", np.zeros((2, 3)), "X Y Z")
         + '<sampler id="s"><input semantic="INPUT" source="#a-t"/>'
         '<input semantic="OUTPUT" source="#a-tr"/></sampler>'
-        + f'<channel source="#s" target="n{depth}/missing"/>'
+        + '<channel source="#s" target="x/missing"/>'
         * 300
     )
     text = _dae(
-        f"<library_nodes>{lib}{leaf}</library_nodes>"
+        f"<library_geometries>{geo}</library_geometries>"
         f'<library_animations><animation id="a">{body}</animation>'
         "</library_animations>"
-        '<library_visual_scenes><visual_scene id="S"><instance_node url="#n0"/>'
+        f'<library_visual_scenes><visual_scene id="S">{nodes}'
         "</visual_scene></library_visual_scenes>"
     )
     with (
         warnings.catch_warnings(),
-        pytest.raises(CodecError, match="miss their transform on more than 262144"),
+        pytest.raises(CodecError, match="miss their transform more than 262144"),
     ):
         warnings.simplefilter("ignore")
         read_scene(_write(tmp_path, text))
@@ -2787,10 +2813,10 @@ def test_read_animation_nested_and_bezier_tangents(tmp_path: Path) -> None:
 
 def test_read_interpolation_in_lower_case_upper_cased(tmp_path: Path) -> None:
     channels = '<channel source="#s-tr" target="n0/location"/>'
-    text = _anim_dae(channels, interp=("bezier", "bezier"))
+    text = _anim_dae(channels, interp=("step", "step"))
     scene = read_scene(_write(tmp_path, text))
     assert scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] == (
-        "BEZIER"
+        "STEP"
     )
     # What the reader hands out, the writer takes.
     write_scene(scene, tmp_path / "again.dae")
@@ -2807,16 +2833,51 @@ def test_read_unknown_interpolation_read_as_linear(tmp_path: Path) -> None:
     write_scene(scene, tmp_path / "again.dae")
 
 
-def test_collada_channels_not_written_into_gltf(tmp_path: Path) -> None:
+def test_read_mixed_interpolations_with_an_unknown_first_warn_once(
+    tmp_path: Path,
+) -> None:
+    channels = '<channel source="#s-tr" target="n0/location"/>'
+    text = _anim_dae(channels, interp=("SMOOTH", "LINEAR"))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        scene = read_scene(_write(tmp_path, text))
+    messages = [str(w.message) for w in caught]
+    assert len(messages) == 1
+    assert "mixes interpolations" in messages[0] and "'SMOOTH'" in messages[0]
+    assert scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] == (
+        "LINEAR"
+    )
+
+
+def test_collada_channels_rebuilt_as_trs_in_gltf(tmp_path: Path) -> None:
+    """A ``<translate>`` and a ``<rotate>`` ANGLE channel come out of a glTF
+    write as translation, rotation and scale keys of the node they move,
+    close enough in angle that glTF's slerp follows the COLLADA turn."""
     channels = (
         '<channel source="#s-tr" target="n0/location"/>'
         '<channel source="#s-ang" target="n0/rotationZ.ANGLE"/>'
     )
     scene = read_scene(_write(tmp_path, _anim_dae(channels)))
-    out = tmp_path / "a.gltf"
-    with pytest.warns(UserWarning, match="not written.*'member', 'sid'"):
+    out = tmp_path / "a.glb"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         polyxios.write_scene(scene, out)
-    assert "animations" not in json.loads(out.read_text())
+    anim = polyxios.read_scene(out).global_attrs["animations"][0]
+    tracks = {
+        c["target"]["path"]: anim["samplers"][c["sampler"]] for c in anim["channels"]
+    }
+    assert sorted(tracks) == ["rotation", "scale", "translation"]
+    times = tracks["rotation"]["times"]
+    assert times[0] == 0.0 and times[-1] == 1.0 and len(times) > 2
+    np.testing.assert_allclose(
+        tracks["translation"]["values"], np.outer(times, [1, 2, 3]), atol=1e-6
+    )
+    half = np.radians(90.0 * times) / 2
+    expected = np.stack(
+        [np.zeros_like(half), np.zeros_like(half), np.sin(half), np.cos(half)], axis=1
+    )
+    np.testing.assert_allclose(tracks["rotation"]["values"], expected, atol=1e-6)
+    np.testing.assert_allclose(tracks["scale"]["values"], 1.0, atol=1e-6)
 
 
 def test_read_animation_unresolved_target_dropped(tmp_path: Path) -> None:
@@ -3402,12 +3463,12 @@ def test_write_interpolation_in_lower_case_upper_cased(tmp_path: Path) -> None:
     """The reader upper-cases an interpolation silently, so the writer does too."""
     channels = '<channel source="#s-tr" target="n0/location"/>'
     scene = read_scene(_write(tmp_path, _anim_dae(channels)))
-    scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] = "bezier"
+    scene.global_attrs["animations"][0]["samplers"][0]["interpolation"] = "step"
     out = tmp_path / "lower.dae"
     write_scene(scene, out)
-    assert "bezier" not in out.read_text()
+    assert "step" not in out.read_text()
     back = read_scene(out).global_attrs["animations"][0]["samplers"][0]
-    assert back["interpolation"] == "BEZIER"
+    assert back["interpolation"] == "STEP"
 
 
 def test_write_animation_channel_without_target_sid_dropped(tmp_path: Path) -> None:
@@ -3500,6 +3561,7 @@ def test_write_sampler_matrix_per_key_flattened(tmp_path: Path) -> None:
                     "times": np.array([0.0, 1.0]),
                     "values": mats,
                     "in_tangents": mats,
+                    "out_tangents": mats,
                     "interpolation": "BEZIER",
                 }
             ],
@@ -3587,6 +3649,7 @@ def test_write_sampler_tangent_count_mismatch_refused(tmp_path: Path) -> None:
         "times": np.array([0.0, 1.0]),
         "values": np.tile(np.eye(4).ravel(), (2, 1)),
         "interpolation": "BEZIER",
+        "in_tangents": np.zeros((2, 2)),
         "out_tangents": np.zeros((1, 2)),
     }
     anims = [
@@ -3606,6 +3669,7 @@ def test_write_sampler_tangents_not_numbers_refused(tmp_path: Path) -> None:
         "values": np.tile(np.eye(4).ravel(), (2, 1)),
         "interpolation": "BEZIER",
         "in_tangents": [["a", "b"], [1.0, 2.0]],
+        "out_tangents": np.zeros((2, 2)),
     }
     anims = [
         {
@@ -3688,8 +3752,22 @@ def _translated_scene(sampler: dict, **target) -> SceneData:
                 "values": [[0, 0, 0]] * 2,
                 "interpolation": "BEZIER",
                 "in_tangents": [[0.0] * 6, [np.nan] * 6],
+                "out_tangents": [[0.0] * 6] * 2,
             },
             "in_tangents that are not finite",
+        ),
+        (
+            {"times": [0.0, 1.0], "values": [[0, 0, 0]] * 2, "interpolation": "BEZIER"},
+            "BEZIER sampler without in_tangents and out_tangents",
+        ),
+        (
+            {
+                "times": [0.0, 1.0],
+                "values": [[0, 0, 0]] * 2,
+                "interpolation": "hermite",
+                "in_tangents": [[0.0] * 3] * 2,
+            },
+            "HERMITE sampler without in_tangents and out_tangents",
         ),
     ],
 )
@@ -3854,6 +3932,53 @@ def test_write_channel_on_a_copy_alone_warns_it_reaches_every_instance(
         write_scene(scene, out)
     back = read_scene(out).global_attrs["animations"][0]["channels"]
     assert [c["target"]["node"] for c in back] == [1, 3]
+
+
+def test_write_dropped_channel_on_a_copy_alone_is_not_said_to_reach_instances(
+    tmp_path: Path,
+) -> None:
+    """Only a channel that is written reaches every instance."""
+    geo = _geometry("g0", _TRI, _triangles("g0", [[0, 1, 2]]))
+    anim = (
+        '<animation id="a">'
+        + _source("a-t", [0.0, 1.0], "TIME")
+        + _source("a-tr", np.array([[0.0, 0, 0], [1, 2, 3]]), "X Y Z")
+        + '<sampler id="s"><input semantic="INPUT" source="#a-t"/>'
+        '<input semantic="OUTPUT" source="#a-tr"/></sampler>'
+        '<channel source="#s" target="lib/location"/></animation>'
+    )
+    text = _dae(
+        f"<library_geometries>{geo}</library_geometries>"
+        '<library_nodes><node id="lib"><translate sid="location">0 0 0</translate>'
+        '<instance_geometry url="#g0"/></node></library_nodes>'
+        f"<library_animations>{anim}</library_animations>"
+        '<library_visual_scenes><visual_scene id="S">'
+        '<node id="a"><instance_node url="#lib"/></node>'
+        '<node id="b"><instance_node url="#lib"/></node>'
+        "</visual_scene></library_visual_scenes>"
+    )
+    scene = read_scene(_write(tmp_path, text))
+    channels = scene.global_attrs["animations"][0]["channels"]
+    del channels[0]
+    channels[0]["target"]["sid"] = "elsewhere"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_scene(scene, tmp_path / "dropped.dae")
+    messages = [str(w.message) for w in caught]
+    assert any("written without such a transform" in m for m in messages)
+    assert not any("reaches every instance" in m for m in messages)
+
+
+def test_write_sidless_channel_with_a_sampler_that_is_not_a_dict_refused(
+    tmp_path: Path,
+) -> None:
+    """As a channel with a sid is: the sampler is refused, not the channel."""
+    node = SceneNode(mesh=0, extras={"transforms": [_TRANSLATE]})
+    base = SceneData(meshes=(_surface(),), nodes=(node,), scenes=((0,),))
+    channel = {"sampler": 0, "target": {"node": 0, "path": "translation"}}
+    scene = _with_animations(base, [{"channels": [channel], "samplers": ["keys"]}])
+    with pytest.raises(CodecError, match="sampler 0 needs 'times' and 'values'"):
+        write_scene(scene, tmp_path / "sampler.dae")
 
 
 def test_no_animation_key_when_absent(tmp_path: Path) -> None:

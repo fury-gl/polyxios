@@ -51,7 +51,7 @@ from polyxios._scene import (
     SceneNode,
     SceneTexture,
 )
-from polyxios._trs import trs_of_matrix
+from polyxios._trs import matrix_of_element, trs_of_matrix
 from polyxios._types import PolyData
 from polyxios._warn import warn_caller as _warn
 from polyxios.codecs._gltf import scaled_rows
@@ -161,6 +161,9 @@ _MIN_NODE_CAP: int = 1 << 18
 # column per binding, so a few instances of one large mesh can spell many;
 # they may hold sixteen bytes per byte of document, and never less than this.
 _MIN_COPY_CAP: int = 1 << 28
+# A channel on an instanced node gets a target per copy; the targets of a
+# document may number this many per node of the node cap.
+_TARGETS_PER_NODE: int = 4
 
 _TRI = ELEMENT_TYPES["triangle"]
 _QUAD = ELEMENT_TYPES["quad"]
@@ -288,8 +291,6 @@ _BAKE_MAX_DEGREES: float = 15.0
 _BAKE_CUBIC_PIECES: int = 4
 _BAKE_MAX_PASSES: int = 8
 
-_IDENTITY = np.eye(4, dtype=np.float64)
-
 
 # =============================================================================
 # read
@@ -334,11 +335,11 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         metallic-roughness and occlusion textures, and a base colour or
         emissive beside a texture replace what the common profile gives.
         Positions, vertex attributes, matrices and sampler keys are float64
-        whatever precision or array type the file's text carries. Every ``<vertices>`` position is
-        a vertex, whether or not a primitive names it. A mesh without
-        texture coordinate set 0 has its sets renumbered down from the
-        lowest, so its first set is ``texcoords``; a ``P`` column that is
-        zero throughout is dropped.
+        whatever precision or array type the file's text carries. Every
+        ``<vertices>`` position is a vertex, whether or not a primitive
+        names it. A mesh without texture coordinate set 0 has its sets
+        renumbered down from the lowest, so its first set is
+        ``texcoords``; a ``P`` column that is zero throughout is dropped.
 
     Raises
     ------
@@ -394,11 +395,12 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         read as a point, a morph controller contributes only its base
         geometry, a unit's meter that is not a finite positive number is
         read as 1, an alpha that is not finite is read as opaque, an
-        instance of a node, geometry, controller, effect or visual scene in another document is dropped (a material without
-        its effect is a bare phong one, and the first visual scene is
-        active), a node's second ``<instance_camera>`` or
-        ``<instance_light>`` is dropped for the first, and an
-        ``<instance_material>`` symbol bound twice keeps its first binding.
+        instance of a node, geometry, controller, effect or visual scene
+        in another document is dropped (a material without its effect is
+        a bare phong one, and the first visual scene is active), a node's
+        second ``<instance_camera>`` or ``<instance_light>`` is dropped for
+        the first, and an ``<instance_material>`` symbol bound twice keeps
+        its first binding.
         An ``<input>`` without a ``semantic`` is dropped. A material symbol
         an instance's binding omits takes the material of that id. An image
         the reader would have to create (``<create_2d>``, ...) is empty.
@@ -1353,6 +1355,8 @@ class _State:
     material columns, of every skin's influences and of every inverse bind
     matrix copy against ``max_copied``. ``pending`` lists each skinned
     instance as (node, skin, ``<skeleton>`` ids), bound once the walk ends.
+    ``element_of`` maps each node with an id to the ``<node>`` it was
+    walked from, which the copies of one instanced node share.
     """
 
     doc: _Doc
@@ -1364,6 +1368,7 @@ class _State:
     max_copied: int
     nodes: list[SceneNode | None] = dataclasses.field(default_factory=list)
     nodes_by_id: dict[str, list[int]] = dataclasses.field(default_factory=dict)
+    element_of: dict[int, int] = dataclasses.field(default_factory=dict)
     variants: list[PolyData] = dataclasses.field(default_factory=list)
     copied: int = 0
     skin_of: dict[int, _Skin] = dataclasses.field(default_factory=dict)
@@ -1992,60 +1997,6 @@ def _bind(st: _State, inst: ET.Element) -> dict[str, int]:
 # -----------------------------------------------------------------------------
 
 
-def _rotation(axis: np.ndarray, degrees: float) -> np.ndarray:
-    norm = np.linalg.norm(axis)
-    if norm == 0.0:
-        return _IDENTITY.copy()
-    x, y, z = axis / norm
-    c = np.cos(np.radians(degrees))
-    s = np.sin(np.radians(degrees))
-    t = 1.0 - c
-    out = np.eye(4, dtype=np.float64)
-    out[:3, :3] = [
-        [t * x * x + c, t * x * y - s * z, t * x * z + s * y],
-        [t * x * y + s * z, t * y * y + c, t * y * z - s * x],
-        [t * x * z - s * y, t * y * z + s * x, t * z * z + c],
-    ]
-    return out
-
-
-def _lookat(values: np.ndarray) -> np.ndarray:
-    """Return the camera-to-parent matrix of a ``<lookat>``.
-
-    An ``up`` parallel to the view direction leaves the roll undefined; the
-    world axis least aligned with the view direction stands in for it, so
-    the matrix stays a rotation whatever the direction.
-    """
-    eye, target, up = values[:3], values[3:6], values[6:]
-    z = eye - target
-    zn = np.linalg.norm(z)
-    z = z / zn if zn else np.array([0.0, 0.0, 1.0])
-    x = np.cross(up, z)
-    xn = np.linalg.norm(x)
-    if not xn:
-        x = np.cross(np.eye(3)[np.argmin(np.abs(z))], z)
-        xn = np.linalg.norm(x)
-    x = x / xn
-    y = np.cross(z, x)
-    out = np.eye(4, dtype=np.float64)
-    out[:3, 0], out[:3, 1], out[:3, 2], out[:3, 3] = x, y, z, eye
-    return out
-
-
-def _matrix_of(kind: str, values: np.ndarray) -> np.ndarray:
-    if kind == "matrix":
-        return values.reshape(4, 4)
-    if kind == "translate":
-        out = np.eye(4, dtype=np.float64)
-        out[:3, 3] = values
-        return out
-    if kind == "rotate":
-        return _rotation(values[:3], float(values[3]))
-    if kind == "scale":
-        return np.diag([values[0], values[1], values[2], 1.0])
-    return _lookat(values)
-
-
 def _node_transforms(
     doc: _Doc, node: ET.Element, what: str
 ) -> tuple[np.ndarray, list[dict[str, Any]]]:
@@ -2060,7 +2011,7 @@ def _node_transforms(
         if size is None:
             continue
         values = _floats(child.text, f"{what} <{kind}>", n=size)
-        matrix = matrix @ _matrix_of(kind, values)
+        matrix = matrix @ matrix_of_element(kind=kind, values=values)
         spelled.append(
             {"kind": kind, "sid": child.get("sid"), "values": values.tolist()}
         )
@@ -2132,6 +2083,7 @@ def _walk(
     inner = (*stack, (id(node), label))
     if nid is not None:
         st.nodes_by_id.setdefault(nid, []).append(idx)
+        st.element_of[idx] = id(node)
     sid = node.get("sid")
 
     matrix, spelled = _node_transforms(doc, node, what)
@@ -2741,13 +2693,21 @@ def _sampler(
         elif semantic == "INTERPOLATION":
             names = [n.upper() for n in _name_source(doc, src, f"{what} INTERPOLATION")]
             if names:
-                if len(set(names)) > 1:
-                    _warn(
-                        f"{doc.name!r}: {what} mixes interpolations; {names[0]} is taken for all keys."
-                    )
-                if names[0] in _INTERPOLATIONS:
+                known = names[0] in _INTERPOLATIONS
+                if known:
                     out["interpolation"] = names[0]
-                else:
+                if len(set(names)) > 1:
+                    first = (
+                        names[0]
+                        if known
+                        else f"LINEAR, for the first, {names[0]!r}, which the "
+                        "specification does not name,"
+                    )
+                    _warn(
+                        f"{doc.name!r}: {what} mixes interpolations; {first} is "
+                        "taken for all keys."
+                    )
+                elif not known:
                     _warn(
                         f"{doc.name!r}: {what} has interpolation {names[0]!r}, which the "
                         "specification does not name; it is read as LINEAR."
@@ -2930,19 +2890,32 @@ def _transform_by_sid(
     return None if idx is None else (idx, index.kind_of[idx, sid])
 
 
-def _targets(st: _State, index: _SidIndex, target: str) -> list[dict[str, Any]]:
-    """Return one target per node the address reaches.
+def _targets(
+    st: _State, index: _SidIndex, target: str
+) -> tuple[list[dict[str, Any]], int]:
+    """Return one target per node the address reaches, and the misses.
 
     A ``<library_nodes>`` node instanced twice is walked into two nodes that
     share its id, and a channel addressing that id moves both, so each copy
     gets the channel. Each sid of the address is looked up breadth-first
     below the node before it, as the specification's address syntax says:
     a node sid among its descendants, the transform sid on the node the
-    last of them reaches and then on its descendants.
+    last of them reaches and then on its descendants. Copies of one
+    ``<node>`` hold the same subtree, so when the address misses on the
+    first, it misses on all, and is looked up there alone.
+
+    Returns
+    -------
+    targets : list of dict
+        One target per node reached.
+    missed : int
+        The number of ``<node>`` elements holding the id on which the
+        address reaches no transform, each counted once however many
+        copies it was walked into.
     """
     parts = target.split("/")
     if len(parts) < 2:
-        return []
+        return [], 0
     last = parts[-1]
     member: str | None = None
     for i, ch in enumerate(last):
@@ -2952,16 +2925,24 @@ def _targets(st: _State, index: _SidIndex, target: str) -> list[dict[str, Any]]:
             break
     out: list[dict[str, Any]] = []
     seen: set[int] = set()
-    for node_idx in st.nodes_by_id.get(parts[0], []):
+    missed_from: set[int] = set()
+    for head in st.nodes_by_id.get(parts[0], []):
+        source = st.element_of.get(head)
+        if source in missed_from:
+            continue
+        node_idx: int | None = head
         for part in parts[1:-1]:
             node_idx = _descendant_by_sid(index, node_idx, part)
             if node_idx is None:
                 break
-        if node_idx is None:
+        hit = None
+        if node_idx is not None and last:
+            hit = _transform_by_sid(index, node_idx, last)
+        if hit is None:
+            missed_from.add(source)
             continue
-        hit = _transform_by_sid(index, node_idx, last) if last else None
         # Nested nodes repeating an id can reach one transform twice.
-        if hit is not None and hit[0] not in seen:
+        if hit[0] not in seen:
             seen.add(hit[0])
             out.append(
                 {
@@ -2971,7 +2952,7 @@ def _targets(st: _State, index: _SidIndex, target: str) -> list[dict[str, Any]]:
                     "member": member,
                 }
             )
-    return out
+    return out, len(missed_from)
 
 
 def _read_animations(st: _State) -> list[dict[str, Any]]:
@@ -2992,16 +2973,14 @@ def _read_animations(st: _State) -> list[dict[str, Any]]:
         channels: list[dict[str, Any]] = []
         for channel in (e for e in anim.iter() if _local(e.tag) == "channel"):
             target_text = channel.get("target", "")
-            targets = _targets(st, index, target_text)
-            if "/" in target_text:
-                head = target_text.split("/", 1)[0]
-                n_missed += len(st.nodes_by_id.get(head, ())) - len(targets)
-                if n_missed > st.max_nodes:
-                    raise CodecError(
-                        f"{doc.name!r}: channels addressing instanced nodes miss "
-                        f"their transform on more than {st.max_nodes} copies, more "
-                        f"than a document of {doc.size} bytes is read into."
-                    )
+            targets, missed = _targets(st, index, target_text)
+            n_missed += missed
+            if n_missed > st.max_nodes:
+                raise CodecError(
+                    f"{doc.name!r}: channels addressing nodes miss their "
+                    f"transform more than {st.max_nodes} times, more than a "
+                    f"document of {doc.size} bytes is read into."
+                )
             if not targets:
                 unreached.append(target_text)
                 continue
@@ -3012,11 +2991,11 @@ def _read_animations(st: _State) -> list[dict[str, Any]]:
                     "which is not a sampler."
                 )
             n_targets += len(targets)
-            if n_targets > st.max_nodes:
+            if n_targets > _TARGETS_PER_NODE * st.max_nodes:
                 raise CodecError(
                     f"{doc.name!r}: channels addressing instanced nodes expand "
-                    f"past {st.max_nodes} targets, more than a document of "
-                    f"{doc.size} bytes is read into."
+                    f"past {_TARGETS_PER_NODE * st.max_nodes} targets, more than "
+                    f"a document of {doc.size} bytes is read into."
                 )
             sampler = _sampler(st, elem, cache)
             width = 1 if sampler["values"].ndim == 1 else sampler["values"].shape[1]
@@ -4793,7 +4772,7 @@ def _spelled(node: SceneNode) -> tuple[list[dict[str, Any]], bool]:
                 values = np.asarray(t["values"], dtype=np.float64).ravel()
                 if t["kind"] not in _KIND_SIZE or values.size != _KIND_SIZE[t["kind"]]:
                     raise ValueError
-                matrix = matrix @ _matrix_of(t["kind"], values)
+                matrix = matrix @ matrix_of_element(kind=t["kind"], values=values)
                 numbers.append(values.tolist())
         except (KeyError, TypeError, ValueError):
             matrix = None
@@ -5446,8 +5425,7 @@ def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -
                 lone.pop(key, None)
             if key in copied and (is_copy or copied[key]):
                 continue
-            if key not in copied and is_copy:
-                lone[key] = copy_idx
+            alone = key not in copied and is_copy
             copied.setdefault(key, is_copy)
             spelled, own = _spelled(scene.nodes[node_idx])
             sid = target.get("sid")
@@ -5481,6 +5459,8 @@ def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -
                     channels.append(node_idx)
                     baked[node_idx] = tracks
                 tracks[path] = track
+                if alone:
+                    lone[key] = copy_idx
                 continue
             if sid is None:
                 reason = _sidless_reason(spelled, path, member, samplers[s])
@@ -5558,6 +5538,8 @@ def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -
                     name=name,
                 )
             )
+            if alone:
+                lone[key] = copy_idx
         for key, copy_idx in lone.items():
             _warn(
                 f"{name!r}: animation {a} animates node {copy_idx}, a copy of "
@@ -5684,14 +5666,14 @@ def _sidless_reason(
     same = [t for t in spelled if t["kind"] == kind]
     if len(same) != 1:
         return f"its node spells {len(same)} <{kind}> elements, not one"
-    interp = (
-        sampler.get("interpolation", "LINEAR") if isinstance(sampler, dict) else None
-    )
+    if not isinstance(sampler, dict):
+        return None
+    interp = sampler.get("interpolation", "LINEAR")
     if isinstance(interp, str):
         interp = interp.upper()
     if interp not in _INTERPOLATIONS:
         return f"interpolation {interp!r}, which COLLADA does not name"
-    values = sampler.get("values") if isinstance(sampler, dict) else None
+    values = sampler.get("values")
     try:
         width = _rows(np.asarray(values, dtype=np.float64)).shape[1]
     except (TypeError, ValueError):
@@ -5725,6 +5707,11 @@ def _keys_reason(sampler: Any) -> str | None:
         return "keys that are not finite"
     if (np.diff(times) <= 0).any():
         return "key times that do not increase"
+    interp = str(sampler.get("interpolation", "LINEAR")).upper()
+    if interp in ("BEZIER", "HERMITE") and any(
+        sampler.get(key) is None for key in ("in_tangents", "out_tangents")
+    ):
+        return f"a {interp} sampler without in_tangents and out_tangents"
     for key in ("in_tangents", "out_tangents"):
         try:
             tangents = np.asarray(sampler.get(key, 0.0), dtype=np.float64)
@@ -5910,7 +5897,7 @@ def _bake_trs(
     node_idx: int,
     name: str,
 ) -> dict[str, Any]:
-    """Return one ``<matrix>`` sampler composing a node's translation, rotation and scale keys.
+    """Return a ``<matrix>`` sampler composing a node's TRS keys.
 
     COLLADA animates a transform element, and the rotation a glTF-style
     channel holds is a quaternion no ``<rotate>`` spells, so the node's
@@ -5918,9 +5905,9 @@ def _bake_trs(
     times; a path no track animates holds the node's rest value. Since
     COLLADA blends a matrix element by element, a span rotating more than
     ``_BAKE_MAX_DEGREES`` under a rotation that blends and every span of a
-    ``CUBICSPLINE`` track are split by extra keys. When some tracks are ``STEP`` and others are not,
-    a key just before each step holds the value before it; when all are,
-    the sampler is ``STEP``.
+    ``CUBICSPLINE`` track are split by extra keys. When some tracks are
+    ``STEP`` and others are not, a key just before each step holds the
+    value before it; when all are, the sampler is ``STEP``.
 
     Parameters
     ----------
@@ -6069,6 +6056,5 @@ def _sampler_xml(
             )
             body.append(_source_xml(f"{base}-{key}", tangents, tp, indent=6))
             inputs.append(f'<input semantic="{semantic}" source="#{base}-{key}"/>')
-    return "".join(
-        body
-    ), f'      <sampler id="{base}-sampler">{"".join(inputs)}</sampler>\n'
+    tag = f'      <sampler id="{base}-sampler">{"".join(inputs)}</sampler>\n'
+    return "".join(body), tag
