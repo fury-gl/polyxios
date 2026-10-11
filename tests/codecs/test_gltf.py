@@ -16,12 +16,12 @@ import warnings
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._scene import SceneData, SceneMaterial, SceneNode, SceneTexture
-from polyxios._trs import matrix_of_trs
+from polyxios._trs import matrix_of_element, matrix_of_trs
 from polyxios._types import PolyData
-from polyxios.codecs import _collada
 from polyxios.codecs._gltf import (
     _decode_skins,
     _increasing_float32,
@@ -1258,12 +1258,12 @@ def test_placeholder_texture_source_omitted(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("target", "interp", "match"),
     [
-        ({"node": 0, "path": "matrix"}, "LINEAR", "path 'matrix'"),
+        ({"node": 0, "path": "matrix"}, "LINEAR", "as the matrix it animates"),
         ({"node": 0, "path": "translation"}, "BEZIER", "interpolates 'BEZIER'"),
         (
             {"node": 0, "path": "rotation", "sid": "rz", "member": "ANGLE"},
             "LINEAR",
-            "'member', 'sid'",
+            "no transform element of sid 'rz'",
         ),
     ],
 )
@@ -1400,8 +1400,8 @@ def test_gltf_animation_survives_a_collada_round_trip(tmp_path: Path) -> None:
     glb = tmp_path / "back.glb"
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        _collada.write_scene(scene, dae)
-        write_scene(_collada.read_scene(dae), glb)
+        polyxios.write_scene(scene, dae)
+        write_scene(polyxios.read_scene(dae), glb)
     tracks = _tracks(read_scene(glb))
     assert sorted(tracks) == ["rotation", "scale", "translation"]
     for track in tracks.values():
@@ -1429,21 +1429,6 @@ def test_gltf_animation_survives_a_collada_round_trip(tmp_path: Path) -> None:
             {
                 "extras": {
                     "transforms": [
-                        {"kind": "translate", "sid": "t", "values": [0, 0, 0]},
-                        {
-                            "kind": "matrix",
-                            "sid": "transform",
-                            "values": np.eye(4).ravel().tolist(),
-                        },
-                    ]
-                }
-            },
-            "not written",
-        ),
-        (
-            {
-                "extras": {
-                    "transforms": [
                         {
                             "kind": "matrix",
                             "sid": "other",
@@ -1456,11 +1441,11 @@ def test_gltf_animation_survives_a_collada_round_trip(tmp_path: Path) -> None:
         ),
     ],
 )
-def test_matrix_channel_not_the_whole_transform_is_skipped(
+def test_matrix_channel_that_cannot_be_rebuilt_is_skipped(
     tmp_path: Path, change: dict, match: str
 ) -> None:
-    """A matrix channel that is not the node's whole transform, or whose
-    interpolation glTF cannot blend a TRS by, is still skipped."""
+    """A matrix channel naming an element its node does not spell, or a
+    BEZIER one without tangents, is skipped."""
     keys = np.tile(np.eye(4).ravel(), (2, 1))
     out = tmp_path / "skip.glb"
     with pytest.warns(UserWarning, match=match):
@@ -1500,6 +1485,398 @@ def test_matrix_channel_split_leaves_the_scene_alone(tmp_path: Path) -> None:
     anim = scene.global_attrs["animations"][0]
     assert len(anim["channels"]) == 1 and len(anim["samplers"]) == 1
     assert anim["channels"][0]["target"]["path"] == "matrix"
+
+
+def _translation(x: float, y: float, z: float) -> np.ndarray:
+    m = np.eye(4)
+    m[:3, 3] = (x, y, z)
+    return m
+
+
+def _rotate_z(degrees: float) -> np.ndarray:
+    """Return the 4x4 matrix turning ``degrees`` about z."""
+    return _trs_matrix(np.zeros(3), _quat((0, 0, 1), degrees), np.ones(3))
+
+
+def _spelled_scene(transforms: list, channels: list, *, matrix=None) -> SceneData:
+    """One node spelled with COLLADA ``transforms``, animated by ``channels``.
+
+    Each channel is ``(target, sampler)``; the target gets node 0.
+    """
+    if matrix is None:
+        matrix = np.eye(4)
+        for t in transforms:
+            matrix = matrix @ matrix_of_element(
+                kind=t["kind"], values=np.asarray(t["values"], dtype=np.float64)
+            )
+    return SceneData(
+        meshes=(_triangle_poly(),),
+        nodes=(SceneNode(mesh=0, matrix=matrix, extras={"transforms": transforms}),),
+        scenes=((0,),),
+        global_attrs={
+            "animations": [
+                {
+                    "channels": [
+                        {"sampler": k, "target": {"node": 0, **target}}
+                        for k, (target, _) in enumerate(channels)
+                    ],
+                    "samplers": [sampler for _, sampler in channels],
+                }
+            ]
+        },
+    )
+
+
+_TRANSLATE_ROTATE = [
+    {"kind": "translate", "sid": "location", "values": [1.0, 0.0, 0.0]},
+    {"kind": "rotate", "sid": "rotationZ", "values": [0.0, 0.0, 1.0, 0.0]},
+    {"kind": "scale", "sid": "scale", "values": [1.0, 1.0, 1.0]},
+]
+
+
+def _sampler(times, values, interp: str = "LINEAR", **more) -> dict:
+    return {
+        "times": np.asarray(times, dtype=np.float64),
+        "values": np.asarray(values, dtype=np.float64),
+        "interpolation": interp,
+        **more,
+    }
+
+
+def _written_tracks(scene: SceneData, out: Path) -> dict[str, dict]:
+    """Write ``scene`` to ``out`` without a warning and read its tracks back."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(scene, out)
+    return _tracks(read_scene(out))
+
+
+def _composed(tracks: dict[str, dict]) -> np.ndarray:
+    """Return the ``(n, 4, 4)`` matrices the TRS keys rebuild, key by key."""
+    return np.stack(
+        [
+            _trs_matrix(t, q, s)
+            for t, q, s in zip(
+                tracks["translation"]["values"],
+                tracks["rotation"]["values"],
+                tracks["scale"]["values"],
+                strict=True,
+            )
+        ]
+    )
+
+
+def test_rotate_angle_channel_rebuilt_as_trs(tmp_path: Path) -> None:
+    """A ``<rotate>`` ANGLE channel turns the node about its own axis in
+    degrees, after the ``<translate>`` before it; the keys glTF gets rebuild
+    that matrix, close enough in angle for slerp to follow it."""
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+                _sampler([0.0, 2.0], [0.0, 90.0]),
+            )
+        ],
+    )
+    tracks = _written_tracks(scene, tmp_path / "angle.glb")
+    times = tracks["rotation"]["times"]
+    assert times[0] == 0.0 and times[-1] == 2.0
+    for t, m in zip(times, _composed(tracks), strict=True):
+        expect = _translation(1.0, 0.0, 0.0) @ _rotate_z(45.0 * t)
+        np.testing.assert_allclose(m, expect, atol=1e-6)
+    angles = 2 * np.degrees(
+        np.arccos(np.clip(tracks["rotation"]["values"][:, 3], -1, 1))
+    )
+    assert (np.diff(angles) <= 15.0 + 1e-6).all()
+    assert all(t["interpolation"] == "LINEAR" for t in tracks.values())
+
+
+def test_full_turn_in_one_span_is_followed(tmp_path: Path) -> None:
+    """A rotation from 0 to 360 degrees has the same rotation at both keys;
+    its middle shows the turn, and the span is split."""
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+                _sampler([0.0, 1.0], [0.0, 360.0]),
+            )
+        ],
+    )
+    tracks = _written_tracks(scene, tmp_path / "turn.glb")
+    times = tracks["rotation"]["times"]
+    assert len(times) >= 25
+    half = np.flatnonzero(np.isclose(times, 0.5))
+    assert half.size
+    np.testing.assert_allclose(
+        _composed(tracks)[half[0]],
+        _translation(1.0, 0.0, 0.0) @ _rotate_z(180.0),
+        atol=1e-6,
+    )
+
+
+@pytest.mark.parametrize(
+    ("target", "values", "expect"),
+    [
+        (
+            {"path": "translation", "sid": "location", "member": "Y"},
+            [0.0, 2.0],
+            _translation(1.0, 2.0, 0.0),
+        ),
+        (
+            {"path": "translation", "sid": "location", "member": "(2)"},
+            [0.0, 3.0],
+            _translation(1.0, 0.0, 3.0),
+        ),
+        (
+            {"path": "scale", "sid": "scale", "member": None},
+            [[1.0, 1.0, 1.0], [2.0, 3.0, 4.0]],
+            _translation(1.0, 0.0, 0.0) @ np.diag([2.0, 3.0, 4.0, 1.0]),
+        ),
+    ],
+)
+def test_member_channels_set_their_part_of_the_element(
+    tmp_path: Path, target: dict, values: list, expect: np.ndarray
+) -> None:
+    scene = _spelled_scene(_TRANSLATE_ROTATE, [(target, _sampler([0.0, 1.0], values))])
+    tracks = _written_tracks(scene, tmp_path / "member.glb")
+    np.testing.assert_allclose(_composed(tracks)[-1], expect, atol=1e-6)
+    np.testing.assert_allclose(
+        _composed(tracks)[0], _translation(1.0, 0.0, 0.0), atol=1e-6
+    )
+
+
+@pytest.mark.parametrize(
+    ("member", "values", "cell"),
+    [("(0)(3)", [0.0, 5.0], (0, 3)), ("(1)", [[0, 1, 0, 0], [0, 1, 0, 7]], (1, 3))],
+)
+def test_matrix_member_channels(
+    tmp_path: Path, member: str, values: list, cell: tuple
+) -> None:
+    """``(i)(j)`` sets one cell of a ``<matrix>``, ``(i)`` its row ``i``."""
+    transforms = [
+        {"kind": "translate", "sid": "t", "values": [0.0, 0.0, 1.0]},
+        {"kind": "matrix", "sid": "m", "values": np.eye(4).ravel().tolist()},
+    ]
+    scene = _spelled_scene(
+        transforms,
+        [({"path": "matrix", "sid": "m", "member": member}, _sampler([0, 1], values))],
+    )
+    tracks = _written_tracks(scene, tmp_path / "cell.glb")
+    last = _composed(tracks)[-1]
+    assert last[cell] == pytest.approx(np.asarray(values).ravel()[-1], abs=1e-6)
+    assert last[2, 3] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_matrix_channel_beside_other_elements_is_rebuilt(tmp_path: Path) -> None:
+    """A whole ``<matrix>`` channel on a node that spells more than that
+    matrix composes with the node's other elements."""
+    transforms = [
+        {"kind": "translate", "sid": "t", "values": [0.0, 0.0, 1.0]},
+        {"kind": "matrix", "sid": "transform", "values": np.eye(4).ravel().tolist()},
+    ]
+    keys = np.stack([np.eye(4).ravel(), _rotate_z(10.0).ravel()])
+    scene = _spelled_scene(
+        transforms,
+        [({"path": "matrix", "sid": "transform"}, _sampler([0.0, 1.0], keys))],
+    )
+    tracks = _written_tracks(scene, tmp_path / "beside.glb")
+    np.testing.assert_allclose(
+        _composed(tracks)[-1], _translation(0.0, 0.0, 1.0) @ _rotate_z(10.0), atol=1e-6
+    )
+
+
+def test_step_channels_rebuilt_as_step_keys(tmp_path: Path) -> None:
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+                _sampler([0.0, 1.0, 2.0], [0.0, 90.0, 180.0], "STEP"),
+            )
+        ],
+    )
+    tracks = _written_tracks(scene, tmp_path / "step.glb")
+    for track in tracks.values():
+        assert track["interpolation"] == "STEP"
+        np.testing.assert_array_equal(track["times"], [0.0, 1.0, 2.0])
+
+
+def test_step_channel_among_linear_ones_keeps_its_step(tmp_path: Path) -> None:
+    """A ``STEP`` channel beside a ``LINEAR`` one gets a key just before each
+    step, so glTF's blend does not ramp into it."""
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "translation", "sid": "location", "member": "X"},
+                _sampler([0.0, 1.0], [0.0, 4.0], "STEP"),
+            ),
+            (
+                {"path": "scale", "sid": "scale", "member": "Z"},
+                _sampler([0.0, 1.0], [1.0, 2.0]),
+            ),
+        ],
+    )
+    tracks = _written_tracks(scene, tmp_path / "hold.glb")
+    times = tracks["translation"]["times"]
+    assert (np.diff(times.astype(np.float32)) > 0).all()
+    step = int(np.flatnonzero(times == np.float32(1.0))[0])
+    assert times[step - 1] == pytest.approx(1.0, abs=1e-6)
+    np.testing.assert_allclose(tracks["translation"]["values"][step - 1, 0], 0.0)
+    np.testing.assert_allclose(tracks["translation"]["values"][step, 0], 4.0)
+    np.testing.assert_allclose(
+        tracks["scale"]["values"][step - 1], [1.0, 1.0, 2.0], atol=1e-5
+    )
+
+
+def test_bezier_channel_resampled_to_linear_keys(tmp_path: Path) -> None:
+    """BEZIER keys are sampled along their curve: tangents at a third of
+    each span on the straight line give a straight motion back."""
+    tangent_in = np.array([[-1 / 3, 0.0], [2 / 3, 2.0]])
+    tangent_out = np.array([[1 / 3, 1.0], [4 / 3, 3.0]])
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "translation", "sid": "location", "member": "Y"},
+                _sampler(
+                    [0.0, 1.0],
+                    [0.0, 3.0],
+                    "BEZIER",
+                    in_tangents=tangent_in,
+                    out_tangents=tangent_out,
+                ),
+            )
+        ],
+    )
+    tracks = _written_tracks(scene, tmp_path / "bezier.glb")
+    track = tracks["translation"]
+    assert track["interpolation"] == "LINEAR"
+    np.testing.assert_allclose(track["times"], [0.0, 0.25, 0.5, 0.75, 1.0], atol=1e-7)
+    np.testing.assert_allclose(track["values"][:, 1], 3.0 * track["times"], atol=1e-5)
+
+
+def test_bezier_channel_eases_between_its_keys(tmp_path: Path) -> None:
+    """Flat tangents ease in and out: the middle of the span is half way,
+    a quarter of the way along in time is less than a quarter of the way."""
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "translation", "sid": "location", "member": "Y"},
+                _sampler(
+                    [0.0, 1.0],
+                    [0.0, 1.0],
+                    "BEZIER",
+                    in_tangents=[[-1 / 3, 0.0], [2 / 3, 1.0]],
+                    out_tangents=[[1 / 3, 0.0], [4 / 3, 1.0]],
+                ),
+            )
+        ],
+    )
+    values = _written_tracks(scene, tmp_path / "ease.glb")["translation"]["values"]
+    assert values[1, 1] < 0.25
+    assert values[2, 1] == pytest.approx(0.5, abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("target", "sampler", "match"),
+    [
+        (
+            {"path": "rotation", "sid": "rotationZ", "member": "W"},
+            _sampler([0.0, 1.0], [0.0, 1.0]),
+            "member 'W' names no part of a <rotate>",
+        ),
+        (
+            {"path": "translation", "sid": "rotationZ"},
+            _sampler([0.0, 1.0], [[0, 0, 0], [1, 1, 1]]),
+            "is a <rotate>, which path 'translation' does not animate",
+        ),
+        (
+            {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+            _sampler([0.0, 1.0], [0.0, 1.0], "HERMITE"),
+            "interpolates 'HERMITE'",
+        ),
+        (
+            {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+            _sampler([0.0, 1.0], [0.0, 1.0], "BEZIER", in_tangents=[0.0, 0.0]),
+            "no out_tangents",
+        ),
+        (
+            {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+            _sampler([1.0, 0.0], [0.0, 1.0]),
+            "not strictly increasing",
+        ),
+    ],
+)
+def test_transform_channel_that_cannot_be_rebuilt_is_dropped(
+    tmp_path: Path, target: dict, sampler: dict, match: str
+) -> None:
+    scene = _spelled_scene(_TRANSLATE_ROTATE, [(target, sampler)])
+    out = tmp_path / "drop.glb"
+    with pytest.warns(UserWarning, match=match):
+        write_scene(scene, out)
+    assert "animations" not in _parse_glb(out.read_bytes())[0]
+
+
+def test_transform_channel_on_an_edited_node_is_dropped(tmp_path: Path) -> None:
+    """Elements no longer composing to the node's matrix would animate the
+    pose it was read with, not the one it has."""
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+                _sampler([0.0, 1.0], [0.0, 90.0]),
+            )
+        ],
+        matrix=_translation(5.0, 0.0, 0.0),
+    )
+    with pytest.warns(UserWarning, match="no longer composes"):
+        write_scene(scene, tmp_path / "edited.glb")
+
+
+def test_second_channel_on_the_same_member_is_dropped(tmp_path: Path) -> None:
+    target = {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"}
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (target, _sampler([0.0, 1.0], [0.0, 90.0])),
+            (target, _sampler([0.0, 1.0], [0.0, -90.0])),
+        ],
+    )
+    out = tmp_path / "twice.glb"
+    with pytest.warns(UserWarning, match="already animates its values"):
+        write_scene(scene, out)
+    tracks = _tracks(read_scene(out))
+    assert tracks["rotation"]["values"][-1, 2] > 0
+
+
+def test_transform_channels_of_one_node_share_one_set_of_keys(tmp_path: Path) -> None:
+    """Channels on two elements of one node become one translation, one
+    rotation and one scale channel over the union of their times."""
+    scene = _spelled_scene(
+        _TRANSLATE_ROTATE,
+        [
+            (
+                {"path": "translation", "sid": "location"},
+                _sampler([0.0, 2.0], [[1, 0, 0], [3, 0, 0]]),
+            ),
+            (
+                {"path": "rotation", "sid": "rotationZ", "member": "ANGLE"},
+                _sampler([0.0, 1.0], [0.0, 10.0]),
+            ),
+        ],
+    )
+    out = tmp_path / "union.glb"
+    tracks = _written_tracks(scene, out)
+    assert len(_parse_glb(out.read_bytes())[0]["animations"][0]["channels"]) == 3
+    np.testing.assert_array_equal(tracks["translation"]["times"], [0.0, 1.0, 2.0])
+    np.testing.assert_allclose(
+        _composed(tracks)[1], _translation(2.0, 0.0, 0.0) @ _rotate_z(10.0), atol=1e-6
+    )
 
 
 def test_increasing_float32_moves_a_hold_key_below_its_step() -> None:
@@ -1769,12 +2146,6 @@ def test_skins_that_are_not_a_list_are_kept_with_a_warning() -> None:
     skins = {"joints": [0]}
     with pytest.warns(UserWarning, match="skins is not a list"):
         assert _decode_skins({}, skins, []) is skins
-
-
-def _translation(x: float, y: float, z: float) -> np.ndarray:
-    m = np.eye(4)
-    m[:3, 3] = (x, y, z)
-    return m
 
 
 def _skinned_scene(
@@ -2230,10 +2601,10 @@ def test_skinned_collada_scene_keeps_its_rig_in_gltf(tmp_path: Path) -> None:
     )
     dae = tmp_path / "mid.dae"
     glb = tmp_path / "back.glb"
-    _collada.write_scene(scene, dae)
+    polyxios.write_scene(scene, dae)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mid = _collada.read_scene(dae)
+        mid = polyxios.read_scene(dae)
         write_scene(mid, glb)
     back = read_scene(glb)
     (skin,) = back.global_attrs["skins"]
