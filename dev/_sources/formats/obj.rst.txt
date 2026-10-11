@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.obj")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 A textured mesh keeps both sides of a seam when the vertices are split:
 
@@ -84,7 +84,7 @@ Quirks worth knowing
 - Negative (relative) indices are resolved against the vertex count at the point the face appears, not the final count.
 - An index naming a record the file has not declared raises ``CodecError`` naming the line, rather than wrapping around into another vertex.
 - Faces with more than four vertices are kept as polygons rather than being silently triangulated.
-- Material and group keywords are read as element tags; ``.mtl`` files are not parsed.
+- ``g`` groups are read as element tags and ``usemtl`` as ``element_attrs['material']``; the ``mtllib`` name lands in ``global_attrs['mtl_file']``, but ``.mtl`` files are not parsed.
 - ``vt`` and ``vn`` are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in ``vertex_attrs['texcoords']`` and ``vertex_attrs['normals']``: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.
 - ``split_seams=True`` keeps what that fold drops. A vertex is copied once per distinct pairing its corners name, the first corner keeping the index it had and each later one taking a fresh index off the end, so a vertex no face names stays where it was and a file whose corners agree reads exactly as it does without the option. The faces are untouched - only the indices inside them move - so the element count, the element order, ``element_attrs`` and ``element_tags`` are the same either way. Records nothing indexes are still counted against the ``v`` records the file wrote rather than the vertices the split left, and a copy takes what the vertex it came from takes, so a split neither drops such an attribute nor invents one out of a count that happens to match.
 - A split mesh writes back with the copied positions repeated as their own ``v`` records, since the writer emits one ``vt``/``vn`` per vertex in vertex order. Do not run ``transforms.merge_duplicate_vertices`` on one: it welds the copies back by position and keeps a single survivor's uv, undoing the split.

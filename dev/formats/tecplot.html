@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -607,7 +607,7 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.tec"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
@@ -622,7 +622,8 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.</p></li>
-<li><p>Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.</p></li>
+<li><p>Only the first zone of a multi-zone file is read; the rest are skipped with a warning. A zone holds one element type, so the writer emits the first supported type it meets and skips every other element with a warning.</p></li>
+<li><p>Variables beyond the coordinate columns are read as named vertex attributes - or element attributes when <code class="docutils literal notranslate"><span class="pre">VARLOCATION</span></code> cell-centres them - so solution fields survive the round trip. Element attributes are written back cell-centred, under BLOCK packing.</p></li>
 <li><p>A zone declaring only <code class="docutils literal notranslate"><span class="pre">X</span></code> and <code class="docutils literal notranslate"><span class="pre">Y</span></code> is 2-D: the vertices are padded with a zero z and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact, which is what writes the zone back out with two coordinate variables rather than three. Tecplot names the coordinates by position, so a mesh carrying a variable of its own named <code class="docutils literal notranslate"><span class="pre">Z</span></code> keeps three: the zone would otherwise read back with that variable as its z. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of <code class="docutils literal notranslate"><span class="pre">TETRAHEDRON</span></code> or <code class="docutils literal notranslate"><span class="pre">BRICK</span></code> cells keeps three coordinate variables whatever the flag says - Tecplot takes the node count per element from <code class="docutils literal notranslate"><span class="pre">ET</span></code> and the coordinate count from <code class="docutils literal notranslate"><span class="pre">VARIABLES</span></code>, and the two have to agree.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">.dat</span></code> is shared with Nastran, LS-DYNA and plain ASCII tables, so it is resolved by looking
 inside the file: a <code class="docutils literal notranslate"><span class="pre">.dat</span></code> opening with <code class="docutils literal notranslate"><span class="pre">TITLE</span> <span class="pre">=</span> <span class="pre">&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">VARIABLES</span> <span class="pre">=</span></code>, <code class="docutils literal notranslate"><span class="pre">ZONE</span></code>, <code class="docutils literal notranslate"><span class="pre">FILETYPE</span> <span class="pre">=</span></code>

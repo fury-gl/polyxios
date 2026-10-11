@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.msh")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -51,16 +51,31 @@ Writing
 .. code-block:: python
 
     px.write(mesh, "out.msh")
+    px.write(mesh, "out.msh", float_fmt=".8g")
 
-This codec takes no format-specific options.
+Format-specific options
+-----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 20 56
+   :class: px-spec-table
+
+   * - Option
+     - Default
+     - Effect
+   * - ``float_fmt``
+     - ``".17g"``
+     - On write: the format specifier for coordinates and data values. The
+       default writes every float64 so it reads back unchanged.
 
 Quirks worth knowing
 --------------------
 
 .. rst-class:: px-quirks
 
-- ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer still understands.
-- Physical group names become element tags, so named boundaries and volumes survive the read.
+- ASCII v2 and v4.1 are both read; writing emits v2.2, the revision every consumer still understands. A binary file, or any other version, is refused with :class:`~polyxios.exceptions.CodecError`.
+- Each element's physical tag is read into ``element_attrs["phys_tag"]``, and the names ``$PhysicalNames`` gives them become element tags, so named boundaries and volumes survive the read. The writer takes ``phys_tag`` back when it holds one value per element, and derives the physical tags from ``element_tags`` otherwise.
 - Node tags need not be contiguous; they are remapped to dense indices.
 - ``$NodeData`` and ``$ElementData`` sections become ``vertex_attrs`` and ``element_attrs``, at any component count the file declares, and are written back. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays ``NaN``. A row naming an entity the mesh does not hold - an element of a type this codec skipped, say - costs that row rather than the whole field.
 - A data section declares 1, 3 or 9 components and Gmsh refuses any other count, so a field of another width is padded out to the next of the three with zero columns and the padding is reported. The reader stays lenient and takes whatever width a file declares.

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=6d419582"></script>
+    <script src="_static/documentation_options.js?v=53c72a51"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -760,10 +760,14 @@ in three dimensions with a warning rather than flattened in silence.</p></li>
 says something about the mesh, not about the file it came from. A plane read
 from a 2-D Netgen <code class="docutils literal notranslate"><span class="pre">.vol</span></code> - which has no two-dimensional spelling of its own
 to write back - still lands as an <code class="docutils literal notranslate"><span class="pre">NDIME=</span> <span class="pre">2</span></code> SU2 case.</p>
-<p>Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
-WKT all record the flag on the way in; every one of those but Netgen restores
-it on the way out. A format with no two-dimensional spelling at all - OBJ, the
-VTK family - keeps writing three columns and ignores the flag.</p>
+<p>Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus,
+WKT, ANSYS Fluent, XDMF, HMF, MED, CGNS and Exodus II all record the flag on
+the way in; every one of those but Netgen and Fluent restores it on the way
+out. Fluent picks its dimension from the cells instead: a mesh with a solid
+is written in three dimensions, and one of triangles, quadrilaterals and
+polygons in two, refused if it has left the plane. A format with no
+two-dimensional spelling at all - OBJ, the VTK family - keeps writing three
+columns and ignores the flag.</p>
 <p>Two columns sometimes constrain the rest of the file, and the writer keeps it
 consistent rather than emitting one no reader loads: an Abaqus deck of
 two-column node cards is written under the planar element cards (<code class="docutils literal notranslate"><span class="pre">CPS3</span></code>,

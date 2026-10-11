@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -604,7 +604,7 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.wkt"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
@@ -619,7 +619,7 @@
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact. The <code class="docutils literal notranslate"><span class="pre">Z</span></code> suffix follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning.</p></li>
-<li><p>Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.</p></li>
+<li><p>Interior rings are kept rather than merged into the exterior boundary or dropped: each ring is a <code class="docutils literal notranslate"><span class="pre">polygon</span></code> element of its own, and <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;wkt_polygon_id&quot;]</span></code> and <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;wkt_ring&quot;]</span></code> (<code class="docutils literal notranslate"><span class="pre">0</span></code> exterior, <code class="docutils literal notranslate"><span class="pre">1..n</span></code> holes) record which polygon it belongs to, so the writer regroups them into one <code class="docutils literal notranslate"><span class="pre">POLYGON</span></code>.</p></li>
 <li><p>An EWKT <code class="docutils literal notranslate"><span class="pre">SRID=</span></code> prefix is parsed and then dropped - polyxios carries no coordinate reference system.</p></li>
 <li><p>The ISO/SQL-MM surface family reads too: <code class="docutils literal notranslate"><span class="pre">TRIANGLE</span></code> as one triangle, <code class="docutils literal notranslate"><span class="pre">TIN</span></code> as a set of them, <code class="docutils literal notranslate"><span class="pre">POLYHEDRALSURFACE</span></code> as a set of polygons. A <code class="docutils literal notranslate"><span class="pre">TIN</span></code> patch that is not a triangle, or a <code class="docutils literal notranslate"><span class="pre">TRIANGLE</span></code> carrying an interior ring, is refused rather than read as something else.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">EMPTY</span></code> is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.</p></li>

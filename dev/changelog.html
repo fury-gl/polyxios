@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=6d419582"></script>
+    <script src="_static/documentation_options.js?v=53c72a51"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -911,6 +911,10 @@ pip resolves an older polyxios for a 3.11 interpreter rather than
 installing a package that will not run. The floor is what the language
 level is now written against: the type-parameter syntax 3.12 introduced is
 in use where a generic helper needed a type variable declared beside it.</p></li>
+<li><p>STL write warns when it skips elements that are not triangles, with their
+count and types. A quad, a line or a tetrahedron has no STL spelling and
+was dropped without a word, so a mesh could lose most of itself on the
+way out. A suite that runs with warnings as errors sees the skip now.</p></li>
 </ul>
 </section>
 <section id="bug-fixes">
@@ -1010,6 +1014,10 @@ refusal - 3.14 changed it to - so a file that was on disk was reported
 missing and the caller was sent looking for a path already there. The
 question is asked with <code class="docutils literal notranslate"><span class="pre">stat</span></code> now, which refuses on every version and
 says by errno which case it is.</p></li>
+<li><p>STL write refuses, with <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the element, a triangle
+that references a vertex outside the mesh. A negative index wrapped to
+the last vertex and wrote wrong geometry; one past the end raised a bare
+<code class="docutils literal notranslate"><span class="pre">IndexError</span></code>.</p></li>
 </ul>
 </section>
 <section id="tests">
@@ -1019,11 +1027,17 @@ says by errno which case it is.</p></li>
 release. It was the one supported version nothing exercised, and the
 <code class="docutils literal notranslate"><span class="pre">Path.exists</span></code> change above reached a packaged build before any test saw
 it.</p></li>
+<li><p>Python 3.15 is in the test matrix. Its rows install <code class="docutils literal notranslate"><span class="pre">netcdf</span></code> and
+<code class="docutils literal notranslate"><span class="pre">pytest</span></code> only, as h5py, lazrs and PyYAML publish no cp315 wheels yet,
+so the HDF5 and LAZ tests skip there.</p></li>
 </ul>
 </section>
 <section id="packaging">
 <h3>Packaging<a class="headerlink" href="#packaging" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>Python 3.15 wheels are built for a release, for Linux, macOS and
+Windows, and the distribution declares 3.15 among its classifiers.</p></li>
+<li><p>The PyPI page and the GitHub repository link to GitHub Sponsors.</p></li>
 <li><p>The PyPI page now carries the project links (homepage, documentation,
 changelog, issue tracker, source), trove classifiers, keywords and an
 author, none of which the distribution declared before. The README links

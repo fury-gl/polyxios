@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -604,7 +604,7 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.avs"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
@@ -618,9 +618,10 @@
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>The per-cell material id is preserved as an element tag, so material groups survive a round trip.</p></li>
-<li><p>Node and cell data sections are read into named vertex and element attributes.</p></li>
-<li><p>1-based node ids are remapped to 0-based indices; the originals are kept as vertex tags.</p></li>
+<li><p>The per-cell material id is read into <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;mat_id&quot;]</span></code> and written back from there, so material groups survive a round trip; a mesh without one is written with material <code class="docutils literal notranslate"><span class="pre">1</span></code> throughout.</p></li>
+<li><p>Only the geometry is read: the node, cell and model data sections are skipped, and the writer declares none.</p></li>
+<li><p>Node ids are remapped to 0-based indices and the originals are not kept; the writer numbers the nodes from 1 again.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pt</span></code> cells are not read: a file holding one is refused with <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>, as is any other cell type outside <code class="docutils literal notranslate"><span class="pre">line</span></code>, <code class="docutils literal notranslate"><span class="pre">tri</span></code>, <code class="docutils literal notranslate"><span class="pre">quad</span></code>, <code class="docutils literal notranslate"><span class="pre">tet</span></code>, <code class="docutils literal notranslate"><span class="pre">pyr</span></code>, <code class="docutils literal notranslate"><span class="pre">prism</span></code> and <code class="docutils literal notranslate"><span class="pre">hex</span></code>. On write, an element with no AVS type - a vertex, a polygon, a quadratic cell - is skipped with a warning, and only the vertices the written cells use go out.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

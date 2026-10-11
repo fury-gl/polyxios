@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.wkt")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -60,7 +60,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - A 2-D file's coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. The ``Z`` suffix follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning.
-- Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
+- Interior rings are kept rather than merged into the exterior boundary or dropped: each ring is a ``polygon`` element of its own, and ``element_attrs["wkt_polygon_id"]`` and ``element_attrs["wkt_ring"]`` (``0`` exterior, ``1..n`` holes) record which polygon it belongs to, so the writer regroups them into one ``POLYGON``.
 - An EWKT ``SRID=`` prefix is parsed and then dropped - polyxios carries no coordinate reference system.
 - The ISO/SQL-MM surface family reads too: ``TRIANGLE`` as one triangle, ``TIN`` as a set of them, ``POLYHEDRALSURFACE`` as a set of polygons. A ``TIN`` patch that is not a triangle, or a ``TRIANGLE`` carrying an interior ring, is refused rather than read as something else.
 - ``EMPTY`` is a legal geometry for every type, including the surface family, and parses to an empty mesh rather than an error.

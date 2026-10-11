@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.su2")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------

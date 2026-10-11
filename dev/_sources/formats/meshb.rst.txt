@@ -45,7 +45,7 @@ Reading
 
     mesh = px.read("model.meshb")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 A path is read through a memory map either way; ``lazy=True`` keeps the map
 open and hands back the vertices as a view of it:

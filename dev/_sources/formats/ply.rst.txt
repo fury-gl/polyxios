@@ -45,7 +45,7 @@ Reading
 
     mesh = px.read("model.ply")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 A binary body's vertex block can be memory-mapped instead of loaded:
 
@@ -73,7 +73,8 @@ Writing
 
     px.write(mesh, "out.ply")
 
-Format-specific options:
+Format-specific options
+-----------------------
 
 .. list-table::
    :header-rows: 1
@@ -84,8 +85,9 @@ Format-specific options:
      - Default
      - Effect
    * - ``binary``
-     - ``False``
-     - Write a packed binary body instead of ASCII.
+     - ``True``
+     - Write a packed binary body; ``False`` writes ASCII, with coordinates
+       at ten significant digits.
    * - ``endian``
      - ``"little"``
      - Byte order of the binary body; "big" emits binary_big_endian.

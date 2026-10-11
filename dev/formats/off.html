@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -604,22 +604,50 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.off"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.off"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.off"</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 20.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Write big-endian binary OFF (<code class="docutils literal notranslate"><span class="pre">OFF</span> <span class="pre">BINARY</span></code>) instead of ASCII.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">float_fmt</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;.10g&quot;</span></code></p></td>
+<td><p>ASCII coordinate format specifier; pass <code class="docutils literal notranslate"><span class="pre">&quot;.17g&quot;</span></code> for a bit-exact round trip.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>ASCII and big-endian binary OFF are both read; writing emits ASCII.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ST</span></code> / <code class="docutils literal notranslate"><span class="pre">C</span></code> / <code class="docutils literal notranslate"><span class="pre">N</span></code> variant data is mapped onto vertex and face attributes instead of being discarded.</p></li>
+<li><p>ASCII and big-endian binary OFF are both read and written; writing emits ASCII unless <code class="docutils literal notranslate"><span class="pre">binary=True</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ST</span></code> / <code class="docutils literal notranslate"><span class="pre">C</span></code> / <code class="docutils literal notranslate"><span class="pre">N</span></code> variant data is mapped onto <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> (<code class="docutils literal notranslate"><span class="pre">texcoords</span></code>, <code class="docutils literal notranslate"><span class="pre">colors</span></code>, <code class="docutils literal notranslate"><span class="pre">normals</span></code>) and per-face colours onto <code class="docutils literal notranslate"><span class="pre">element_attrs['colors']</span></code> instead of being discarded.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">4OFF</span></code> and an <code class="docutils literal notranslate"><span class="pre">nOFF</span></code> of a dimension other than three are refused with <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> rather than flattened to 3-D.</p></li>
 <li><p>The edge count on the counts line is ignored, as the format intends - no error is raised when it disagrees with the face list.</p></li>
 </ul>
 <div class="admonition seealso">
@@ -680,6 +708,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>

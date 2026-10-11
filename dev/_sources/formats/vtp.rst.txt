@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.vtp")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -97,8 +97,8 @@ Quirks worth knowing
 - A tag group has no set of its own in this format, so it travels as one ``PointData`` or ``CellData`` column of ones and zeros named ``polyxios_tag_<group>``. An entity in two groups is named by both columns, which a format spelling one reference per entity cannot say. On the way in, a column with that name holding whole numbers is read back as the group; one holding anything else stays an attribute, since a member rounded into place names the wrong entity.
 - ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. A key both levels spell is the dataset's, which is the file's own answer for the mesh where a piece's is one piece's. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
 - ``<FieldData>`` holds a ``String`` array beside its numeric ones, so a ``global_attrs`` value that is text - a name, a title, a solver's own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
-- Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
-- Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
+- Each cell section maps to its own element type on read: ``Verts`` to ``vertex``, ``Lines`` to ``line``, ``Strips`` to ``triangle_strip`` (kept whole, not split into triangles), and ``Polys`` to ``triangle``, ``quad`` or ``polygon`` by point count.
+- The writer puts every element in ``<Polys>``, so a vertex, line or strip reads back typed by its point count - a line as a two-point ``polygon``, a four-point strip as a ``quad``. Write a :doc:`vtu` to keep them.
 - A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
 - A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
 - A ``Points`` array of a type that holds no numbers - ``type="String"``, or any type this reader does not know - raises :class:`~polyxios.exceptions.CodecError` naming the type.

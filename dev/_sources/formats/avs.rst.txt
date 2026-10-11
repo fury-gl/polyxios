@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.avs")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -59,9 +59,10 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- The per-cell material id is preserved as an element tag, so material groups survive a round trip.
-- Node and cell data sections are read into named vertex and element attributes.
-- 1-based node ids are remapped to 0-based indices; the originals are kept as vertex tags.
+- The per-cell material id is read into ``element_attrs["mat_id"]`` and written back from there, so material groups survive a round trip; a mesh without one is written with material ``1`` throughout.
+- Only the geometry is read: the node, cell and model data sections are skipped, and the writer declares none.
+- Node ids are remapped to 0-based indices and the originals are not kept; the writer numbers the nodes from 1 again.
+- ``pt`` cells are not read: a file holding one is refused with :class:`~polyxios.exceptions.CodecError`, as is any other cell type outside ``line``, ``tri``, ``quad``, ``tet``, ``pyr``, ``prism`` and ``hex``. On write, an element with no AVS type - a vertex, a polygon, a quadratic cell - is skipped with a warning, and only the vertices the written cells use go out.
 
 .. seealso::
 

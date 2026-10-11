@@ -43,9 +43,10 @@ Reading
 
     mesh = px.read("model.stl")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
-Binary bodies can be memory-mapped instead of loaded:
+A binary body can skip the vertex merge, keeping three vertices per facet; the
+facets are still copied into memory, not mapped:
 
 .. code-block:: python
 
@@ -70,8 +71,8 @@ Format-specific options
      - Default
      - Effect
    * - ``binary``
-     - ``False``
-     - On write: emit the 50-byte-per-facet binary form instead of ASCII.
+     - ``True``
+     - On write: emit the 50-byte-per-facet binary form; ``False`` writes ASCII.
    * - ``merge_vertices``
      - ``True``
      - On read: deduplicate the coincident vertices STL repeats per facet.
@@ -83,7 +84,7 @@ Quirks worth knowing
 .. rst-class:: px-quirks
 
 - Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.
-- Facet normals are read but not trusted for orientation; they are kept as element attributes.
+- Facet normals are read but not trusted for orientation; they are kept as ``element_attrs["normals"]``. On write the normals are recomputed from the vertices, and only triangles are written: every other element is skipped with a warning naming its type, and a mesh with no triangle is refused with :class:`~polyxios.exceptions.CodecError`.
 - The declared triangle count is validated against the real file size before memory is allocated.
 - A binary facet's attribute word carries its colour, five bits per channel - but the two conventions in the wild disagree on both the channel order and the top bit. VisCAM and SolidView run blue in bits 0-4 and red in bits 10-14, and set the top bit to say the word holds a colour; Materialise Magics runs red low and blue high, and *clears* the top bit to say the facet owns its colour. Magics writes a ``COLOR=`` record in the 80-byte header, which is the only thing in the file that tells the two apart, so a header carrying one is read the Magics way and every other header the VisCAM way. VisCAM is also what polyxios writes. A zero word is no colour under either convention: read the Magics way to the letter it claims a facet colour of black, but it is what a writer that coloured nothing leaves behind, and an untouched file is not a black one.
 - Facets that claim a colour land in ``element_attrs["colors"]`` as RGB in 0..1; the ones that do not stay ``NaN``, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all. On write a floating point column is taken as 0..1 and an integer one as 0..255, the way every image format counts.

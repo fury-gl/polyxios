@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -604,22 +604,46 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.msh"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.msh"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.msh"</span><span class="p">,</span> <span class="n">float_fmt</span><span class="o">=</span><span class="s2">".8g"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 20.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">float_fmt</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;.17g&quot;</span></code></p></td>
+<td><p>On write: the format specifier for coordinates and data values. The
+default writes every float64 so it reads back unchanged.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
-<li><p>ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer still understands.</p></li>
-<li><p>Physical group names become element tags, so named boundaries and volumes survive the read.</p></li>
+<li><p>ASCII v2 and v4.1 are both read; writing emits v2.2, the revision every consumer still understands. A binary file, or any other version, is refused with <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>.</p></li>
+<li><p>Each element’s physical tag is read into <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;phys_tag&quot;]</span></code>, and the names <code class="docutils literal notranslate"><span class="pre">$PhysicalNames</span></code> gives them become element tags, so named boundaries and volumes survive the read. The writer takes <code class="docutils literal notranslate"><span class="pre">phys_tag</span></code> back when it holds one value per element, and derives the physical tags from <code class="docutils literal notranslate"><span class="pre">element_tags</span></code> otherwise.</p></li>
 <li><p>Node tags need not be contiguous; they are remapped to dense indices.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">$NodeData</span></code> and <code class="docutils literal notranslate"><span class="pre">$ElementData</span></code> sections become <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> and <code class="docutils literal notranslate"><span class="pre">element_attrs</span></code>, at any component count the file declares, and are written back. A field is scattered by the tag each row names, so one covering part of the mesh lands where it belongs and the rest stays <code class="docutils literal notranslate"><span class="pre">NaN</span></code>. A row naming an entity the mesh does not hold - an element of a type this codec skipped, say - costs that row rather than the whole field.</p></li>
 <li><p>A data section declares 1, 3 or 9 components and Gmsh refuses any other count, so a field of another width is padded out to the next of the three with zero columns and the padding is reported. The reader stays lenient and takes whatever width a file declares.</p></li>
@@ -685,6 +709,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -607,23 +607,47 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.ele"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.ele"</span><span class="p">)</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.ele"</span><span class="p">,</span> <span class="n">float_fmt</span><span class="o">=</span><span class="s2">".17g"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>This codec takes no format-specific options.</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 20.0%" />
+<col style="width: 56.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">float_fmt</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;.10g&quot;</span></code></p></td>
+<td><p>ASCII coordinate format specifier; pass <code class="docutils literal notranslate"><span class="pre">&quot;.17g&quot;</span></code> for a bit-exact round trip.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 <section id="quirks-worth-knowing">
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>Pass either path - <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.ele&quot;)</span></code> or <code class="docutils literal notranslate"><span class="pre">px.read(&quot;bar.node&quot;)</span></code> - and the paired file is located by basename.</p></li>
-<li><p>Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.</p></li>
-<li><p>Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.</p></li>
+<li><p>Boundary markers become vertex tags (<code class="docutils literal notranslate"><span class="pre">boundary_&lt;marker&gt;</span></code>, marker 0 dropped as unmarked), node attributes become <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> <code class="docutils literal notranslate"><span class="pre">attr_&lt;k&gt;</span></code>, and region attributes become element attributes (<code class="docutils literal notranslate"><span class="pre">region</span></code>), so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.</p></li>
+<li><p>Node references resolve against the <code class="docutils literal notranslate"><span class="pre">.node</span></code> file’s own point numbers, so a file numbered from 0, from 1 or with gaps reads the same way. Both files are written numbered from 1.</p></li>
+<li><p>Only tetrahedra reach the <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file; every other element is skipped on write with a warning. A 10-node quadratic tetrahedron is read as a linear one, with a warning, since TetGen’s mid-edge order is not polyxios’s.</p></li>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">.node</span></code> file declaring 2 dimensions is padded with a zero z, so the vertex array is always <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code>, and <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning, and a mesh with tetrahedra to write keeps three whatever the flag says: the <code class="docutils literal notranslate"><span class="pre">.ele</span></code> file declares four nodes per element, and TetGen’s own 2-D mode fills the plane with triangles instead.</p></li>
 </ul>
 <div class="admonition seealso">
@@ -684,6 +708,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>

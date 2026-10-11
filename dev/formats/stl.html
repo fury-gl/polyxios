@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -604,10 +604,11 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.stl"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
+<p>A binary body can skip the vertex merge, keeping three vertices per facet; the
+facets are still copied into memory, not mapped:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.stl"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -634,8 +635,8 @@
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">binary</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
-<td><p>On write: emit the 50-byte-per-facet binary form instead of ASCII.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p></td>
+<td><p>On write: emit the 50-byte-per-facet binary form; <code class="docutils literal notranslate"><span class="pre">False</span></code> writes ASCII.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">merge_vertices</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p></td>
@@ -650,7 +651,7 @@ Ignored under <code class="docutils literal notranslate"><span class="pre">lazy=
 <h2>Quirks worth knowing<a class="headerlink" href="#quirks-worth-knowing" title="Link to this heading">#</a></h2>
 <ul class="px-quirks simple">
 <li><p>Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.</p></li>
-<li><p>Facet normals are read but not trusted for orientation; they are kept as element attributes.</p></li>
+<li><p>Facet normals are read but not trusted for orientation; they are kept as <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;normals&quot;]</span></code>. On write the normals are recomputed from the vertices, and only triangles are written: every other element is skipped with a warning naming its type, and a mesh with no triangle is refused with <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>.</p></li>
 <li><p>The declared triangle count is validated against the real file size before memory is allocated.</p></li>
 <li><p>A binary facet’s attribute word carries its colour, five bits per channel - but the two conventions in the wild disagree on both the channel order and the top bit. VisCAM and SolidView run blue in bits 0-4 and red in bits 10-14, and set the top bit to say the word holds a colour; Materialise Magics runs red low and blue high, and <em>clears</em> the top bit to say the facet owns its colour. Magics writes a <code class="docutils literal notranslate"><span class="pre">COLOR=</span></code> record in the 80-byte header, which is the only thing in the file that tells the two apart, so a header carrying one is read the Magics way and every other header the VisCAM way. VisCAM is also what polyxios writes. A zero word is no colour under either convention: read the Magics way to the letter it claims a facet colour of black, but it is what a writer that coloured nothing leaves behind, and an untouched file is not a black one.</p></li>
 <li><p>Facets that claim a colour land in <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code> as RGB in 0..1; the ones that do not stay <code class="docutils literal notranslate"><span class="pre">NaN</span></code>, so an uncoloured facet in a coloured file is not read as black. A file where no facet claims a colour grows no attribute at all. On write a floating point column is taken as 0..1 and an integer one as 0..255, the way every image format counts.</p></li>

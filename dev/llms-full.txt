@@ -17,7 +17,7 @@ Source: https://polyxios.org/stable/index.html
   "@type": "SoftwareSourceCode",
   "name": "polyxios",
   "description": "polyxios reads and writes 44 3D mesh and geometry file formats in Python through one API - VTK, VTKHDF, OBJ, PLY, STL, glTF, COLLADA, LAS, PCD, XDMF, MED, CGNS, Gmsh, Abaqus, Nastran and more - with NumPy as its only dependency.",
-  "url": "https://fury-gl.github.io/polyxios/stable/",
+  "url": "https://polyxios.org/stable/",
   "codeRepository": "https://github.com/fury-gl/polyxios",
   "programmingLanguage": "Python",
   "runtimePlatform": "Python 3.12+",
@@ -71,7 +71,7 @@ Source: https://polyxios.org/stable/index.html
         <a class="px-btn" href="formats/index.html">formats() -&gt;</a>
       </div>
       <div class="px-stats">
-        <div><b>43</b><span>formats</span></div>
+        <div><b>44</b><span>formats</span></div>
         <div><b>1</b><span>dependency</span></div>
         <div><b>0</b><span>silent truncations</span></div>
         <div><b>mmap</b><span>lazy reads</span></div>
@@ -311,6 +311,8 @@ pip install "polyxios[laz]". A plain .las needs nothing; a
 compressed one raises MissingPackageError
 naming the extra.
 
+FURY >= 2, for pxios viz - pip install "polyxios[viz]".
+
 ## Usage
 
 Source: https://polyxios.org/stable/usage.html
@@ -527,10 +529,14 @@ says something about the mesh, not about the file it came from. A plane read
 from a 2-D Netgen .vol - which has no two-dimensional spelling of its own
 to write back - still lands as an NDIME= 2 SU2 case.
 
-Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
-WKT all record the flag on the way in; every one of those but Netgen restores
-it on the way out. A format with no two-dimensional spelling at all - OBJ, the
-VTK family - keeps writing three columns and ignores the flag.
+Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus,
+WKT, ANSYS Fluent, XDMF, HMF, MED, CGNS and Exodus II all record the flag on
+the way in; every one of those but Netgen and Fluent restores it on the way
+out. Fluent picks its dimension from the cells instead: a mesh with a solid
+is written in three dimensions, and one of triangles, quadrilaterals and
+polygons in two, refused if it has left the plane. A format with no
+two-dimensional spelling at all - OBJ, the VTK family - keeps writing three
+columns and ignores the flag.
 
 Two columns sometimes constrain the rest of the file, and the writer keeps it
 consistent rather than emitting one no reader loads: an Abaqus deck of
@@ -970,7 +976,7 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
-    <p class="px-fmtname">PERMAS <span class="px-fmtext">.dato .post</span></p>
+    <p class="px-fmtname">PERMAS <span class="px-fmtext">.dato .post .dat</span></p>
     <p class="px-fmtdesc">$KEYWORD records running to the next $: $COOR nodes,
       $ELEMENT blocks named by solver class, $NSET and $ESET groups.</p>
     <p class="px-fmtlinks">
@@ -980,7 +986,7 @@ deviates from it, and links to the authoritative document.
   </div>
 
   <div class="px-fmtcard">
-    <p class="px-fmtname">ANSYS Fluent <span class="px-fmtext">.msh</span></p>
+    <p class="px-fmtname">ANSYS Fluent <span class="px-fmtext">.msh .fluent</span></p>
     <p class="px-fmtdesc">Parenthesised sections in hex: nodes, faces naming the cell on
       either side, zones by name; cells are assembled from their faces.</p>
     <p class="px-fmtlinks">
@@ -1128,7 +1134,7 @@ import polyxios as px
 
 mesh = px.read("model.vtk")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 A binary UNSTRUCTURED_GRID can be memory-mapped instead of loaded:
 
@@ -1149,7 +1155,7 @@ Writing
 
 px.write(mesh, "out.vtk")
 
-Format-specific options:
+Format-specific options
 
 
 
@@ -1168,6 +1174,13 @@ binary
 False
 
 Write a BINARY body instead of ASCII.
+
+vtk_version
+
+"4.2"
+
+"4.2" writes the classic interleaved CELLS block; "5.1" writes
+OFFSETS and CONNECTIVITY, the layout a lazy read can map.
 
 Quirks worth knowing
 
@@ -1269,13 +1282,32 @@ import polyxios as px
 
 mesh = px.read("model.vtr")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
 px.write(mesh, "out.vtr")
+px.write(mesh, "out.vtr", binary=True)
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+binary
+
+False
+
+Write base64-encoded payloads instead of inline ASCII.
 
 Quirks worth knowing
 
@@ -1289,7 +1321,7 @@ The vtr_* grid entries are spelled from the grid itself on the way out, so they 
 
 The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
 
-Appended and base64 payloads are decoded eagerly, and lazy=True raises LazyReadError rather than pretending otherwise - the XML container has no seekable layout for mmap.
+Appended and base64 payloads are decoded eagerly, and lazy=True raises LazyReadError rather than pretending otherwise; unlike vtu and vtp, this reader maps nothing, even from a raw appended section.
 
 Multi-component attributes declare and honour NumberOfComponents, so an (n, 3) vector survives a round trip rather than coming back as 3n rows.
 
@@ -1355,7 +1387,7 @@ import polyxios as px
 
 mesh = px.read("model.vtp")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -1407,9 +1439,9 @@ A tag group has no set of its own in this format, so it travels as one PointData
 
 <FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
 
-Triangle strips are expanded into individual triangles on read; writing emits polygons rather than re-striping.
+Each cell section maps to its own element type on read: Verts to vertex, Lines to line, Strips to triangle_strip (kept whole, not split into triangles), and Polys to triangle, quad or polygon by point count.
 
-Each cell container becomes its own element group, so lines and polygons in one file stay distinguishable.
+The writer puts every element in <Polys>, so a vertex, line or strip reads back typed by its point count - a line as a two-point polygon, a four-point strip as a quad. Write a vtu to keep them.
 
 A piece that declares points and does not deliver them raises CodecError; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
 
@@ -1469,7 +1501,7 @@ import polyxios as px
 
 mesh = px.read("model.obj")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 A textured mesh keeps both sides of a seam when the vertices are split:
 
@@ -1510,7 +1542,7 @@ An index naming a record the file has not declared raises CodecError naming the 
 
 Faces with more than four vertices are kept as polygons rather than being silently triangulated.
 
-Material and group keywords are read as element tags; .mtl files are not parsed.
+g groups are read as element tags and usemtl as element_attrs['material']; the mtllib name lands in global_attrs['mtl_file'], but .mtl files are not parsed.
 
 vt and vn are indexed per face corner, so a file may hold more of either than it holds vertices. polyxios stores one value per vertex in vertex_attrs['texcoords'] and vertex_attrs['normals']: a corner assigns to its vertex, and a vertex given two different values keeps the last and warns. Records nothing indexes are kept only when there is exactly one per vertex.
 
@@ -1584,7 +1616,7 @@ import polyxios as px
 
 mesh = px.read("model.ply")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 A binary body’s vertex block can be memory-mapped instead of loaded:
 
@@ -1607,7 +1639,7 @@ Writing
 
 px.write(mesh, "out.ply")
 
-Format-specific options:
+Format-specific options
 
 
 
@@ -1623,9 +1655,10 @@ Effect
 
 binary
 
-False
+True
 
-Write a packed binary body instead of ASCII.
+Write a packed binary body; False writes ASCII, with coordinates
+at ten significant digits.
 
 endian
 
@@ -1703,9 +1736,10 @@ import polyxios as px
 
 mesh = px.read("model.stl")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
-Binary bodies can be memory-mapped instead of loaded:
+A binary body can skip the vertex merge, keeping three vertices per facet; the
+facets are still copied into memory, not mapped:
 
 mesh = px.read("big.stl", lazy=True)
 
@@ -1729,9 +1763,9 @@ Effect
 
 binary
 
-False
+True
 
-On write: emit the 50-byte-per-facet binary form instead of ASCII.
+On write: emit the 50-byte-per-facet binary form; False writes ASCII.
 
 merge_vertices
 
@@ -1744,7 +1778,7 @@ Quirks worth knowing
 
 Vertices are deduplicated on read so the mesh has shared topology - except in binary lazy mode, which returns them as-is, three per triangle, to avoid a second pass over the data.
 
-Facet normals are read but not trusted for orientation; they are kept as element attributes.
+Facet normals are read but not trusted for orientation; they are kept as element_attrs["normals"]. On write the normals are recomputed from the vertices, and only triangles are written: every other element is skipped with a warning naming its type, and a mesh with no triangle is refused with CodecError.
 
 The declared triangle count is validated against the real file size before memory is allocated.
 
@@ -1916,19 +1950,46 @@ import polyxios as px
 
 mesh = px.read("model.off")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
 px.write(mesh, "out.off")
+px.write(mesh, "out.off", binary=True)
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+binary
+
+False
+
+Write big-endian binary OFF (OFF BINARY) instead of ASCII.
+
+float_fmt
+
+".10g"
+
+ASCII coordinate format specifier; pass ".17g" for a bit-exact round trip.
 
 Quirks worth knowing
 
-ASCII and big-endian binary OFF are both read; writing emits ASCII.
+ASCII and big-endian binary OFF are both read and written; writing emits ASCII unless binary=True.
 
-ST / C / N variant data is mapped onto vertex and face attributes instead of being discarded.
+ST / C / N variant data is mapped onto vertex_attrs (texcoords, colors, normals) and per-face colours onto element_attrs['colors'] instead of being discarded.
+
+4OFF and an nOFF of a dimension other than three are refused with CodecError rather than flattened to 3-D.
 
 The edge count on the counts line is ignored, as the format intends - no error is raised when it disagrees with the face list.
 
@@ -1980,7 +2041,7 @@ import polyxios as px
 
 mesh = px.read("model.inp")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -2074,7 +2135,7 @@ import polyxios as px
 
 mesh = px.read("model.avs")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -2084,11 +2145,13 @@ This codec takes no format-specific options.
 
 Quirks worth knowing
 
-The per-cell material id is preserved as an element tag, so material groups survive a round trip.
+The per-cell material id is read into element_attrs["mat_id"] and written back from there, so material groups survive a round trip; a mesh without one is written with material 1 throughout.
 
-Node and cell data sections are read into named vertex and element attributes.
+Only the geometry is read: the node, cell and model data sections are skipped, and the writer declares none.
 
-1-based node ids are remapped to 0-based indices; the originals are kept as vertex tags.
+Node ids are remapped to 0-based indices and the originals are not kept; the writer numbers the nodes from 1 again.
+
+pt cells are not read: a file holding one is refused with CodecError, as is any other cell type outside line, tri, quad, tet, pyr, prism and hex. On write, an element with no AVS type - a vertex, a polygon, a quadratic cell - is skipped with a warning, and only the vertices the written cells use go out.
 
 index - the full format table.
 
@@ -2142,7 +2205,7 @@ import polyxios as px
 
 mesh = px.read("model.meshb")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 A path is read through a memory map either way; lazy=True keeps the map
 open and hands back the vertices as a view of it:
@@ -2325,21 +2388,45 @@ import polyxios as px
 
 mesh = px.read("model.xml")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
 px.write(mesh, "out.xml")
+px.write(mesh, "out.xml", dim=2)
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+dim
+
+None
+
+On write: the geometric dimension written as <mesh dim>. Inferred
+when not given: 2 for a mesh of no solid cells whose vertices lie in the
+z = 0 plane, 3 otherwise. Every vertex is written with its z
+whatever dim says.
 
 Quirks worth knowing
 
-The format holds a single cell type per file; writing a mixed mesh raises rather than dropping the elements that do not fit.
+The cell types read and written are interval, triangle, quadrilateral, tetrahedron and hexahedron; any other celltype is refused with CodecError.
+
+The format holds a single cell type per file. Writing a mixed mesh keeps the type of its first writable element and skips every other element with a warning; a mesh with no element of a supported type is refused.
 
 A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The dim attribute follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning. An inferred dim is 3 for a mesh of solid cells however flat it lies, DOLFIN needing its geometric dimension to be at least its topological one; a dim= given by the caller is left alone.
 
-Mesh function and mesh value collection blocks are read as attributes where present.
+Only the <vertices> and <cells> are read: mesh function, mesh value collection and domain data blocks are ignored, so no attribute or tag comes back.
 
 index - the full format table.
 
@@ -2389,7 +2476,7 @@ import polyxios as px
 
 mesh = px.read("model.f3grid")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -2457,7 +2544,7 @@ typed view into a bufferView: componentType, type (SCALAR/VEC2/VEC3/VEC4/MAT*), 
 
 primitive modes
 
-0 POINTS, 1 LINES, 3 LINE_STRIP, 4 TRIANGLES, 5 TRIANGLE_STRIP
+0 POINTS, 1 LINES, 2 LINE_LOOP, 3 LINE_STRIP, 4 TRIANGLES, 5 TRIANGLE_STRIP, 6 TRIANGLE_FAN
 
 PBR material
 
@@ -2534,7 +2621,9 @@ GLB is detected by the glTF magic bytes, so a file renamed to .gltf but carrying
 
 Multiple glTF primitives inside one mesh are merged into a single PolyData on read; element_attrs["material"] records per-element material indices.
 
-Node world transforms are applied during to_polydata(): vertices are multiplied by the world matrix, normals by the inverse-transpose of the linear 3×3 part of the node matrix, and tangents by the linear 3×3 part directly (covariant transform).
+Every primitive mode is read: a line loop comes back as a closed poly_line, a line strip as a poly_line, a triangle strip as a triangle_strip and a triangle fan as the triangles it expands to. On write, quads and polygons are fan-triangulated, line strips and triangle strips go out as primitives of their own, and volume cells, pixels and quadratic surface elements are skipped with a warning.
+
+Node world transforms are applied during to_polydata(): vertices are multiplied by the world matrix, normals by the inverse-transpose of its linear 3×3 part, and tangents by that 3×3 part directly, both renormalised.
 
 Animation data is preserved in global_attrs["animations"] as decoded numpy arrays and re-encoded on write_scene; a malformed animation, channel or sampler, or a sampler whose input or output is not the index of an accessor, raises CodecError on read.  Animated nodes are forced to TRS form (never matrix) as the glTF spec requires; a rest matrix that mirrors carries the reflection as a negative x scale, as a split key does, and one holding a shear or projection loses it with a warning. A channel whose meaning glTF lacks, targeting a node the scene does not have, whose sampler is not an object, holds no key, NaN, Inf or a value float32 cannot hold, times that are not strictly increasing, a rotation of zero length, or values that are not three per key for a translation or scale and four for a rotation, or animating a node path an earlier channel of its animation already animates, is skipped with a warning; a COLLADA channel (one naming a transform element’s sid, or a matrix channel on a node read without a spelling) is rebuilt as translation, rotation and scale: each node’s channels are applied to the elements of its extras["transforms"] (a <matrix> member (i)(j) being its cell in column i, row j, and (i) its column i, as other readers take them) at the union of their key times, the elements composed and each key split into the three, a key holding a shear or projection losing it with a warning; a node whose composed keys, or the translation or scale split from them, hold a value float32 cannot is not rebuilt, its three channels dropped together with a warning. COLLADA plays every animation at once, and some exporters write one per curve, so a node’s channels in several animations are rebuilt together, in the first of them; an animation left with no channel is not written, so its name is lost and the animations after it move up one index. Animations that animate the same values cannot play together: each joins the first clip whose values it does not touch, the others stay clips of their own, and a warning says so when a clip holds at rest values only another animates. LINEAR and STEP keys are kept, a STEP channel beside blending ones gets a key one float32 step before each of its steps, BEZIER keys are sampled four times per span along their curve (a tangent of two values per key component pairs a time and a value per component, X time, X value, Y time and so on, as the OpenCOLLADA 3ds Max and Maya exporters write a whole element’s and Blender reads it; a tangent of one more value than the key is one time, then a value per component, the layout the COLLADA 1.4.1 specification gives; and a tangent of one value per component is the control point’s value, a third of the way into the span, the specification’s 1-D form; a BEZIER tangent is a control point, never a slope), and every blending span is split until the translation and scale stray from the straight line between two keys by at most a thousandth of their range over the node’s keys and the middles of its spans, as a curve does or a translation a <rotate> before it swings on an arc, and a span whose rotation turns more than 15 degrees through its middle is split until none does, since glTF slerps where COLLADA blends the elements (a whole <matrix> alone is blended as its decomposed keys, as glTF does, and is not split; a LINEAR whole <matrix> beside other elements is blended that way too, while a BEZIER one is followed element by element along its curve, as COLLADA blends it, so the shrink of a node turning between its keys is kept, and its scale’s range takes that shrink in); the keys these splits add are capped at 262144 per write, with a warning, and a warning also says when spans still turn or stray that far after eight rounds of splitting; the channels come out STEP when every one of the node’s steps, else LINEAR. A COLLADA channel is skipped with a warning when its node spells no element of its sid and kind, when its member names no part of the element, when its keys are not as wide as the part it sets, when its interpolation is HERMITE, CARDINAL or BSPLINE, when a BEZIER sampler lacks tangents, when the node’s matrix no longer composes from its elements to about six significant digits of its rotation and scale and, apart, of its translation (it was edited after reading), or when an earlier channel of the animation sets the same values; all of a node’s in one animation are skipped with a warning naming that animation when another channel of it already animates the node’s translation, rotation or scale, the node’s channels in the other animations rebuilt without them; keys that change handedness from one to the next warn, since the rotation between them swings through the reflection, and the span holding the change is only halved per splitting pass, never split after that swing, its <rotate> ANGLE tracks still splitting it. Key times that float32 would collapse onto their neighbour are nudged down to stay strictly increasing, on every channel, or up when down would make the first time negative. A sampler several channels share is written once, as is a times array several samplers share. The values of a pointer channel, one row per key, are written as the accessor type as wide as a row (scalar, VEC2 to VEC4, MAT3 or MAT4); any other shape is skipped with a warning.
 
@@ -2548,7 +2637,7 @@ Writing uses allow_nan=False in the JSON serialiser; a CodecError is raised if a
 
 External .bin buffers require a filesystem path; writing .gltf to a stream raises CodecError. Use binary=True for a self-contained GLB instead.
 
-TRS decomposition for animated-node export attempts scipy’s Rotation.from_matrix and falls back to a pure-numpy Shepherd quaternion extraction if scipy is unavailable.
+TRS decomposition for animated-node export is pure numpy, with no optional dependency involved.
 
 index - the full format table.
 
@@ -2775,19 +2864,39 @@ import polyxios as px
 
 mesh = px.read("model.msh")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
 px.write(mesh, "out.msh")
+px.write(mesh, "out.msh", float_fmt=".8g")
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+float_fmt
+
+".17g"
+
+On write: the format specifier for coordinates and data values. The
+default writes every float64 so it reads back unchanged.
 
 Quirks worth knowing
 
-ASCII v2 and v4.1 are both read; writing emits v2, the revision every consumer still understands.
+ASCII v2 and v4.1 are both read; writing emits v2.2, the revision every consumer still understands. A binary file, or any other version, is refused with CodecError.
 
-Physical group names become element tags, so named boundaries and volumes survive the read.
+Each element’s physical tag is read into element_attrs["phys_tag"], and the names $PhysicalNames gives them become element tags, so named boundaries and volumes survive the read. The writer takes phys_tag back when it holds one value per element, and derives the physical tags from element_tags otherwise.
 
 Node tags need not be contiguous; they are remapped to dense indices.
 
@@ -2853,13 +2962,13 @@ import polyxios as px
 
 mesh = px.read("model.bdf")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
 px.write(mesh, "out.bdf")
 
-Format-specific options:
+Format-specific options
 
 
 
@@ -2873,15 +2982,16 @@ Default
 
 Effect
 
-large_field_grid
+field_format
 
-False
+"free"
 
-Emit GRID cards in large (16-column) field form for full float precision.
+"free" writes comma-separated cards; "large" writes GRID* cards in
+large (16-column) field form. Element cards stay free field either way.
 
 Quirks worth knowing
 
-All three field widths are read; writing emits free field, with large-field GRID cards on request.
+All three field widths are read; writing emits free field, with large-field GRID cards on request (field_format="large").
 
 .dat is shared with Tecplot, LS-DYNA and plain ASCII tables, so it is resolved by looking
 inside the file: a $ comment banner is stepped over and a GRID card, CEND,
@@ -2890,13 +3000,11 @@ here - a numeric table whose first row happens to read SOL 1.0 2.0 does not.
 px.read("model.dat", fmt=".bdf") still forces the issue, and writing to .dat needs
 fmt=".bdf" because an output file has no content to inspect.
 
-A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (1.234-10 for 1.234E-10, 1.2346+7 for 1.2346E+07), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads .5 as 0.5. A spelling that reads back as the value itself is always preferred to a longer one that does not, so 1e7 goes out as 1.E+07 rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.
+Free-field coordinates are written with the shortest text that round-trips the double exactly, so polyxios reads them back bit for bit; a magnitude below one whose short spelling needs an exponent goes out in fixed point instead. A solver keeps only the first eight characters of a free-field entry, so a longer value is read rounded there, with a warning on write. field_format="large" fits each coordinate in sixteen columns, using the implicit-exponent shorthand the format allows (1.234-10 for 1.234E-10) when it saves digits; a value that still does not fit is rounded on the way out, with a warning.
 
-Property ids become element tags, so the deck’s grouping is preserved.
+Property ids land in element_attrs["pid"] and each distinct one becomes an element tag pid_<id>, so the deck’s grouping is preserved.
 
 A card name does not say the element’s order, so the shape comes from the grid points the card carries: CTETRA with ten grid points is a quadratic_tetra, with four a tetra. Counting stops at the first blank field, because Nastran lets a mid-side grid point be omitted and that card is a linear element.
-
-CPENTA runs the prism’s three vertical edges before its top ring where VTK runs them after, so those mid-side nodes are permuted on read and back on write. Every other card already agrees with VTK.
 
 The axisymmetric cards read as their planar counterparts: CTRAX3, CTRAX6, CTRIAX6, CQUADX, CQUADX4 and CQUADX8, alongside CSHEAR.
 
@@ -2904,7 +3012,7 @@ One-dimensional cards (CBAR, CBEAM, CROD, CONROD, CTUBE, CBUSH, CGAP, CBEND, CVI
 
 A shell’s ZOFFS becomes element_attrs["zoffs"] when any card carries one, and is written back on the shell cards that have a field for it: CTRIA3, CTRIAR, CQUAD4, CQUADR, CTRIA6 and CQUAD8.
 
-Nastran and VTK number the corner grid points alike, but not every mid-side one. CPENTA runs the prism’s vertical edges before its top ring and CHEXA does the same with the brick’s, where VTK runs the verticals last; CTRIAX6 interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in and back on the way out.
+Nastran and VTK number the corner grid points alike, but not every mid-side one. CPENTA runs the prism’s vertical edges before its top ring and CHEXA does the same with the brick’s, where VTK runs the verticals last; CTRIAX6 interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in; CPENTA and CHEXA are permuted back on the way out, while a quadratic triangle is always written as CTRIA6, whose order already agrees with VTK.
 
 CTRIAX6 names a material in the field where the shells name a property, so its second field is not read as a property id. A CBUSH grounding its second end names one grid point and no element, and is skipped with a warning of its own rather than being counted among the cards this codec has no shape for.
 
@@ -2960,7 +3068,7 @@ import polyxios as px
 
 mesh = px.read("model.tec")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -2972,7 +3080,9 @@ Quirks worth knowing
 
 Both POINT and BLOCK packing are read; finite-element zones are supported, ordered (structured) zones are not.
 
-Variables beyond the coordinate columns are read as named vertex attributes, so solution fields survive the round trip.
+Only the first zone of a multi-zone file is read; the rest are skipped with a warning. A zone holds one element type, so the writer emits the first supported type it meets and skips every other element with a warning.
+
+Variables beyond the coordinate columns are read as named vertex attributes - or element attributes when VARLOCATION cell-centres them - so solution fields survive the round trip. Element attributes are written back cell-centred, under BLOCK packing.
 
 A zone declaring only X and Y is 2-D: the vertices are padded with a zero z and global_attrs["was_2d"] records the fact, which is what writes the zone back out with two coordinate variables rather than three. Tecplot names the coordinates by position, so a mesh carrying a variable of its own named Z keeps three: the zone would otherwise read back with that variable as its z. A mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of TETRAHEDRON or BRICK cells keeps three coordinate variables whatever the flag says - Tecplot takes the node count per element from ET and the coordinate count from VARIABLES, and the two have to agree.
 
@@ -3035,7 +3145,7 @@ import polyxios as px
 
 mesh = px.read("model.su2")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -3103,21 +3213,42 @@ import polyxios as px
 
 mesh = px.read("model.ele")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
 px.write(mesh, "out.ele")
+px.write(mesh, "out.ele", float_fmt=".17g")
 
-This codec takes no format-specific options.
+Format-specific options
+
+
+
+
+
+
+
+Option
+
+Default
+
+Effect
+
+float_fmt
+
+".10g"
+
+ASCII coordinate format specifier; pass ".17g" for a bit-exact round trip.
 
 Quirks worth knowing
 
 Pass either path - px.read("bar.ele") or px.read("bar.node") - and the paired file is located by basename.
 
-Boundary markers become vertex tags and region attributes become element attributes, so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.
+Boundary markers become vertex tags (boundary_<marker>, marker 0 dropped as unmarked), node attributes become vertex_attrs attr_<k>, and region attributes become element attributes (region), so both labelling schemes are kept. Those attributes are REALs in the format and are read as float64, so a fractional region value keeps its fraction.
 
-Both 0- and 1-based indexing are handled; the base is inferred rather than assumed.
+Node references resolve against the .node file’s own point numbers, so a file numbered from 0, from 1 or with gaps reads the same way. Both files are written numbered from 1.
+
+Only tetrahedra reach the .ele file; every other element is skipped on write with a warning. A 10-node quadratic tetrahedron is read as a linear one, with a warning, since TetGen’s mid-edge order is not polyxios’s.
 
 A .node file declaring 2 dimensions is padded with a zero z, so the vertex array is always (n, 3), and global_attrs["was_2d"] records the fact so the header goes back out declaring 2. A mesh whose vertices have since left the plane is written in three with a warning, and a mesh with tetrahedra to write keeps three whatever the flag says: the .ele file declares four nodes per element, and TetGen’s own 2-D mode fills the plane with triangles instead.
 
@@ -3169,7 +3300,7 @@ import polyxios as px
 
 mesh = px.read("model.wkt")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -3181,7 +3312,7 @@ Quirks worth knowing
 
 A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The Z suffix follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning.
 
-Interior rings are preserved as element attributes rather than being merged into the exterior boundary or dropped.
+Interior rings are kept rather than merged into the exterior boundary or dropped: each ring is a polygon element of its own, and element_attrs["wkt_polygon_id"] and element_attrs["wkt_ring"] (0 exterior, 1..n holes) record which polygon it belongs to, so the writer regroups them into one POLYGON.
 
 An EWKT SRID= prefix is parsed and then dropped - polyxios carries no coordinate reference system.
 
@@ -3301,7 +3432,7 @@ A point or cell array carried by only some of the pieces is dropped with a warni
 
 A Points array of a type that holds no numbers - type="String", or any type this reader does not know - raises CodecError naming the type.
 
-VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.
+A VTK cell type code with no polyxios equivalent is not guessed at: the cell is kept, with its nodes, as an empty_cell so the cell count and every CellData array stay aligned.
 
 Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 
@@ -3601,7 +3732,7 @@ A PointData or CellData array that is not numeric, or holds fewer rows than the 
 
 A temporal ImageData keeps its steps along a leading axis of each array - (steps, nz, ny, nx[, k]) - and its offsets count along it, which is what VTK’s reader asks for; an UnstructuredGrid or PolyData lays the steps end to end along the row axis.
 
-Every element type VTK has a code for is written; a code polyxios has no name for is dropped with a warning, and the values and tags over it cut to match.
+Every element type VTK has a code for is written; an element of a type VTK has no code for is dropped with a warning, and the values and tags over it cut to match. On read, a VTK code polyxios has no name for is kept as an empty_cell.
 
 lazy=True raises LazyReadError: the arrays live in HDF5 datasets that h5py decodes whole.
 
@@ -3741,7 +3872,7 @@ import polyxios as px
 
 mesh = px.read("beam.mesh")
 mesh.vertices          # (n, 3)
-mesh.element_types     # element groups found in the file
+mesh.element_types     # one type code per element
 
 Writing
 
@@ -3760,6 +3891,8 @@ An MFEM NURBS file gives back its control points, not surface samples: the verti
 An MFEM NC mesh file - or MFEM NC-Mesh, the other spelling of the same header, matched whatever its case - is a forest of refinement trees, and its leaves are the mesh: the refined parents are stepped over, and the vertices the leaves reference are reconstructed from the coordinates section and the midpoint rules in vertex_parents. global_attrs["mfem_nc_n_total_elements"] and global_attrs["mfem_nc_n_leaf_elements"] record both counts. The geometry is right, but hanging-node constraints are not applied, so the mesh is not FEM-conforming at a refinement boundary - re-save through PyMFEM for that.
 
 A 2-D file’s coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and global_attrs["was_2d"] records the fact. The written dimension follows it, and a mesh whose z column is entirely zero goes out as 2-D whether it was flagged or not. A flagged mesh whose vertices have since left the plane is written in three with a warning, and a flat mesh of solid cells keeps three columns whatever the flag says - MFEM reads exactly as many coordinates per vertex as the block declares, and a tetrahedron of two-coordinate vertices is not a cell.
+
+Only the elements and vertices are read. The boundary section is skipped, and each element’s attribute is dropped, so no tag or attribute comes back; the writer spells every element with attribute 1 and writes no boundary.
 
 Coordinates are written with .10g, which does not name a float64 exactly - a round trip differs in the last few digits.
 
@@ -5270,8 +5403,8 @@ A 50-byte record cannot be viewed as (n, 3) coordinates. Binary
 STL’s lazy=True skips vertex deduplication instead, returning
 three vertices per triangle, and copies what it reads.
 
-.vti .vtr .vts .3mf .glb .obj .wkt, HDF5
-formats, Exodus
+.vti .vtr .vts .3mf .gltf .glb .dae
+.obj .wkt .xyz .pts .ptx, HDF5 formats, Exodus
 
 none
 
@@ -6908,13 +7041,17 @@ spin release 0.2.0
 
 This single command:
 
+Builds the docs with warnings as errors, and stops if that fails
+
 Sets version = "0.2.0" in pyproject.toml
 
 Stamps today’s date in CHANGES.rst (replaces upcoming)
 
+Appends GitHub stats since the previous tag to CHANGES.rst
+
 Commits MNT: release 0.2.0
 
-Creates and pushes tag v0.2.0 to upstream
+Creates tag v0.2.0 and pushes it with master to upstream
 
 Bumps pyproject.toml to 0.3.0.dev0
 
@@ -7334,6 +7471,11 @@ installing a package that will not run. The floor is what the language
 level is now written against: the type-parameter syntax 3.12 introduced is
 in use where a generic helper needed a type variable declared beside it.
 
+STL write warns when it skips elements that are not triangles, with their
+count and types. A quad, a line or a tetrahedron has no STL spelling and
+was dropped without a word, so a mesh could lose most of itself on the
+way out. A suite that runs with warnings as errors sees the skip now.
+
 Bug fixes
 
 Two SceneData (or SceneNode, or SceneMaterial) compared with
@@ -7443,6 +7585,11 @@ missing and the caller was sent looking for a path already there. The
 question is asked with stat now, which refuses on every version and
 says by errno which case it is.
 
+STL write refuses, with CodecError naming the element, a triangle
+that references a vertex outside the mesh. A negative index wrapped to
+the last vertex and wrote wrong geometry; one past the end raised a bare
+IndexError.
+
 Tests
 
 Python 3.14 is in the test matrix and among the wheels built for a
@@ -7450,7 +7597,16 @@ release. It was the one supported version nothing exercised, and the
 Path.exists change above reached a packaged build before any test saw
 it.
 
+Python 3.15 is in the test matrix. Its rows install netcdf and
+pytest only, as h5py, lazrs and PyYAML publish no cp315 wheels yet,
+so the HDF5 and LAZ tests skip there.
+
 Packaging
+
+Python 3.15 wheels are built for a release, for Linux, macOS and
+Windows, and the distribution declares 3.15 among its classifiers.
+
+The PyPI page and the GitHub repository link to GitHub Sponsors.
 
 The PyPI page now carries the project links (homepage, documentation,
 changelog, issue tracker, source), trove classifiers, keywords and an
@@ -7470,7 +7626,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:497: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:512: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -7541,7 +7697,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:561: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:576: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -7779,7 +7935,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:785: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:800: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -7817,7 +7973,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:821: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:836: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -8782,7 +8938,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1681: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1696: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -8866,7 +9022,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1749: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1764: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -8914,7 +9070,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1780: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1795: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -8929,7 +9085,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1792: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1807: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -9035,7 +9191,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1865: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1880: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

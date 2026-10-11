@@ -154,10 +154,12 @@ creates a GitHub Release, and publishes to PyPI via Trusted Publishing.
 
    This single command:
 
+   - Builds the docs with warnings as errors, and stops if that fails
    - Sets ``version = "0.2.0"`` in ``pyproject.toml``
    - Stamps today's date in ``CHANGES.rst`` (replaces ``upcoming``)
+   - Appends GitHub stats since the previous tag to ``CHANGES.rst``
    - Commits ``MNT: release 0.2.0``
-   - Creates and pushes tag ``v0.2.0`` to ``upstream``
+   - Creates tag ``v0.2.0`` and pushes it with ``master`` to ``upstream``
    - Bumps ``pyproject.toml`` to ``0.3.0.dev0``
    - Prepends a new ``0.3.0 (upcoming)`` section to ``CHANGES.rst``
    - Commits ``MNT: back to dev, start 0.3.0.dev0`` and pushes

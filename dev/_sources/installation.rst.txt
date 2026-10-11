@@ -57,3 +57,4 @@ Optional:
   ``pip install "polyxios[laz]"``. A plain ``.las`` needs nothing; a
   compressed one raises :class:`~polyxios.exceptions.MissingPackageError`
   naming the extra.
+- FURY >= 2, for :doc:`pxios viz <cli>` - ``pip install "polyxios[viz]"``.

@@ -230,10 +230,14 @@ says something about the mesh, not about the file it came from. A plane read
 from a 2-D Netgen ``.vol`` - which has no two-dimensional spelling of its own
 to write back - still lands as an ``NDIME= 2`` SU2 case.
 
-Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
-WKT all record the flag on the way in; every one of those but Netgen restores
-it on the way out. A format with no two-dimensional spelling at all - OBJ, the
-VTK family - keeps writing three columns and ignores the flag.
+Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus,
+WKT, ANSYS Fluent, XDMF, HMF, MED, CGNS and Exodus II all record the flag on
+the way in; every one of those but Netgen and Fluent restores it on the way
+out. Fluent picks its dimension from the cells instead: a mesh with a solid
+is written in three dimensions, and one of triangles, quadrilaterals and
+polygons in two, refused if it has left the plane. A format with no
+two-dimensional spelling at all - OBJ, the VTK family - keeps writing three
+columns and ignores the flag.
 
 Two columns sometimes constrain the rest of the file, and the writer keeps it
 consistent rather than emitting one no reader loads: an Abaqus deck of

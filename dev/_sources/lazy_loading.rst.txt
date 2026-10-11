@@ -101,8 +101,8 @@ Which formats
      - A 50-byte record cannot be viewed as ``(n, 3)`` coordinates. Binary
        STL's ``lazy=True`` skips vertex deduplication instead, returning
        three vertices per triangle, and copies what it reads.
-   * - ``.vti`` ``.vtr`` ``.vts`` ``.3mf`` ``.glb`` ``.obj`` ``.wkt``, HDF5
-       formats, Exodus
+   * - ``.vti`` ``.vtr`` ``.vts`` ``.3mf`` ``.gltf`` ``.glb`` ``.dae``
+       ``.obj`` ``.wkt`` ``.xyz`` ``.pts`` ``.ptx``, HDF5 formats, Exodus
      - none
      - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`
        naming why: implicit points, a ZIP member, a scene, text, or a

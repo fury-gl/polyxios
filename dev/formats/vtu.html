@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=6d419582"></script>
+    <script src="../_static/documentation_options.js?v=53c72a51"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -667,7 +667,7 @@ shape an array needs, and <code class="docutils literal notranslate"><span class
 <li><p>A piece that declares points and does not deliver them raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.</p></li>
 <li><p>A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.</p></li>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">Points</span></code> array of a type that holds no numbers - <code class="docutils literal notranslate"><span class="pre">type=&quot;String&quot;</span></code>, or any type this reader does not know - raises <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the type.</p></li>
-<li><p>VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.</p></li>
+<li><p>A VTK cell type code with no polyxios equivalent is not guessed at: the cell is kept, with its nodes, as an <code class="docutils literal notranslate"><span class="pre">empty_cell</span></code> so the cell count and every <code class="docutils literal notranslate"><span class="pre">CellData</span></code> array stay aligned.</p></li>
 <li><p>Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.</p></li>
 <li><p>Cell offsets that run backwards, or reach past the end of the connectivity, raise <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the piece; a file like that describes no cells, and used to come back with some of them silently missing.</p></li>
 <li><p>Header counts are validated against the file size before any array is allocated.</p></li>

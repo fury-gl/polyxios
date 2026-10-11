@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.vtk")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 A binary ``UNSTRUCTURED_GRID`` can be memory-mapped instead of loaded:
 
@@ -69,7 +69,8 @@ Writing
 
     px.write(mesh, "out.vtk")
 
-Format-specific options:
+Format-specific options
+-----------------------
 
 .. list-table::
    :header-rows: 1
@@ -82,6 +83,10 @@ Format-specific options:
    * - ``binary``
      - ``False``
      - Write a BINARY body instead of ASCII.
+   * - ``vtk_version``
+     - ``"4.2"``
+     - ``"4.2"`` writes the classic interleaved ``CELLS`` block; ``"5.1"`` writes
+       ``OFFSETS`` and ``CONNECTIVITY``, the layout a lazy read can map.
 
 Quirks worth knowing
 --------------------

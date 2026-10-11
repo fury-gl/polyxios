@@ -101,7 +101,7 @@ Quirks worth knowing
 - A piece that declares points and does not deliver them raises :class:`~polyxios.exceptions.CodecError`; its cells would index points that are not there, and every later piece would be shifted by the count that never arrived.
 - A point or cell array carried by only some of the pieces is dropped with a warning: joined short, its rows would sit against the wrong points from the second piece on.
 - A ``Points`` array of a type that holds no numbers - ``type="String"``, or any type this reader does not know - raises :class:`~polyxios.exceptions.CodecError` naming the type.
-- VTK cell type codes with no polyxios equivalent are dropped rather than guessed at.
+- A VTK cell type code with no polyxios equivalent is not guessed at: the cell is kept, with its nodes, as an ``empty_cell`` so the cell count and every ``CellData`` array stay aligned.
 - Attributes are written in the type their array is held in, so an integer identifier keeps every digit rather than being rounded through a double.
 - Cell offsets that run backwards, or reach past the end of the connectivity, raise :class:`~polyxios.exceptions.CodecError` naming the piece; a file like that describes no cells, and used to come back with some of them silently missing.
 - Header counts are validated against the file size before any array is allocated.
