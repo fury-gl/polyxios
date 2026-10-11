@@ -54,6 +54,7 @@ from polyxios._scene import (
 from polyxios._trs import trs_of_matrix
 from polyxios._types import PolyData
 from polyxios._warn import warn_caller as _warn
+from polyxios.codecs._gltf import scaled_rows
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 from polyxios.version import version as __version__
@@ -3187,7 +3188,8 @@ def write_scene(
         its positions as a ``<mesh>`` without primitives), vertex
         attributes it has no input for
         (``joints`` and ``weights`` among them, unless a skinned node
-        instances the mesh), element attributes other
+        instances the mesh), the handedness of glTF ``tangents`` on a mesh
+        without ``normals`` of 3 columns, element attributes other
         than ``material``, a base colour texture on a ``constant``
         material and the tint on it (``constant`` has no diffuse), an
         ``alpha_mode`` other than ``OPAQUE``, ``MASK`` or ``BLEND``, a set
@@ -4092,6 +4094,126 @@ _ATTR_PARAMS = {
 }
 
 
+def _texture_frame(
+    attrs: dict[str, Any], *, n: int, name: str, i: int, primitive: bool
+) -> tuple[dict[str, Any], list[str], tuple[str, ...]]:
+    """Return ``attrs`` with glTF ``tangents`` split into a COLLADA tangent frame.
+
+    glTF holds a tangent as xyz and a handedness ``w``; COLLADA holds the
+    tangent and the bitangent as two inputs. The xyz become ``textangent``
+    and ``w * cross(normals, xyz)``, glTF's own bitangent, becomes
+    ``texbinormal``, built from rows scaled as ``scaled_rows`` does so that
+    values near the float64 limits keep their side. Both go under the lowest
+    set no ``textangent`` or ``texbinormal`` of 3 numbers per vertex spells
+    already, except that a lone set-0 ``texbinormal`` gives set 0 to a frame
+    with a bitangent. A lone set-0 ``textangent`` keeps its set, as glTF can
+    write it alone. A key of that set holding anything else would be dropped
+    by the writer anyway; it gives way to the frame.
+
+    Parameters
+    ----------
+    attrs
+        The mesh's vertex attributes.
+    n
+        The mesh's vertex count.
+    name
+        The file's name in the warnings.
+    i
+        The mesh's index in the warnings.
+    primitive
+        Whether the mesh writes a primitive. Without one only set 0 is
+        written, so the set the frame takes goes unannounced: the caller
+        reports it dropped.
+
+    Returns
+    -------
+    attrs : dict
+        The attributes in their order, ``tangents`` replaced by its frame.
+        ``tangents`` that are not a row of 3 or 4 numbers per vertex are
+        left for the caller to drop; without ``normals`` of 3 columns the
+        handedness is dropped with a warning, and a handedness other than
+        -1 or 1 (0 or NaN among them) is taken as -1 when negative, else 1,
+        with a warning.
+    displaced : list of str
+        The keys of the frame's set that the frame replaces and no COLLADA
+        input holds, left for the caller to report. A set-0 ``texbinormal``
+        of 3 numbers per vertex with no ``textangent`` of 3 beside it does
+        not hold set 0 against a frame with a bitangent: it gives way, with
+        a warning of its own, so the frame keeps the one set a glTF write
+        reads.
+    frame : tuple of str
+        The keys written from ``tangents``, empty when it is left as is.
+    """
+    arr = np.asarray(attrs.get("tangents"))
+    if (
+        arr.ndim != 2
+        or len(arr) != n
+        or arr.shape[1] not in (3, 4)
+        or arr.dtype.kind not in "iuf"
+    ):
+        return attrs, [], ()
+    normals = np.asarray(attrs.get("normals"))
+    framed = (
+        arr.shape[1] == 4 and normals.shape == (n, 3) and normals.dtype.kind in "iuf"
+    )
+    taken = {
+        int(s)
+        for k, v in attrs.items()
+        for base in ("textangent", "texbinormal")
+        if (s := _set_of(k, base))
+        and _is_vec3(v, n=n)
+        and (base == "textangent" or s != "0" or not framed)
+    }
+    set_no = min(set(range(len(taken) + 1)) - taken)
+    suffix = f"_{set_no}" if set_no else ""
+    frame_keys = (f"textangent{suffix}", f"texbinormal{suffix}")
+    displaced = [k for k in frame_keys if k in attrs]
+    lost = [k for k in displaced if _is_vec3(attrs[k], n=n)]
+    if lost:
+        _warn(
+            f"{name!r}: texbinormal of mesh {i} has no textangent beside it and "
+            "gives its set to the tangents' frame, so the set glTF reads holds "
+            "the whole frame; it is dropped."
+        )
+    tangent = arr[:, :3].astype(np.float64)
+    if arr.shape[1] == 4 and not framed:
+        _warn(
+            f"{name!r}: tangents of mesh {i} go out without normals of 3 "
+            "columns to build their bitangent from; their handedness is dropped."
+        )
+    if framed and not np.isin(arr[:, 3], (-1, 1)).all():
+        _warn(
+            f"{name!r}: tangents of mesh {i} hold a handedness other than -1 "
+            "or 1; each is taken as -1 when negative, else as 1."
+        )
+    if set_no and primitive:
+        _warn(
+            f"{name!r}: tangents of mesh {i} are written as tangent set "
+            f"{set_no}, the lowest no textangent or texbinormal key spells; "
+            f"they read back as textangent{suffix}."
+        )
+    out: dict[str, Any] = {}
+    for key, value in attrs.items():
+        if key in displaced:
+            continue
+        if key != "tangents":
+            out[key] = value
+            continue
+        out[f"textangent{suffix}"] = tangent
+        if framed:
+            w = np.where(arr[:, 3] < 0, -1.0, 1.0)
+            out[f"texbinormal{suffix}"] = w[:, None] * np.cross(
+                scaled_rows(normals.astype(np.float64)), scaled_rows(tangent)
+            )
+    return out, [k for k in displaced if k not in lost], frame_keys
+
+
+def _is_vec3(value: Any, *, n: int) -> bool:
+    """Return whether ``value`` is 3 real numbers for each of ``n`` vertices."""
+    arr = np.asarray(value)
+    return arr.shape == (n, 3) and arr.dtype.kind in "iuf"
+
+
 def _geometry_xml(
     mesh: PolyData, ids: _Ids, i: int, n_materials: int, skinned: bool, name: str
 ) -> tuple[str, list[int], int | None]:
@@ -4105,6 +4227,10 @@ def _geometry_xml(
     gid = ids.geometry(i)
     verts, types, offs = _mesh_arrays(mesh, f"{name!r}: mesh {i}")
     n = len(verts)
+    primitive = bool(np.isin(types, list(_BLOCK_INDEX)).any())
+    attrs, displaced, frame = _texture_frame(
+        mesh.vertex_attrs, n=n, name=name, i=i, primitive=primitive
+    )
     label = mesh.global_attrs.get("mesh_name")
     parts = [f'    <geometry id="{gid}"{_name_attr(label)}>\n      <mesh>\n']
     parts.append(_source_xml(f"{gid}-positions", verts, ("X", "Y", "Z")))
@@ -4112,16 +4238,16 @@ def _geometry_xml(
     inputs: list[str] = []
     local_inputs: list[tuple[str, str, int]] = []
     uv_sets: list[int] = []
-    dropped: list[str] = []
+    dropped: list[str] = list(displaced)
     renamed: list[str] = []
     # Set numbers spelled by a key are reserved up front, so a key whose
     # suffix is not a free number takes one no key spells.
     used_sets: dict[str, set[int]] = {}
     for base in _ATTR_PARAMS:
-        suffixes = [_set_of(k, base) for k in mesh.vertex_attrs]
+        suffixes = [_set_of(k, base) for k in attrs]
         used_sets[base] = {int(s) for s in suffixes if s}
     given_sets = {base: set(taken) for base, taken in used_sets.items()}
-    for key, table in mesh.vertex_attrs.items():
+    for key, table in attrs.items():
         if key in ("joints", "weights"):
             if not skinned:
                 dropped.append(key)
@@ -4191,9 +4317,9 @@ def _geometry_xml(
     if dropped:
         _warn(
             f"{name!r}: vertex attribute(s) {dropped} of mesh {i} have no COLLADA "
-            "input (only normals, tangents and binormals of 3 columns, texcoords "
-            "of 2-3, colors of 3-4); they "
-            "are dropped."
+            "input (only normals, tangents and binormals of 3 columns, glTF "
+            "tangents of 3-4 columns, texcoords of 2-3, colors of 3-4); they are "
+            "dropped."
         )
     others = sorted(k for k in mesh.element_attrs if k != "material")
     if others:
@@ -4250,7 +4376,13 @@ def _geometry_xml(
     in_vertices = ""
     if not writable.any():
         in_vertices = "".join(xml for _, xml, set_no in local_inputs if not set_no)
-        unset = [key for key, _, set_no in local_inputs if set_no]
+        unset = list(
+            dict.fromkeys(
+                "tangents" if key in frame else key
+                for key, _, set_no in local_inputs
+                if set_no
+            )
+        )
         if unset:
             _warn(
                 f"{name!r}: vertex attribute(s) {unset} of mesh {i} have a set "

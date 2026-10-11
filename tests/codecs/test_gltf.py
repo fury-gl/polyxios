@@ -27,6 +27,7 @@ from polyxios.codecs._gltf import (
     _increasing_float32,
     _parse_glb,
     _stack_elements,
+    _tangents_of_frame,
     read,
     read_scene,
     write,
@@ -2734,3 +2735,194 @@ def test_animation_name_that_is_not_a_string_is_left_out(tmp_path: Path) -> None
     out = tmp_path / "name.glb"
     write_scene(scene, out)
     assert "name" not in _parse_glb(out.read_bytes())[0]["animations"][0]
+
+
+# ---------------------------------------------------------------------------
+# TANGENT rebuilt from a COLLADA tangent frame
+# ---------------------------------------------------------------------------
+
+_FRAME_TRI = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+_TANGENTS = np.array([[1.0, 0, 0, 1], [0, 1, 0, -1], [1, 0, 0, 1]])
+_NORMALS = np.tile([0.0, 0, 1], (3, 1))
+_BITANGENT = _TANGENTS[:, 3:] * np.cross(_NORMALS, _TANGENTS[:, :3])
+
+
+def _frame_scene(attrs: dict[str, np.ndarray]) -> SceneData:
+    poly = make_polydata(
+        _FRAME_TRI, [("triangle", np.array([[0, 1, 2]]))], vertex_attrs=attrs
+    )
+    return SceneData(meshes=(poly,), nodes=(SceneNode(mesh=0),))
+
+
+def _written_attrs(tmp_path: Path, attrs: dict[str, np.ndarray]) -> dict:
+    write_scene(_frame_scene(attrs), tmp_path / "a.glb")
+    return read_scene(tmp_path / "a.glb").meshes[0].vertex_attrs
+
+
+@pytest.mark.parametrize(
+    ("t_key", "b_key"), [("textangent", "texbinormal"), ("tangent", "binormal")]
+)
+def test_write_rebuilds_tangents_from_a_frame(
+    tmp_path: Path, t_key: str, b_key: str
+) -> None:
+    attrs = {"normals": _NORMALS, t_key: _TANGENTS[:, :3], b_key: _BITANGENT}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        back = _written_attrs(tmp_path, attrs)
+    assert sorted(back) == ["normals", "tangents"]
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+
+
+def test_write_takes_handedness_plus_one_without_a_bitangent(
+    tmp_path: Path,
+) -> None:
+    attrs = {"normals": _NORMALS, "textangent": _TANGENTS[:, :3]}
+    with pytest.warns(UserWarning, match="it is taken as \\+1"):
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"][:, 3], [1, 1, 1])
+
+
+def test_write_keeps_its_own_tangents_over_a_frame(tmp_path: Path) -> None:
+    attrs = {"normals": _NORMALS, "tangents": _TANGENTS, "textangent": _NORMALS}
+    with pytest.warns(UserWarning, match=r"\['textangent'\] have no glTF semantic"):
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+
+
+def test_write_leaves_out_a_frame_without_normals(tmp_path: Path) -> None:
+    attrs = {"textangent": _TANGENTS[:, :3], "texbinormal": _BITANGENT}
+    with pytest.warns(UserWarning, match="TANGENT without a NORMAL"):
+        back = _written_attrs(tmp_path, attrs)
+    assert back == {}
+
+
+def test_write_scales_frame_tangents_to_unit_length(tmp_path: Path) -> None:
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _TANGENTS[:, :3] * [[2.0], [0.5], [7.0]],
+        "texbinormal": _BITANGENT,
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+
+
+@pytest.mark.parametrize("bad", [0.0, np.nan, np.inf])
+def test_write_leaves_out_a_frame_with_a_tangent_of_no_length(
+    tmp_path: Path, bad: float
+) -> None:
+    tangent = _TANGENTS[:, :3].copy()
+    tangent[1] = bad
+    attrs = {"normals": _NORMALS, "textangent": tangent, "texbinormal": _BITANGENT}
+    with pytest.warns(UserWarning, match="1 row\\(s\\) of zero or non-finite"):
+        back = _written_attrs(tmp_path, attrs)
+    assert sorted(back) == ["normals"]
+
+
+def test_write_prefers_a_complete_frame_over_a_lone_textangent(
+    tmp_path: Path,
+) -> None:
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _TANGENTS[:, :3],
+        "tangent": _TANGENTS[:, :3],
+        "binormal": _BITANGENT,
+    }
+    with pytest.warns(UserWarning, match=r"\['textangent'\] have no glTF semantic"):
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+
+
+def test_write_warns_on_a_bitangent_on_neither_side(tmp_path: Path) -> None:
+    bitangent = _BITANGENT.copy()
+    bitangent[2] = _NORMALS[2]
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _TANGENTS[:, :3],
+        "texbinormal": bitangent,
+    }
+    with pytest.warns(UserWarning, match="1 row\\(s\\) on neither side"):
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"][:, 3], [1, -1, 1])
+
+
+def test_write_takes_handedness_plus_one_on_a_bitangent_of_rounding_noise(
+    tmp_path: Path,
+) -> None:
+    bitangent = _BITANGENT.copy()
+    bitangent[2] = [0, -1e-17, 1]
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _TANGENTS[:, :3],
+        "texbinormal": bitangent,
+    }
+    with pytest.warns(UserWarning, match="1 row\\(s\\) on neither side"):
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"][:, 3], [1, -1, 1])
+
+
+@pytest.mark.parametrize("width", [2, 3, 5])
+def test_write_falls_back_to_the_frame_when_tangents_are_not_vec4(
+    tmp_path: Path, width: int
+) -> None:
+    attrs = {
+        "normals": _NORMALS,
+        "tangents": np.ones((3, width)),
+        "textangent": _TANGENTS[:, :3],
+        "texbinormal": _BITANGENT,
+    }
+    with pytest.warns(UserWarning, match="not the 4 numbers for each of the"):
+        back = _written_attrs(tmp_path, attrs)
+    assert sorted(back) == ["normals", "tangents"]
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+
+
+def test_write_rebuilds_tangents_from_a_frame_near_the_float64_limit(
+    tmp_path: Path,
+) -> None:
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _TANGENTS[:, :3] * 1e200,
+        "texbinormal": _BITANGENT * 1e300,
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        back = _written_attrs(tmp_path, attrs)
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+
+
+@pytest.mark.parametrize("keys", [("textangent",), ("normals", "texbinormal")])
+def test_write_rebuilds_tangents_from_a_frame_near_the_smallest_float64(
+    keys: tuple[str, ...],
+) -> None:
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _TANGENTS[:, :3],
+        "texbinormal": _BITANGENT,
+    }
+    for key in keys:
+        attrs[key] = attrs[key] * 1e-170
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        back = _tangents_of_frame(attrs, n=3, what="glTF")[0]
+    np.testing.assert_array_equal(back, _TANGENTS)
+
+
+class _Untouchable:
+    """Normals that fail the test when anything reads them as an array."""
+
+    def __array__(self, *args: Any, **kwargs: Any) -> np.ndarray:
+        raise AssertionError("normals were read without a tangent frame")
+
+
+def test_write_leaves_normals_unread_without_a_tangent_frame() -> None:
+    attrs = {"normals": _Untouchable(), "texcoords": np.zeros((3, 2))}
+    assert _tangents_of_frame(attrs, n=3, what="glTF") == (None, ())
+
+
+def test_write_names_the_vertex_count_tangents_miss(tmp_path: Path) -> None:
+    attrs = {"normals": _NORMALS, "tangents": np.ones((2, 4))}
+    with pytest.warns(UserWarning, match=r"for each of the 3 vertices"):
+        back = _written_attrs(tmp_path, attrs)
+    assert sorted(back) == ["normals"]

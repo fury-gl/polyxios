@@ -33,6 +33,7 @@ from polyxios._scene import SceneImage, SceneTexture
 from polyxios.codecs import _collada
 from polyxios.codecs._collada import read, read_scene, write, write_scene
 from polyxios.codecs._gltf import (
+    _tangents_of_frame,
     read_scene as gltf_read_scene,
     write_scene as gltf_write_scene,
 )
@@ -5696,6 +5697,197 @@ def test_write_every_attribute_the_reader_names_round_trips(tmp_path: Path) -> N
     assert sorted(back) == sorted(keys)
     for k in keys:
         np.testing.assert_array_equal(back[k], attrs[k])
+
+
+_TANGENTS = np.array([[1.0, 0, 0, 1], [0, 1, 0, -1], [1, 0, 0, 1]])
+_NORMALS = np.tile([0.0, 0, 1], (3, 1))
+
+
+def _tangent_scene(attrs: dict[str, np.ndarray]) -> SceneData:
+    poly = make_polydata(
+        _TRI, [("triangle", np.array([[0, 1, 2]]))], vertex_attrs=attrs
+    )
+    return SceneData(meshes=(poly,), nodes=(SceneNode(mesh=0),))
+
+
+def test_write_gltf_tangents_as_a_tangent_frame(tmp_path: Path) -> None:
+    out = tmp_path / "t.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(_tangent_scene({"normals": _NORMALS, "tangents": _TANGENTS}), out)
+    back = read_scene(out).meshes[0].vertex_attrs
+    assert list(back) == ["normals", "textangent", "texbinormal"]
+    np.testing.assert_array_equal(back["textangent"], _TANGENTS[:, :3])
+    np.testing.assert_array_equal(
+        back["texbinormal"], [[0, 1, 0], [1, 0, 0], [0, 1, 0]]
+    )
+
+
+def test_gltf_tangents_survive_a_collada_round_trip(tmp_path: Path) -> None:
+    glb = tmp_path / "a.glb"
+    gltf_write_scene(_tangent_scene({"normals": _NORMALS, "tangents": _TANGENTS}), glb)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(gltf_read_scene(glb), tmp_path / "b.dae")
+        gltf_write_scene(read_scene(tmp_path / "b.dae"), tmp_path / "c.glb")
+    back = gltf_read_scene(tmp_path / "c.glb").meshes[0].vertex_attrs
+    np.testing.assert_array_equal(back["tangents"], _TANGENTS)
+    assert "texbinormal" not in back
+
+
+@pytest.mark.parametrize("size", [1e-170, 1e170])
+def test_write_gltf_tangents_near_the_float64_limits_keep_handedness(
+    tmp_path: Path, size: float
+) -> None:
+    tangents = _TANGENTS.copy()
+    tangents[:, :3] *= size
+    attrs = {"normals": _NORMALS * size, "tangents": tangents}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(_tangent_scene(attrs), tmp_path / "t.dae")
+        back = read_scene(tmp_path / "t.dae").meshes[0].vertex_attrs
+        tangents = _tangents_of_frame(back, n=3, what="glTF")[0]
+    np.testing.assert_array_equal(tangents, _TANGENTS)
+
+
+def test_write_gltf_tangents_without_normals_drop_handedness(tmp_path: Path) -> None:
+    out = tmp_path / "t.dae"
+    with pytest.warns(UserWarning, match="handedness is dropped"):
+        write_scene(_tangent_scene({"tangents": _TANGENTS}), out)
+    back = read_scene(out).meshes[0].vertex_attrs
+    assert list(back) == ["textangent"]
+
+
+def test_write_three_column_tangents_without_a_warning(tmp_path: Path) -> None:
+    out = tmp_path / "t.dae"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_scene(_tangent_scene({"tangents": _TANGENTS[:, :3]}), out)
+    back = read_scene(out).meshes[0].vertex_attrs
+    np.testing.assert_array_equal(back["textangent"], _TANGENTS[:, :3])
+
+
+def test_write_gltf_tangents_beside_a_frame_take_a_free_set(tmp_path: Path) -> None:
+    attrs = {
+        "normals": _NORMALS,
+        "textangent": _NORMALS,
+        "tangents": _TANGENTS,
+        "texbinormal_1": _NORMALS,
+    }
+    out = tmp_path / "t.dae"
+    with pytest.warns(UserWarning, match="read back as textangent_2"):
+        write_scene(_tangent_scene(attrs), out)
+    back = read_scene(out).meshes[0].vertex_attrs
+    assert sorted(back) == sorted(
+        ["normals", "textangent", "textangent_2", "texbinormal_1", "texbinormal_2"]
+    )
+    np.testing.assert_array_equal(back["textangent_2"], _TANGENTS[:, :3])
+
+
+def test_write_tangents_of_two_columns_are_dropped(tmp_path: Path) -> None:
+    out = tmp_path / "t.dae"
+    with pytest.warns(UserWarning, match=r"\['tangents'\] of mesh 0 have no COLLADA"):
+        write_scene(_tangent_scene({"tangents": _TANGENTS[:, :2]}), out)
+    assert read_scene(out).meshes[0].vertex_attrs == {}
+
+
+def test_write_gltf_tangents_take_set_0_from_a_textangent_of_two_columns(
+    tmp_path: Path,
+) -> None:
+    attrs = {"normals": _NORMALS, "textangent": _TANGENTS[:, :2], "tangents": _TANGENTS}
+    out = tmp_path / "t.dae"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_scene(_tangent_scene(attrs), out)
+    messages = [str(w.message) for w in caught]
+    assert not any("tangent set" in m for m in messages)
+    assert any("['textangent'] of mesh 0 have no COLLADA" in m for m in messages)
+    back = read_scene(out).meshes[0].vertex_attrs
+    assert list(back) == ["normals", "textangent", "texbinormal"]
+    np.testing.assert_array_equal(back["textangent"], _TANGENTS[:, :3])
+
+
+def test_write_point_cloud_tangents_off_set_0_warn_once(tmp_path: Path) -> None:
+    poly = make_polydata(
+        _TRI,
+        [("vertex", np.array([[0], [1], [2]]))],
+        vertex_attrs={
+            "normals": _NORMALS,
+            "textangent": _NORMALS,
+            "tangents": _TANGENTS,
+        },
+    )
+    out = tmp_path / "t.dae"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_scene(SceneData(meshes=(poly,), nodes=(SceneNode(mesh=0),)), out)
+    messages = [str(w.message) for w in caught]
+    assert not any("tangent set" in m for m in messages)
+    assert any("['tangents'] of mesh 0 have a set other than 0" in m for m in messages)
+    assert not any("textangent_1" in m for m in messages)
+    back = read_scene(out).meshes[0].vertex_attrs
+    assert sorted(back) == ["normals", "textangent"]
+
+
+def test_gltf_tangents_take_set_0_from_a_lone_texbinormal(tmp_path: Path) -> None:
+    attrs = {"normals": _NORMALS, "texbinormal": _NORMALS, "tangents": _TANGENTS}
+    out = tmp_path / "t.dae"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_scene(_tangent_scene(attrs), out)
+    messages = [str(w.message) for w in caught]
+    assert not any("tangent set" in m for m in messages)
+    assert any("texbinormal of mesh 0 has no textangent" in m for m in messages)
+    back = read_scene(out)
+    assert list(back.meshes[0].vertex_attrs) == ["normals", "textangent", "texbinormal"]
+    gltf_write_scene(back, tmp_path / "t.glb")
+    again = gltf_read_scene(tmp_path / "t.glb").meshes[0].vertex_attrs
+    np.testing.assert_array_equal(again["tangents"], _TANGENTS)
+
+
+def test_lone_textangent_keeps_set_0_from_gltf_tangents(tmp_path: Path) -> None:
+    """A lone set-0 textangent is a tangent glTF writes; it holds its set."""
+    stray = np.tile([0.0, 1, 0], (3, 1))
+    attrs = {"normals": _NORMALS, "textangent": stray, "tangents": _TANGENTS}
+    with pytest.warns(UserWarning, match="read back as textangent_1"):
+        write_scene(_tangent_scene(attrs), tmp_path / "t.dae")
+    back = read_scene(tmp_path / "t.dae")
+    assert list(back.meshes[0].vertex_attrs) == [
+        "normals",
+        "textangent",
+        "textangent_1",
+        "texbinormal_1",
+    ]
+    with pytest.warns(UserWarning) as caught:
+        gltf_write_scene(back, tmp_path / "t.glb")
+    messages = [str(w.message) for w in caught]
+    assert any("it is taken as +1" in m for m in messages)
+    assert any("'texbinormal_1', 'textangent_1'" in m for m in messages)
+    again = gltf_read_scene(tmp_path / "t.glb").meshes[0].vertex_attrs
+    np.testing.assert_array_equal(again["tangents"], np.tile([0.0, 1, 0, 1], (3, 1)))
+
+
+def test_write_three_column_tangents_keep_a_lone_texbinormal(tmp_path: Path) -> None:
+    attrs = {"texbinormal": _NORMALS, "tangents": _TANGENTS[:, :3]}
+    out = tmp_path / "t.dae"
+    with pytest.warns(UserWarning, match="read back as textangent_1"):
+        write_scene(_tangent_scene(attrs), out)
+    back = read_scene(out).meshes[0].vertex_attrs
+    assert sorted(back) == ["texbinormal", "textangent_1"]
+    np.testing.assert_array_equal(back["texbinormal"], _NORMALS)
+
+
+@pytest.mark.parametrize("w", [0.0, np.nan, 2.0])
+def test_write_gltf_tangents_warn_on_a_handedness_not_unit(
+    tmp_path: Path, w: float
+) -> None:
+    tangents = _TANGENTS.copy()
+    tangents[0, 3] = w
+    out = tmp_path / "t.dae"
+    with pytest.warns(UserWarning, match="handedness other than -1 or 1"):
+        write_scene(_tangent_scene({"normals": _NORMALS, "tangents": tangents}), out)
+    back = read_scene(out).meshes[0].vertex_attrs
+    np.testing.assert_array_equal(back["texbinormal"][0], [0, 1, 0])
 
 
 def test_write_normal_set_that_is_not_a_number_gets_a_free_one(
