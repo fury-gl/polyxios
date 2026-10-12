@@ -7100,7 +7100,13 @@ Changelog
 
 
 
-0.5.0 (upcoming)
+0.6.0 (upcoming)
+
+(No entries yet.)
+
+
+
+0.5.0 (2026-10-11)
 
 New features
 
@@ -7668,6 +7674,126 @@ to polyxios.org from its head and from each section that has a fuller
 page on the site, and the two links that pointed at docs/*.rst by
 relative path, which rendered broken on PyPI, now point at the site.
 
+GitHub stats for 2026/09/09 - 2026/10/11 (tag: v0.4.1)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 3 authors contributed 105 commits.
+
+Maharshi Gor
+
+Serge Koudoro
+
+dependabot[bot]
+
+We closed a total of 51 issues, 45 pull requests and 6 regular issues.
+
+Pull Requests (45):
+
+PR #108: BF: spell XML-forbidden regex ranges as escapes in a raw string
+
+PR #107: CI: Python 3.15 support, and a docs correctness pass
+
+PR #106: NF: glTF write rebuilds COLLADA transform animations as TRS
+
+PR #105: NF: COLLADA and glTF carry tangents across, as a TEXTANGENT frame
+
+PR #104: NF: COLLADA keeps glTF PBR terms in a polyxios extra technique
+
+PR #102: NF: glTF write_scene writes skins, so a skinned scene keeps its rig
+
+PR #103: MNT: Bump pypa/cibuildwheel from 4.2.1 to 4.3.0 in the actions group
+
+PR #101: NF: COLLADA skins read and written, so a rigged glTF keeps its skin
+
+PR #100: BF: glTF read shares vertices across primitives with the same accessors
+
+PR #96: NF: COLLADA animations read and written, glTF animations baked on write
+
+PR #97: MNT: update pre-commit hooks
+
+PR #90: NF: COLLADA (.dae) read and write as a scene
+
+PR #94: BF: glTF animation write fixes, skin inverse bind matrices decoded
+
+PR #92: MNT: update pre-commit hooks
+
+PR #89: NF: VTKHDF (.vtkhdf) and PVD (.pvd) read and write, with time series
+
+PR #88: NF: LAS and LAZ point clouds (.las, .laz) read and write
+
+PR #87: NF: PCD and ASCII point clouds (.pcd, .xyz, .pts, .ptx) read and write
+
+PR #86: NF: lazy reads hand back views of the mapping; VTU/VTP appended-raw writer
+
+PR #85: NF: read and write 3MF
+
+PR #84: Fix CLI examples, homepage transcript and codec warning output
+
+PR #83: NF: read and write Exodus II
+
+PR #82: DOC: sync README and docs with the code
+
+PR #81: NF: MED, CGNS, H5M and HMF codecs over one HDF5 plumbing module
+
+PR #80: NF: read and write XDMF, the time series through the helper
+
+PR #79: MNT: update pre-commit hooks
+
+PR #78: NF: write SVG pictures, a write-only projection of the mesh onto a plane
+
+PR #77: Add glTF 2.0 / GLB read-write support and SceneData scene-graph container
+
+PR #76: MNT: update pre-commit hooks
+
+PR #75: MNT: check XML-spellable array names by code point, not a regex range
+
+PR #74: DOC: bring bot-authored commits under the message convention
+
+PR #73: Potential fix for code scanning alert no. 3: Workflow does not contain permissions
+
+PR #72: NF: ANSYS Fluent meshes read and write as a sniffed .msh and .fluent
+
+PR #71: MNT: README badges that read PyPI fields the release has not shipped
+
+PR #68: NF: new codec - PERMAS decks read and write as .dato, .post and a sniffed .dat
+
+PR #70: MNT: PyPI page carries project links, classifiers and keywords
+
+PR #69: MNT: Bump pypa/cibuildwheel from 4.2.0 to 4.2.1 in the actions group
+
+PR #67: MNT: Python 3.12 is the lowest version supported
+
+PR #66: BF: an unsearchable directory still refuses on Python 3.14
+
+PR #65: BF: the docs site keeps one directory per release, named for it
+
+PR #64: DOC: the 0.4.1 notes say what the release machinery got wrong
+
+PR #63: BF: a version can be published from a ref that is not its tag
+
+PR #62: BF: the release notes reach gh through the environment
+
+PR #61: BF: the new upcoming section opens the changelog, not the middle
+
+PR #60: DOC: the README and the guides say what 0.4.0 added
+
+PR #59: NF: OBJ keeps the texture coordinates a seam gives two of
+
+Issues (6):
+
+GH#99: COLLADA animations: follow-ups from the #96 review
+
+GH#93: glTF write: rebuild COLLADA transform-element animations as TRS
+
+GH#95: glTF -> COLLADA conversion: what is lost, and what can be recovered
+
+GH#98: BF: glTF read duplicates vertices shared across a mesh’s primitives
+
+GH#91: COLLADA write drops glTF TRS animations
+
+GH#58: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs
+
 
 
 0.4.1 (2026-09-09)
@@ -7679,7 +7805,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:561: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:639: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -7750,7 +7876,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:625: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:703: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -7988,7 +8114,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:849: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:927: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -8026,7 +8152,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:885: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:963: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -8991,7 +9117,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1745: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1823: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -9075,7 +9201,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1813: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1891: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -9123,7 +9249,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1844: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1922: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -9138,7 +9264,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1856: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1934: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -9244,7 +9370,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:1929: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:2007: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
