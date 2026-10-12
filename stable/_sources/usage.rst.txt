@@ -58,15 +58,16 @@ parsing it and by the extensions several formats share, both of which say so
 rather than guess.
 
 Reading lazily needs a real file behind the handle wherever the arrays that
-come back view the file itself - binary PLY and binary VTK - since ``mmap``
-maps a file descriptor: an ``io.BytesIO`` raises ``LazyReadError`` rather
-than quietly loading eagerly. It also needs the handle to stand at the start
-of that file - a mapping addresses a file from byte zero - so a handle
-part-way into one is refused for a lazy read and read eagerly without
-complaint. A format whose lazy mode only skips work, such as binary STL
-skipping vertex deduplication, copies what it reads and so takes a buffer
-like any other read. TetGen is the one format a buffer cannot carry - a mesh
-is a ``.node`` and an ``.ele`` file found beside each other by name.
+come back view the file itself - VTU, VTP, XDMF, splat, PCD, LAS, binary VTK,
+PLY and Medit, see :doc:`lazy_loading` - since ``mmap`` maps a file descriptor: an
+``io.BytesIO`` raises ``LazyReadError`` rather than quietly loading eagerly.
+It also needs the handle to stand at the start of that file - a mapping
+addresses a file from byte zero - so a handle part-way into one is refused
+for a lazy read and read eagerly without complaint. A format whose lazy mode
+only skips work, such as binary STL skipping vertex deduplication, copies
+what it reads and so takes a buffer like any other read. TetGen is the one
+format a buffer cannot carry - a mesh is a ``.node`` and an ``.ele`` file
+found beside each other by name.
 
 Text formats are written with ``\n`` line endings on every platform, so the
 bytes a path receives and the bytes a buffer receives are the same ones.
@@ -229,10 +230,14 @@ says something about the mesh, not about the file it came from. A plane read
 from a 2-D Netgen ``.vol`` - which has no two-dimensional spelling of its own
 to write back - still lands as an ``NDIME= 2`` SU2 case.
 
-Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus and
-WKT all record the flag on the way in; every one of those but Netgen restores
-it on the way out. A format with no two-dimensional spelling at all - OBJ, the
-VTK family - keeps writing three columns and ignores the flag.
+Medit, Medit binary, SU2, Netgen, TetGen, MFEM, DOLFIN, Tecplot, Abaqus,
+WKT, ANSYS Fluent, XDMF, HMF, MED, CGNS and Exodus II all record the flag on
+the way in; every one of those but Netgen and Fluent restores it on the way
+out. Fluent picks its dimension from the cells instead: a mesh with a solid
+is written in three dimensions, and one of triangles, quadrilaterals and
+polygons in two, refused if it has left the plane. A format with no
+two-dimensional spelling at all - OBJ, the VTK family - keeps writing three
+columns and ignores the flag.
 
 Two columns sometimes constrain the rest of the file, and the writer keeps it
 consistent rather than emitting one no reader loads: an Abaqus deck of
@@ -273,10 +278,28 @@ things - a fluid domain and a solid one, one part per block - since
 :func:`~polyxios.transforms.merge` joins them into a mesh that no longer says
 which was which.
 
+A time series - one mesh at several times, which :doc:`XDMF <formats/xdmf>`,
+:doc:`VTKHDF <formats/vtkhdf>` and a :doc:`PVD collection <formats/pvd>`
+hold - is the same
+shape of problem with the same answer: :func:`polyxios.read` reads one step,
+the first unless ``step=`` says otherwise, and the several live in the helper:
+
+.. code-block:: python
+
+    times, meshes = helper.read_time_series("run.xdmf")     # or run.vtkhdf, run.pvd
+    helper.write_time_series(((t, solve(t)) for t in times), "run.xdmf")
+
+The writer takes any iterable of ``(time, mesh)`` pairs and writes each step as
+it arrives, so a run can stream its results rather than hold them all. The
+usual XDMF layout keeps the arrays in an HDF5 file beside the XML one, which
+needs ``pip install "polyxios[hdf5]"``, as does a ``.vtkhdf``;
+``data_format="xml"`` keeps them inline and needs nothing, and a ``.pvd``
+writes one VTK XML file per step beside the index.
+
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the twenty-seven supported formats, one page each
+* :doc:`formats/index` - the forty-four supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c87aa342"></script>
+    <script src="../_static/documentation_options.js?v=1dd76d02"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -69,12 +69,12 @@
     <link rel="canonical" href="https://polyxios.org/stable/formats/flac3d.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Gmsh" href="gmsh.html" />
+    <link rel="next" title="glTF" href="gltf.html" />
     <link rel="prev" title="DOLFIN / FEniCS XML" href="dolfin.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -577,7 +603,7 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.f3grid"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
 </section>
@@ -623,11 +649,11 @@
       </div>
     </a>
     <a class="right-next"
-       href="gmsh.html"
+       href="gltf.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Gmsh</p>
+        <p class="prev-next-title">glTF</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -712,7 +738,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

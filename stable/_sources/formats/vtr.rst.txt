@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.vtr")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -51,8 +51,22 @@ Writing
 .. code-block:: python
 
     px.write(mesh, "out.vtr")
+    px.write(mesh, "out.vtr", binary=True)
 
-This codec takes no format-specific options.
+Format-specific options
+-----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 20 56
+   :class: px-spec-table
+
+   * - Option
+     - Default
+     - Effect
+   * - ``binary``
+     - ``False``
+     - Write base64-encoded payloads instead of inline ASCII.
 
 Quirks worth knowing
 --------------------
@@ -64,7 +78,7 @@ Quirks worth knowing
 - ``<FieldData>`` holds a ``String`` array beside its numeric ones, so a ``global_attrs`` value that is text - a name, a title, a solver's own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
 - The ``vtr_*`` grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other ``global_attrs`` entry does.
 - The implied point grid is expanded to explicit vertices on read, so a rectilinear file behaves like any other mesh downstream.
-- Appended and base64 payloads are decoded eagerly, and ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError` rather than pretending otherwise - the XML container has no seekable layout for mmap.
+- Appended and base64 payloads are decoded eagerly, and ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError` rather than pretending otherwise; unlike :doc:`vtu` and :doc:`vtp`, this reader maps nothing, even from a raw appended section.
 - Multi-component attributes declare and honour ``NumberOfComponents``, so an ``(n, 3)`` vector survives a round trip rather than coming back as ``3n`` rows.
 - Binary arrays are written in the type their ``<DataArray>`` declares, so an integer attribute stays an integer one.
 - An extent flat along an axis - an image one voxel deep - is a sheet of quads, and one flat along two axes is a run of lines. Only a fully three-dimensional extent expands to hexahedra; reading a flat one as a grid of no cells leaves every ``CellData`` array belonging to nothing.

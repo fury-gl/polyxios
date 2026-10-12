@@ -43,7 +43,7 @@ Reading
 
     mesh = px.read("model.off")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -51,16 +51,34 @@ Writing
 .. code-block:: python
 
     px.write(mesh, "out.off")
+    px.write(mesh, "out.off", binary=True)
 
-This codec takes no format-specific options.
+Format-specific options
+-----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 20 56
+   :class: px-spec-table
+
+   * - Option
+     - Default
+     - Effect
+   * - ``binary``
+     - ``False``
+     - Write big-endian binary OFF (``OFF BINARY``) instead of ASCII.
+   * - ``float_fmt``
+     - ``".10g"``
+     - ASCII coordinate format specifier; pass ``".17g"`` for a bit-exact round trip.
 
 Quirks worth knowing
 --------------------
 
 .. rst-class:: px-quirks
 
-- ASCII and big-endian binary OFF are both read; writing emits ASCII.
-- ``ST`` / ``C`` / ``N`` variant data is mapped onto vertex and face attributes instead of being discarded.
+- ASCII and big-endian binary OFF are both read and written; writing emits ASCII unless ``binary=True``.
+- ``ST`` / ``C`` / ``N`` variant data is mapped onto ``vertex_attrs`` (``texcoords``, ``colors``, ``normals``) and per-face colours onto ``element_attrs['colors']`` instead of being discarded.
+- ``4OFF`` and an ``nOFF`` of a dimension other than three are refused with ``CodecError`` rather than flattened to 3-D.
 - The edge count on the counts line is ignored, as the format intends - no error is raised when it disagrees with the face list.
 
 .. seealso::

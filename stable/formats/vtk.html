@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/vtk.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
+<meta property="og:description" content=".vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banne..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtk_f1647263.png" />
-<meta property="og:image:alt" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
-<meta name="description" content=".vtk read + write lazy: binary only Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, ASCII or BINARY data..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_vtk_e0a140fb.png" />
+<meta property="og:image:alt" content=".vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banne..." />
+<meta name="description" content=".vtk read + write lazy: binary v5.1 zero-copy, v4.2 all but cells Summary of the specification: The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banne..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <title>VTK Legacy &#8212; polyxios</title>
@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c87aa342"></script>
+    <script src="../_static/documentation_options.js?v=1dd76d02"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -73,8 +73,8 @@
     <link rel="prev" title="Supported formats" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -538,7 +564,7 @@
                   
   <section id="vtk-legacy">
 <span id="format-vtk"></span><h1>VTK Legacy<a class="headerlink" href="#vtk-legacy" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">only</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">binary</span> <span class="pre">v5.1</span> <span class="pre">zero-copy,</span> <span class="pre">v4.2</span> <span class="pre">all</span> <span class="pre">but</span> <span class="pre">cells</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p>The legacy VTK format is a single-dataset serial file with a five-line ASCII preamble - version banner, title, <code class="docutils literal notranslate"><span class="pre">ASCII</span></code> or <code class="docutils literal notranslate"><span class="pre">BINARY</span></code> data mode, and a <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> keyword naming the geometry type. What follows depends on that type: an unstructured grid lists <code class="docutils literal notranslate"><span class="pre">POINTS</span></code>, then <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> as connectivity lists prefixed by their point count, then a parallel <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code> array of integer type codes. Point and cell attributes arrive afterwards in <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> / <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> sections as named <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> arrays. In <code class="docutils literal notranslate"><span class="pre">BINARY</span></code> mode the arrays are raw big-endian values packed straight after their declaration line.</p>
@@ -577,20 +603,32 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.vtk"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
-<p>Binary bodies can be memory-mapped instead of loaded:</p>
+<p>A binary <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> can be memory-mapped instead of loaded:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.vtk"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">dtype</span>             <span class="c1"># &gt;f4 or &gt;f8: the file's own big-endian bytes</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False</span>
 </pre></div>
 </div>
+<p>The points and every point and cell array are read-only views of the
+mapping, in the big-endian dtype the file holds. Whether the cells are too
+depends on the file’s version: the v5.1 layout stores <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> and
+<code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code> as two blocks and both are viewed, while the v4.2 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>
+block interleaves each cell’s count with its indices, so nothing on disk is
+the connectivity and it is decoded either way. <code class="docutils literal notranslate"><span class="pre">write(...,</span> <span class="pre">vtk_version=&quot;5.1&quot;,</span>
+<span class="pre">binary=True)</span></code> produces the mappable layout. ASCII files, and the <code class="docutils literal notranslate"><span class="pre">POLYDATA</span></code>
+and structured datasets, raise <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.vtk"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Format-specific options:</p>
+</section>
+<section id="format-specific-options">
+<h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="px-spec-table table">
 <colgroup>
 <col style="width: 24.0%" />
@@ -608,6 +646,11 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
 <td><p>Write a BINARY body instead of ASCII.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vtk_version</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;4.2&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;4.2&quot;</span></code> writes the classic interleaved <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> block; <code class="docutils literal notranslate"><span class="pre">&quot;5.1&quot;</span></code> writes
+<code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> and <code class="docutils literal notranslate"><span class="pre">CONNECTIVITY</span></code>, the layout a lazy read can map.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -619,7 +662,7 @@
 <li><p>A <code class="docutils literal notranslate"><span class="pre">FIELD</span> <span class="pre">FieldData</span></code> block between the <code class="docutils literal notranslate"><span class="pre">DATASET</span></code> line and the geometry belongs to the mesh rather than to its points or cells, and is read into <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>; <code class="docutils literal notranslate"><span class="pre">write</span></code> puts one back there. Unlike a point or cell array, which is written as a double, a field array keeps the type it is held in, so an integer comes home an integer. A <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> inside a <code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> or <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> section still names arrays over the points or the cells, and is read as attributes. A <code class="docutils literal notranslate"><span class="pre">STRUCTURED_POINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">RECTILINEAR_GRID</span></code> or <code class="docutils literal notranslate"><span class="pre">STRUCTURED_GRID</span></code> file reads a dataset-level block too, which is where VTK’s own writer puts a time value.</p></li>
 <li><p>A value no numeric array holds - a string, a mapping - is dropped with a warning naming the key; the XML family’s <code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> holds text and this block does not. The <code class="docutils literal notranslate"><span class="pre">vtk_*</span></code> grid entries a structured read recorded do travel in the block: this writer spells an <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> and rebuilds no grid, so holding them back would drop them without a word. A structured read takes the grid it rebuilt over anything a field block names, so carrying them costs the next read nothing.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">POINTS</span></code> and a v4.2 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> block are a run of numbers the header counts, not a line apiece. One row to a vertex or a cell is what VTK’s own writer emits and what this reads first; a block wrapped some other way is read again as that run, so a file no reader of rows could take is read as the mesh it holds.</p></li>
-<li><p>Binary files can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>; ASCII files must be parsed end to end before any value is available.</p></li>
+<li><p>A binary <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code> can be memory-mapped with <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> - fully in the v5.1 layout, points and attributes only in v4.2; ASCII files must be parsed end to end before any value is available.</p></li>
 <li><p>Cell type codes are mapped to polyxios element types, so a file mixing triangles, quads and tetrahedra keeps every group separate.</p></li>
 <li><p>Point and cell data arrays are carried through as named vertex and element attributes rather than being dropped on read.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code>, <code class="docutils literal notranslate"><span class="pre">NORMALS</span></code>, <code class="docutils literal notranslate"><span class="pre">TENSORS</span></code>, <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code>, <code class="docutils literal notranslate"><span class="pre">TEXTURE_COORDINATES</span></code> and <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> sections are all read, in every dataset type - unstructured, polydata, structured points, structured grid and rectilinear grid alike. A <code class="docutils literal notranslate"><span class="pre">LOOKUP_TABLE</span></code> definition is a palette rather than a value per point, so it becomes no attribute, but it is counted past so the arrays after it are still found. A keyword outside that set stops the scan, and says so. <code class="docutils literal notranslate"><span class="pre">COLOR_SCALARS</span></code> is the one attribute whose type its own line does not name: one unsigned char per component in a binary file, a float in 0..1 in an ASCII one. The byte is scaled onto 0..1, so the same colour reads back the same from either flavour.</p></li>
@@ -699,6 +742,7 @@
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specification-at-a-glance">Specification at a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reading">Reading</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#writing">Writing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-specific-options">Format-specific options</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quirks-worth-knowing">Quirks worth knowing</a></li>
 </ul>
   </nav></div>
@@ -757,7 +801,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

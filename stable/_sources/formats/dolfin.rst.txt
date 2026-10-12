@@ -45,7 +45,7 @@ Reading
 
     mesh = px.read("model.xml")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -53,17 +53,35 @@ Writing
 .. code-block:: python
 
     px.write(mesh, "out.xml")
+    px.write(mesh, "out.xml", dim=2)
 
-This codec takes no format-specific options.
+Format-specific options
+-----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 20 56
+   :class: px-spec-table
+
+   * - Option
+     - Default
+     - Effect
+   * - ``dim``
+     - ``None``
+     - On write: the geometric dimension written as ``<mesh dim>``. Inferred
+       when not given: 2 for a mesh of no solid cells whose vertices lie in the
+       ``z = 0`` plane, 3 otherwise. Every vertex is written with its ``z``
+       whatever ``dim`` says.
 
 Quirks worth knowing
 --------------------
 
 .. rst-class:: px-quirks
 
-- The format holds a single cell type per file; writing a mixed mesh raises rather than dropping the elements that do not fit.
+- The cell types read and written are ``interval``, ``triangle``, ``quadrilateral``, ``tetrahedron`` and ``hexahedron``; any other ``celltype`` is refused with :class:`~polyxios.exceptions.CodecError`.
+- The format holds a single cell type per file. Writing a mixed mesh keeps the type of its first writable element and skips every other element with a warning; a mesh with no element of a supported type is refused.
 - A 2-D file's coordinates are padded with a zero z, so the mesh is 3-D like every other one polyxios holds, and ``global_attrs["was_2d"]`` records the fact. The ``dim`` attribute follows it. The writer puts it back so long as the vertices have stayed in the plane; a mesh whose vertices have since left it is written in three with a warning. An inferred ``dim`` is 3 for a mesh of solid cells however flat it lies, DOLFIN needing its geometric dimension to be at least its topological one; a ``dim=`` given by the caller is left alone.
-- Mesh function and mesh value collection blocks are read as attributes where present.
+- Only the ``<vertices>`` and ``<cells>`` are read: mesh function, mesh value collection and domain data blocks are ignored, so no attribute or tag comes back.
 
 .. seealso::
 

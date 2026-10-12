@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="Read mesh files larger than RAM in Python. polyxios memory-maps binary VTK, PLY, STL and Medit files with lazy=True, so vertex and face arrays are paged in on demand." name="description" />
+<meta content="Read large mesh files in Python without copying them. polyxios maps a binary VTK, VTU, VTP, XDMF, PLY, PCD, LAS, Medit or splat file with lazy=True and hands back arrays that view the file's own bytes." name="description" />
 <meta property="og:title" content="Lazy loading" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/lazy_loading.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="For large meshes (gigabytes of binary data), pass lazy=True. polyxios memory-maps the file and only loads the pages you actually touch - the rest stays on disk until needed. lazy=True is honoured f..." />
+<meta property="og:description" content="For a large binary mesh, pass lazy=True. polyxios maps the file and, wherever the file stores an array as one run of bytes in the shape the array needs, hands back a view of the mapping instead of ..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_lazy_loading_2de580b8.png" />
-<meta property="og:image:alt" content="For large meshes (gigabytes of binary data), pass lazy=True. polyxios memory-maps the file and only loads the pages you actually touch - the rest stays on disk until needed. lazy=True is honoured f..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_lazy_loading_9663cc85.png" />
+<meta property="og:image:alt" content="For a large binary mesh, pass lazy=True. polyxios maps the file and, wherever the file stores an array as one run of bytes in the shape the array needs, hands back a view of the mapping instead of ..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <title>Lazy loading &#8212; polyxios</title>
@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=c87aa342"></script>
+    <script src="_static/documentation_options.js?v=1dd76d02"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -70,11 +70,11 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Transforms" href="transforms.html" />
-    <link rel="prev" title="Kratos MDPA" href="formats/mdpa.html" />
+    <link rel="prev" title="Exodus II" href="formats/exodus.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -535,29 +561,147 @@
                   
   <section id="lazy-loading">
 <h1>Lazy loading<a class="headerlink" href="#lazy-loading" title="Link to this heading">#</a></h1>
-<p>For large meshes (gigabytes of binary data), pass <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>. polyxios
-memory-maps the file and only loads the pages you actually touch - the rest
-stays on disk until needed.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># File is opened but data is not loaded into RAM yet</span>
-<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"huge_brain.vtk"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<p>For a large binary mesh, pass <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code>. polyxios maps the file and,
+wherever the file stores an array as one run of bytes in the shape the array
+needs, hands back a view of the mapping instead of a copy: nothing is
+decoded, the pages come in as they are touched, and the process holds the
+mesh once - in the page cache - rather than once there and again in its own
+memory.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"huge.vtu"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-<span class="c1"># Only the vertices are pulled from disk here</span>
-<span class="n">first_vertex</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False: these are the file's bytes</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">dtype</span>             <span class="c1"># whatever the file holds - float32 stays float32</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>                <span class="c1"># the first page comes in here</span>
 
-<span class="c1"># Element connectivity is still on disk until you access it</span>
+<span class="n">coords</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>   <span class="c1"># a copy, when one is wanted</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> is honoured for binary <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.ply</span></code> and <code class="docutils literal notranslate"><span class="pre">.stl</span></code> files.
-ASCII formats load eagerly (the whole file must be parsed to extract values).
-Binary STL lazy mode skips vertex deduplication - vertices are returned as-is
-(3 per triangle), avoiding the extra pass over the data. <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> needs no
-flag: a path is always memory-mapped and a file object always read into
-memory, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> there warns and changes nothing.</p>
+<section id="what-comes-back">
+<h2>What comes back<a class="headerlink" href="#what-comes-back" title="Link to this heading">#</a></h2>
+<p>A lazy array is read-only, and carries the dtype and byte order the file
+holds: a <code class="docutils literal notranslate"><span class="pre">Float32</span></code> block stays <code class="docutils literal notranslate"><span class="pre">float32</span></code>, a big-endian legacy VTK block
+stays big-endian. An eager read converts to float64 coordinates and native
+integer indices; a lazy read leaves that to you, since the conversion is the
+copy you declined. <code class="docutils literal notranslate"><span class="pre">np.asarray(arr,</span> <span class="pre">dtype=...)</span></code> makes one when you need it,
+and every NumPy operation reads a swapped or read-only array as it is.</p>
+<p>Only an array the file stores in the shape <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code> needs
+can be a view. That rules out anything encoded (ASCII, base64, zlib), any
+record that interleaves a count or a reference with the values, and any
+index that counts from one. Where a format stores some arrays that way and
+not others, the ones it does are views and the rest are built in memory -
+the offsets of a uniform topology, the element types, a padded third
+coordinate. The per-format table below says which is which.</p>
+</section>
+<section id="which-formats">
+<h2>Which formats<a class="headerlink" href="#which-formats" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="px-spec-table table">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 24.0%" />
+<col style="width: 54.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>format</p></th>
+<th class="head"><p>lazy arrays</p></th>
+<th class="head"><p>notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.vtu</span></code> <code class="docutils literal notranslate"><span class="pre">.vtp</span></code></p></td>
+<td><p>vertices, connectivity, attributes</p></td>
+<td><p>Raw appended section only, the layout VTK writes by default and
+<code class="docutils literal notranslate"><span class="pre">write(...,</span> <span class="pre">appended=True)</span></code> writes. Inline, base64 or compressed
+arrays raise. Offsets and element types are derived. Several pieces
+are joined by copying.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.vtk</span></code></p></td>
+<td><p>vertices, attributes; cells in v5.1</p></td>
+<td><p>Binary <code class="docutils literal notranslate"><span class="pre">UNSTRUCTURED_GRID</span></code>. The v5.1 layout stores offsets and
+connectivity as two blocks and both are views; a v4.2 <code class="docutils literal notranslate"><span class="pre">CELLS</span></code>
+block interleaves counts with indices and is decoded. Big-endian.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.xdmf</span></code></p></td>
+<td><p>every array the sidecar stores</p></td>
+<td><p>A <code class="docutils literal notranslate"><span class="pre">Binary</span></code> DataItem, or an HDF5 dataset stored contiguously
+without a filter, which is what <code class="docutils literal notranslate"><span class="pre">write</span></code> emits unless asked for
+<code class="docutils literal notranslate"><span class="pre">compression</span></code>. Chunked, compressed or inline values raise.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.splat</span></code></p></td>
+<td><p>everything</p></td>
+<td><p>32-byte records: float32 positions and every attribute are strided
+views. Nothing is decoded.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.pcd</span></code></p></td>
+<td><p>vertices, every field</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DATA</span> <span class="pre">binary</span></code> only. Coordinates and normals are one strided view
+each when their three fields sit side by side in one type; split
+normals come back as three plain fields, split coordinates raise.
+Every other field is a view of its own column. A packed <code class="docutils literal notranslate"><span class="pre">rgb</span></code> is decoded
+into <code class="docutils literal notranslate"><span class="pre">colors</span></code>. <code class="docutils literal notranslate"><span class="pre">ascii</span></code> and <code class="docutils literal notranslate"><span class="pre">binary_compressed</span></code> raise.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.las</span></code></p></td>
+<td><p>vertices, every field, extra bytes</p></td>
+<td><p>Uncompressed only. The vertices are the file’s <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> int32,
+to be scaled by <code class="docutils literal notranslate"><span class="pre">las_scale</span></code> and shifted by <code class="docutils literal notranslate"><span class="pre">las_offset</span></code> from
+<code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>; the colours are the <code class="docutils literal notranslate"><span class="pre">uint16</span></code> triples; every
+other field and extra byte a view of its own column. The bit fields
+of the returns and flags bytes are decoded into small arrays, and an
+extra byte carrying a scale or offset is left raw with a warning. A
+<code class="docutils literal notranslate"><span class="pre">.laz</span></code> raises.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.ply</span></code></p></td>
+<td><p>vertices, vertex properties</p></td>
+<td><p>Binary only. Coordinates are one strided view when <code class="docutils literal notranslate"><span class="pre">x</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>,
+<code class="docutils literal notranslate"><span class="pre">z</span></code> sit side by side in one type. A face list is prefixed by its
+count, so faces are decoded.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code></p></td>
+<td><p>vertices</p></td>
+<td><p>Each record is coordinates then a reference, so the coordinates are
+one strided view. Elements number vertices from one and are decoded.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.stl</span></code></p></td>
+<td><p>none</p></td>
+<td><p>A 50-byte record cannot be viewed as <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> coordinates. Binary
+STL’s <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> skips vertex deduplication instead, returning
+three vertices per triangle, and copies what it reads.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.vti</span></code> <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> <code class="docutils literal notranslate"><span class="pre">.vts</span></code> <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> <code class="docutils literal notranslate"><span class="pre">.gltf</span></code> <code class="docutils literal notranslate"><span class="pre">.glb</span></code> <code class="docutils literal notranslate"><span class="pre">.dae</span></code>
+<code class="docutils literal notranslate"><span class="pre">.obj</span></code> <code class="docutils literal notranslate"><span class="pre">.wkt</span></code> <code class="docutils literal notranslate"><span class="pre">.xyz</span></code> <code class="docutils literal notranslate"><span class="pre">.pts</span></code> <code class="docutils literal notranslate"><span class="pre">.ptx</span></code>, HDF5 formats, Exodus</p></td>
+<td><p>none</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>
+naming why: implicit points, a ZIP member, a scene, text, or a
+library that reads the arrays whole.</p></td>
+</tr>
+<tr class="row-even"><td><p>the text formats</p></td>
+<td><p>none</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and loads eagerly; a number spelled as text has
+to be parsed before it is a number.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="what-a-mapping-needs">
+<h2>What a mapping needs<a class="headerlink" href="#what-a-mapping-needs" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">mmap</span></code> maps a file descriptor from byte zero, so a lazy read needs a real,
+uncompressed file standing at its start: an <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code>, a handle
+part-way into a file, or a gzipped one raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming the reason rather than
+quietly loading eagerly. Binary STL’s lazy mode only skips work, so it takes
+a buffer or a compressed file like any other read.</p>
+<p>The mapping lives as long as any array viewing it does, and goes when the
+last one does. Nothing is closed behind your back and nothing needs closing.
+A mapping does keep its own descriptor open for that long, so a thousand
+lazy meshes held at once are a thousand open files; drop the arrays to
+release them.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> - the per-format table records which formats support
-lazy loading.</p>
+<p>Each page under <a class="reference internal" href="formats/index.html"><span class="doc">Supported formats</span></a> carries a badge saying what its
+codec maps, and the table on the <a class="reference internal" href="index.html"><span class="doc">front page</span></a> has a
+<code class="docutils literal notranslate"><span class="pre">lazy</span></code> column.</p>
 </div>
+</section>
 </section>
 
 
@@ -571,12 +715,12 @@ lazy loading.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="formats/mdpa.html"
+       href="formats/exodus.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Kratos MDPA</p>
+        <p class="prev-next-title">Exodus II</p>
       </div>
     </a>
     <a class="right-next"
@@ -598,6 +742,20 @@ lazy loading.</p>
                 <dialog id="pst-secondary-sidebar-modal"></dialog>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-comes-back">What comes back</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#which-formats">Which formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-a-mapping-needs">What a mapping needs</a></li>
+</ul>
+  </nav></div>
 
   <div class="sidebar-secondary-item">
 
@@ -653,7 +811,7 @@ lazy loading.</p>
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

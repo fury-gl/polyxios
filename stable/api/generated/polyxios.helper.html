@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=c87aa342"></script>
+    <script src="../../_static/documentation_options.js?v=1dd76d02"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -69,12 +69,12 @@
     <link rel="canonical" href="https://polyxios.org/stable/api/generated/polyxios.helper.html" />
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Contributing" href="../../contributing.html" />
+    <link rel="next" title="polyxios.SceneData" href="polyxios.SceneData.html" />
     <link rel="prev" title="polyxios.cli" href="polyxios.cli.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../formats/obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../../formats/medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="../../formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../formats/mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../formats/exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3 current active"><a class="current reference internal" href="#">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -556,11 +582,17 @@
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_polydata</span></code>(filename)</p></td>
 <td><p>Read a PolyData object from the given file, resolving fetches and VTP index files.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_path</span></code>(filename)</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_time_series</span></code>(path)</p></td>
+<td><p>Read every step of a time series, one PolyData per step.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_path</span></code>(filename)</p></td>
 <td><p>Resolve a filename to a local path, fetching it from the catalog if needed.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualize_mesh</span></code>(polydata, *[, lines, points])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">visualize_mesh</span></code>(polydata, *[, lines, points])</p></td>
 <td><p>Visualize a PolyData mesh using FURY.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_time_series</span></code>(steps, path, **opts)</p></td>
+<td><p>Write a sequence of meshes as one time series.</p></td>
 </tr>
 </tbody>
 </table>
@@ -596,11 +628,11 @@
       </div>
     </a>
     <a class="right-next"
-       href="../../contributing.html"
+       href="polyxios.SceneData.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Contributing</p>
+        <p class="prev-next-title">polyxios.SceneData</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -669,7 +701,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

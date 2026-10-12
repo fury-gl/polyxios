@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/splat.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".splat read + write eager Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a..." />
+<meta property="og:description" content=".splat read + write lazy: zero-copy Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_splat_6d1993f5.png" />
-<meta property="og:image:alt" content=".splat read + write eager Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a..." />
-<meta name="description" content=".splat read + write eager Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_splat_b2a13a3b.png" />
+<meta property="og:image:alt" content=".splat read + write lazy: zero-copy Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the..." />
+<meta name="description" content=".splat read + write lazy: zero-copy Summary of the specification:.splat is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <title>Gaussian splat &#8212; polyxios</title>
@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c87aa342"></script>
+    <script src="../_static/documentation_options.js?v=1dd76d02"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -69,12 +69,12 @@
     <link rel="canonical" href="https://polyxios.org/stable/formats/splat.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Kratos MDPA" href="mdpa.html" />
+    <link rel="next" title="PCD (Point Cloud Library)" href="pcd.html" />
     <link rel="prev" title="UGRID (AFLR)" href="ugrid.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -538,7 +564,7 @@
                   
   <section id="gaussian-splat">
 <span id="format-splat"></span><h1>Gaussian splat<a class="headerlink" href="#gaussian-splat" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.splat</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">eager</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.splat</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">zero-copy</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.splat</span></code> is the 32-byte-per-Gaussian binary layout used by the WebGL Gaussian Splat Viewer and compatible tools. It has no header: the file is a flat array of fixed-width little-endian records, and the splat count is the file size divided by 32. Each record is three <code class="docutils literal notranslate"><span class="pre">float32</span></code> positions, three <code class="docutils literal notranslate"><span class="pre">float32</span></code> scales, four <code class="docutils literal notranslate"><span class="pre">uint8</span></code> colour and opacity bytes, and four <code class="docutils literal notranslate"><span class="pre">uint8</span></code> packed rotation quaternion components - 32 bytes exactly. The format carries a point cloud only; there is no connectivity of any kind.</p>
@@ -601,7 +627,7 @@
 <li><p>The eleven non-positional fields are read into and written from <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> under their record names: <code class="docutils literal notranslate"><span class="pre">scale_0..2</span></code>, <code class="docutils literal notranslate"><span class="pre">color_r/g/b</span></code>, <code class="docutils literal notranslate"><span class="pre">opacity</span></code>, <code class="docutils literal notranslate"><span class="pre">rot_0..3</span></code>.</p></li>
 <li><p>A missing <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code> entry is written as zeros rather than raising, so a plain point cloud can be written out as a <code class="docutils literal notranslate"><span class="pre">.splat</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">element_types</span></code> is always empty. Anything expecting faces will find none.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> is ignored; the file is a flat binary array with no seekable structure to defer.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps the file and hands back views of it: the file is a run of 32-byte records, so the positions are a strided <code class="docutils literal notranslate"><span class="pre">float32</span></code> view three columns wide and each attribute a strided view of its own column, read-only, nothing decoded or copied. An eager read converts the positions to <code class="docutils literal notranslate"><span class="pre">float64</span></code>. The mapping needs a path or a handle over a regular file at its start; an in-memory buffer or a gzipped file raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -630,11 +656,11 @@
       </div>
     </a>
     <a class="right-next"
-       href="mdpa.html"
+       href="pcd.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Kratos MDPA</p>
+        <p class="prev-next-title">PCD (Point Cloud Library)</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -719,7 +745,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

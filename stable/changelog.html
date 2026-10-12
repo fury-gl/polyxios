@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/changelog.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="0.4.1 (2026-09-09): 0.4.0 reached PyPI only after its release workflow was repaired and re-run by hand, and its documentation never reached the site at all. Every one of the bugs was in the machine..." />
+<meta property="og:description" content="0.5.0 (2026-10-11): New features: PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and Open3D exchange clouds in, is read and written in all three of its bodies: ascii, binary and binary_..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_6275c6f8.png" />
-<meta property="og:image:alt" content="0.4.1 (2026-09-09): 0.4.0 reached PyPI only after its release workflow was repaired and re-run by hand, and its documentation never reached the site at all. Every one of the bugs was in the machine..." />
-<meta name="description" content="0.4.1 (2026-09-09): 0.4.0 reached PyPI only after its release workflow was repaired and re-run by hand, and its documentation never reached the site at all. Every one of the bugs was in the machine..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_changelog_9f4b0a0d.png" />
+<meta property="og:image:alt" content="0.5.0 (2026-10-11): New features: PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and Open3D exchange clouds in, is read and written in all three of its bodies: ascii, binary and binary_..." />
+<meta name="description" content="0.5.0 (2026-10-11): New features: PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and Open3D exchange clouds in, is read and written in all three of its bodies: ascii, binary and binary_..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <title>Changelog &#8212; polyxios</title>
@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=c87aa342"></script>
+    <script src="_static/documentation_options.js?v=1dd76d02"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -73,8 +73,8 @@
     <link rel="prev" title="Development Guide" href="development.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -535,14 +561,612 @@
                   
   <section id="changes">
 <span id="changelog"></span><span id="id1"></span><h1>Changelog<a class="headerlink" href="#changes" title="Link to this heading">#</a></h1>
+<section id="changes-0-5-0">
+<span id="id2"></span><h2>0.5.0 (2026-10-11)<a class="headerlink" href="#changes-0-5-0" title="Link to this heading">#</a></h2>
+<section id="new-features">
+<h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>PCD (<code class="docutils literal notranslate"><span class="pre">.pcd</span></code>), the Point Cloud Library’s format that PCL, ROS and
+Open3D exchange clouds in, is read and written in all three of its
+bodies: <code class="docutils literal notranslate"><span class="pre">ascii</span></code>, <code class="docutils literal notranslate"><span class="pre">binary</span></code> and <code class="docutils literal notranslate"><span class="pre">binary_compressed</span></code>, the last packed
+with LZF, which polyxios now ships as a compiled module with a
+pure-Python twin behind it. <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">y</span> <span class="pre">z</span></code> are the vertices, <code class="docutils literal notranslate"><span class="pre">normal_x/y/z</span></code>
+fold into <code class="docutils literal notranslate"><span class="pre">normals</span></code>, a packed <code class="docutils literal notranslate"><span class="pre">rgb</span></code> or <code class="docutils literal notranslate"><span class="pre">rgba</span></code> into <code class="docutils literal notranslate"><span class="pre">colors</span></code> in
+0..1 (in the integer spelling an ascii body uses and the float-bits one
+a binary body does), and every other field is a vertex attribute of its
+own name and dtype, a vector when its <code class="docutils literal notranslate"><span class="pre">COUNT</span></code> is above one. An
+organised cloud keeps <code class="docutils literal notranslate"><span class="pre">pcd_width</span></code> and <code class="docutils literal notranslate"><span class="pre">pcd_height</span></code>, a sensor pose
+<code class="docutils literal notranslate"><span class="pre">pcd_viewpoint</span></code>; padding fields are skipped and NaN points kept. Write
+picks the body with <code class="docutils literal notranslate"><span class="pre">data_format=</span></code> and <code class="docutils literal notranslate"><span class="pre">F</span> <span class="pre">8</span></code> coordinates with
+<code class="docutils literal notranslate"><span class="pre">double=True</span></code>. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps a binary file: coordinates, normals
+and every field are views of it in the file’s own dtypes.</p></li>
+<li><p>LAS (<code class="docutils literal notranslate"><span class="pre">.las</span></code>), the ASPRS LiDAR exchange format, is read and written in
+versions 1.0 to 1.4 and point formats 0 to 10, and <code class="docutils literal notranslate"><span class="pre">.laz</span></code>, its
+LASzip-compressed twin, through lazrs behind the new <code class="docutils literal notranslate"><span class="pre">laz</span></code> extra. The
+scaled integer coordinates become float64 vertices; <code class="docutils literal notranslate"><span class="pre">intensity</span></code>, the
+return and classification bit fields, the scan angle (<code class="docutils literal notranslate"><span class="pre">scan_angle_rank</span></code>
+in degrees before format 6, <code class="docutils literal notranslate"><span class="pre">scan_angle</span></code> in 0.006-degree steps from
+it), <code class="docutils literal notranslate"><span class="pre">user_data</span></code>, <code class="docutils literal notranslate"><span class="pre">point_source_id</span></code>, <code class="docutils literal notranslate"><span class="pre">gps_time</span></code>, <code class="docutils literal notranslate"><span class="pre">nir</span></code> and the
+wave packet fields are vertex attributes in the file’s own dtypes,
+<code class="docutils literal notranslate"><span class="pre">red</span> <span class="pre">green</span> <span class="pre">blue</span></code> fold into <code class="docutils literal notranslate"><span class="pre">colors</span></code> in 0..1, and extra bytes read by
+the name and type their VLR gives them, scaled and offset when it says
+so. An OGC WKT VLR is <code class="docutils literal notranslate"><span class="pre">crs_wkt</span></code>, the GeoTIFF key VLRs <code class="docutils literal notranslate"><span class="pre">las_geokeys</span></code>,
+every other VLR or EVLR raw in <code class="docutils literal notranslate"><span class="pre">las_vlrs</span></code>; the scale, offset, version,
+point format and header strings are <code class="docutils literal notranslate"><span class="pre">las_*</span></code> globals. Write picks the
+point format from the attributes present or takes <code class="docutils literal notranslate"><span class="pre">point_format=</span></code>,
+the version from the format or <code class="docutils literal notranslate"><span class="pre">version=</span></code>, <code class="docutils literal notranslate"><span class="pre">scale=</span></code> and <code class="docutils literal notranslate"><span class="pre">offset=</span></code>
+from the globals or the cloud, and sends every other numeric attribute
+out as an extra bytes field. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> maps an uncompressed file:
+the vertices are the int32 the file holds, the colours its <code class="docutils literal notranslate"><span class="pre">uint16</span></code>
+and every field a view of its column.</p></li>
+<li><p>VTKHDF (<code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code>), VTK’s own HDF5 layout and the file ParaView is
+moving to, is read and written behind the <code class="docutils literal notranslate"><span class="pre">hdf5</span></code> extra. An
+<code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code> reads as its cells are, a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with its
+vertices, lines, polygons and strips typed by point count, an
+<code class="docutils literal notranslate"><span class="pre">ImageData</span></code> expanded into the lattice its extent spans with the
+<code class="docutils literal notranslate"><span class="pre">vti_*</span></code> globals a <code class="docutils literal notranslate"><span class="pre">.vti</span></code> carries; every partition is merged and
+tagged <code class="docutils literal notranslate"><span class="pre">part_&lt;k&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">PointData</span></code>, <code class="docutils literal notranslate"><span class="pre">CellData</span></code> and <code class="docutils literal notranslate"><span class="pre">FieldData</span></code> are
+the attributes and globals, and a temporal file reads one step -
+<code class="docutils literal notranslate"><span class="pre">step=</span></code> on read, every step through <code class="docutils literal notranslate"><span class="pre">helper.read_time_series</span></code>.
+Write emits an <code class="docutils literal notranslate"><span class="pre">UnstructuredGrid</span></code>, or a <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with
+<code class="docutils literal notranslate"><span class="pre">polydata=True</span></code> or when the mesh was read as one, <code class="docutils literal notranslate"><span class="pre">time=</span></code> a
+<code class="docutils literal notranslate"><span class="pre">Steps</span></code> group of one, and <code class="docutils literal notranslate"><span class="pre">helper.write_time_series</span></code> appends each
+step’s arrays to one file, the cells written once and the points again
+only when they moved. Verified both ways against VTK’s own reader and
+writer, in the interop CI job as well as locally.</p></li>
+<li><p>COLLADA (<code class="docutils literal notranslate"><span class="pre">.dae</span></code>), the Khronos XML scene format every modelling tool of
+its decade exports, is read and written as a <code class="docutils literal notranslate"><span class="pre">SceneData</span></code>. Each
+<code class="docutils literal notranslate"><span class="pre">&lt;geometry&gt;</span></code> is a mesh: triangles, polylists, polygons, lines, line and
+triangle strips and fans, with a corner split into its own vertex where
+its normal, texture coordinate or colour differs, <code class="docutils literal notranslate"><span class="pre">NORMAL</span></code>,
+<code class="docutils literal notranslate"><span class="pre">TEXCOORD</span></code> and <code class="docutils literal notranslate"><span class="pre">COLOR</span></code> inputs as <code class="docutils literal notranslate"><span class="pre">normals</span></code>, <code class="docutils literal notranslate"><span class="pre">texcoords</span></code> and
+<code class="docutils literal notranslate"><span class="pre">colors</span></code>, and each block’s material symbol resolved through the
+instancing node’s <code class="docutils literal notranslate"><span class="pre">&lt;bind_material&gt;</span></code> into <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;material&quot;]</span></code>;
+a geometry two instances bind to different materials gets a mesh per
+binding. Effects read as materials (diffuse, emission, transparency and
+its mode, textures through sampler and surface, an FCOLLADA bump as the
+normal texture, the phong pieces in <code class="docutils literal notranslate"><span class="pre">extras</span></code>), images by uri, <code class="docutils literal notranslate"><span class="pre">&lt;hex&gt;</span></code>
+or <code class="docutils literal notranslate"><span class="pre">data:</span></code> URI. Nodes keep the transform elements they were spelled
+with. Every count and reference is checked by name before anything is
+allocated, an XML entity is refused in any encoding, and nested
+<code class="docutils literal notranslate"><span class="pre">&lt;instance_node&gt;</span></code> copies are capped by the document’s size. Write
+spells 1.4.1 with fixed timestamps, so a scene always writes the same
+bytes, refuses connectivity a reader could not read back, and writes a
+node shared by two parents once in <code class="docutils literal notranslate"><span class="pre">&lt;library_nodes&gt;</span></code>, instanced from
+there. <code class="docutils literal notranslate"><span class="pre">read()</span></code> flattens with a warning, <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises.</p></li>
+<li><p>COLLADA animations are read and written. <code class="docutils literal notranslate"><span class="pre">&lt;animation&gt;</span></code> channels land
+under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;animations&quot;]</span></code> in the shape glTF uses, each target
+holding the node, the path, the transform <code class="docutils literal notranslate"><span class="pre">sid</span></code> and its member; a
+channel addressing an instanced node gets a target per copy, capped by
+the document’s size. A write targets the transform element holding the
+channel’s <code class="docutils literal notranslate"><span class="pre">sid</span></code>. Channels without one on a node written as a single
+<code class="docutils literal notranslate"><span class="pre">&lt;matrix&gt;</span></code> - a glTF animation’s translation, rotation and scale - are
+baked into matrix keys, with extra keys where a matrix blend would drift
+from the rotation, so a glTF animation goes to COLLADA and comes back as
+translation, rotation and scale channels holding its values at its key
+times.</p></li>
+<li><p>COLLADA skins are read and written. An <code class="docutils literal notranslate"><span class="pre">&lt;instance_controller&gt;</span></code> gives
+its mesh <code class="docutils literal notranslate"><span class="pre">joints</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code> (the four heaviest influences per
+vertex) and its node a <code class="docutils literal notranslate"><span class="pre">skin</span></code> index into <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;skins&quot;]</span></code>,
+each entry holding the joints bound to node indices, the inverse bind
+matrices and the bind shape matrix in the shape a glTF read gives.
+Joint names bind by sid under the instance’s <code class="docutils literal notranslate"><span class="pre">&lt;skeleton&gt;</span></code> roots, else
+to the nearest node holding them, so two rigs sharing bone names and
+each copy of an instanced character bind their own. A geometry skinned
+by one instance and not another gets a mesh per use. Write builds a
+<code class="docutils literal notranslate"><span class="pre">&lt;controller&gt;</span></code> per skinned mesh, names each joint by sid where a
+reader cannot mistake it and by id elsewhere, and spells the rig’s top
+joints as <code class="docutils literal notranslate"><span class="pre">&lt;skeleton&gt;</span></code> roots, so a rigged glTF scene keeps its skin
+through COLLADA.</p></li>
+<li><p>A glTF read decodes each skin’s <code class="docutils literal notranslate"><span class="pre">inverseBindMatrices</span></code> accessor into
+<code class="docutils literal notranslate"><span class="pre">inverse_bind_matrices</span></code> (row-major, one per joint), so a format that
+stores the bind pose by matrix can write a skinned glTF scene. A skin
+with no joints, or whose accessor is missing, is not float MAT4, has no
+<code class="docutils literal notranslate"><span class="pre">bufferView</span></code> (all zeros), cannot be read or holds fewer matrices than
+joints, is kept undecoded with a warning rather than failing the read.</p></li>
+<li><p>glTF <code class="docutils literal notranslate"><span class="pre">write_scene</span></code> writes skins, so a skinned scene keeps its rig on
+its way back to glTF: each entry of <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;skins&quot;]</span></code> becomes a
+glTF skin with its <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">joints</span></code>, <code class="docutils literal notranslate"><span class="pre">skeleton</span></code>, <code class="docutils literal notranslate"><span class="pre">extras</span></code> and
+its <code class="docutils literal notranslate"><span class="pre">inverse_bind_matrices</span></code> as a float MAT4 accessor, and a node’s
+<code class="docutils literal notranslate"><span class="pre">extras[&quot;skin&quot;]</span></code> its <code class="docutils literal notranslate"><span class="pre">skin</span></code>. A <code class="docutils literal notranslate"><span class="pre">bind_shape_matrix</span></code>, which glTF
+lacks, is folded into the inverse bind matrices. A skin glTF cannot
+hold (joints that are not distinct nodes under one root, matrices that
+are not one finite affine 4x4 per joint, an accessor never decoded) is left
+out with a warning, as is a node’s skin when it has no mesh or its
+mesh’s <code class="docutils literal notranslate"><span class="pre">joints</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code> do not fit it. Joints that are not
+whole numbers in 0..65535 are no longer cast into wrapped indices, nor
+influences that are not four per vertex written as another accessor
+type: they and their weights are left out with a warning. uint8 and
+uint16 weights are written normalised rather than as raw counts, and a
+second influence set (<code class="docutils literal notranslate"><span class="pre">joints_1</span></code>, <code class="docutils literal notranslate"><span class="pre">weights_1</span></code>, …) is written as
+<code class="docutils literal notranslate"><span class="pre">JOINTS_1</span></code> and <code class="docutils literal notranslate"><span class="pre">WEIGHTS_1</span></code> rather than dropped, so a vertex with
+eight influences keeps weights summing to one. A mesh’s <code class="docutils literal notranslate"><span class="pre">mesh_name</span></code>
+and the scene’s <code class="docutils literal notranslate"><span class="pre">extras</span></code> are written; vertex and element attributes,
+tags and globals glTF has no place for, once dropped silently, now
+warn. A value that is not JSON raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> rather than a bare
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>, and a NaN in one no longer blames the mesh data.</p></li>
+<li><p>A glTF material written to COLLADA keeps its PBR terms. Metallic,
+roughness, the alpha mask and its cutoff, the metallic-roughness and
+occlusion textures and a tint beside a texture, which the common profile
+has no slot for and a write lost, some without a warning, go into an
+<code class="docutils literal notranslate"><span class="pre">&lt;extra&gt;&lt;technique</span> <span class="pre">profile=&quot;polyxios&quot;&gt;</span></code> the reader restores them from;
+other readers skip it and see the phong approximation. A term that is not
+a finite number is refused on write, and one in the extra that is not
+finite numbers of the right count is ignored on read with a warning.</p></li>
+<li><p>Tangents cross between glTF and COLLADA. A COLLADA write spells a glTF
+tangent as a <code class="docutils literal notranslate"><span class="pre">TEXTANGENT</span></code> of its xyz and, when the mesh has normals, a
+<code class="docutils literal notranslate"><span class="pre">TEXBINORMAL</span></code> on the side its <code class="docutils literal notranslate"><span class="pre">w</span></code> gives; a glTF write rebuilds
+<code class="docutils literal notranslate"><span class="pre">TANGENT</span></code> from the first complete frame of set 0, or a lone tangent,
+where every tangent set used to be dropped. A frame glTF cannot hold - no
+normals, a tangent of zero or non-finite length, a shape other than four
+numbers per vertex - is left out with a warning, so a glb -&gt; dae -&gt; glb
+round trip keeps its tangents.</p></li>
+<li><p>glTF write rebuilds COLLADA transform animations as translation, rotation
+and scale. A channel on a <code class="docutils literal notranslate"><span class="pre">&lt;rotate&gt;</span></code> angle, a <code class="docutils literal notranslate"><span class="pre">&lt;translate&gt;</span></code> member or
+a <code class="docutils literal notranslate"><span class="pre">&lt;matrix&gt;</span></code> beside other elements was skipped, so rigs from Blender,
+Maya or 3ds Max lost their animation; each node’s channels are now
+applied to the elements it was read with, composed at the union of their
+key times and split. STEP keys keep their steps, BEZIER keys are sampled
+along their curve in each of the three tangent layouts exporters write,
+and spans are split until glTF’s straight blend and slerp stray from
+COLLADA’s by at most a thousandth of the range or 15 degrees, capped per
+write. Animations that animate the same values become separate clips.
+The element matrices and the TRS split live in <code class="docutils literal notranslate"><span class="pre">polyxios._trs</span></code>, shared
+by both codecs.</p></li>
+<li><p>PVD (<code class="docutils literal notranslate"><span class="pre">.pvd</span></code>), ParaView’s collection of datasets over time, is read and
+written. Every dataset at one <code class="docutils literal notranslate"><span class="pre">timestep</span></code> is read through its own codec
+and merged, tagged by <code class="docutils literal notranslate"><span class="pre">group</span></code> or <code class="docutils literal notranslate"><span class="pre">part_&lt;n&gt;</span></code>, with the step’s time
+under <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>; <code class="docutils literal notranslate"><span class="pre">step=</span></code> picks the step and
+<code class="docutils literal notranslate"><span class="pre">helper.read_time_series</span></code> reads them all. Write puts one <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> -
+or the extension <code class="docutils literal notranslate"><span class="pre">format=</span></code> names - per step beside the index.</p></li>
+<li><p>ASCII point clouds (<code class="docutils literal notranslate"><span class="pre">.xyz</span></code>, Leica <code class="docutils literal notranslate"><span class="pre">.pts</span></code> and <code class="docutils literal notranslate"><span class="pre">.ptx</span></code>) are read and
+written. Columns past the coordinates are named by count and kind - an
+intensity, three whole numbers in 0..255 as <code class="docutils literal notranslate"><span class="pre">colors</span></code>, three others as
+<code class="docutils literal notranslate"><span class="pre">normals</span></code>, anything else kept whole as <code class="docutils literal notranslate"><span class="pre">extra</span></code> - with comment lines
+and a column-label line skipped and the body parsed by numpy in one
+pass. <code class="docutils literal notranslate"><span class="pre">.pts</span></code> honours and checks its count line. <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> reads every
+scan, applies each one’s transform, drops the <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0.5</span></code> invalid
+cells with a warning, tags the scans in <code class="docutils literal notranslate"><span class="pre">vertex_tags</span></code> when there are
+several and keeps the matrices and grid sizes in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. A
+nameless buffer takes <code class="docutils literal notranslate"><span class="pre">variant=</span></code> to say which of the three to write.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">read(...,</span> <span class="pre">lazy=True)</span></code> hands back arrays that view the file’s own
+mapping, read-only and in the dtype and byte order the file holds, for
+every array a format stores as one run of bytes in the shape the mesh
+needs. VTU and VTP files with a raw appended section map their points,
+connectivity and attributes; the writers gain <code class="docutils literal notranslate"><span class="pre">appended=True</span></code> to emit
+that layout, a third smaller than base64, and declare
+<code class="docutils literal notranslate"><span class="pre">header_type=&quot;UInt64&quot;</span></code> when a block passes four gigabytes. XDMF maps a binary sidecar, and
+an HDF5 dataset stored contiguously without a filter through the offset
+h5py reports. <code class="docutils literal notranslate"><span class="pre">.splat</span></code> maps everything, a binary legacy VTK v5.1 file
+every block and a v4.2 file its points and attributes, and binary PLY and
+Medit <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> their vertex records. What cannot be a view is built in
+memory and the guide says which; what cannot be mapped at all raises
+<code class="docutils literal notranslate"><span class="pre">LazyReadError</span></code> naming why. Before this, every lazy read copied its
+arrays like an eager one and the guide said otherwise.</p></li>
+<li><p>Reading a VTK XML file no longer walks its cells in Python nor re-slices
+the appended section for every array, and a binary legacy VTK file reads
+its blocks in place: a ten-million-point <code class="docutils literal notranslate"><span class="pre">.vtu</span></code> reads in half a second
+instead of fourteen, a v5.1 <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> in half a second instead of nine.
+Cell offsets that run backwards or past the connectivity raise
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the piece instead of silently dropping cells.</p></li>
+<li><p>XDMF (<code class="docutils literal notranslate"><span class="pre">.xdmf</span></code>, <code class="docutils literal notranslate"><span class="pre">.xmf</span></code>) is read and written: XML light data over
+heavy data held inline, in an HDF5 sidecar or in a raw binary one, every
+<code class="docutils literal notranslate"><span class="pre">DataItem</span></code> flavour read - a <code class="docutils literal notranslate"><span class="pre">HyperSlab</span></code> and a <code class="docutils literal notranslate"><span class="pre">Reference</span></code> by XPath
+among them - and a sidecar found beside the file, refused outside its
+directory. A uniform grid reads with its <code class="docutils literal notranslate"><span class="pre">Node</span></code> and <code class="docutils literal notranslate"><span class="pre">Cell</span></code> attributes
+in the shape the file gives them, <code class="docutils literal notranslate"><span class="pre">Grid</span></code> attributes and <code class="docutils literal notranslate"><span class="pre">Information</span></code>
+into <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>, <code class="docutils literal notranslate"><span class="pre">Set</span></code> elements into the tags and <code class="docutils literal notranslate"><span class="pre">Time</span></code> under
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>; a <code class="docutils literal notranslate"><span class="pre">Mixed</span></code> topology counts the nodes of its
+free-size cells the way the Xdmf library does, so a line beside a
+triangle reads and writes; a lattice topology expands into explicit
+cells. Several grids at one time are merged, each grid’s elements
+tagged with its name; a temporal collection is read at one step,
+<code class="docutils literal notranslate"><span class="pre">step=</span></code> choosing which, and the whole series by
+<code class="docutils literal notranslate"><span class="pre">helper.read_time_series</span></code>. A grid that borrows its mesh through an
+<code class="docutils literal notranslate"><span class="pre">xi:include</span></code> pointer is followed, and the grid it borrows from, lying
+beside the series, is not read as a second mesh. The writer names the
+topology for a single-type mesh and spells <code class="docutils literal notranslate"><span class="pre">Mixed</span></code> otherwise, sends
+the arrays to <code class="docutils literal notranslate"><span class="pre">out.h5</span></code> beside <code class="docutils literal notranslate"><span class="pre">out.xdmf</span></code> by default -
+<code class="docutils literal notranslate"><span class="pre">data_format=&quot;xml&quot;</span></code> inline, <code class="docutils literal notranslate"><span class="pre">&quot;binary&quot;</span></code> one raw sidecar with a seek
+per array - and <code class="docutils literal notranslate"><span class="pre">helper.write_time_series</span></code> streams <code class="docutils literal notranslate"><span class="pre">(time,</span> <span class="pre">mesh)</span></code>
+pairs into one collection, the mesh written once and included by
+pointer after, a moved mesh with its own geometry per step. The HDF5
+flavour needs h5py, now the <code class="docutils literal notranslate"><span class="pre">polyxios[hdf5]</span></code> extra; without it the
+other two work and an HDF5 reference raises <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
+spelling the install line.</p></li>
+<li><p>MED (<code class="docutils literal notranslate"><span class="pre">.med</span></code>), the HDF5 mesh file of Salome and code_aster, is read and
+written. Every mesh in the file is read, several merged with each mesh’s
+elements tagged by its name and <code class="docutils literal notranslate"><span class="pre">mesh=</span></code> picking one; MED groups become
+tag groups through the families, a cell in two groups landing in both,
+and a family belonging to no group keeps its number. Fields on the
+nodes and on the cells are attributes, a field over some geometries
+only NaN on the rest, Gauss-point and per-node values keeping their
+axis, a profiled field spread over its support; <code class="docutils literal notranslate"><span class="pre">step=</span></code> picks the
+fields’ step and its time lands in <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;time&quot;]</span></code>. The
+writer spells MED 3.0 with every attribute the MED library’s mesh-info
+call reads, one cell group per geometry with its <code class="docutils literal notranslate"><span class="pre">GEO</span></code> code, one
+family per distinct combination of groups, and per-node values as
+<code class="docutils literal notranslate"><span class="pre">ELNO</span></code>; a write to a path lands under a temporary name and is moved
+into place, so a failed write leaves no half file.</p></li>
+<li><p>CGNS (<code class="docutils literal notranslate"><span class="pre">.cgns</span></code>), in its HDF5 form, is read and written. Bases, zones
+and sections are found by their label whatever their names; every zone
+is read, several merged with each zone’s elements tagged by its name
+and <code class="docutils literal notranslate"><span class="pre">zone=</span></code> and <code class="docutils literal notranslate"><span class="pre">base=</span></code> picking one; sections split by type,
+<code class="docutils literal notranslate"><span class="pre">MIXED</span></code> by the code ahead of each cell with or without start
+offsets, <code class="docutils literal notranslate"><span class="pre">NGON_n</span></code> as polygons in either layout, a structured zone
+expanded into cells with its solutions and its <code class="docutils literal notranslate"><span class="pre">PointRange</span></code> boundary
+conditions laid over the lattice; boundary conditions become tag
+groups over the vertices or the elements their location says, flow
+solutions attributes, one over a <code class="docutils literal notranslate"><span class="pre">PointList</span></code> or <code class="docutils literal notranslate"><span class="pre">PointRange</span></code>
+landing on the listed entities and a cell-centred one over the volume
+cells alone NaN on the boundary elements; the quadratic hexahedron and
+wedge are permuted from the SIDS order to VTK’s. The writer spells
+every node attribute, root dataset and version node the CGNS library
+probes, and splits the element values by dimension so the cell-centred
+solution counts what the zone says, faces and edges in their own
+solutions over a <code class="docutils literal notranslate"><span class="pre">PointList</span></code>.</p></li>
+<li><p>H5M (<code class="docutils literal notranslate"><span class="pre">.h5m</span></code>), MOAB’s native file, is read and written: handle ids
+resolved through each group’s <code class="docutils literal notranslate"><span class="pre">start_id</span></code>, dense tags as attributes
+laid over every element, meshsets as tag groups named by their
+<code class="docutils literal notranslate"><span class="pre">NAME</span></code> tag or their material, Neumann or Dirichlet number, range
+compression expanded, <code class="docutils literal notranslate"><span class="pre">GLOBAL_ID</span></code> as <code class="docutils literal notranslate"><span class="pre">original_ids</span></code>; the wedges
+and the quadratic hexahedra are permuted from MOAB’s node order to
+VTK’s. The writer spells one group per type, dense tags declared with
+their type, and a meshset per tag group with a <code class="docutils literal notranslate"><span class="pre">NAME</span></code> and a set
+number.</p></li>
+<li><p>HMF (<code class="docutils literal notranslate"><span class="pre">.hmf</span></code>), XDMF’s model in one HDF5 file, is read and written,
+the topologies in the order they are numbered, with <code class="docutils literal notranslate"><span class="pre">NodeSets</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CellSets</span></code> and <code class="docutils literal notranslate"><span class="pre">Attributes</span></code> added for the tags and the mesh-wide
+values.</p></li>
+<li><p>The four share <code class="docutils literal notranslate"><span class="pre">polyxios.codecs._hdf5</span></code>: h5py imported on first use,
+a file opened from a path, a buffer or a gzip member alike, and a
+count larger than its dataset refused naming both.</p></li>
+<li><p>Exodus II (<code class="docutils literal notranslate"><span class="pre">.e</span></code>, <code class="docutils literal notranslate"><span class="pre">.exo</span></code>, <code class="docutils literal notranslate"><span class="pre">.ex2</span></code>), Sandia’s netCDF finite element
+database, is read and written. Every element block, node set and
+element set is a tag group named by its name or its id; a side set is
+read as the faces it names, linked to their parents by <code class="docutils literal notranslate"><span class="pre">face_parent</span></code>
+and <code class="docutils literal notranslate"><span class="pre">face_index</span></code>, and a group of such faces goes back out as one. The
+nodal, element and global variables at one time step - <code class="docutils literal notranslate"><span class="pre">step=</span></code> picks
+it - are the attributes, <code class="docutils literal notranslate"><span class="pre">_x</span></code>/<code class="docutils literal notranslate"><span class="pre">_y</span></code>/<code class="docutils literal notranslate"><span class="pre">_z</span></code> and <code class="docutils literal notranslate"><span class="pre">_0</span></code>/<code class="docutils literal notranslate"><span class="pre">_1</span></code>/…
+families folded into one array and split again on write; the step’s
+time and the file’s title travel in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>, the number maps in
+<code class="docutils literal notranslate"><span class="pre">original_ids</span></code>. A <code class="docutils literal notranslate"><span class="pre">HEX20</span></code>, <code class="docutils literal notranslate"><span class="pre">HEX27</span></code>, <code class="docutils literal notranslate"><span class="pre">WEDGE15</span></code> or <code class="docutils literal notranslate"><span class="pre">WEDGE18</span></code> is
+permuted between Exodus’s node order and VTK’s both ways, and the side
+numbering is checked against the manual’s table. Blocks are chosen on
+write from the tag groups that partition the mesh by type, the rest per
+type. The codec needs netCDF4, the new <code class="docutils literal notranslate"><span class="pre">polyxios[netcdf]</span></code> extra, and
+refuses with the install line without it.</p></li>
+<li><p>3MF (<code class="docutils literal notranslate"><span class="pre">.3mf</span></code>), the 3D-printing interchange format, is read and
+written. The build is read as a printer sees it: every placed object,
+a mesh outright or an
+assembly through its components, each transform composed and applied,
+a mirroring one reversing the winding; each object’s triangles are an
+element tag group of its name. A triangle’s base material or colour
+is <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code>, RGBA in 0..1; the model’s <code class="docutils literal notranslate"><span class="pre">unit</span></code>
+and its <code class="docutils literal notranslate"><span class="pre">metadata</span></code> are <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. On write a quad, polygon or
+strip is split into triangles and anything with no triangle dropped
+with a warning; every tag group goes out as an object of its name,
+the colours as one <code class="docutils literal notranslate"><span class="pre">basematerials</span></code>, the unit from <code class="docutils literal notranslate"><span class="pre">unit=</span></code> or the
+mesh. The package is written with fixed timestamps, so two writes of
+one mesh are byte-identical. Nothing beyond the standard library.</p></li>
+<li><p>Optional packages have one rule, <code class="docutils literal notranslate"><span class="pre">polyxios._optpkg.optional_package</span></code>:
+a module when it imports, and otherwise a stand-in that raises
+<code class="docutils literal notranslate"><span class="pre">MissingPackageError</span></code> - an <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> and an
+<code class="docutils literal notranslate"><span class="pre">AttributeError</span></code> both - the moment anything is asked of it, naming the
+package, why the import failed and the extra that installs it. A minimum
+version can be asked for and is read without a version-parsing
+dependency.</p></li>
+<li><p>SVG pictures are written: <code class="docutils literal notranslate"><span class="pre">.svg</span></code>, gzip included, is a drawing of the
+mesh projected onto a plane - <code class="docutils literal notranslate"><span class="pre">plane=&quot;xy&quot;</span></code> by default, <code class="docutils literal notranslate"><span class="pre">&quot;xz&quot;</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&quot;yz&quot;</span></code> on request - in the mesh’s own units with the upward axis
+mirrored, the <code class="docutils literal notranslate"><span class="pre">viewBox</span></code> its extent padded by half a stroke. Lines and
+faces are outlined, the higher-order kinds through their corner nodes and
+a triangle strip as one ring per triangle, one <code class="docutils literal notranslate"><span class="pre">&lt;path&gt;</span></code> per element type
+carrying the type’s name as its <code class="docutils literal notranslate"><span class="pre">class</span></code>; a vertex, a solid cell and an
+element with too few nodes to outline are each skipped with a warning
+per type. <code class="docutils literal notranslate"><span class="pre">width=</span></code> sets the rendered size, <code class="docutils literal notranslate"><span class="pre">stroke_width=</span></code> the line
+weight and <code class="docutils literal notranslate"><span class="pre">float_fmt=</span></code> the number format. A mesh that is not flat in
+the picture’s plane is drawn as its projection with a warning. The format
+is write-only: reading an <code class="docutils literal notranslate"><span class="pre">.svg</span></code> raises <code class="docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
+naming the file, since a picture keeps no third coordinate, element type
+or attribute to read a mesh back from.</p></li>
+<li><p>glTF 2.0 (<code class="docutils literal notranslate"><span class="pre">.gltf</span></code>, <code class="docutils literal notranslate"><span class="pre">.glb</span></code>) is read and written.  <code class="docutils literal notranslate"><span class="pre">read_scene</span></code> returns
+a <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> with the full node hierarchy, PBR materials, textures, and
+animations; <code class="docutils literal notranslate"><span class="pre">read</span></code> flattens to a single <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> with a warning.
+<code class="docutils literal notranslate"><span class="pre">write_scene</span></code> round-trips from <code class="docutils literal notranslate"><span class="pre">SceneData</span></code>; <code class="docutils literal notranslate"><span class="pre">write</span></code> serialises a flat
+mesh as a single-node scene.</p></li>
+<li><p>ANSYS Fluent meshes are read and written: <code class="docutils literal notranslate"><span class="pre">.msh</span></code> when the file opens with
+a parenthesised section, and <code class="docutils literal notranslate"><span class="pre">.fluent</span></code> to name the codec on a write,
+gzip included. A Fluent mesh is its faces, each naming the cell on either
+side, so a cell comes back assembled from them as the tetrahedron,
+hexahedron, wedge or pyramid - in the plane the triangle, quadrilateral or
+polygon - they close, right-handed whatever the faces’ own orientation;
+one whose faces close none of those, a polyhedron or a hanging-node
+refinement among them, is dropped with a warning. Every face of a zone
+that is not interior comes back as an element of its own, tagged with the
+zone’s name and linked to its cell through <code class="docutils literal notranslate"><span class="pre">face_parent</span></code> /
+<code class="docutils literal notranslate"><span class="pre">face_index</span></code>, a non-conformal interface’s faces by the type under
+their 1000 offset; each zone is a tag, named by its <code class="docutils literal notranslate"><span class="pre">(45</span> <span class="pre">...)</span></code> record or
+<code class="docutils literal notranslate"><span class="pre">&lt;type&gt;-&lt;id&gt;</span></code> without one, and the zone types travel under
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;fluent_zone_types&quot;]</span></code>. The ASCII and binary flavours of
+the node, cell and face sections are both read - a double-precision
+section’s integers in either width - as are the explicit node lists
+another reader writes under a typed cell zone; a binary section of
+another kind is stepped over by its end marker. The writer spells the
+standard face-based ASCII file: one cell zone per element tag group, the
+faces of every cell with the cell on either side, outward of the cell
+whatever its handedness in the mesh, and the boundary in a
+zone per group naming the matching face elements, <code class="docutils literal notranslate"><span class="pre">wall</span></code> for the rest.
+A mesh of triangles and quadrilaterals is a two-dimensional file, which
+Fluent holds in the plane only, so a surface off the plane is refused. A
+face element that is no side of a written cell, an element of any other
+type and a member of a second group are each dropped with a warning.
+<code class="docutils literal notranslate"><span class="pre">.msh</span></code> is now shared by Gmsh and Fluent and resolved by content; a bare
+write there is still Gmsh.</p></li>
+<li><p>PERMAS decks are read and written: <code class="docutils literal notranslate"><span class="pre">.dato</span></code>, <code class="docutils literal notranslate"><span class="pre">.post</span></code>, and <code class="docutils literal notranslate"><span class="pre">.dat</span></code> when
+the file opens with a PERMAS record, gzip included. <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> nodes and
+<code class="docutils literal notranslate"><span class="pre">$ELEMENT</span></code> cells come back renumbered from zero with the deck’s own
+numbering kept under <code class="docutils literal notranslate"><span class="pre">original_ids</span></code>; every <code class="docutils literal notranslate"><span class="pre">$NSET</span></code> and <code class="docutils literal notranslate"><span class="pre">$ESET</span></code> is a
+tag, as is the <code class="docutils literal notranslate"><span class="pre">NSET</span> <span class="pre">=</span></code> a <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> record names and the <code class="docutils literal notranslate"><span class="pre">ESET</span> <span class="pre">=</span></code> an
+<code class="docutils literal notranslate"><span class="pre">$ELEMENT</span></code> record names; a <code class="docutils literal notranslate"><span class="pre">&amp;</span></code> continuation line joins the record
+before it; and the component name is kept under
+<code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;permas_component&quot;]</span></code> when it is not the default. The
+solver element class is read as its geometry - <code class="docutils literal notranslate"><span class="pre">SHELL4</span></code>, <code class="docutils literal notranslate"><span class="pre">LOADA4</span></code> and
+<code class="docutils literal notranslate"><span class="pre">QUAD4</span></code> are all a quad - and written as the plain structural class of
+that geometry unless <code class="docutils literal notranslate"><span class="pre">element_type=</span></code> names another, the way the Abaqus
+writer takes it. A block of a class with no geometry here is skipped with
+a warning, an id spelled twice, not positive or wider than 64 bits, a node
+the deck never declares or a file with no <code class="docutils literal notranslate"><span class="pre">$</span></code> record is refused, as is a <code class="docutils literal notranslate"><span class="pre">$COOR</span></code> block flagged <code class="docutils literal notranslate"><span class="pre">CYL</span></code>
+or <code class="docutils literal notranslate"><span class="pre">SPH</span></code>, a coordinate may carry a Fortran <code class="docutils literal notranslate"><span class="pre">D</span></code> exponent, and the
+writer keeps the mesh’s element order by opening a new <code class="docutils literal notranslate"><span class="pre">$ELEMENT</span> <span class="pre">TYPE</span> <span class="pre">=</span></code>
+block wherever the geometry changes; a planar mesh is lifted with a zero
+z. Nothing in a structure section carries per-entity data, so attributes
+are dropped on write. <code class="docutils literal notranslate"><span class="pre">.dat</span></code> now has three candidates, and the PERMAS
+test - an <code class="docutils literal notranslate"><span class="pre">$ENTER</span></code> section or one of a handful of <code class="docutils literal notranslate"><span class="pre">$</span></code> keywords spelled
+the way the format spells them, so a bulk data banner sitting flush
+against its <code class="docutils literal notranslate"><span class="pre">$</span></code> is not claimed - is tried ahead of Tecplot’s and
+Nastran’s.</p></li>
+</ul>
+</section>
+<section id="behaviour-changes">
+<h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Python 3.12 is the lowest version supported. 3.11 is dropped from the test
+matrix, from the wheels a release builds, and from <code class="docutils literal notranslate"><span class="pre">requires-python</span></code>, so
+pip resolves an older polyxios for a 3.11 interpreter rather than
+installing a package that will not run. The floor is what the language
+level is now written against: the type-parameter syntax 3.12 introduced is
+in use where a generic helper needed a type variable declared beside it.</p></li>
+<li><p>STL write warns when it skips elements that are not triangles, with their
+count and types. A quad, a line or a tetrahedron has no STL spelling and
+was dropped without a word, so a mesh could lose most of itself on the
+way out. A suite that runs with warnings as errors sees the skip now.</p></li>
+</ul>
+</section>
+<section id="bug-fixes">
+<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Two <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> (or <code class="docutils literal notranslate"><span class="pre">SceneNode</span></code>, or <code class="docutils literal notranslate"><span class="pre">SceneMaterial</span></code>) compared with
+<code class="docutils literal notranslate"><span class="pre">==</span></code> no longer raise when their <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> or <code class="docutils literal notranslate"><span class="pre">extras</span></code> hold
+arrays, as a glTF animation does: nested dicts, lists and arrays are
+compared by value, NaN equal to NaN. An array and a list holding the same
+values now compare unequal, where a one-element pair compared equal
+before. The meshes of two <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> are compared the same way, array
+by array, where any two scenes holding a mesh raised unless they shared
+the very same <code class="docutils literal notranslate"><span class="pre">PolyData</span></code> objects.</p></li>
+<li><p>glTF write skips, with a warning, an animation channel glTF cannot
+hold: a target carrying fields glTF has none for, a path other than
+<code class="docutils literal notranslate"><span class="pre">translation</span></code>, <code class="docutils literal notranslate"><span class="pre">rotation</span></code>, <code class="docutils literal notranslate"><span class="pre">scale</span></code>, <code class="docutils literal notranslate"><span class="pre">weights</span></code> or <code class="docutils literal notranslate"><span class="pre">pointer</span></code>, a
+node that is not one of the scene’s, an interpolation other than
+<code class="docutils literal notranslate"><span class="pre">LINEAR</span></code>, <code class="docutils literal notranslate"><span class="pre">STEP</span></code> or <code class="docutils literal notranslate"><span class="pre">CUBICSPLINE</span></code>, a sampler that is not an object,
+holds no key, NaN, Inf or a value float32 cannot hold, times that are
+not strictly increasing, a rotation of zero length, or values that are
+not three per key for a translation or scale and four for a rotation, or
+a node path an earlier channel of the same animation already animates.
+Such a channel was written as is, a valid-looking file animating the
+wrong thing, or raised <code class="docutils literal notranslate"><span class="pre">TypeError</span></code> or <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>, and an animation
+left with no channel is no longer written empty, which glTF forbids. An
+animation that is not an object is skipped with a warning as well. A
+node that only such a skipped channel, or one naming no sampler, targets
+keeps its <code class="docutils literal notranslate"><span class="pre">matrix</span></code> instead of being spelled as translation, rotation
+and scale. A <code class="docutils literal notranslate"><span class="pre">matrix</span></code> channel animating a node’s whole transform is
+split into translation, rotation and scale channels.</p></li>
+<li><p>glTF write stores flat animation values at the width of their path, six
+values of a translation as two <code class="docutils literal notranslate"><span class="pre">VEC3</span></code> keys, and morph weights given
+one row per key as that many scalars rather than one per row. A sampler
+several channels share is written once, as is a times array several
+samplers share. A node, mesh or child index held as a numpy integer, or
+an array in a channel target’s <code class="docutils literal notranslate"><span class="pre">extras</span></code>, is written rather than raising
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>. The values of a <code class="docutils literal notranslate"><span class="pre">pointer</span></code> channel are written as the
+accessor type as wide as one key - 9 as <code class="docutils literal notranslate"><span class="pre">MAT3</span></code>, 16 as <code class="docutils literal notranslate"><span class="pre">MAT4</span></code> - where
+any width but 1, 2 and 4 was labelled <code class="docutils literal notranslate"><span class="pre">VEC3</span></code> over the wrong byte count;
+a shape glTF has no type for is skipped with a warning. A target whose
+<code class="docutils literal notranslate"><span class="pre">node</span></code> is None is written without the key rather than as <code class="docutils literal notranslate"><span class="pre">null</span></code>, and
+an animation name that is not a string is left out.</p></li>
+<li><p>glTF read raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the animation and sampler, rather
+than a bare <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>, <code class="docutils literal notranslate"><span class="pre">IndexError</span></code> or <code class="docutils literal notranslate"><span class="pre">AttributeError</span></code>, when an
+animation is not an object holding a list of channels and a list of
+samplers, a channel or sampler is not an object, or a sampler names no
+readable accessor. A negative or boolean accessor index, which read the
+accessor that many from the end or number 0 or 1, raises as well, as do
+times taken from an accessor that is not <code class="docutils literal notranslate"><span class="pre">SCALAR</span></code>.</p></li>
+<li><p>The glTF warnings for skipped volume, pixel and quadratic elements, and
+for a scene flattened by <code class="docutils literal notranslate"><span class="pre">read</span></code>, point at the caller’s line whether
+the codec was called through <code class="docutils literal notranslate"><span class="pre">polyxios</span></code> or directly.</p></li>
+<li><p>glTF write of an animated node whose matrix mirrors (a negative
+determinant) no longer raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> when SciPy is installed, nor
+writes a wrong rotation when it is not: the rest pose splits into
+translation, rotation and scale the way the animation keys do, the
+reflection on the x scale. A matrix holding NaN or Inf raises
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code>. Key times of every channel, not only a split matrix one,
+stay strictly increasing once stored as float32, and the first never
+turns negative.</p></li>
+<li><p>glTF read keeps one vertex set for primitives sharing their accessors, as
+the one-primitive-per-material meshes <code class="docutils literal notranslate"><span class="pre">write_scene</span></code> emits do. Each
+primitive was read as a mesh of its own and merged, so every round trip
+multiplied the vertex count by the number of materials and cut
+connectivity across them. Element decoding is vectorised: a million lines
+or fan triangles read in 0.03 s instead of 0.5 to 1.6 s. A primitive with
+no attributes object, an index naming nothing in the file (a negative one
+read the last accessor), indices that are signed, float or past the
+vertex set (a uint32 above 2**31 wrapped to -1), or an attribute whose
+length differs from <code class="docutils literal notranslate"><span class="pre">POSITION</span></code> raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>.</p></li>
+<li><p>The COLLADA animation reader no longer refuses valid documents with many
+instanced nodes: a channel missing its transform counts once per
+<code class="docutils literal notranslate"><span class="pre">&lt;node&gt;</span></code>, not per copy, and the target cap is four times the node cap.
+A BEZIER or HERMITE sampler missing a tangent is dropped with a warning
+naming it instead of written for strict readers to reject, and a channel
+dropped on a copy alone no longer claims to reach every instance.</p></li>
+<li><p>A 3MF whose model part inflates past a gigabyte - ten million vertices -
+is read. The part was inflated whole and handed to the XML parser in one
+buffer, which expat refuses past that size with <code class="docutils literal notranslate"><span class="pre">out</span> <span class="pre">of</span> <span class="pre">memory</span></code>, and
+the tree it built held an Element per vertex and per triangle, thirty
+times the memory of the numbers. The part is now fed to the parser as it
+inflates, and each <code class="docutils literal notranslate"><span class="pre">&lt;vertex&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;triangle&gt;</span></code> goes straight into a
+numeric buffer instead of the tree.</p></li>
+<li><p>A VTK XML file declaring <code class="docutils literal notranslate"><span class="pre">header_type=&quot;UInt64&quot;</span></code> has its inline binary
+arrays read past an eight-byte block header; the reader assumed four
+there and handed back values shifted by half a word.</p></li>
+<li><p>A count a file spells as negative - a PLY <code class="docutils literal notranslate"><span class="pre">element</span></code> line, a legacy VTK
+<code class="docutils literal notranslate"><span class="pre">POINTS</span></code> or <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> header, an XDMF <code class="docutils literal notranslate"><span class="pre">Seek</span></code> - raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming it. numpy reads a negative count as “everything left”, so the
+block swallowed what followed it and the parser walked backwards from
+there.</p></li>
+<li><p>A legacy VTK v5.1 binary file whose <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> run backwards or end past
+the <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> total, a VTU whose <code class="docutils literal notranslate"><span class="pre">types</span></code> array miscounts its cells, a
+VTK XML block whose bytes are not a whole number of values, that declares
+more bytes than its section holds, or whose <code class="docutils literal notranslate"><span class="pre">offset</span></code> is not one, a raw
+appended section with no <code class="docutils literal notranslate"><span class="pre">_</span></code> marker, a VTK XML head that is not
+well-formed, and a Medit <code class="docutils literal notranslate"><span class="pre">.meshb</span></code> shorter than its header are each
+refused with <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> where they read a broken mesh or raised a
+bare <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> or <code class="docutils literal notranslate"><span class="pre">ParseError</span></code>.</p></li>
+<li><p>A VTU or VTP file of several pieces shifts each piece’s indices by the
+points before it in an integer type that holds the sum. Added in the
+file’s own dtype, a one- or two-byte connectivity wrapped, or numpy
+refused the shift outright. The offsets of a lazy read are native int32,
+or int64 when they need it, whatever unsigned or big-endian dtype the
+file’s connectivity keeps.</p></li>
+<li><p>A 3MF object or metadata name holding a tab, newline or return is written
+as character references and reads back unchanged; XML normalises the
+literal characters to spaces inside an attribute.</p></li>
+<li><p>A TetGen pair in a directory the process cannot search is reported as the
+permission error it is on Python 3.14 too. The codec asked
+<code class="docutils literal notranslate"><span class="pre">Path.exists</span></code>, which answered False there rather than propagating the
+refusal - 3.14 changed it to - so a file that was on disk was reported
+missing and the caller was sent looking for a path already there. The
+question is asked with <code class="docutils literal notranslate"><span class="pre">stat</span></code> now, which refuses on every version and
+says by errno which case it is.</p></li>
+<li><p>STL write refuses, with <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> naming the element, a triangle
+that references a vertex outside the mesh. A negative index wrapped to
+the last vertex and wrote wrong geometry; one past the end raised a bare
+<code class="docutils literal notranslate"><span class="pre">IndexError</span></code>.</p></li>
+</ul>
+</section>
+<section id="tests">
+<h3>Tests<a class="headerlink" href="#tests" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Python 3.14 is in the test matrix and among the wheels built for a
+release. It was the one supported version nothing exercised, and the
+<code class="docutils literal notranslate"><span class="pre">Path.exists</span></code> change above reached a packaged build before any test saw
+it.</p></li>
+<li><p>Python 3.15 is in the test matrix. Its rows install <code class="docutils literal notranslate"><span class="pre">netcdf</span></code> and
+<code class="docutils literal notranslate"><span class="pre">pytest</span></code> only, as h5py, lazrs and PyYAML publish no cp315 wheels yet,
+so the HDF5 and LAZ tests skip there.</p></li>
+</ul>
+</section>
+<section id="packaging">
+<h3>Packaging<a class="headerlink" href="#packaging" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Python 3.15 wheels are built for a release, for Linux, macOS and
+Windows, and the distribution declares 3.15 among its classifiers.</p></li>
+<li><p>The PyPI page and the GitHub repository link to GitHub Sponsors.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SECURITY.md</span></code> says how to report a vulnerability privately and what
+counts as one in a file parser; <code class="docutils literal notranslate"><span class="pre">CITATION.cff</span></code> gives the citation GitHub
+shows on the repository page.</p></li>
+<li><p>The PyPI page now carries the project links (homepage, documentation,
+changelog, issue tracker, source), trove classifiers, keywords and an
+author, none of which the distribution declared before. The README links
+to polyxios.org from its head and from each section that has a fuller
+page on the site, and the two links that pointed at <code class="docutils literal notranslate"><span class="pre">docs/*.rst</span></code> by
+relative path, which rendered broken on PyPI, now point at the site.</p></li>
+</ul>
+<p>GitHub stats for 2026/09/09 - 2026/10/11 (tag: v0.4.1)</p>
+<p>These lists are automatically generated and may be incomplete or contain duplicates.</p>
+<p>The following 3 authors contributed 105 commits.</p>
+<ul class="simple">
+<li><p>Maharshi Gor</p></li>
+<li><p>Serge Koudoro</p></li>
+<li><p>dependabot[bot]</p></li>
+</ul>
+<p>We closed a total of 51 issues, 45 pull requests and 6 regular issues.</p>
+<p>Pull Requests (45):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/108">PR #108</a>: BF: spell XML-forbidden regex ranges as escapes in a raw string</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/107">PR #107</a>: CI: Python 3.15 support, and a docs correctness pass</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/106">PR #106</a>: NF: glTF write rebuilds COLLADA transform animations as TRS</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/105">PR #105</a>: NF: COLLADA and glTF carry tangents across, as a TEXTANGENT frame</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/104">PR #104</a>: NF: COLLADA keeps glTF PBR terms in a polyxios extra technique</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/102">PR #102</a>: NF: glTF write_scene writes skins, so a skinned scene keeps its rig</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/103">PR #103</a>: MNT: Bump pypa/cibuildwheel from 4.2.1 to 4.3.0 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/101">PR #101</a>: NF: COLLADA skins read and written, so a rigged glTF keeps its skin</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/100">PR #100</a>: BF: glTF read shares vertices across primitives with the same accessors</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/96">PR #96</a>: NF: COLLADA animations read and written, glTF animations baked on write</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/97">PR #97</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/90">PR #90</a>: NF: COLLADA (.dae) read and write as a scene</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/94">PR #94</a>: BF: glTF animation write fixes, skin inverse bind matrices decoded</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/92">PR #92</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/89">PR #89</a>: NF: VTKHDF (.vtkhdf) and PVD (.pvd) read and write, with time series</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/88">PR #88</a>: NF: LAS and LAZ point clouds (.las, .laz) read and write</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/87">PR #87</a>: NF: PCD and ASCII point clouds (.pcd, .xyz, .pts, .ptx) read and write</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/86">PR #86</a>: NF: lazy reads hand back views of the mapping; VTU/VTP appended-raw writer</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/85">PR #85</a>: NF: read and write 3MF</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/84">PR #84</a>: Fix CLI examples, homepage transcript and codec warning output</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/83">PR #83</a>: NF: read and write Exodus II</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/82">PR #82</a>: DOC: sync README and docs with the code</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/81">PR #81</a>: NF: MED, CGNS, H5M and HMF codecs over one HDF5 plumbing module</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/80">PR #80</a>: NF: read and write XDMF, the time series through the helper</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/79">PR #79</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/78">PR #78</a>: NF: write SVG pictures, a write-only projection of the mesh onto a plane</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/77">PR #77</a>: Add glTF 2.0 / GLB read-write support and SceneData scene-graph container</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/76">PR #76</a>: MNT: update pre-commit hooks</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/75">PR #75</a>: MNT: check XML-spellable array names by code point, not a regex range</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/74">PR #74</a>: DOC: bring bot-authored commits under the message convention</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/73">PR #73</a>: Potential fix for code scanning alert no. 3: Workflow does not contain permissions</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/72">PR #72</a>: NF: ANSYS Fluent meshes read and write as a sniffed .msh and .fluent</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/71">PR #71</a>: MNT: README badges that read PyPI fields the release has not shipped</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/68">PR #68</a>: NF: new codec - PERMAS decks read and write as .dato, .post and a sniffed .dat</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/70">PR #70</a>: MNT: PyPI page carries project links, classifiers and keywords</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/69">PR #69</a>: MNT: Bump pypa/cibuildwheel from 4.2.0 to 4.2.1 in the actions group</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/67">PR #67</a>: MNT: Python 3.12 is the lowest version supported</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/66">PR #66</a>: BF: an unsearchable directory still refuses on Python 3.14</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/65">PR #65</a>: BF: the docs site keeps one directory per release, named for it</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/64">PR #64</a>: DOC: the 0.4.1 notes say what the release machinery got wrong</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/63">PR #63</a>: BF: a version can be published from a ref that is not its tag</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/62">PR #62</a>: BF: the release notes reach gh through the environment</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/61">PR #61</a>: BF: the new upcoming section opens the changelog, not the middle</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/60">PR #60</a>: DOC: the README and the guides say what 0.4.0 added</p></li>
+<li><p><a class="extlink-ghpull reference external" href="https://github.com/fury-gl/polyxios/pull/59">PR #59</a>: NF: OBJ keeps the texture coordinates a seam gives two of</p></li>
+</ul>
+<p>Issues (6):</p>
+<ul class="simple">
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/99">GH#99</a>: COLLADA animations: follow-ups from the #96 review</p></li>
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/93">GH#93</a>: glTF write: rebuild COLLADA transform-element animations as TRS</p></li>
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/95">GH#95</a>: glTF -&gt; COLLADA conversion: what is lost, and what can be recovered</p></li>
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/98">GH#98</a>: BF: glTF read duplicates vertices shared across a mesh’s primitives</p></li>
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/91">GH#91</a>: COLLADA write drops glTF TRS animations</p></li>
+<li><p><a class="extlink-ghissue reference external" href="https://github.com/fury-gl/polyxios/issues/58">GH#58</a>: OBJ codec: texture coordinates (vt) parsed but not stored in vertex_attrs</p></li>
+</ul>
+</section>
+</section>
 <section id="changes-0-4-1">
-<span id="id2"></span><h2>0.4.1 (2026-09-09)<a class="headerlink" href="#changes-0-4-1" title="Link to this heading">#</a></h2>
+<span id="id3"></span><h2>0.4.1 (2026-09-09)<a class="headerlink" href="#changes-0-4-1" title="Link to this heading">#</a></h2>
 <p>0.4.0 reached PyPI only after its release workflow was repaired and re-run by
 hand, and its documentation never reached the site at all. Every one of the
 bugs was in the machinery rather than the library, so 0.4.1 is the same code,
 released the way a release is meant to run.</p>
-<section id="bug-fixes">
-<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<section id="id4">
+<h3>Bug fixes<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -594,12 +1218,12 @@ separately from the version directory it publishes as.</p></li>
 </section>
 </section>
 <section id="changes-0-4-0">
-<span id="id3"></span><h2>0.4.0 (2026-09-09)<a class="headerlink" href="#changes-0-4-0" title="Link to this heading">#</a></h2>
+<span id="id5"></span><h2>0.4.0 (2026-09-09)<a class="headerlink" href="#changes-0-4-0" title="Link to this heading">#</a></h2>
 <p>Meshes read and written over file objects and gzip alike, one new format,
 entity numbering and whole-mesh metadata that survive a round trip, and an
 extension shared by several formats resolved by what the file holds.</p>
-<section id="new-features">
-<h3>New features<a class="headerlink" href="#new-features" title="Link to this heading">#</a></h3>
+<section id="id6">
+<h3>New features<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">read()</span></code> and <code class="docutils literal notranslate"><span class="pre">write()</span></code> now take an open binary file object wherever
 they take a path, so a mesh round-trips through <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code>, a socket
@@ -817,8 +1441,8 @@ the split left, and a copy takes what the vertex it came from takes. The
 warning about the values it drops now names the option that keeps them.</p></li>
 </ul>
 </section>
-<section id="behaviour-changes">
-<h3>Behaviour changes<a class="headerlink" href="#behaviour-changes" title="Link to this heading">#</a></h3>
+<section id="id7">
+<h3>Behaviour changes<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Medit <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> records a two-dimensional file in
 <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> rather than keeping the file’s own number in
@@ -853,8 +1477,8 @@ buffer does, so the bytes a path receives and the bytes a <code class="docutils 
 receives are the same ones. Every reader already accepted either ending.</p></li>
 </ul>
 </section>
-<section id="id4">
-<h3>Bug fixes<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<section id="id8">
+<h3>Bug fixes<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> header names between one and four components
 and no more. The writer spelled every tuple it had no <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or
@@ -1686,8 +2310,8 @@ the corners rather than a numpy row assignment per corner.</p></li>
 of a formatted write per point, which was a syscall per line.</p></li>
 </ul>
 </section>
-<section id="tests">
-<h3>Tests<a class="headerlink" href="#tests" title="Link to this heading">#</a></h3>
+<section id="id9">
+<h3>Tests<a class="headerlink" href="#id9" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Regression tests for the dtype a <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -1743,11 +2367,11 @@ cannot join the registry without an entry.</p></li>
 </section>
 </section>
 <section id="changes-0-3-0">
-<span id="id5"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
+<span id="id10"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
 <p>Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.</p>
-<section id="id6">
-<h3>New features<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<section id="id11">
+<h3>New features<a class="headerlink" href="#id11" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:</p>
@@ -1779,8 +2403,8 @@ free, small and large field formats.</p></li>
 a credits page generated from the git history, and a page per format.</p></li>
 </ul>
 </section>
-<section id="id7">
-<h3>Changes<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
+<section id="id12">
+<h3>Changes<a class="headerlink" href="#id12" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -1792,8 +2416,8 @@ and resolves destination paths defensively.</p></li>
 as errors.</p></li>
 </ul>
 </section>
-<section id="id8">
-<h3>Bug fixes<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
+<section id="id13">
+<h3>Bug fixes<a class="headerlink" href="#id13" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
@@ -1854,10 +2478,10 @@ multiblock partial loading and visualization colours.</p></li>
 </section>
 </section>
 <section id="changes-0-2-0">
-<span id="id9"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id14"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id10">
-<h3>New features<a class="headerlink" href="#id10" title="Link to this heading">#</a></h3>
+<section id="id15">
+<h3>New features<a class="headerlink" href="#id15" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -1948,26 +2572,34 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-1">0.4.1 (2026-09-09)</a><ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-5-0">0.5.0 (2026-10-11)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#packaging">Packaging</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-1">0.4.1 (2026-09-09)</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-0">0.4.0 (2026-09-09)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Behaviour changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optimizations">Optimizations</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">Tests</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id15">New features</a></li>
 </ul>
 </li>
 </ul>
@@ -2027,7 +2659,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

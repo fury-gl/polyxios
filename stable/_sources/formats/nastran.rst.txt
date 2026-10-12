@@ -45,7 +45,7 @@ Reading
 
     mesh = px.read("model.bdf")
     mesh.vertices          # (n, 3)
-    mesh.element_types     # element groups found in the file
+    mesh.element_types     # one type code per element
 
 Writing
 -------
@@ -54,7 +54,8 @@ Writing
 
     px.write(mesh, "out.bdf")
 
-Format-specific options:
+Format-specific options
+-----------------------
 
 .. list-table::
    :header-rows: 1
@@ -64,30 +65,30 @@ Format-specific options:
    * - Option
      - Default
      - Effect
-   * - ``large_field_grid``
-     - ``False``
-     - Emit GRID cards in large (16-column) field form for full float precision.
+   * - ``field_format``
+     - ``"free"``
+     - ``"free"`` writes comma-separated cards; ``"large"`` writes ``GRID*`` cards in
+       large (16-column) field form. Element cards stay free field either way.
 
 Quirks worth knowing
 --------------------
 
 .. rst-class:: px-quirks
 
-- All three field widths are read; writing emits free field, with large-field ``GRID`` cards on request.
+- All three field widths are read; writing emits free field, with large-field ``GRID`` cards on request (``field_format="large"``).
 - ``.dat`` is shared with Tecplot, LS-DYNA and plain ASCII tables, so it is resolved by looking
   inside the file: a ``$`` comment banner is stepped over and a ``GRID`` card, ``CEND``,
   ``BEGIN BULK``, ``NASTRAN`` or a ``SOL`` naming a solution number or name lands the deck
   here - a numeric table whose first row happens to read ``SOL 1.0 2.0`` does not.
   ``px.read("model.dat", fmt=".bdf")`` still forces the issue, and writing to ``.dat`` needs
   ``fmt=".bdf"`` because an output file has no content to inspect.
-- A real field is written in whichever legal spelling fits it: the plain form first, then the implicit-exponent shorthand the format allows (``1.234-10`` for ``1.234E-10``, ``1.2346+7`` for ``1.2346E+07``), which buys two or three significant digits in an eight-column field. A value below one drops its leading zero when that column is a significant digit, since bulk data reads ``.5`` as ``0.5``. A spelling that reads back as the value itself is always preferred to a longer one that does not, so ``1e7`` goes out as ``1.E+07`` rather than as seven nines. A value that would round up past the largest double is stepped one digit toward zero instead of being refused, so no finite coordinate fails to write.
-- Property ids become element tags, so the deck's grouping is preserved.
+- Free-field coordinates are written with the shortest text that round-trips the double exactly, so polyxios reads them back bit for bit; a magnitude below one whose short spelling needs an exponent goes out in fixed point instead. A solver keeps only the first eight characters of a free-field entry, so a longer value is read rounded there, with a warning on write. ``field_format="large"`` fits each coordinate in sixteen columns, using the implicit-exponent shorthand the format allows (``1.234-10`` for ``1.234E-10``) when it saves digits; a value that still does not fit is rounded on the way out, with a warning.
+- Property ids land in ``element_attrs["pid"]`` and each distinct one becomes an element tag ``pid_<id>``, so the deck's grouping is preserved.
 - A card name does not say the element's order, so the shape comes from the grid points the card carries: ``CTETRA`` with ten grid points is a ``quadratic_tetra``, with four a ``tetra``. Counting stops at the first blank field, because Nastran lets a mid-side grid point be omitted and that card is a linear element.
-- ``CPENTA`` runs the prism's three vertical edges before its top ring where VTK runs them after, so those mid-side nodes are permuted on read and back on write. Every other card already agrees with VTK.
 - The axisymmetric cards read as their planar counterparts: ``CTRAX3``, ``CTRAX6``, ``CTRIAX6``, ``CQUADX``, ``CQUADX4`` and ``CQUADX8``, alongside ``CSHEAR``.
 - One-dimensional cards (``CBAR``, ``CBEAM``, ``CROD``, ``CONROD``, ``CTUBE``, ``CBUSH``, ``CGAP``, ``CBEND``, ``CVISC``) read as lines rather than being skipped; ``CONROD`` names a material where the others name a property, so its grid points sit one field earlier.
 - A shell's ``ZOFFS`` becomes ``element_attrs["zoffs"]`` when any card carries one, and is written back on the shell cards that have a field for it: ``CTRIA3``, ``CTRIAR``, ``CQUAD4``, ``CQUADR``, ``CTRIA6`` and ``CQUAD8``.
-- Nastran and VTK number the corner grid points alike, but not every mid-side one. ``CPENTA`` runs the prism's vertical edges before its top ring and ``CHEXA`` does the same with the brick's, where VTK runs the verticals last; ``CTRIAX6`` interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in and back on the way out.
+- Nastran and VTK number the corner grid points alike, but not every mid-side one. ``CPENTA`` runs the prism's vertical edges before its top ring and ``CHEXA`` does the same with the brick's, where VTK runs the verticals last; ``CTRIAX6`` interleaves corners and mid-side nodes rather than listing the corners first. All three are permuted on the way in; ``CPENTA`` and ``CHEXA`` are permuted back on the way out, while a quadratic triangle is always written as ``CTRIA6``, whose order already agrees with VTK.
 - ``CTRIAX6`` names a material in the field where the shells name a property, so its second field is not read as a property id. A ``CBUSH`` grounding its second end names one grid point and no element, and is skipped with a warning of its own rather than being counted among the cards this codec has no shape for.
 
 .. seealso::

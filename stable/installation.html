@@ -7,16 +7,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta content="Install polyxios with pip or conda, or build it from source with spin. Requires Python 3.11+ and NumPy; the Cython accelerators are optional and pure-Python fallbacks ship with the package." name="description" />
+<meta content="Install polyxios with pip or conda, or build it from source with spin. Requires Python 3.12+ and NumPy; the Cython accelerators are optional and pure-Python fallbacks ship with the package." name="description" />
 <meta property="og:title" content="Installation" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/installation.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="pip (recommended): conda: polyxios is packaged on conda-forge: Development install: Clone the repo, then use spin to manage the build: Dependencies: Python &gt;= 3.11, NumPy &gt;= 1.24. Optional: C..." />
+<meta property="og:description" content="pip (recommended): conda: polyxios is packaged on conda-forge: Development install: Clone the repo, then use spin to manage the build: Dependencies: Python &gt;= 3.12, NumPy &gt;= 1.24. Optional: C..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
 <meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_installation_e8964c78.png" />
-<meta property="og:image:alt" content="pip (recommended): conda: polyxios is packaged on conda-forge: Development install: Clone the repo, then use spin to manage the build: Dependencies: Python &gt;= 3.11, NumPy &gt;= 1.24. Optional: C..." />
+<meta property="og:image:alt" content="pip (recommended): conda: polyxios is packaged on conda-forge: Development install: Clone the repo, then use spin to manage the build: Dependencies: Python &gt;= 3.12, NumPy &gt;= 1.24. Optional: C..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <title>Installation &#8212; polyxios</title>
@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=c87aa342"></script>
+    <script src="_static/documentation_options.js?v=1dd76d02"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -73,8 +73,8 @@
     <link rel="prev" title="polyxios - fast, clean mesh I/O for Python" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -562,12 +588,27 @@ spin<span class="w"> </span>install<span class="w"> </span>-e<span class="w">  <
 <section id="dependencies">
 <h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p>Python &gt;= 3.11</p></li>
+<li><p>Python &gt;= 3.12</p></li>
 <li><p>NumPy &gt;= 1.24</p></li>
 </ul>
 <p>Optional:</p>
 <ul class="simple">
 <li><p>Cython &gt;= 3.0 (compiled hot-paths; pure Python fallbacks included)</p></li>
+<li><p>h5py &gt;= 3.0, for the HDF5 heavy data of <a class="reference internal" href="formats/xdmf.html"><span class="doc">XDMF</span></a> files
+and for the formats that are HDF5 files outright - <a class="reference internal" href="formats/vtkhdf.html"><span class="doc">VTKHDF</span></a>,
+<a class="reference internal" href="formats/med.html"><span class="doc">MED</span></a>, <a class="reference internal" href="formats/cgns.html"><span class="doc">CGNS</span></a>, <a class="reference internal" href="formats/h5m.html"><span class="doc">H5M</span></a>
+and <a class="reference internal" href="formats/hmf.html"><span class="doc">HMF</span></a> - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[hdf5]&quot;</span></code>. Without it
+XDMF’s inline and binary flavours still read and write, and an HDF5 file or
+reference raises <code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code>
+naming the extra.</p></li>
+<li><p>netCDF4 &gt;= 1.6, for <a class="reference internal" href="formats/exodus.html"><span class="doc">Exodus II</span></a> files -
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[netcdf]&quot;</span></code>. Without it the format raises
+<code class="xref py py-class docutils literal notranslate"><span class="pre">UnsupportedFormatError</span></code> naming the extra.</p></li>
+<li><p>lazrs &gt;= 0.5, for LAZ-compressed <a class="reference internal" href="formats/las.html"><span class="doc">LAS</span></a> files -
+<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[laz]&quot;</span></code>. A plain <code class="docutils literal notranslate"><span class="pre">.las</span></code> needs nothing; a
+compressed one raises <code class="xref py py-class docutils literal notranslate"><span class="pre">MissingPackageError</span></code>
+naming the extra.</p></li>
+<li><p>FURY &gt;= 2, for <a class="reference internal" href="cli.html"><span class="doc">pxios viz</span></a> - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;polyxios[viz]&quot;</span></code>.</p></li>
 </ul>
 </section>
 </section>
@@ -680,7 +721,7 @@ spin<span class="w"> </span>install<span class="w"> </span>-e<span class="w">  <
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       

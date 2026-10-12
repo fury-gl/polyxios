@@ -11,12 +11,12 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/formats/meshb.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta property="og:description" content=".meshb read + write lazy: vertices Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_meshb_189e41c0.png" />
-<meta property="og:image:alt" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
-<meta name="description" content=".meshb read + write always mmapped Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_formats_meshb_4214610d.png" />
+<meta property="og:image:alt" content=".meshb read + write lazy: vertices Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
+<meta name="description" content=".meshb read + write lazy: vertices Summary of the specification:.meshb is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, th..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <title>Medit binary &#8212; polyxios</title>
@@ -43,7 +43,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=01cf4d0a" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/retro.css?v=fb81dddc" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
@@ -51,7 +51,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=c87aa342"></script>
+    <script src="../_static/documentation_options.js?v=1dd76d02"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,7 +60,7 @@
     <script>
         DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
         DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
-        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.4.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.5.0';
         DOCUMENTATION_OPTIONS.show_version_warning_banner =
             true;
         </script>
@@ -73,8 +73,8 @@
     <link rel="prev" title="AVS-UCD" href="avs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="0.4" />
-    <meta name="docbuild:last-update" content="2026-09-09"/>
+  <meta name="docsearch:version" content="0.5" />
+    <meta name="docbuild:last-update" content="2026-10-12"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -208,7 +208,7 @@
 </div></div>
       
         <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
       
         <div class="navbar-item">
 
@@ -348,7 +348,7 @@
 </div></div>
         
           <div class="navbar-item">
-<span class="px-pyversion">py&gt;=3.11</span></div>
+<span class="px-pyversion">py&gt;=3.12</span></div>
         
           <div class="navbar-item">
 
@@ -428,6 +428,7 @@
 <li class="toctree-l2"><a class="reference internal" href="obj.html">Wavefront OBJ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3mf.html">3MF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -435,6 +436,8 @@
 <li class="toctree-l2"><a class="reference internal" href="medit.html">Medit ASCII</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dolfin.html">DOLFIN / FEniCS XML</a></li>
 <li class="toctree-l2"><a class="reference internal" href="flac3d.html">FLAC3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gltf.html">glTF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="collada.html">COLLADA</a></li>
 <li class="toctree-l2"><a class="reference internal" href="gmsh.html">Gmsh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nastran.html">Nastran</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tecplot.html">Tecplot ASCII</a></li>
@@ -444,11 +447,25 @@
 <li class="toctree-l2"><a class="reference internal" href="vtu.html">VTK UnstructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vts.html">VTK StructuredGrid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="vti.html">VTK ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="vtkhdf.html">VTKHDF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pvd.html">PVD (ParaView collection)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mfem.html">MFEM mesh</a></li>
 <li class="toctree-l2"><a class="reference internal" href="netgen.html">Netgen</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ugrid.html">UGRID (AFLR)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="splat.html">Gaussian splat</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pcd.html">PCD (Point Cloud Library)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="las.html">LAS / LAZ (ASPRS LiDAR)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xyz.html">ASCII point clouds: XYZ, PTS, PTX</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mdpa.html">Kratos MDPA</a></li>
+<li class="toctree-l2"><a class="reference internal" href="permas.html">PERMAS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fluent.html">ANSYS Fluent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="svg.html">SVG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xdmf.html">XDMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="med.html">MED</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cgns.html">CGNS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="h5m.html">H5M (MOAB)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="hmf.html">HMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="exodus.html">Exodus II</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../lazy_loading.html">lazy_loading.rst</a></li>
@@ -467,7 +484,16 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
 </ul>
 </details></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneNode.html">polyxios.SceneNode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneMaterial.html">polyxios.SceneMaterial</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneTexture.html">polyxios.SceneTexture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
 </ul>
@@ -538,7 +564,7 @@
                   
   <section id="medit-binary">
 <span id="format-meshb"></span><h1>Medit binary<a class="headerlink" href="#medit-binary" title="Link to this heading">#</a></h1>
-<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">always</span> <span class="pre">mmapped</span></code></p>
+<p class="px-badges"><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> <code class="docutils literal notranslate"><span class="pre">read</span> <span class="pre">+</span> <span class="pre">write</span></code> <code class="docutils literal notranslate"><span class="pre">lazy:</span> <span class="pre">vertices</span></code></p>
 <section id="summary-of-the-specification">
 <h2>Summary of the specification<a class="headerlink" href="#summary-of-the-specification" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">.meshb</span></code> is the binary form of the INRIA Medit mesh format. The file is a stream of keyword-indexed fields: an integer keyword code, the byte position of the next field, then that field’s data. Codes identify the version and dimension first, then typed entity blocks - <code class="docutils literal notranslate"><span class="pre">Vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Triangles</span></code>, <code class="docutils literal notranslate"><span class="pre">Quadrilaterals</span></code>, <code class="docutils literal notranslate"><span class="pre">Tetrahedra</span></code>, <code class="docutils literal notranslate"><span class="pre">Hexahedra</span></code> - each a count followed by fixed-width records of node indices plus a trailing reference (tag) integer. The version code fixes whether floats are 32- or 64-bit.</p>
@@ -580,14 +606,22 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"model.meshb"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># (n, 3)</span>
-<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># element groups found in the file</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">element_types</span>     <span class="c1"># one type code per element</span>
 </pre></div>
 </div>
-<p>A path is memory-mapped rather than loaded, always - there is no eager mode
-to ask for and no <code class="docutils literal notranslate"><span class="pre">lazy=</span></code> to pass:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.meshb"</span><span class="p">)</span>
+<p>A path is read through a memory map either way; <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> keeps the map
+open and hands back the vertices as a view of it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"big.meshb"</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span>   <span class="c1"># False: a strided view over the records</span>
 </pre></div>
 </div>
+<p>Each vertex record is its coordinates then a reference, so the coordinates
+are one <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> array striding from record to record, in the file’s own
+dtype. The elements are decoded into a copy whichever way the file is read:
+the format numbers vertices from one and CSR needs them from zero. So are
+the vertex references, one native <code class="docutils literal notranslate"><span class="pre">int32</span></code> column whatever byte order the
+file is in. A <code class="docutils literal notranslate"><span class="pre">Dimension</span> <span class="pre">2</span></code> file is padded to three columns, which is a
+copy too.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
@@ -605,7 +639,7 @@ to ask for and no <code class="docutils literal notranslate"><span class="pre">l
 <li><p><code class="docutils literal notranslate"><span class="pre">Edges</span></code>, <code class="docutils literal notranslate"><span class="pre">Prisms</span></code> and <code class="docutils literal notranslate"><span class="pre">Pyramids</span></code> are decoded alongside the triangles, quadrilaterals, tetrahedra and hexahedra.</p></li>
 <li><p>The higher-order sections (<code class="docutils literal notranslate"><span class="pre">TrianglesP2</span></code>, <code class="docutils literal notranslate"><span class="pre">TetrahedraP2</span></code>, <code class="docutils literal notranslate"><span class="pre">HexahedraQ2</span></code>, …) are stepped over. The format fixes no node ordering for high-order elements - libMeshb’s own documentation defers it to a companion <code class="docutils literal notranslate"><span class="pre">*Ordering</span></code> section - so reading one would mean guessing a permutation, and a silently bent element is worse than a skipped one.</p></li>
 <li><p>Field offsets are validated against the file size before allocation, so a truncated or hostile file raises instead of over-allocating.</p></li>
-<li><p>A path is mapped and a file object read into memory, whichever <code class="docutils literal notranslate"><span class="pre">lazy=</span></code> says, so <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> warns and changes nothing while <code class="docutils literal notranslate"><span class="pre">lazy=False</span></code> is the default and passes without comment. The format is binary throughout - there is no ASCII flavour under this extension to load eagerly, which is what the flag would otherwise choose between.</p></li>
+<li><p>An eager read maps a path too, decodes everything and closes the map; <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> needs a source that can be mapped - a path, or a handle over a regular file at its start - and refuses an in-memory buffer or a gzipped file with <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -723,7 +757,7 @@ to ask for and no <code class="docutils literal notranslate"><span class="pre">l
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-09-09.
+  Last updated on 2026-10-12.
   <br/>
 </p></div>
       
