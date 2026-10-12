@@ -22,6 +22,7 @@
    transforms.rst <transforms>
    cli.rst <cli>
    plugins.rst <plugins>
+   napari.rst <napari>
    api/ <api/index>
    contributing.rst <contributing>
    development.rst <development>

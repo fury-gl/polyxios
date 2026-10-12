@@ -1315,3 +1315,17 @@ def test_an_empty_facedescriptors_section_is_silent(tmp_path) -> None:
         "points\n4\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n\nendmesh\n"
     )
     assert len(read(path).element_types) == 1
+
+
+@pytest.mark.parametrize(
+    ("head", "expected"),
+    [
+        (b"mesh3d\ndimension\n3\n", True),
+        (b"\xef\xbb\xbf# exported\n\n  MESH3D  \n", True),
+        (b"\x00\x01raw voxels", False),
+        (b"# only a comment\n", False),
+        (b"", False),
+    ],
+)
+def test_sniff_reads_the_first_meaningful_line(head, expected):
+    assert _netgen.sniff(head) is expected

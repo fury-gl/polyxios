@@ -1,0 +1,69 @@
+# napari plugin manifest (npe2), found through the napari.manifest entry point
+# in pyproject.toml. The reader patterns are every extension polyxios reads,
+# plain and gzipped - every registered one but the write-only .svg, and the
+# .vtm/.pvt* indexes plain only; tests/test_napari.py fails when they drift
+# from the codec registry.
+name: polyxios
+display_name: polyxios
+visibility: public
+categories: ["IO"]
+contributions:
+  commands:
+    - id: polyxios.get_reader
+      python_name: polyxios.napari:get_reader
+      title: Open a mesh or point cloud with polyxios
+    - id: polyxios.write_surface
+      python_name: polyxios.napari:write_surface
+      title: Save a surface with polyxios
+    - id: polyxios.write_points
+      python_name: polyxios.napari:write_points
+      title: Save points with polyxios
+  readers:
+    - command: polyxios.get_reader
+      accepts_directories: false
+      filename_patterns: [
+      "*.3mf", "*.3mf.gz", "*.3mf.gzip", "*.avs", "*.avs.gz", "*.avs.gzip", "*.bdf",
+      "*.bdf.gz", "*.bdf.gzip", "*.cgns", "*.cgns.gz", "*.cgns.gzip", "*.dae",
+      "*.dae.gz", "*.dae.gzip", "*.dat", "*.dat.gz", "*.dat.gzip", "*.dato",
+      "*.dato.gz", "*.dato.gzip", "*.e", "*.e.gz", "*.e.gzip", "*.ele", "*.ele.gz",
+      "*.ele.gzip", "*.ex2", "*.ex2.gz", "*.ex2.gzip", "*.exo", "*.exo.gz",
+      "*.exo.gzip", "*.f3grid", "*.f3grid.gz", "*.f3grid.gzip", "*.fem", "*.fem.gz",
+      "*.fem.gzip", "*.fluent", "*.fluent.gz", "*.fluent.gzip", "*.glb", "*.glb.gz",
+      "*.glb.gzip", "*.gltf", "*.gltf.gz", "*.gltf.gzip", "*.h5m", "*.h5m.gz",
+      "*.h5m.gzip", "*.hmf", "*.hmf.gz", "*.hmf.gzip", "*.inp", "*.inp.gz",
+      "*.inp.gzip", "*.las", "*.las.gz", "*.las.gzip", "*.laz", "*.laz.gz",
+      "*.laz.gzip", "*.mdpa", "*.mdpa.gz", "*.mdpa.gzip", "*.med", "*.med.gz",
+      "*.med.gzip", "*.medit", "*.medit.gz", "*.medit.gzip", "*.mesh", "*.mesh.gz",
+      "*.mesh.gzip", "*.meshb", "*.meshb.gz", "*.meshb.gzip", "*.msh", "*.msh.gz",
+      "*.msh.gzip", "*.nas", "*.nas.gz", "*.nas.gzip", "*.node", "*.node.gz",
+      "*.node.gzip", "*.obj", "*.obj.gz", "*.obj.gzip", "*.off", "*.off.gz",
+      "*.off.gzip", "*.pcd", "*.pcd.gz", "*.pcd.gzip", "*.plt", "*.plt.gz",
+      "*.plt.gzip", "*.ply", "*.ply.gz", "*.ply.gzip", "*.post", "*.post.gz",
+      "*.post.gzip", "*.pts", "*.pts.gz", "*.pts.gzip", "*.ptx", "*.ptx.gz",
+      "*.ptx.gzip", "*.pvd", "*.pvd.gz", "*.pvd.gzip", "*.pvti", "*.pvtp", "*.pvtr",
+      "*.pvts", "*.pvtu", "*.splat", "*.splat.gz", "*.splat.gzip", "*.stl",
+      "*.stl.gz", "*.stl.gzip", "*.su2", "*.su2.gz", "*.su2.gzip", "*.tec",
+      "*.tec.gz", "*.tec.gzip", "*.ugrid", "*.ugrid.gz", "*.ugrid.gzip", "*.vol",
+      "*.vol.gz", "*.vol.gzip", "*.vti", "*.vti.gz", "*.vti.gzip", "*.vtk",
+      "*.vtk.gz", "*.vtk.gzip", "*.vtkhdf", "*.vtkhdf.gz", "*.vtkhdf.gzip", "*.vtm",
+      "*.vtp", "*.vtp.gz", "*.vtp.gzip", "*.vtr", "*.vtr.gz", "*.vtr.gzip", "*.vts",
+      "*.vts.gz", "*.vts.gzip", "*.vtu", "*.vtu.gz", "*.vtu.gzip", "*.wkt",
+      "*.wkt.gz", "*.wkt.gzip", "*.xdmf", "*.xdmf.gz", "*.xdmf.gzip", "*.xmf",
+      "*.xmf.gz", "*.xmf.gzip", "*.xml", "*.xml.gz", "*.xml.gzip", "*.xyz",
+      "*.xyz.gz", "*.xyz.gzip"
+      ]
+  writers:
+    - command: polyxios.write_surface
+      display_name: polyxios surface
+      layer_types: ["surface"]
+      filename_extensions: [
+        ".ply", ".stl", ".obj", ".off", ".vtk", ".vtp", ".vtu", ".vtkhdf",
+        ".glb", ".gltf", ".3mf", ".dae", ".msh", ".inp", ".med", ".mesh",
+        ".meshb", ".exo"
+      ]
+    - command: polyxios.write_points
+      display_name: polyxios points
+      layer_types: ["points"]
+      filename_extensions: [
+        ".ply", ".pcd", ".las", ".laz", ".xyz", ".pts", ".vtk", ".vtp", ".vtu"
+      ]

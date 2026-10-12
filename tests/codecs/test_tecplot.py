@@ -8,7 +8,7 @@ import pytest
 from polyxios import make_polydata, read as api_read, write as api_write
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
-from polyxios.codecs._tecplot import read, sniff, write
+from polyxios.codecs._tecplot import is_ascii, read, sniff, write
 from polyxios.exceptions import CodecError, UnsupportedFormatError
 
 _VERTS = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
@@ -165,6 +165,18 @@ def test_sniff_accepts_a_tecplot_header(head: bytes) -> None:
 )
 def test_sniff_rejects_what_is_not_tecplot(head: bytes) -> None:
     assert sniff(head) is False
+
+
+@pytest.mark.parametrize(
+    ("head", "expected"),
+    [
+        (b'VARIABLES = "X" "Y"\n', True),
+        (b"#!TDV112" + bytes(8), False),
+        (b"$ nastran banner\n", False),
+    ],
+)
+def test_is_ascii_takes_only_the_text_format(head: bytes, expected: bool) -> None:
+    assert is_ascii(head) is expected
 
 
 def test_file_has_zone_header(tmp_path: Path) -> None:
