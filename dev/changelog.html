@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=6a0b5e69"></script>
+    <script src="_static/documentation_options.js?v=bfd77302"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -687,6 +687,34 @@ tags and globals glTF has no place for, once dropped silently, now
 warn. A value that is not JSON raises
 <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> rather than a bare
 <code class="docutils literal notranslate"><span class="pre">TypeError</span></code>, and a NaN in one no longer blames the mesh data.</p></li>
+<li><p>A glTF material written to COLLADA keeps its PBR terms. Metallic,
+roughness, the alpha mask and its cutoff, the metallic-roughness and
+occlusion textures and a tint beside a texture, which the common profile
+has no slot for and a write lost, some without a warning, go into an
+<code class="docutils literal notranslate"><span class="pre">&lt;extra&gt;&lt;technique</span> <span class="pre">profile=&quot;polyxios&quot;&gt;</span></code> the reader restores them from;
+other readers skip it and see the phong approximation. A term that is not
+a finite number is refused on write, and one in the extra that is not
+finite numbers of the right count is ignored on read with a warning.</p></li>
+<li><p>Tangents cross between glTF and COLLADA. A COLLADA write spells a glTF
+tangent as a <code class="docutils literal notranslate"><span class="pre">TEXTANGENT</span></code> of its xyz and, when the mesh has normals, a
+<code class="docutils literal notranslate"><span class="pre">TEXBINORMAL</span></code> on the side its <code class="docutils literal notranslate"><span class="pre">w</span></code> gives; a glTF write rebuilds
+<code class="docutils literal notranslate"><span class="pre">TANGENT</span></code> from the first complete frame of set 0, or a lone tangent,
+where every tangent set used to be dropped. A frame glTF cannot hold - no
+normals, a tangent of zero or non-finite length, a shape other than four
+numbers per vertex - is left out with a warning, so a glb -&gt; dae -&gt; glb
+round trip keeps its tangents.</p></li>
+<li><p>glTF write rebuilds COLLADA transform animations as translation, rotation
+and scale. A channel on a <code class="docutils literal notranslate"><span class="pre">&lt;rotate&gt;</span></code> angle, a <code class="docutils literal notranslate"><span class="pre">&lt;translate&gt;</span></code> member or
+a <code class="docutils literal notranslate"><span class="pre">&lt;matrix&gt;</span></code> beside other elements was skipped, so rigs from Blender,
+Maya or 3ds Max lost their animation; each node’s channels are now
+applied to the elements it was read with, composed at the union of their
+key times and split. STEP keys keep their steps, BEZIER keys are sampled
+along their curve in each of the three tangent layouts exporters write,
+and spans are split until glTF’s straight blend and slerp stray from
+COLLADA’s by at most a thousandth of the range or 15 degrees, capped per
+write. Animations that animate the same values become separate clips.
+The element matrices and the TRS split live in <code class="docutils literal notranslate"><span class="pre">polyxios._trs</span></code>, shared
+by both codecs.</p></li>
 <li><p>PVD (<code class="docutils literal notranslate"><span class="pre">.pvd</span></code>), ParaView’s collection of datasets over time, is read and
 written. Every dataset at one <code class="docutils literal notranslate"><span class="pre">timestep</span></code> is read through its own codec
 and merged, tagged by <code class="docutils literal notranslate"><span class="pre">group</span></code> or <code class="docutils literal notranslate"><span class="pre">part_&lt;n&gt;</span></code>, with the step’s time
@@ -975,6 +1003,22 @@ reflection on the x scale. A matrix holding NaN or Inf raises
 <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>. Key times of every channel, not only a split matrix one,
 stay strictly increasing once stored as float32, and the first never
 turns negative.</p></li>
+<li><p>glTF read keeps one vertex set for primitives sharing their accessors, as
+the one-primitive-per-material meshes <code class="docutils literal notranslate"><span class="pre">write_scene</span></code> emits do. Each
+primitive was read as a mesh of its own and merged, so every round trip
+multiplied the vertex count by the number of materials and cut
+connectivity across them. Element decoding is vectorised: a million lines
+or fan triangles read in 0.03 s instead of 0.5 to 1.6 s. A primitive with
+no attributes object, an index naming nothing in the file (a negative one
+read the last accessor), indices that are signed, float or past the
+vertex set (a uint32 above 2**31 wrapped to -1), or an attribute whose
+length differs from <code class="docutils literal notranslate"><span class="pre">POSITION</span></code> raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>.</p></li>
+<li><p>The COLLADA animation reader no longer refuses valid documents with many
+instanced nodes: a channel missing its transform counts once per
+<code class="docutils literal notranslate"><span class="pre">&lt;node&gt;</span></code>, not per copy, and the target cap is four times the node cap.
+A BEZIER or HERMITE sampler missing a tangent is dropped with a warning
+naming it instead of written for strict readers to reject, and a channel
+dropped on a copy alone no longer claims to reach every instance.</p></li>
 <li><p>A 3MF whose model part inflates past a gigabyte - ten million vertices -
 is read. The part was inflated whole and handed to the XML parser in one
 buffer, which expat refuses past that size with <code class="docutils literal notranslate"><span class="pre">out</span> <span class="pre">of</span> <span class="pre">memory</span></code>, and
@@ -1038,6 +1082,9 @@ so the HDF5 and LAZ tests skip there.</p></li>
 <li><p>Python 3.15 wheels are built for a release, for Linux, macOS and
 Windows, and the distribution declares 3.15 among its classifiers.</p></li>
 <li><p>The PyPI page and the GitHub repository link to GitHub Sponsors.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SECURITY.md</span></code> says how to report a vulnerability privately and what
+counts as one in a file parser; <code class="docutils literal notranslate"><span class="pre">CITATION.cff</span></code> gives the citation GitHub
+shows on the repository page.</p></li>
 <li><p>The PyPI page now carries the project links (homepage, documentation,
 changelog, issue tracker, source), trove classifiers, keywords and an
 author, none of which the distribution declared before. The README links
