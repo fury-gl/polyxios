@@ -241,6 +241,27 @@ def _natural_key(name: str) -> tuple[tuple[int, Any], ...]:
     )
 
 
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like a Netgen mesh.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes.
+
+    Returns
+    -------
+    bool
+        True when the first line that is neither blank nor a comment is
+        ``mesh3d``, the line :func:`read` requires.
+    """
+    for raw_line in head.decode("utf-8-sig", errors="replace").splitlines():
+        line = raw_line.strip()
+        if line and not line.startswith("#"):
+            return line.lower() == "mesh3d"
+    return False
+
+
 def _read_lines(path: Source) -> list[str]:
     """Return the file's lines, stripped, without blanks or comments.
 

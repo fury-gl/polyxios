@@ -125,6 +125,56 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     return _cloud(verts, attrs, {}, {})
 
 
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like an ASCII point cloud.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes.
+
+    Returns
+    -------
+    bool
+        True when the first row :func:`read` takes for a point is all
+        numbers, at least three of them: past the comments, an optional
+        count line (or a ``.ptx`` scan header, taken whole) and an optional
+        line of no number at all, a column header. A chemistry ``.xyz`` (a
+        count, a title, then ``O 0.0 0.0 0.0``) or a landmark ``.pts``
+        (``version: 1``) is not one, and neither is a column header with no
+        row after it, nor a count of points with no row after it. An empty
+        file is, and so is a count of 0 alone, as :func:`read` takes either
+        for an empty cloud. *head* is taken to end on a whole line, as
+        :func:`~polyxios._registry.sniff_head` trims it.
+    """
+    text = head.decode("utf-8", errors="replace").removeprefix(_BOM)
+    lines = [
+        line
+        for line in text.split("\n")
+        if line.strip() and not line.lstrip().startswith(_COMMENT_MARKS)
+    ]
+    if not lines:
+        return True
+    first = lines[0].split()
+    if len(first) == 1 and _is_int(first[0]):
+        if _looks_like_ptx(lines, 0):
+            return True
+        lines = lines[1:]
+        if not lines:
+            # A count of points the file then lacks is one read refuses.
+            return int(first[0]) == 0
+    if lines and not any(_is_number(t) for t in lines[0].split()):
+        lines = lines[1:]
+        if not lines:
+            # A header no row follows is a line of text, which another
+            # program's file is as likely to hold as an empty cloud.
+            return False
+    if not lines:
+        return True
+    tokens = lines[0].split()
+    return len(tokens) >= 3 and all(_is_number(t) for t in tokens)
+
+
 def _first_data_offset(text: str) -> int | None:
     """The offset of the first line that is neither blank nor a comment."""
     pos = 0

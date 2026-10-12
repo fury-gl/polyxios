@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata
-from polyxios.codecs._dolfin import read, write
+from polyxios.codecs._dolfin import read, sniff, write
 from polyxios.exceptions import CodecError
 
 
@@ -263,3 +263,37 @@ def test_a_single_type_gmsh_mesh_writes_without_a_word(
     out = tmp_path / "tri.xml"
     write(polyxios.read(msh), out)
     assert len(read(out).element_types) == 1
+
+
+@pytest.mark.parametrize(
+    ("head", "expected"),
+    [
+        (b'<?xml version="1.0"?>\n<dolfin nsmap="">\n<mesh celltype="interval">', True),
+        (
+            b"\xef\xbb\xbf<!-- exported -->\n<!DOCTYPE dolfin>\n<dolfin>"
+            b"<mesh dim='3' celltype='tetrahedron'>",
+            True,
+        ),
+        (b'<mesh celltype="triangle" dim="2">', True),
+        (
+            b'<!DOCTYPE dolfin [\n  <!ENTITY v "vertex">\n]>\n<dolfin>'
+            b'<mesh celltype="triangle">',
+            True,
+        ),
+        (b'<dolfin>\n  <mesh_function type="uint" dim="2" size="4">', False),
+        (b"<dolfin>", False),
+        (b'<mesh sharedvertexbuffers="true">\n  <submeshes>', False),
+        (b"<!DOCTYPE config [<!ENTITY a 'b'>]><config/>", False),
+        (b'<?xml version="1.0"?>\n<config><mesh/></config>', False),
+        (b"<meshes>", False),
+        (b"", False),
+    ],
+)
+def test_sniff_reads_the_root_element(head, expected):
+    assert sniff(head) is expected
+
+
+def test_sniff_accepts_what_write_produces(tmp_path):
+    out = tmp_path / "m.xml"
+    write(_tet_mesh(), out)
+    assert sniff(out.read_bytes())

@@ -1,5 +1,6 @@
 """DOLFIN/FEniCS XML .xml codec - read + write."""
 
+import re
 import warnings
 import xml.etree.ElementTree as ET
 
@@ -27,6 +28,39 @@ _POLYXIOS_TO_CELLTYPE: dict[str, str] = {
     "quad": "quadrilateral",
     "hexahedron": "hexahedron",
 }
+
+# The XML prolog, comments and a doctype - internal subset included - may
+# precede the root element.
+_ROOT_TAG = re.compile(
+    rb"\A\s*(?:<\?.*?\?>\s*|<!--.*?-->\s*|<!DOCTYPE[^\[>]*(?:\[.*?\])?\s*>\s*)*"
+    rb"<(dolfin|mesh)[\s/>]",
+    re.DOTALL,
+)
+# dolfin-convert writes its region markers under a <dolfin> root too, as a
+# <mesh_function>, and Ogre's .mesh.xml has a <mesh> root of its own; only
+# a <mesh> naming its cell type is one read() takes.
+_MESH_TAG = re.compile(rb"<mesh\b[^>]*\bcelltype\s*=")
+
+
+def sniff(head: bytes) -> bool:
+    """Report whether a file's opening bytes look like DOLFIN XML.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes.
+
+    Returns
+    -------
+    bool
+        True when the root element is ``<dolfin>``, or ``<mesh>`` as some
+        exporters write it - the two roots :func:`read` accepts - and a
+        ``<mesh>`` element in *head* declares a ``celltype``. A
+        ``<mesh_function>`` file or a ``<mesh>`` with no cell type is not
+        one.
+    """
+    head = head.removeprefix(b"\xef\xbb\xbf")
+    return _ROOT_TAG.match(head) is not None and _MESH_TAG.search(head) is not None
 
 
 def read(path: Source, *, lazy: bool = False) -> PolyData:
