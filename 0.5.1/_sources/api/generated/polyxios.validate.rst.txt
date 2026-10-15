@@ -1,0 +1,6 @@
+polyxios.validate
+=================
+
+.. currentmodule:: polyxios
+
+.. autofunction:: validate

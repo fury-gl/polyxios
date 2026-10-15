@@ -1,0 +1,16 @@
+polyxios.fetcher
+================
+
+.. automodule:: polyxios.fetcher
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      fetch
+      fetch_by_extension
+      get_cached_files
+      get_fetchable_files
+      get_package_name
+   

@@ -1,0 +1,6 @@
+﻿polyxios.read\_scene
+====================
+
+.. currentmodule:: polyxios
+
+.. autofunction:: read_scene

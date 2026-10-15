@@ -1,0 +1,38 @@
+﻿polyxios.SceneData
+==================
+
+.. currentmodule:: polyxios
+
+.. autoclass:: SceneData
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SceneData.__init__
+      ~SceneData.to_polydata
+      ~SceneData.world_transform
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SceneData.meshes
+      ~SceneData.nodes
+      ~SceneData.materials
+      ~SceneData.textures
+      ~SceneData.images
+      ~SceneData.scenes
+      ~SceneData.active_scene
+      ~SceneData.name
+      ~SceneData.global_attrs
+   
+   

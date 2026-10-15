@@ -1,0 +1,32 @@
+﻿polyxios.SceneNode
+==================
+
+.. currentmodule:: polyxios
+
+.. autoclass:: SceneNode
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SceneNode.__init__
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SceneNode.name
+      ~SceneNode.mesh
+      ~SceneNode.children
+      ~SceneNode.matrix
+      ~SceneNode.extras
+   
+   

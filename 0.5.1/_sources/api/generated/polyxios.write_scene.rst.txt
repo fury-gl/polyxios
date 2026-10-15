@@ -1,0 +1,6 @@
+﻿polyxios.write\_scene
+=====================
+
+.. currentmodule:: polyxios
+
+.. autofunction:: write_scene
