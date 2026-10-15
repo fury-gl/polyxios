@@ -7106,6 +7106,43 @@ Changelog
 
 
 
+0.5.1 (2026-10-15)
+
+Bug fixes
+
+A binary legacy .vtk POLYDATA file whose cell sections carry no
+OFFSETS block no longer reads with an empty first cell ahead of its
+own, which shifted every cell one slot: a file of 13 streamlines read
+as 14 cells. The ASCII and binary readers now agree on such a file.
+
+Packaging
+
+A release publishes to PyPI only from fury-gl/polyxios. A tag
+pushed to a fork still builds its wheels and its GitHub release, where
+the PyPI job used to run and fail.
+
+GitHub stats for 2026/10/11 - 2026/10/15 (tag: v0.5.0)
+
+These lists are automatically generated and may be incomplete or contain duplicates.
+
+The following 1 authors contributed 7 commits.
+
+Serge Koudoro
+
+We closed a total of 3 issues, 3 pull requests and 0 regular issues.
+
+Pull Requests (3):
+
+PR #111: BF: binary VTK POLYDATA reads no empty cell ahead of its cells
+
+PR #110: MNT: update pre-commit hooks
+
+PR #108: BF: spell XML-forbidden regex ranges as escapes in a raw string
+
+Issues (0):
+
+
+
 0.5.0 (2026-10-11)
 
 New features
@@ -7515,6 +7552,8 @@ way out. A suite that runs with warnings as errors sees the skip now.
 
 Bug fixes
 
+../CHANGES.rst:445: (INFO/1) Duplicate implicit target name: “bug fixes”.
+
 Two SceneData (or SceneNode, or SceneMaterial) compared with
 == no longer raise when their global_attrs or extras hold
 arrays, as a glTF animation does: nested dicts, lists and arrays are
@@ -7657,6 +7696,8 @@ pytest only, as h5py, lazrs and PyYAML publish no cp315 wheels yet,
 so the HDF5 and LAZ tests skip there.
 
 Packaging
+
+../CHANGES.rst:582: (INFO/1) Duplicate implicit target name: “packaging”.
 
 Python 3.15 wheels are built for a release, for Linux, macOS and
 Windows, and the distribution declares 3.15 among its classifiers.
@@ -7805,7 +7846,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:639: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:680: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -7876,7 +7917,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:703: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:744: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -8114,7 +8155,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:927: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:968: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -8152,7 +8193,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:963: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1004: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -9117,7 +9158,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:1823: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:1864: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -9201,7 +9242,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:1891: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:1932: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -9249,7 +9290,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:1922: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:1963: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -9264,7 +9305,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:1934: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1975: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -9370,7 +9411,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:2007: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:2048: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.
