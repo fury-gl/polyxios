@@ -103,6 +103,9 @@ def test_the_dispatcher_names_its_candidates() -> None:
     """The candidate list is readable, so no caller has to hard-code it."""
     registry = build_default_registry()
     assert registry[".dat"].candidates == ("permas", "tecplot", "nastran")
+    assert [label for label, _ in registry[".dat"].entries] == list(
+        registry[".dat"].candidates
+    )
     assert registry[".msh"].candidates == ("gmsh", "fluent")
     # A codec that is one format competes with nobody and says so.
     assert registry[".tec"].candidates == ()

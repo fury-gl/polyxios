@@ -869,6 +869,23 @@ def sniff(head: bytes) -> bool:
     return False
 
 
+def is_ascii(head: bytes) -> bool:
+    """Report whether a file opens as the ASCII Tecplot polyxios reads.
+
+    Parameters
+    ----------
+    head
+        The file's first bytes.
+
+    Returns
+    -------
+    bool
+        True when :func:`sniff` takes the file and it is not a binary
+        ``.plt``, which :func:`read` refuses.
+    """
+    return sniff(head) and not head.startswith(_BINARY_MAGIC)
+
+
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a Tecplot ASCII file (finite-element zone).
 

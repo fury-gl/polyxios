@@ -8,6 +8,7 @@ import pytest
 
 import polyxios
 from polyxios._types import PolyData, make_polydata
+from polyxios.codecs._xyz import sniff
 from polyxios.exceptions import CodecError, LazyReadError
 
 _PTX = """\
@@ -424,3 +425,50 @@ def test_warnings_point_at_the_caller() -> None:
     with pytest.warns(UserWarning, match="no column") as caught:
         _write(poly)
     assert {w.filename for w in caught} == {__file__}
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b"",
+        b"# only a comment\n",
+        b"1 2 3\n4 5 6\n",
+        b"\xef\xbb\xbfX Y Z R G B\n1 2 3 4 5 6\n",
+        b"2\n1 2 3\n4 5 6\n",
+        b"// scan\n2\nx y z\n1 2 3\n",
+        _PTX.encode(),
+        b"1 2 3\n4 5",
+        b"0\n",
+    ],
+)
+def test_sniff_accepts_what_read_takes_for_points(head: bytes) -> None:
+    assert sniff(head) is True
+
+
+@pytest.mark.parametrize(
+    "head",
+    [
+        b"3\nwater\nO 0.0 0.0 0.0\nH 0.76 0.59 0.0\nH -0.76 0.59 0.0\n",
+        b"3\n\nO 0.0 0.0 0.0\n",
+        b"version: 1\nn_points: 68\n{\n1.0 2.0\n}\n",
+        b"1 2\n3 4\n",
+        b"<?xml version='1.0'?>\n<root/>\n",
+        b"station name\n",
+        b"# exported\nX Y Z\n",
+        b"2\nx y z\n",
+        b"5\n",
+        b"// scan\n5\n",
+        b"1 2",
+    ],
+)
+def test_sniff_rejects_what_read_cannot_take(head: bytes) -> None:
+    assert sniff(head) is False
+
+
+@pytest.mark.parametrize("suffix", [".xyz", ".pts", ".ptx"])
+def test_sniff_accepts_what_write_produces(tmp_path, suffix: str) -> None:
+    out = tmp_path / f"c{suffix}"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        polyxios.write(_cloud(intensity=np.arange(3.0)), out)
+    assert sniff(out.read_bytes())

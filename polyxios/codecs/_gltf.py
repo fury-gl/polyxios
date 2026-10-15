@@ -4109,6 +4109,23 @@ def _scene_material_to_gltf(mat: SceneMaterial) -> dict:
     return entry
 
 
+def buffer_path(*, path: str) -> Path:
+    """Return where a ``.gltf`` written to *path* keeps its binary buffer.
+
+    Parameters
+    ----------
+    path
+        The ``.gltf`` file's path.
+
+    Returns
+    -------
+    Path
+        The ``.bin`` beside it, named after its stem.
+    """
+    p = Path(path)
+    return p.with_name(p.stem + ".bin")
+
+
 def _write_output(
     gltf_dict: dict,
     bin_data: bytes,
@@ -4127,12 +4144,11 @@ def _write_output(
             "not a stream.  Use binary=True for a self-contained GLB."
         )
 
-    p = Path(str(path))
-    bin_name = p.stem + ".bin"
+    bin_path = buffer_path(path=str(path))
     if bin_data:
         gltf_dict = dict(gltf_dict)
-        gltf_dict["buffers"] = [{"uri": bin_name, "byteLength": len(bin_data)}]
-        write_bytes(p.with_name(bin_name), bin_data)
+        gltf_dict["buffers"] = [{"uri": bin_path.name, "byteLength": len(bin_data)}]
+        write_bytes(bin_path, bin_data)
     else:
         gltf_dict = {k: v for k, v in gltf_dict.items() if k != "buffers"}
 
