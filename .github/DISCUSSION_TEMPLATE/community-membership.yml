@@ -1,0 +1,32 @@
+title: "Community membership: @"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Community members can open pull requests without linking an issue
+        assigned to them first. Membership grants no write access to the repository.
+        A maintainer reviews the request and, if accepted, adds your login to
+        `.github/community-members.txt`.
+  - type: textarea
+    id: contributions
+    attributes:
+      label: Past contributions
+      description: Links to your pull requests, issues, reviews or discussions in polyxios.
+    validations:
+      required: true
+  - type: textarea
+    id: plans
+    attributes:
+      label: What you plan to work on
+      description: Formats, features or areas you expect to contribute to.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Rules
+      options:
+        - label: I have read the contributing guide (https://polyxios.org/dev/contributing.html).
+          required: true
+        - label: I understand and have run every change I submit, including AI-assisted ones, and answer review questions myself.
+          required: true

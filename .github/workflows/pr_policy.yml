@@ -1,0 +1,47 @@
+name: PR Policy
+
+# pull_request_target runs with a write token on PRs from forks, so this job
+# checks out the base branch only and never runs code from the PR. Issue
+# assignment changes re-check the assignee's pull requests that link it.
+# The verdict is the `pr-policy` commit status (require that one in branch
+# protection, not this job): an issues run is not attached to the PRs it
+# re-checks, so only a status it sets can clear a held PR.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+  issues:
+    types: [assigned, unassigned]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    pr-policy-${{ github.event.pull_request.number
+    || format('issue-{0}-{1}', github.event.issue.number, github.event.assignee.login) }}
+  cancel-in-progress: true
+
+jobs:
+  issue-first:
+    if: github.repository == 'fury-gl/polyxios'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: |
+            tools/pr_policy.py
+            .github/community-members.txt
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Apply the issue-first policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/pr_policy.py
