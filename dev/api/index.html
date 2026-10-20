@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=0d533801"></script>
+    <script src="../_static/documentation_options.js?v=aab0ad53"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -71,7 +71,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="polyxios" href="generated/polyxios.html" />
-    <link rel="prev" title="Plugin system" href="../plugins.html" />
+    <link rel="prev" title="napari plugin" href="../napari.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.6" />
@@ -473,6 +473,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../transforms.html">transforms.rst</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../cli.html">cli.rst</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../plugins.html">plugins.rst</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../napari.html">napari.rst</a></li>
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">api/</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="generated/polyxios.html">polyxios</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="generated/polyxios.version.html">polyxios.version</a></li>
@@ -483,6 +484,7 @@
 <li class="toctree-l3"><a class="reference internal" href="generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/polyxios.cli.html">polyxios.cli</a></li>
 <li class="toctree-l3"><a class="reference internal" href="generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/polyxios.napari.html">polyxios.napari</a></li>
 </ul>
 </details></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.SceneData.html">polyxios.SceneData</a></li>
@@ -494,6 +496,7 @@
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.helper.html">polyxios.helper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/polyxios.napari.html">polyxios.napari</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.fetcher.html">polyxios.fetcher</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.validate.html">polyxios.validate</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.exceptions.html">polyxios.exceptions</a></li>
@@ -595,13 +598,16 @@
 <tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.helper.html#module-polyxios.helper" title="polyxios.helper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.helper</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.fetcher.html#module-polyxios.fetcher" title="polyxios.fetcher"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.fetcher</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.napari.html#module-polyxios.napari" title="polyxios.napari"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.napari</span></code></a></p></td>
+<td><p>napari reader and writers, registered through <code class="docutils literal notranslate"><span class="pre">polyxios/napari.yaml</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.fetcher.html#module-polyxios.fetcher" title="polyxios.fetcher"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.fetcher</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.validate.html#polyxios.validate" title="polyxios.validate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.validate</span></code></a>(poly)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.validate.html#polyxios.validate" title="polyxios.validate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.validate</span></code></a>(poly)</p></td>
 <td><p>Check structural integrity of a PolyData.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.exceptions.html#module-polyxios.exceptions" title="polyxios.exceptions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.exceptions</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.exceptions.html#module-polyxios.exceptions" title="polyxios.exceptions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.exceptions</span></code></a></p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -620,12 +626,12 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../plugins.html"
+       href="../napari.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Plugin system</p>
+        <p class="prev-next-title">napari plugin</p>
       </div>
     </a>
     <a class="right-next"

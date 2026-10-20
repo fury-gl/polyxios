@@ -58,8 +58,9 @@ polyxios reads and writes 27 3D mesh and geometry file formats through one API, 
 - [Transforms](https://polyxios.org/stable/transforms.html): Every transform takes a PolyData and returns a new one - nothing is modified in place - so they compose freely.
 - [Command line interface (pxios)](https://polyxios.org/stable/cli.html): polyxios comes with a command-line interface pxios to quickly fetch, list, convert, and visualize 3D models.
 - [Plugin system](https://polyxios.org/stable/plugins.html): Any third-party package can teach polyxios to read and write a new format - no fork required, no pull request needed.
+- [napari plugin](https://polyxios.org/stable/napari.html): polyxios is a napari plugin as it is installed: no separate package, and no napari dependency for anyone who does not use it.
 - [API Reference](https://polyxios.org/stable/api/index.html): Complete reference for all public functions, types, and exceptions.
 - [Contributing](https://polyxios.org/stable/contributing.html): Every change starts as an issue assigned to the person who will write it, so the problem and the proposed fix are agreed on before code is written:
 - [Development Guide](https://polyxios.org/stable/development.html): polyxios uses spin to manage the development workflow. All common tasks - building, testing, linting, and documentation - are available as spin sub-commands.
-- [Changelog](https://polyxios.org/stable/changelog.html): A binary legacy .vtk POLYDATA file whose cell sections carry no OFFSETS block no longer reads with an empty first cell ahead of its own, which shifted every…
+- [Changelog](https://polyxios.org/stable/changelog.html): polyxios is a napari plugin. Installed next to napari, it opens every format polyxios reads: a mesh as a Surface layer (volume meshes as their boundary, a…
 - [Credits](https://polyxios.org/stable/credits.html): polyxios is developed in the open under the FURY umbrella. Every codec, test and page in these docs came from someone’s spare evening.

@@ -1,0 +1,21 @@
+polyxios.napari
+===============
+
+.. automodule:: polyxios.napari
+
+   
+   .. rubric:: Module Attributes
+
+   .. autosummary::
+   
+      META_KEY
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_reader
+      layer_data
+      write_points
+      write_surface
+   
