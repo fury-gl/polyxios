@@ -5,6 +5,46 @@ Contributing
    :description: How to contribute to polyxios: set up a development checkout, run the test suite, and open a pull request.
 
 
+Issue first
+-----------
+
+Every change starts as an `issue <https://github.com/fury-gl/polyxios/issues>`_
+assigned to the person who will write it, so the problem and the proposed
+fix are agreed on before code is written:
+
+1. Find or open an issue describing the change. Ideas can start as a
+   `discussion <https://github.com/fury-gl/polyxios/discussions>`_; once
+   agreed, a maintainer opens an issue from it.
+2. Comment on the issue to ask to work on it. A maintainer assigns it to you.
+3. Reference it in the pull request description (``Closes #123``).
+
+The ``PR Policy`` workflow enforces this for every author who is neither a
+member of the ``fury-gl`` organisation nor has write access to the
+repository, outside collaborators with read or triage access included. A
+pull request that references no open issue assigned to
+its author is labelled ``needs-issue``, closed, and gets a failing
+``pr-policy`` status. It reopens on its own once it references such an issue,
+whether the description is edited or the author is assigned, unless someone
+else closed it since. GitHub starts no CI for a reopen made by a workflow, so
+if you pushed while the pull request was closed, push again to run the checks.
+Unassigning the author closes the pull request again. A maintainer can waive
+the check for one pull request by reopening it after the policy closed it.
+First-time contributors also get a welcome comment that summarises these
+rules.
+
+The rule holds for returning contributors too. Regular contributors can
+instead join the polyxios community: open a discussion in the
+`Community membership <https://github.com/fury-gl/polyxios/discussions/categories/community-membership>`_
+category with links to past contributions. Once a maintainer adds the login
+to ``.github/community-members.txt``, that author's pull requests skip the
+issue-first check. Membership grants no write access to the repository.
+
+AI-assisted contributions are welcome under the same terms as any other:
+the author is responsible for every line, has run the code, and answers
+review questions personally. Pull requests that read as unreviewed
+generated output are closed.
+
+
 Commit message convention
 --------------------------
 

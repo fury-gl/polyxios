@@ -44,3 +44,18 @@ jobs:
             echo "Checking: $(git log -1 --format=%s $sha)"
             python tools/commit-msg.py /tmp/commit_msg || exit 1
           done
+
+  tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Test repository tools
+        run: |
+          pip install "pytest==9.1.1"
+          pytest tools/tests

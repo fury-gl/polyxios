@@ -1,0 +1,6 @@
+# polyxios community members
+#
+# GitHub logins listed here skip the issue-first check of the PR Policy
+# workflow. Listing grants no repository permission. Requests go through the
+# "Community membership" discussion category; a maintainer adds the login by
+# pull request. One login per line; text after "#" is ignored.
