@@ -11,11 +11,11 @@ objects and the colours the materials.
 from __future__ import annotations
 
 import array
+from collections.abc import Iterator
 import io
 import re
 from typing import Any
 import urllib.parse
-import warnings
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
@@ -29,16 +29,43 @@ from polyxios._element_types import (
 )
 from polyxios._io import Source, read_bytes, source_name, write_bytes
 from polyxios._types import PolyData
+from polyxios._units import conversion
+from polyxios._warn import warn_caller
 from polyxios.exceptions import CodecError, LazyReadError
 
 EXTENSION: str = ".3mf"
 
 _MODEL_PART: str = "3D/3dmodel.model"
 _RELS_PART: str = "_rels/.rels"
+# Entities are refused whatever expat's amplification limits, which a
+# Python linked against an older system expat lacks.
+_ENTITY_DECLS: tuple[bytes, ...] = tuple(
+    "<!ENTITY".encode(enc) for enc in ("utf-8", "utf-16-le", "utf-16-be")
+)
+# Bytes kept from one chunk of a streamed part to find a declaration the
+# next chunk completes.
+_ENTITY_SPAN: int = max(len(decl) for decl in _ENTITY_DECLS) - 1
 _CONTENT_TYPES_PART: str = "[Content_Types].xml"
 _MODEL_REL_TYPE: str = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
 _ZIP_EPOCH: tuple[int, int, int, int, int, int] = (1980, 1, 1, 0, 0, 0)
 _CORE_NS: str = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
+# A member is refused past this many bytes inflated per byte stored, once it
+# inflates past the floor. A mesh's XML stores at 5:1 to 15:1; deflate tops
+# out near 1000:1, which is what a member built to exhaust memory reaches.
+_INFLATE_RATIO: int = 200
+_INFLATE_FLOOR: int = 1 << 28
+# What opening a ZIP or reading a member raises beyond a bad archive: an
+# encrypted member (RuntimeError), a compression method or ZIP version
+# zipfile lacks (NotImplementedError), and offsets that point before the
+# archive or a name flagged UTF-8 that is not (ValueError).
+_ZIP_ERRORS: tuple[type[Exception], ...] = (
+    zipfile.BadZipFile,
+    zlib.error,
+    EOFError,
+    RuntimeError,
+    NotImplementedError,
+    ValueError,
+)
 
 _UNITS: frozenset[str] = frozenset(
     {"micron", "millimeter", "centimeter", "inch", "foot", "meter"}
@@ -112,9 +139,9 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     PolyData
         Every triangle of every object the build places, the objects'
         transforms applied. An object's triangles form an element tag group
-        named after the object - its ``name`` attribute, or ``object_<id>``
-        - so an object placed twice, or two objects of one name, contribute
-        to the one group.
+        named after the object - its ``name`` attribute, empty or not, or
+        ``object_<id>`` when it has none - so an object placed twice, or two
+        objects of one name, contribute to the one group.
         A triangle whose material is a base material or a colour is read
         into ``element_attrs["colors"]``, RGBA in 0..1, NaN on the
         triangles that name none. The model's ``unit`` and its ``metadata``
@@ -125,9 +152,12 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     LazyReadError
         If ``lazy=True``.
     CodecError
-        When the package is not a ZIP, holds no model part or one that
-        does not inflate, or the model names a vertex or an object it does
-        not hold, or gives two resources one id.
+        When the package is not a ZIP or not one ``zipfile`` can open,
+        holds no model part or one that does not inflate, is encrypted, is
+        stored in a method ``zipfile`` lacks or inflates the way only a ZIP
+        bomb does, the model or the root relationships declare an XML
+        entity, or the model names a vertex or an object it does not hold,
+        or gives two resources one id.
     """
     if lazy:
         raise LazyReadError("3MF is a ZIP package and cannot be memory-mapped.")
@@ -135,29 +165,58 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     raw = read_bytes(path)
     try:
         package = zipfile.ZipFile(io.BytesIO(raw))
-    except zipfile.BadZipFile as exc:
+    except _ZIP_ERRORS as exc:
         raise CodecError(f"{name!r} is not a ZIP package: {exc}") from exc
     with package:
         model_part = _model_part(package, name)
+        _check_inflation(package.getinfo(model_part), name)
         target = _ModelTarget(name)
         parser = ET.XMLParser(target=target)
         try:
-            with package.open(model_part) as member:
-                for chunk in iter(lambda: member.read(_PARSE_CHUNK), b""):
-                    parser.feed(chunk)
+            where = f"{name!r}: {model_part}"
+            tail = b""
+            for chunk in _inflated(package, model_part, name):
+                _refuse_entities(tail + chunk[:_ENTITY_SPAN], where, fmt="3MF")
+                _refuse_entities(chunk, where, fmt="3MF")
+                tail = chunk[-_ENTITY_SPAN:]
+                parser.feed(chunk)
             root = parser.close()
-        except ET.ParseError as exc:
+        except (ET.ParseError, LookupError) as exc:
             raise CodecError(
                 f"{name!r}: {model_part} is not well-formed XML: {exc}"
             ) from exc
-        except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
-            raise CodecError(f"{name!r}: {model_part} does not inflate: {exc}") from exc
     if _local(root.tag) != "model":
         raise CodecError(
             f"{name!r}: {model_part} holds a <{_local(root.tag)}> where a"
             " <model> was expected."
         )
     return _read_model(root, target.meshes, name)
+
+
+def _inflated(package: zipfile.ZipFile, part: str, name: str) -> Iterator[bytes]:
+    """Yield a member of ``package`` as it inflates, ``_PARSE_CHUNK`` at a time.
+
+    Only opening and inflating the member is guarded, so an error raised
+    by whatever consumes a chunk is never reported as one of the archive.
+
+    Raises
+    ------
+    CodecError
+        When the member does not open or does not inflate.
+    """
+    try:
+        member = package.open(part)
+    except _ZIP_ERRORS as exc:
+        raise CodecError(f"{name!r}: {part} does not inflate: {exc}") from exc
+    with member:
+        while True:
+            try:
+                chunk = member.read(_PARSE_CHUNK)
+            except _ZIP_ERRORS as exc:
+                raise CodecError(f"{name!r}: {part} does not inflate: {exc}") from exc
+            if not chunk:
+                return
+            yield chunk
 
 
 # How much of the model part is handed to expat at a time. Fed the whole
@@ -247,7 +306,7 @@ class _ModelTarget:
                 mesh.indices.extend(
                     (int(attrs["v1"]), int(attrs["v2"]), int(attrs["v3"]))
                 )
-            except (KeyError, ValueError) as exc:
+            except (KeyError, ValueError, OverflowError) as exc:
                 raise CodecError(
                     f"{self._name!r}: object {mesh.oid} has a triangle that is"
                     " not three vertex indices."
@@ -305,7 +364,9 @@ def write(
         The model's unit of length: ``micron``, ``millimeter``,
         ``centimeter``, ``inch``, ``foot`` or ``meter``. Falls back to
         ``global_attrs["unit"]``, then to millimetres; a mesh unit the
-        format lacks is written as millimetres with a warning.
+        format lacks is written as millimetres with a warning, the vertices
+        scaled to millimetres when that unit is a length polyxios knows -
+        ``yard`` or ``kilometer`` read from DXF, say.
 
     Raises
     ------
@@ -315,9 +376,10 @@ def write(
         holds a character XML cannot carry, or ``unit`` is not one the
         format defines.
     """
-    unit = _pick_unit(poly, unit)
+    unit, scale = _pick_unit(poly, unit)
     tris, source = _triangles(poly)
-    if tris.size and not np.isfinite(poly.vertices[np.unique(tris)]).all():
+    vertices = _scaled(poly.vertices, scale)
+    if tris.size and not np.isfinite(vertices[np.unique(tris)]).all():
         raise CodecError(
             ".3mf: a vertex a triangle uses is NaN or infinite; 3MF has no"
             " spelling for either."
@@ -337,17 +399,16 @@ def write(
     items: list[int] = []
     for obj_name, rows in objects:
         if obj_name is None and f"object_{next_id}" in (poly.element_tags or {}):
-            warnings.warn(
+            warn_caller(
                 f".3mf: the untagged triangles are object {next_id}, which reads"
                 f" back as 'object_{next_id}' - the name of a tag group; the two"
-                " merge on read.",
-                stacklevel=2,
+                " merge on read."
             )
         parts.append(
             _object_xml(
                 next_id,
                 obj_name,
-                poly.vertices,
+                vertices,
                 tris[rows],
                 material_id,
                 material[rows] if palette else None,
@@ -387,6 +448,51 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+def _refuse_entities(data: bytes, where: str, *, fmt: str) -> None:
+    """Refuse XML text that declares an entity.
+
+    Parameters
+    ----------
+    data
+        The XML bytes, or a chunk of them.
+    where
+        The document, or the part of a package, the bytes come from, as a
+        message starts.
+    fmt
+        The format's name, for the message.
+
+    Raises
+    ------
+    CodecError
+        When ``data`` holds ``<!ENTITY`` in UTF-8 or either UTF-16.
+    """
+    if any(decl in data for decl in _ENTITY_DECLS):
+        raise CodecError(
+            f"{where} declares an XML entity, which {fmt} never needs; refused"
+            " rather than expanded."
+        )
+
+
+def _check_inflation(info: zipfile.ZipInfo, name: str) -> None:
+    """Refuse a ZIP member that inflates far past what any mesh stores as.
+
+    zipfile stops a member at the size its header declares, so the declared
+    size bounds what reading it costs.
+
+    Raises
+    ------
+    CodecError
+        When the member declares more than ``_INFLATE_FLOOR`` bytes and
+        more than ``_INFLATE_RATIO`` times its stored size.
+    """
+    if info.file_size > max(_INFLATE_FLOOR, _INFLATE_RATIO * info.compress_size):
+        raise CodecError(
+            f"{name!r}: {info.filename} inflates from {info.compress_size} to"
+            f" {info.file_size} bytes, past what a mesh stores as; refused as"
+            " a ZIP bomb."
+        )
+
+
 def _model_part(package: zipfile.ZipFile, name: str) -> str:
     """Return the name of the model part the package's root relationships point to.
 
@@ -396,9 +502,12 @@ def _model_part(package: zipfile.ZipFile, name: str) -> str:
     members = set(package.namelist())
     target: str | None = None
     if _RELS_PART in members:
+        _check_inflation(package.getinfo(_RELS_PART), name)
+        data = b"".join(_inflated(package, _RELS_PART, name))
+        _refuse_entities(data, f"{name!r}: {_RELS_PART}", fmt="3MF")
         try:
-            rels = ET.fromstring(package.read(_RELS_PART))
-        except ET.ParseError as exc:
+            rels = ET.fromstring(data)
+        except (ET.ParseError, LookupError) as exc:
             raise CodecError(
                 f"{name!r}: {_RELS_PART} is not well-formed XML: {exc}"
             ) from exc
@@ -428,10 +537,9 @@ def _read_model(root: ET.Element, raw: dict[int, _RawMesh], name: str) -> PolyDa
     """
     unit = root.get("unit", _DEFAULT_UNIT)
     if unit not in _UNITS:
-        warnings.warn(
+        warn_caller(
             f"{name!r}: unit {unit!r} is not one 3MF defines"
-            f" ({', '.join(sorted(_UNITS))}); it is kept as read.",
-            stacklevel=3,
+            f" ({', '.join(sorted(_UNITS))}); it is kept as read."
         )
     global_attrs: dict[str, Any] = {"unit": unit}
     objects: dict[int, ET.Element] = {}
@@ -521,7 +629,9 @@ def _place(
             if mesh is None:
                 mesh = _read_mesh(raw[id(child)], obj, properties, name)
                 meshes[oid] = mesh
-            label = obj.get("name") or f"object_{oid}"
+            label = obj.get("name")
+            if label is None:
+                label = f"object_{oid}"
             parts.append((label, *_placed(mesh, matrix)))
         elif tag == "components":
             for comp in child:
@@ -755,32 +865,79 @@ def _assemble(parts: list[_Part], global_attrs: dict[str, Any]) -> PolyData:
 # ---------------------------------------------------------------------------
 
 
-def _pick_unit(poly: PolyData, unit: str | None) -> str:
-    """Return the unit to write, from the argument, the mesh, or the default.
+def _pick_unit(poly: PolyData, unit: str | None) -> tuple[str, float]:
+    """Return the unit to write and the factor the vertices are scaled by.
 
     An explicit ``unit`` the format lacks is refused; one the mesh carries
     from another format is replaced by millimetres with a warning, so a
-    mesh read elsewhere can still be written.
+    mesh read elsewhere can still be written, and the vertices are scaled
+    to millimetres when the mesh's unit is a length polyxios knows.
     """
     if unit is not None:
         if unit not in _UNITS:
             raise CodecError(
                 f".3mf: {unit!r} is not a 3MF unit; one of {sorted(_UNITS)} is."
             )
-        return unit
+        return unit, 1.0
     unit = (poly.global_attrs or {}).get("unit", _DEFAULT_UNIT)
-    if unit not in _UNITS:
-        warnings.warn(
-            f".3mf: global_attrs['unit'] {unit!r} is not a 3MF unit; written"
-            f" as {_DEFAULT_UNIT!r}. Pass unit= to choose one of {sorted(_UNITS)}.",
-            stacklevel=3,
-        )
-        return _DEFAULT_UNIT
-    return unit
+    if unit in _UNITS:
+        return unit, 1.0
+    return _DEFAULT_UNIT, _fallback_scale(unit, EXTENSION, sorted(_UNITS))
 
 
-def _triangles(poly: PolyData) -> tuple[np.ndarray, np.ndarray]:
+def _fallback_scale(unit: Any, fmt: str, units: list[str]) -> float:
+    """Warn that a mesh unit the format lacks is written as millimetres.
+
+    Parameters
+    ----------
+    unit
+        The mesh's ``global_attrs["unit"]``.
+    fmt
+        The extension the message names.
+    units
+        The units the format defines, for the message.
+
+    Returns
+    -------
+    float
+        The factor that turns the mesh's lengths into millimetres, or 1 when
+        its unit is not a length polyxios knows and the numbers are kept.
+    """
+    scale = conversion(unit, _DEFAULT_UNIT)
+    kept = (
+        "the coordinates are kept as they are"
+        if scale is None
+        else f"the coordinates are scaled by {scale:.15g} to match"
+    )
+    label = _label(fmt)
+    article = "an" if label[0] in "AEIOU" else "a"
+    warn_caller(
+        f"{fmt}: global_attrs['unit'] {unit!r} is not {article} {label} unit;"
+        f" written as {_DEFAULT_UNIT!r} and {kept}. Pass unit= to choose one"
+        f" of {units}."
+    )
+    return 1.0 if scale is None else scale
+
+
+def _scaled(vertices: np.ndarray, scale: float) -> np.ndarray:
+    """Return ``vertices`` multiplied by ``scale``, the array itself when it is 1."""
+    if scale == 1.0:
+        return vertices
+    with np.errstate(over="ignore"):
+        return np.asarray(vertices, dtype=np.float64) * scale
+
+
+def _triangles(
+    poly: PolyData, *, fmt: str = EXTENSION
+) -> tuple[np.ndarray, np.ndarray]:
     """Return the triangles to write and the element each came from.
+
+    Parameters
+    ----------
+    poly
+        The mesh being written.
+    fmt
+        The extension the messages name, for a codec sharing this one.
 
     Returns
     -------
@@ -825,21 +982,23 @@ def _triangles(poly: PolyData) -> tuple[np.ndarray, np.ndarray]:
     if not tris:
         if dropped:
             raise CodecError(
-                f".3mf: 3MF holds triangles only, and the mesh has none: {named}."
+                f"{fmt}: {_label(fmt)} holds triangles only, and the mesh has"
+                f" none: {named}."
             )
         return np.empty((0, 3), dtype=np.int64), np.empty(0, dtype=np.int64)
     if dropped:
-        warnings.warn(
-            f".3mf: 3MF holds triangles only; {named} element(s) have no"
-            " triangle to be written as and were dropped.",
-            stacklevel=3,
+        warn_caller(
+            f"{fmt}: {_label(fmt)} holds triangles only; {named} element(s) have no"
+            " triangle to be written as and were dropped."
         )
     all_source = np.concatenate(source).astype(np.int64)
     order = np.argsort(all_source, kind="stable")
     return np.concatenate(tris).astype(np.int64)[order], all_source[order]
 
 
-def _facet_colors(poly: PolyData, source: np.ndarray) -> np.ndarray | None:
+def _facet_colors(
+    poly: PolyData, source: np.ndarray, *, fmt: str = EXTENSION
+) -> np.ndarray | None:
     """Return the RGBA of each triangle written, or None when the mesh carries none.
 
     An integer attribute is read as 0..255 and a floating point one as 0..1;
@@ -855,10 +1014,9 @@ def _facet_colors(poly: PolyData, source: np.ndarray) -> np.ndarray | None:
         or values.shape[1] not in (3, 4)
         or values.dtype.kind not in "fiub"
     ):
-        warnings.warn(
-            f".3mf: element_attrs['{_COLOR_KEY}'] is not three or four"
-            " components per element; the colours were not written.",
-            stacklevel=3,
+        warn_caller(
+            f"{fmt}: element_attrs['{_COLOR_KEY}'] is not three or four"
+            " components per element; the colours were not written."
         )
         return None
     picked = values[source].astype(np.float64, copy=False)
@@ -888,7 +1046,7 @@ def _palette(colors: np.ndarray | None) -> tuple[list[str], np.ndarray]:
 
 
 def _partition(
-    poly: PolyData, source: np.ndarray, n_tris: int
+    poly: PolyData, source: np.ndarray, n_tris: int, *, fmt: str = EXTENSION
 ) -> list[tuple[str | None, np.ndarray]]:
     """Split the triangles into objects, one per tag group, the rest in one more.
 
@@ -909,11 +1067,10 @@ def _partition(
             objects.append((label, rows))
             claimed[rows] = True
     if shared:
-        warnings.warn(
-            f".3mf: element tag group(s) {shared} name elements an earlier"
-            " group already wrote; a 3MF object owns its triangles, so those"
-            " stayed with the first.",
-            stacklevel=3,
+        warn_caller(
+            f"{fmt}: element tag group(s) {shared} name elements an earlier"
+            f" group already wrote; {_label(fmt)} objects own their triangles, so"
+            " those stayed with the first."
         )
     rest = np.flatnonzero(~claimed)
     if rest.size:
@@ -974,7 +1131,12 @@ def _object_xml(
     )
 
 
-def _escape(text: str, what: str) -> str:
+def _label(fmt: str) -> str:
+    """Return the format name an extension stands for, ``3MF`` for ``.3mf``."""
+    return fmt.lstrip(".").upper()
+
+
+def _escape(text: str, what: str, *, fmt: str = EXTENSION) -> str:
     """Return ``text`` with the characters XML reserves or normalizes as entities.
 
     A literal tab, newline or return inside an attribute value is read back
@@ -989,7 +1151,7 @@ def _escape(text: str, what: str) -> str:
     """
     if _XML_FORBIDDEN.search(text):
         raise CodecError(
-            f".3mf: {what} {text!r} holds a control character XML cannot carry."
+            f"{fmt}: {what} {text!r} holds a control character XML cannot carry."
         )
     return (
         text.replace("&", "&amp;")

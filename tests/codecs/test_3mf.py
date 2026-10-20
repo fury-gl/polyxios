@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+import struct
 import tracemalloc
 import warnings
 import zipfile
@@ -19,6 +20,7 @@ import pytest
 import polyxios
 from polyxios import make_polydata
 from polyxios._types import PolyData
+from polyxios.codecs import _3mf
 from polyxios.codecs._3mf import _CORE_NS, _MODEL_REL_TYPE, read, write
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -486,6 +488,32 @@ def test_a_file_that_is_not_a_zip_is_refused(tmp_path: Path) -> None:
         read(path)
 
 
+def _broken_zip(raw: bytes, kind: str) -> bytes:
+    """Break an archive the way zipfile reports with other than BadZipFile."""
+    out = bytearray(raw)
+    if kind == "seek":
+        # A directory offset past where it stands sends a seek before byte 0.
+        at = out.rfind(b"PK\x05\x06")
+        out[at + 16 : at + 20] = struct.pack("<I", 0x7FFFFFFF)
+        return bytes(out)
+    at = out.find(b"PK\x01\x02")
+    if kind == "version":
+        out[at + 6 : at + 8] = struct.pack("<H", 0xFF)
+    else:
+        # The UTF-8 flag over a name that is not UTF-8.
+        out[at + 9] |= 0x08
+        out[at + 46] = 0xFF
+    return bytes(out)
+
+
+@pytest.mark.parametrize("kind", ["version", "name", "seek"])
+def test_a_package_zipfile_rejects_oddly_is_refused(tmp_path: Path, kind: str) -> None:
+    path = _tet_file(tmp_path)
+    path.write_bytes(_broken_zip(path.read_bytes(), kind))
+    with pytest.raises(CodecError, match="not a ZIP package|does not inflate"):
+        read(path)
+
+
 def test_a_package_without_a_model_part_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "empty.3mf"
     with zipfile.ZipFile(path, "w") as z:
@@ -497,6 +525,20 @@ def test_a_package_without_a_model_part_is_refused(tmp_path: Path) -> None:
 def test_a_model_that_is_not_xml_is_refused(tmp_path: Path) -> None:
     path = _package(tmp_path / "bad.3mf", "<model><resources>")
     with pytest.raises(CodecError, match="not well-formed"):
+        read(path)
+
+
+@pytest.mark.parametrize("part", ["model", "rels"])
+def test_an_xml_encoding_python_lacks_is_refused(tmp_path: Path, part: str) -> None:
+    bogus = '<?xml version="1.0" encoding="UTF-9"?>'
+    model = _model(f'<object id="1" type="model">{_tet_mesh_xml()}</object>', "")
+    rels = _RELS
+    if part == "model":
+        model = model.replace('<?xml version="1.0" encoding="UTF-8"?>', bogus, 1)
+    else:
+        rels = rels.replace('<?xml version="1.0" encoding="UTF-8"?>', bogus, 1)
+    path = _package(tmp_path / "enc.3mf", model, rels=rels)
+    with pytest.raises(CodecError, match="unknown encoding"):
         read(path)
 
 
@@ -516,6 +558,51 @@ def test_a_model_part_that_does_not_inflate_is_refused(tmp_path: Path) -> None:
     bad.write_bytes(bytes(raw))
     with pytest.raises(CodecError, match="does not inflate"):
         read(bad)
+
+
+def _patch_members(
+    raw: bytes, part: str, *, flag: int = 0, method: int | None = None
+) -> bytes:
+    """Set a flag bit or the compression method in both headers of one member."""
+    out = bytearray(raw)
+    name = part.encode()
+    for sig, at, name_at in ((b"PK\x03\x04", 6, 30), (b"PK\x01\x02", 8, 46)):
+        i = out.find(sig)
+        while i >= 0:
+            if out[i + name_at : i + name_at + len(name)] == name:
+                out[i + at] |= flag
+                if method is not None:
+                    out[i + at + 2 : i + at + 4] = method.to_bytes(2, "little")
+            i = out.find(sig, i + 4)
+    return bytes(out)
+
+
+@pytest.mark.parametrize("part", ["3D/3dmodel.model", "_rels/.rels"])
+@pytest.mark.parametrize(
+    ("kwargs", "match"), [({"flag": 1}, "encrypted"), ({"method": 97}, "compression")]
+)
+def test_a_part_zipfile_cannot_open_is_refused(
+    tmp_path: Path, part: str, kwargs: dict, match: str
+) -> None:
+    path = _tet_file(tmp_path)
+    path.write_bytes(_patch_members(path.read_bytes(), part, **kwargs))
+    with pytest.raises(CodecError, match=f"{part}.*{match}"):
+        read(path)
+
+
+@pytest.mark.parametrize("part", ["3D/3dmodel.model", "_rels/.rels"])
+def test_a_zip_bomb_is_refused(tmp_path: Path, monkeypatch, part: str) -> None:
+    monkeypatch.setattr(_3mf, "_INFLATE_FLOOR", 1 << 16)
+    path = tmp_path / "bomb.3mf"
+    model = _model(f'<object id="1" type="model">{_tet_mesh_xml()}</object>', "")
+    parts = {"3D/3dmodel.model": model, "_rels/.rels": _RELS}
+    parts[part] = parts[part].replace("?>", "?>" + " " * (1 << 20), 1)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", _CONTENT_TYPES)
+        for member, text in parts.items():
+            z.writestr(member, text)
+    with pytest.raises(CodecError, match=f"{part} inflates .* refused as a ZIP bomb"):
+        read(path)
 
 
 def test_a_model_part_that_is_not_a_model_is_refused(tmp_path: Path) -> None:
@@ -921,3 +1008,101 @@ def test_writes_to_a_buffer(tmp_path: Path) -> None:
     assert zipfile.is_zipfile(io.BytesIO(buf.getvalue()))
     buf.seek(0)
     assert len(polyxios.read(buf, fmt=".3mf").element_types) == 4
+
+
+_ENTITY_DOCTYPE = '<!DOCTYPE model [<!ENTITY n "tet">]>'
+
+
+def test_a_model_part_declaring_an_entity_is_refused(tmp_path: Path) -> None:
+    resources = f'<object id="1" type="model" name="&n;">{_tet_mesh_xml()}</object>'
+    model = _model(resources, '<item objectid="1"/>').replace(
+        "\n", "\n" + _ENTITY_DOCTYPE, 1
+    )
+    path = _package(tmp_path / "e.3mf", model)
+    with pytest.raises(CodecError, match="3dmodel.model declares an XML entity"):
+        polyxios.read(path)
+
+
+def test_an_entity_split_across_parse_chunks_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    model = _model(f'<object id="1" type="model">{_tet_mesh_xml()}</object>', "")
+    model = model.replace("\n", "\n" + _ENTITY_DOCTYPE, 1)
+    split = model.index("<!ENTITY") + 4
+    monkeypatch.setattr(_3mf, "_PARSE_CHUNK", split)
+    path = _package(tmp_path / "e.3mf", model)
+    with pytest.raises(CodecError, match="declares an XML entity"):
+        polyxios.read(path)
+
+
+def test_root_relationships_declaring_an_entity_are_refused(tmp_path: Path) -> None:
+    rels = _RELS.replace("?>", "?>" + '<!DOCTYPE Relationships [<!ENTITY a "b">]>', 1)
+    path = _package(tmp_path / "r.3mf", _model("", ""), rels=rels)
+    with pytest.raises(CodecError, match=r"_rels/\.rels declares an XML entity"):
+        polyxios.read(path)
+
+
+def test_a_vertex_index_past_int64_is_refused(tmp_path: Path) -> None:
+    resources = (
+        '<object id="1" type="model"><mesh><vertices>'
+        + '<vertex x="0" y="0" z="0"/>' * 3
+        + '</vertices><triangles><triangle v1="99999999999999999999" v2="1" v3="2"/>'
+        "</triangles></mesh></object>"
+    )
+    path = _package(tmp_path / "a.3mf", _model(resources, '<item objectid="1"/>'))
+    with pytest.raises(CodecError, match="not three vertex indices"):
+        polyxios.read(path)
+
+
+def test_an_error_parsing_the_model_is_not_reported_as_inflation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def start(self, tag, attrs):
+        raise ValueError("from the parser target")
+
+    monkeypatch.setattr(_3mf._ModelTarget, "start", start)
+    with pytest.raises(ValueError, match="from the parser target"):
+        polyxios.read(_tet_file(tmp_path))
+
+
+def test_an_empty_tag_group_name_round_trips(tmp_path: Path) -> None:
+    poly = make_polydata(
+        [(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)],
+        [("triangle", np.array([[0, 1, 2], [1, 3, 2]]))],
+        element_tags={"": np.array([0]), "b": np.array([1])},
+    )
+    path = tmp_path / "e.3mf"
+    write(poly, path)
+    tags = read(path).element_tags
+    assert {k: v.tolist() for k, v in tags.items()} == {"": [0], "b": [1]}
+
+
+def test_a_length_3mf_lacks_is_scaled_to_millimetres(tmp_path: Path) -> None:
+    path = tmp_path / "out.3mf"
+    with pytest.warns(UserWarning, match="scaled by 914.4"):
+        write(_tet_poly(global_attrs={"unit": "yard"}), path)
+    back = read(path)
+    assert back.global_attrs["unit"] == "millimeter"
+    np.testing.assert_allclose(np.unique(back.vertices), [0.0, 914.4])
+
+
+def test_write_warnings_point_at_the_caller(tmp_path: Path) -> None:
+    with pytest.warns(UserWarning, match="not a 3MF unit") as caught:
+        polyxios.write(_tet_poly(global_attrs={"unit": "cubit"}), tmp_path / "o.3mf")
+    assert {w.filename for w in caught} == {__file__}
+
+
+def test_read_warnings_point_at_the_caller(tmp_path: Path) -> None:
+    path = tmp_path / "o.3mf"
+    write(_tet_poly(), path, unit="inch")
+    data = io.BytesIO()
+    with zipfile.ZipFile(path) as src, zipfile.ZipFile(data, "w") as dst:
+        for info in src.infolist():
+            body = src.read(info)
+            if info.filename.endswith(".model"):
+                body = body.replace(b'unit="inch"', b'unit="cubit"')
+            dst.writestr(info, body)
+    path.write_bytes(data.getvalue())
+    with pytest.warns(UserWarning, match="'cubit' is not one 3MF defines") as caught:
+        polyxios.read(path)
+    assert {w.filename for w in caught} == {__file__}

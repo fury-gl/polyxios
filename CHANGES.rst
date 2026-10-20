@@ -24,6 +24,56 @@ New features
   undoing the axis order and writing back what the layer could not show -
   other vertex attributes, lines, mesh-level attributes. napari is not a
   dependency.
+- DXF (``.dxf``), AutoCAD's exchange format, is read in ASCII and binary
+  and written as R12. The reader takes the entities that are mesh
+  geometry - ``3DFACE``, ``SOLID``, ``TRACE``, polyface and polygon-mesh
+  ``POLYLINE``, ``MESH``, 3D and 2D ``POLYLINE``, ``LWPOLYLINE``, ``LINE``
+  and ``POINT`` - out of their object coordinate systems, expands every
+  ``INSERT`` with its scale, rotation, array and extrusion, nested blocks
+  included, merges vertices at equal coordinates and tags each element
+  with its layer, layer names compared without case as DXF compares
+  them; R12 names spelled in an East Asian code page (``\M+nXXXX``) are
+  decoded. ``$INSUNITS`` reads as ``global_attrs["unit"]``. Other
+  entities, and a face, line or point missing a point it needs, are
+  skipped with a count; an empty file, or one holding no section, is
+  refused. The writer spells faces as polyface meshes,
+  lines, 3D polylines and points, one layer per tag group; a name holding
+  a character no DXF layer name allows is rewritten with a warning.
+  Verified against ezdxf on files it wrote in R12, R2000 and R2018, ASCII
+  and binary, and ezdxf's auditor reads the writer's output clean.
+- AMF (``.amf``), the additive-manufacturing format 3MF replaced, is read
+  plain or zipped and written either way (``compress=True``). Objects come
+  back as element tag groups, constellations place their instances, the
+  most specific colour of each triangle - its own, its volume's, its
+  object's, its material's - lands in ``element_attrs["colors"]``, and
+  vertex colours and normals in ``vertex_attrs``. Writing shares the 3MF
+  mapping.
+
+Bug fixes
+~~~~~~~~~
+
+- A ``.3mf`` package whose model part or ``_rels/.rels`` is encrypted, or
+  stored with a compression method Python's ``zipfile`` lacks, now raises
+  ``CodecError`` rather than ``RuntimeError`` or ``NotImplementedError``,
+  as does an archive ``zipfile`` cannot open for a ZIP version it lacks, a
+  directory offset before the file's start or a name flagged UTF-8 that is
+  not, and a triangle naming a vertex past 64-bit integers rather than
+  ``OverflowError``. A part that declares more than 256 MiB inflated at
+  over 200 times its stored size is refused as a ZIP bomb before it is
+  read; a mesh's XML stores at 5:1 to 15:1. A zipped ``.amf`` is held to
+  the same rules.
+- A ``.3mf`` model part or ``_rels/.rels`` that declares an XML entity now
+  raises ``CodecError`` rather than having the entity expanded, whatever
+  the expat Python is linked against; 3MF never needs one.
+- A ``.3mf`` object named with an empty ``name`` now reads back as an
+  element tag group of that empty name rather than as ``object_<id>``, so
+  a tag group named ``""`` survives a round trip.
+- Writing ``.3mf`` from a mesh whose ``global_attrs["unit"]`` is a length
+  3MF lacks - ``yard`` or ``kilometer`` read from a DXF drawing, say - now
+  scales the vertices to millimetres along with labelling them so; they
+  used to be labelled millimetres unscaled. A ``.amf`` is written the same
+  way. The warnings the 3MF reader and writer raise now point at the
+  caller's line rather than inside polyxios.
 
 .. _changes_0.5.1:
 

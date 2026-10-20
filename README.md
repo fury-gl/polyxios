@@ -250,6 +250,8 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 | Stanford PLY | `.ply` | ✓ | ✓ | lazy: binary vertices; faces decoded |
 | STL | `.stl` | ✓ | ✓ | lazy: binary, which skips vertex deduplication and copies |
 | 3MF | `.3mf` | ✓ | ✓ | objects → element tags, assemblies placed by transform, materials → `colors`, `unit` in `global_attrs` |
+| AMF | `.amf` | ✓ | ✓ | plain or zipped; objects → element tags, constellations placed, colours → `colors`, vertex normals kept |
+| DXF | `.dxf` | ✓ | ✓ | ASCII + binary; faces, polyface/polygon meshes, `MESH`, polylines, lines, points, blocks expanded; layers → element tags; writes R12 |
 | OFF | `.off` | ✓ | ✓ | ASCII + big-endian binary, `ST`/`C`/`N` variants → vertex/face attrs |
 | AVS-UCD | `.avs` | ✓ | ✓ | node/cell/model data → attrs |
 | Medit binary | `.meshb` | ✓ | ✓ | lazy: vertices; elements decoded |
@@ -316,7 +318,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**44 formats supported** across the 56 extensions in the tables, plus `.plt`, which
+**46 formats supported** across the 58 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

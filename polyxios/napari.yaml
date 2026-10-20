@@ -22,10 +22,11 @@ contributions:
     - command: polyxios.get_reader
       accepts_directories: false
       filename_patterns: [
-      "*.3mf", "*.3mf.gz", "*.3mf.gzip", "*.avs", "*.avs.gz", "*.avs.gzip", "*.bdf",
-      "*.bdf.gz", "*.bdf.gzip", "*.cgns", "*.cgns.gz", "*.cgns.gzip", "*.dae",
-      "*.dae.gz", "*.dae.gzip", "*.dat", "*.dat.gz", "*.dat.gzip", "*.dato",
-      "*.dato.gz", "*.dato.gzip", "*.e", "*.e.gz", "*.e.gzip", "*.ele", "*.ele.gz",
+      "*.3mf", "*.3mf.gz", "*.3mf.gzip", "*.amf", "*.amf.gz", "*.amf.gzip", "*.avs",
+      "*.avs.gz", "*.avs.gzip", "*.bdf", "*.bdf.gz", "*.bdf.gzip", "*.cgns",
+      "*.cgns.gz", "*.cgns.gzip", "*.dae", "*.dae.gz", "*.dae.gzip", "*.dat",
+      "*.dat.gz", "*.dat.gzip", "*.dato", "*.dato.gz", "*.dato.gzip", "*.dxf",
+      "*.dxf.gz", "*.dxf.gzip", "*.e", "*.e.gz", "*.e.gzip", "*.ele", "*.ele.gz",
       "*.ele.gzip", "*.ex2", "*.ex2.gz", "*.ex2.gzip", "*.exo", "*.exo.gz",
       "*.exo.gzip", "*.f3grid", "*.f3grid.gz", "*.f3grid.gzip", "*.fem", "*.fem.gz",
       "*.fem.gzip", "*.fluent", "*.fluent.gz", "*.fluent.gzip", "*.glb", "*.glb.gz",
@@ -58,8 +59,8 @@ contributions:
       layer_types: ["surface"]
       filename_extensions: [
         ".ply", ".stl", ".obj", ".off", ".vtk", ".vtp", ".vtu", ".vtkhdf",
-        ".glb", ".gltf", ".3mf", ".dae", ".msh", ".inp", ".med", ".mesh",
-        ".meshb", ".exo"
+        ".glb", ".gltf", ".3mf", ".amf", ".dae", ".dxf", ".msh", ".inp",
+        ".med", ".mesh", ".meshb", ".exo"
       ]
     - command: polyxios.write_points
       display_name: polyxios points
