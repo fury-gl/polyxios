@@ -12,11 +12,11 @@
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://polyxios.org/stable/contributing.html" />
 <meta property="og:site_name" content="polyxios" />
-<meta property="og:description" content="Commit message convention: Every commit subject line must start with one of these prefixes followed by a space:,, Prefix, Meaning,,, BF:, Bug fix,, RF:, Refactoring,, NF:, New feature,, BW:, Addres..." />
+<meta property="og:description" content="Issue first: Every change starts as an issue assigned to the person who will write it, so the problem and the proposed fix are agreed on before code is written: Find or open an issue describing the..." />
 <meta property="og:image:width" content="1146" />
 <meta property="og:image:height" content="600" />
-<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_contributing_e7e45a27.png" />
-<meta property="og:image:alt" content="Commit message convention: Every commit subject line must start with one of these prefixes followed by a space:,, Prefix, Meaning,,, BF:, Bug fix,, RF:, Refactoring,, NF:, New feature,, BW:, Addres..." />
+<meta property="og:image" content="https://polyxios.org/stable/_images/social_previews/summary_contributing_834f221b.png" />
+<meta property="og:image:alt" content="Issue first: Every change starts as an issue assigned to the person who will write it, so the problem and the proposed fix are agreed on before code is written: Find or open an issue describing the..." />
 <meta name="twitter:card" content="summary_large_image" />
 
     <meta name="robots" content="noindex, follow" />
@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=f3a423b4"></script>
+    <script src="_static/documentation_options.js?v=4cd6fafe"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.6" />
-    <meta name="docbuild:last-update" content="2026-10-19"/>
+    <meta name="docbuild:last-update" content="2026-10-20"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -562,6 +562,42 @@
                   
   <section id="contributing">
 <h1>Contributing<a class="headerlink" href="#contributing" title="Link to this heading">#</a></h1>
+<section id="issue-first">
+<h2>Issue first<a class="headerlink" href="#issue-first" title="Link to this heading">#</a></h2>
+<p>Every change starts as an <a class="reference external" href="https://github.com/fury-gl/polyxios/issues">issue</a>
+assigned to the person who will write it, so the problem and the proposed
+fix are agreed on before code is written:</p>
+<ol class="arabic simple">
+<li><p>Find or open an issue describing the change. Ideas can start as a
+<a class="reference external" href="https://github.com/fury-gl/polyxios/discussions">discussion</a>; once
+agreed, a maintainer opens an issue from it.</p></li>
+<li><p>Comment on the issue to ask to work on it. A maintainer assigns it to you.</p></li>
+<li><p>Reference it in the pull request description (<code class="docutils literal notranslate"><span class="pre">Closes</span> <span class="pre">#123</span></code>).</p></li>
+</ol>
+<p>The <code class="docutils literal notranslate"><span class="pre">PR</span> <span class="pre">Policy</span></code> workflow enforces this for every author who is neither a
+member of the <code class="docutils literal notranslate"><span class="pre">fury-gl</span></code> organisation nor has write access to the
+repository, outside collaborators with read or triage access included. A
+pull request that references no open issue assigned to
+its author is labelled <code class="docutils literal notranslate"><span class="pre">needs-issue</span></code>, closed, and gets a failing
+<code class="docutils literal notranslate"><span class="pre">pr-policy</span></code> status. It reopens on its own once it references such an issue,
+whether the description is edited or the author is assigned, unless someone
+else closed it since. GitHub starts no CI for a reopen made by a workflow, so
+if you pushed while the pull request was closed, push again to run the checks.
+Unassigning the author closes the pull request again. A maintainer can waive
+the check for one pull request by reopening it after the policy closed it.
+First-time contributors also get a welcome comment that summarises these
+rules.</p>
+<p>The rule holds for returning contributors too. Regular contributors can
+instead join the polyxios community: open a discussion in the
+<a class="reference external" href="https://github.com/fury-gl/polyxios/discussions/categories/community-membership">Community membership</a>
+category with links to past contributions. Once a maintainer adds the login
+to <code class="docutils literal notranslate"><span class="pre">.github/community-members.txt</span></code>, that author’s pull requests skip the
+issue-first check. Membership grants no write access to the repository.</p>
+<p>AI-assisted contributions are welcome under the same terms as any other:
+the author is responsible for every line, has run the code, and answers
+review questions personally. Pull requests that read as unreviewed
+generated output are closed.</p>
+</section>
 <section id="commit-message-convention">
 <h2>Commit message convention<a class="headerlink" href="#commit-message-convention" title="Link to this heading">#</a></h2>
 <p>Every commit subject line must start with one of these prefixes followed by
@@ -705,6 +741,7 @@ drop the bot’s <code class="docutils literal notranslate"><span class="pre">Co
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#issue-first">Issue first</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-message-convention">Commit message convention</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bot-authored-commits">Bot-authored commits</a></li>
 </ul>
@@ -764,7 +801,7 @@ drop the bot’s <code class="docutils literal notranslate"><span class="pre">Co
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-10-19.
+  Last updated on 2026-10-20.
   <br/>
 </p></div>
       
