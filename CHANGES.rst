@@ -9,7 +9,21 @@ Changelog
 0.6.0 (upcoming)
 ----------------
 
-(No entries yet.)
+New features
+~~~~~~~~~~~~
+
+- polyxios is a napari plugin. Installed next to napari, it opens every
+  format polyxios reads: a mesh as a Surface layer (volume meshes as their
+  boundary, a measured vertex attribute as its values, else an integer
+  one that is not an index), a ParaView index as its pieces merged, a point
+  cloud or line set as a Points layer with its scalar attributes as
+  features. Vertex colours show on both. Vertices are shown in napari's
+  (z, y, x) order, so a mesh overlays the volume it came from;
+  ``polyxios.napari.layer_data`` builds layers in either order from Python.
+  Surface and Points layers save back to the mesh and point-cloud formats,
+  undoing the axis order and writing back what the layer could not show -
+  other vertex attributes, lines, mesh-level attributes. napari is not a
+  dependency.
 
 .. _changes_0.5.1:
 

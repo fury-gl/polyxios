@@ -42,6 +42,15 @@ class Codec(NamedTuple):
         Optional scene writer, invoked as
         ``write_scene(scene=..., path=..., **opts)``.  ``None`` for formats
         that cannot represent a full scene graph.
+    entries
+        The ``(label, codec)`` pairs behind ``candidates``, in the same
+        order, on a dispatcher only. They are what its ``read`` tries, each
+        ``codec.sniff`` against :func:`sniff_head` of the file, so a caller
+        can tell which of them would take a file without reading it.
+    owner
+        On a dispatcher only, the codec owning the extension it shares,
+        which reads a file none of ``entries`` recognises; None when the
+        extension belongs to nobody.
     """
 
     read: Callable
@@ -50,12 +59,51 @@ class Codec(NamedTuple):
     candidates: tuple[str, ...] = ()
     read_scene: Callable | None = None
     write_scene: Callable | None = None
+    entries: tuple[tuple[str, "Codec"], ...] = ()
+    owner: "Codec | None" = None
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
 # deck's comment banner does not hide its first real card, small enough that
 # reading it costs one page.
 _SNIFF_BYTES: int = 8192
+
+
+def sniff_head(path: Source) -> bytes:
+    """Read the opening bytes of *path* that a dispatcher's sniffers see.
+
+    Parameters
+    ----------
+    path
+        File path, or a seekable file object, which is put back where it was.
+        A non-seekable stream is read from all the same, and the bytes read
+        are gone from it; a dispatcher refuses one instead, since it could
+        not hand those bytes on to the codec it picks.
+
+    Returns
+    -------
+    bytes
+        At most ``_SNIFF_BYTES`` bytes, gzip unwrapped. A full window loses
+        its last, possibly cut, line; a window with no newline is left alone,
+        since sniffers anchor at the start.
+
+    Raises
+    ------
+    OSError
+        If *path* cannot be opened. A missing or unreadable path raises here
+        what it raises under an extension one codec owns.
+    """
+    with open_read(path) as fh:
+        # Only a handle the caller owns is put back.  A path's handle is
+        # opened here and closed on the next line; a compressed handle is
+        # rewound by open_read itself on the source.
+        start = fh.tell() if is_buffer(path) and can_seek(fh) else None
+        head = fh.read(_SNIFF_BYTES)
+        if start is not None:
+            fh.seek(start)
+    if len(head) == _SNIFF_BYTES and b"\n" in head:
+        head = head.rsplit(b"\n", 1)[0]
+    return head
 
 
 def _sniff_head(path: Source, shared: str) -> bytes:
@@ -71,22 +119,7 @@ def _sniff_head(path: Source, shared: str) -> bytes:
             f"seek back. Pass fmt= to choose one explicitly, or buffer "
             f"the stream first."
         )
-    # A file that cannot be opened is not an ambiguous file: let the OS
-    # error through so a missing or unreadable path raises the same thing
-    # here as it does under an extension one codec owns.
-    with open_read(path) as fh:
-        # Only a handle the caller owns is put back.  A path's handle is
-        # opened here and closed on the next line; a compressed handle is
-        # rewound by open_read itself on the source.
-        start = fh.tell() if is_buffer(path) and can_seek(fh) else None
-        head = fh.read(_SNIFF_BYTES)
-        if start is not None:
-            fh.seek(start)
-    # A full buffer means the read stopped mid-line; drop the partial line.
-    # A window with no newline is left alone — sniffers anchor at the start.
-    if len(head) == _SNIFF_BYTES and b"\n" in head:
-        head = head.rsplit(b"\n", 1)[0]
-    return head
+    return sniff_head(path)
 
 
 def _run_sniffers(
@@ -240,7 +273,14 @@ def _make_dispatcher(
         dispatcher_write_scene = _dispatcher_write_scene
 
     return Codec(
-        read, write, None, labels, dispatcher_read_scene, dispatcher_write_scene
+        read,
+        write,
+        None,
+        labels,
+        dispatcher_read_scene,
+        dispatcher_write_scene,
+        tuple(entries),
+        default_writer[1] if default_writer is not None else None,
     )
 
 

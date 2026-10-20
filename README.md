@@ -170,6 +170,22 @@ pxios viz stanford-bunny.obj
 
 ---
 
+## napari plugin
+
+Installed next to [napari](https://napari.org), polyxios opens every format it
+reads as a Surface or Points layer, and saves those layers back. No extra
+package to install, and napari is not a dependency.
+
+```bash
+pip install polyxios "napari[all]"
+napari mesh.vtu cloud.las
+```
+
+See the [napari guide](https://polyxios.org/stable/napari.html) for the layer
+mapping and the axis order.
+
+---
+
 ## Lazy loading - read large files without copying them
 
 See the [lazy loading guide](https://polyxios.org/stable/lazy_loading.html) for the full picture.

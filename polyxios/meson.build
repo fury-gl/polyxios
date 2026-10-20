@@ -42,7 +42,9 @@ py.install_sources(
     'validate.py',
     'fetcher.py',
     'cli.py',
-    'helper.py'
+    'helper.py',
+    'napari.py',
+    'napari.yaml'
   ],
   subdir: 'polyxios',
 )

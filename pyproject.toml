@@ -31,6 +31,7 @@ keywords = [
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Framework :: napari",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
@@ -104,6 +105,9 @@ laz = [
 [project.scripts]
 pxios = "polyxios.cli:main"
 
+[project.entry-points."napari.manifest"]
+polyxios = "polyxios:napari.yaml"
+
 [project.entry-points."polyxios.codecs"]
 # third-party packages register their own entry points here
 
@@ -119,7 +123,9 @@ package = "polyxios"
 "Release" = [".spin/cmds.py:release"]
 
 [tool.pytest.ini_options]
-addopts = "--durations=10 -v"
+# napari's own pytest plugin imports npe2 at collection, and npe2's pydantic
+# deprecation warning is an error under filterwarnings = error below.
+addopts = "--durations=10 -v -p no:napari"
 testpaths = ["tests"]
 # A warning the suite does not account for is a bug in the test or the code it
 # covers, so it fails the run. Codecs warn a lot by design; every one of those
