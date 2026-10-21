@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=aab0ad53"></script>
+    <script src="_static/documentation_options.js?v=667d6772"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.6" />
-    <meta name="docbuild:last-update" content="2026-10-20"/>
+    <meta name="docbuild:last-update" content="2026-10-21"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -430,6 +430,8 @@
 <li class="toctree-l2"><a class="reference internal" href="formats/ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/stl.html">STL</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/3mf.html">3MF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/amf.html">AMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="formats/dxf.html">DXF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="formats/avs.html">AVS-UCD</a></li>
@@ -582,13 +584,64 @@ Surface and Points layers save back to the mesh and point-cloud formats,
 undoing the axis order and writing back what the layer could not show -
 other vertex attributes, lines, mesh-level attributes. napari is not a
 dependency.</p></li>
+<li><p>DXF (<code class="docutils literal notranslate"><span class="pre">.dxf</span></code>), AutoCAD’s exchange format, is read in ASCII and binary
+and written as R12. The reader takes the entities that are mesh
+geometry - <code class="docutils literal notranslate"><span class="pre">3DFACE</span></code>, <code class="docutils literal notranslate"><span class="pre">SOLID</span></code>, <code class="docutils literal notranslate"><span class="pre">TRACE</span></code>, polyface and polygon-mesh
+<code class="docutils literal notranslate"><span class="pre">POLYLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">MESH</span></code>, 3D and 2D <code class="docutils literal notranslate"><span class="pre">POLYLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">LWPOLYLINE</span></code>, <code class="docutils literal notranslate"><span class="pre">LINE</span></code>
+and <code class="docutils literal notranslate"><span class="pre">POINT</span></code> - out of their object coordinate systems, expands every
+<code class="docutils literal notranslate"><span class="pre">INSERT</span></code> with its scale, rotation, array and extrusion, nested blocks
+included, merges vertices at equal coordinates and tags each element
+with its layer, layer names compared without case as DXF compares
+them; R12 names spelled in an East Asian code page (<code class="docutils literal notranslate"><span class="pre">\M+nXXXX</span></code>) are
+decoded. <code class="docutils literal notranslate"><span class="pre">$INSUNITS</span></code> reads as <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;unit&quot;]</span></code>. Other
+entities, and a face, line or point missing a point it needs, are
+skipped with a count; an empty file, or one holding no section, is
+refused. The writer spells faces as polyface meshes,
+lines, 3D polylines and points, one layer per tag group; a name holding
+a character no DXF layer name allows is rewritten with a warning.
+Verified against ezdxf on files it wrote in R12, R2000 and R2018, ASCII
+and binary, and ezdxf’s auditor reads the writer’s output clean.</p></li>
+<li><p>AMF (<code class="docutils literal notranslate"><span class="pre">.amf</span></code>), the additive-manufacturing format 3MF replaced, is read
+plain or zipped and written either way (<code class="docutils literal notranslate"><span class="pre">compress=True</span></code>). Objects come
+back as element tag groups, constellations place their instances, the
+most specific colour of each triangle - its own, its volume’s, its
+object’s, its material’s - lands in <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code>, and
+vertex colours and normals in <code class="docutils literal notranslate"><span class="pre">vertex_attrs</span></code>. Writing shares the 3MF
+mapping.</p></li>
+</ul>
+</section>
+<section id="bug-fixes">
+<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> package whose model part or <code class="docutils literal notranslate"><span class="pre">_rels/.rels</span></code> is encrypted, or
+stored with a compression method Python’s <code class="docutils literal notranslate"><span class="pre">zipfile</span></code> lacks, now raises
+<code class="docutils literal notranslate"><span class="pre">CodecError</span></code> rather than <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code> or <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code>,
+as does an archive <code class="docutils literal notranslate"><span class="pre">zipfile</span></code> cannot open for a ZIP version it lacks, a
+directory offset before the file’s start or a name flagged UTF-8 that is
+not, and a triangle naming a vertex past 64-bit integers rather than
+<code class="docutils literal notranslate"><span class="pre">OverflowError</span></code>. A part that declares more than 256 MiB inflated at
+over 200 times its stored size is refused as a ZIP bomb before it is
+read; a mesh’s XML stores at 5:1 to 15:1. A zipped <code class="docutils literal notranslate"><span class="pre">.amf</span></code> is held to
+the same rules.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> model part or <code class="docutils literal notranslate"><span class="pre">_rels/.rels</span></code> that declares an XML entity now
+raises <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> rather than having the entity expanded, whatever
+the expat Python is linked against; 3MF never needs one.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> object named with an empty <code class="docutils literal notranslate"><span class="pre">name</span></code> now reads back as an
+element tag group of that empty name rather than as <code class="docutils literal notranslate"><span class="pre">object_&lt;id&gt;</span></code>, so
+a tag group named <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> survives a round trip.</p></li>
+<li><p>Writing <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> from a mesh whose <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;unit&quot;]</span></code> is a length
+3MF lacks - <code class="docutils literal notranslate"><span class="pre">yard</span></code> or <code class="docutils literal notranslate"><span class="pre">kilometer</span></code> read from a DXF drawing, say - now
+scales the vertices to millimetres along with labelling them so; they
+used to be labelled millimetres unscaled. A <code class="docutils literal notranslate"><span class="pre">.amf</span></code> is written the same
+way. The warnings the 3MF reader and writer raise now point at the
+caller’s line rather than inside polyxios.</p></li>
 </ul>
 </section>
 </section>
 <section id="changes-0-5-1">
 <span id="id2"></span><h2>0.5.1 (2026-10-15)<a class="headerlink" href="#changes-0-5-1" title="Link to this heading">#</a></h2>
-<section id="bug-fixes">
-<h3>Bug fixes<a class="headerlink" href="#bug-fixes" title="Link to this heading">#</a></h3>
+<section id="id3">
+<h3>Bug fixes<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>A binary legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> POLYDATA file whose cell sections carry no
 <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> block no longer reads with an empty first cell ahead of its
@@ -620,9 +673,9 @@ the PyPI job used to run and fail.</p></li>
 </section>
 </section>
 <section id="changes-0-5-0">
-<span id="id3"></span><h2>0.5.0 (2026-10-11)<a class="headerlink" href="#changes-0-5-0" title="Link to this heading">#</a></h2>
-<section id="id4">
-<h3>New features<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<span id="id4"></span><h2>0.5.0 (2026-10-11)<a class="headerlink" href="#changes-0-5-0" title="Link to this heading">#</a></h2>
+<section id="id5">
+<h3>New features<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>PCD (<code class="docutils literal notranslate"><span class="pre">.pcd</span></code>), the Point Cloud Library’s format that PCL, ROS and
 Open3D exchange clouds in, is read and written in all three of its
@@ -1002,8 +1055,8 @@ was dropped without a word, so a mesh could lose most of itself on the
 way out. A suite that runs with warnings as errors sees the skip now.</p></li>
 </ul>
 </section>
-<section id="id5">
-<h3>Bug fixes<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
+<section id="id6">
+<h3>Bug fixes<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Two <code class="docutils literal notranslate"><span class="pre">SceneData</span></code> (or <code class="docutils literal notranslate"><span class="pre">SceneNode</span></code>, or <code class="docutils literal notranslate"><span class="pre">SceneMaterial</span></code>) compared with
 <code class="docutils literal notranslate"><span class="pre">==</span></code> no longer raise when their <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> or <code class="docutils literal notranslate"><span class="pre">extras</span></code> hold
@@ -1133,8 +1186,8 @@ it.</p></li>
 so the HDF5 and LAZ tests skip there.</p></li>
 </ul>
 </section>
-<section id="id6">
-<h3>Packaging<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<section id="id7">
+<h3>Packaging<a class="headerlink" href="#id7" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Python 3.15 wheels are built for a release, for Linux, macOS and
 Windows, and the distribution declares 3.15 among its classifiers.</p></li>
@@ -1218,13 +1271,13 @@ relative path, which rendered broken on PyPI, now point at the site.</p></li>
 </section>
 </section>
 <section id="changes-0-4-1">
-<span id="id7"></span><h2>0.4.1 (2026-09-09)<a class="headerlink" href="#changes-0-4-1" title="Link to this heading">#</a></h2>
+<span id="id8"></span><h2>0.4.1 (2026-09-09)<a class="headerlink" href="#changes-0-4-1" title="Link to this heading">#</a></h2>
 <p>0.4.0 reached PyPI only after its release workflow was repaired and re-run by
 hand, and its documentation never reached the site at all. Every one of the
 bugs was in the machinery rather than the library, so 0.4.1 is the same code,
 released the way a release is meant to run.</p>
-<section id="id8">
-<h3>Bug fixes<a class="headerlink" href="#id8" title="Link to this heading">#</a></h3>
+<section id="id9">
+<h3>Bug fixes<a class="headerlink" href="#id9" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -1276,12 +1329,12 @@ separately from the version directory it publishes as.</p></li>
 </section>
 </section>
 <section id="changes-0-4-0">
-<span id="id9"></span><h2>0.4.0 (2026-09-09)<a class="headerlink" href="#changes-0-4-0" title="Link to this heading">#</a></h2>
+<span id="id10"></span><h2>0.4.0 (2026-09-09)<a class="headerlink" href="#changes-0-4-0" title="Link to this heading">#</a></h2>
 <p>Meshes read and written over file objects and gzip alike, one new format,
 entity numbering and whole-mesh metadata that survive a round trip, and an
 extension shared by several formats resolved by what the file holds.</p>
-<section id="id10">
-<h3>New features<a class="headerlink" href="#id10" title="Link to this heading">#</a></h3>
+<section id="id11">
+<h3>New features<a class="headerlink" href="#id11" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">read()</span></code> and <code class="docutils literal notranslate"><span class="pre">write()</span></code> now take an open binary file object wherever
 they take a path, so a mesh round-trips through <code class="docutils literal notranslate"><span class="pre">io.BytesIO</span></code>, a socket
@@ -1499,8 +1552,8 @@ the split left, and a copy takes what the vertex it came from takes. The
 warning about the values it drops now names the option that keeps them.</p></li>
 </ul>
 </section>
-<section id="id11">
-<h3>Behaviour changes<a class="headerlink" href="#id11" title="Link to this heading">#</a></h3>
+<section id="id12">
+<h3>Behaviour changes<a class="headerlink" href="#id12" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Medit <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> records a two-dimensional file in
 <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;was_2d&quot;]</span></code> rather than keeping the file’s own number in
@@ -1535,8 +1588,8 @@ buffer does, so the bytes a path receives and the bytes a <code class="docutils 
 receives are the same ones. Every reader already accepted either ending.</p></li>
 </ul>
 </section>
-<section id="id12">
-<h3>Bug fixes<a class="headerlink" href="#id12" title="Link to this heading">#</a></h3>
+<section id="id13">
+<h3>Bug fixes<a class="headerlink" href="#id13" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>A legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> <code class="docutils literal notranslate"><span class="pre">SCALARS</span></code> header names between one and four components
 and no more. The writer spelled every tuple it had no <code class="docutils literal notranslate"><span class="pre">VECTORS</span></code> or
@@ -2368,8 +2421,8 @@ the corners rather than a numpy row assignment per corner.</p></li>
 of a formatted write per point, which was a syscall per line.</p></li>
 </ul>
 </section>
-<section id="id13">
-<h3>Tests<a class="headerlink" href="#id13" title="Link to this heading">#</a></h3>
+<section id="id14">
+<h3>Tests<a class="headerlink" href="#id14" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Regression tests for the dtype a <code class="docutils literal notranslate"><span class="pre">.vtr</span></code> header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -2425,11 +2478,11 @@ cannot join the registry without an entry.</p></li>
 </section>
 </section>
 <section id="changes-0-3-0">
-<span id="id14"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
+<span id="id15"></span><h2>0.3.0 (2026-08-18)<a class="headerlink" href="#changes-0-3-0" title="Link to this heading">#</a></h2>
 <p>Fifteen new mesh formats, a real command line interface and a versioned
 documentation site.</p>
-<section id="id15">
-<h3>New features<a class="headerlink" href="#id15" title="Link to this heading">#</a></h3>
+<section id="id16">
+<h3>New features<a class="headerlink" href="#id16" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:</p>
@@ -2461,8 +2514,8 @@ free, small and large field formats.</p></li>
 a credits page generated from the git history, and a page per format.</p></li>
 </ul>
 </section>
-<section id="id16">
-<h3>Changes<a class="headerlink" href="#id16" title="Link to this heading">#</a></h3>
+<section id="id17">
+<h3>Changes<a class="headerlink" href="#id17" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>The fetcher now resolves assets through a remote <code class="docutils literal notranslate"><span class="pre">models.json</span></code> catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -2474,8 +2527,8 @@ and resolves destination paths defensively.</p></li>
 as errors.</p></li>
 </ul>
 </section>
-<section id="id17">
-<h3>Bug fixes<a class="headerlink" href="#id17" title="Link to this heading">#</a></h3>
+<section id="id18">
+<h3>Bug fixes<a class="headerlink" href="#id18" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped <code class="docutils literal notranslate"><span class="pre">example</span> <span class="pre">--list</span></code>
@@ -2536,10 +2589,10 @@ multiblock partial loading and visualization colours.</p></li>
 </section>
 </section>
 <section id="changes-0-2-0">
-<span id="id18"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
+<span id="id19"></span><h2>0.2.0 (2026-06-25)<a class="headerlink" href="#changes-0-2-0" title="Link to this heading">#</a></h2>
 <p>First public release of <strong>polyxios</strong>.</p>
-<section id="id19">
-<h3>New features<a class="headerlink" href="#id19" title="Link to this heading">#</a></h3>
+<section id="id20">
+<h3>New features<a class="headerlink" href="#id20" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p>Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.</p></li>
@@ -2632,41 +2685,42 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming">0.6.0 (upcoming)</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#new-features">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-5-1">0.5.1 (2026-10-15)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#bug-fixes">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#packaging">Packaging</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-5-0">0.5.0 (2026-10-11)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">New features</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#behaviour-changes">Behaviour changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">Packaging</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id7">Packaging</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-1">0.4.1 (2026-09-09)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id8">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id9">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-4-0">0.4.0 (2026-09-09)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id10">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">Behaviour changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id11">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id12">Behaviour changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Bug fixes</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optimizations">Optimizations</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id13">Tests</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id14">Tests</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-3-0">0.3.0 (2026-08-18)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id15">New features</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id16">Changes</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id17">Bug fixes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id16">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id17">Changes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id18">Bug fixes</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changes-0-2-0">0.2.0 (2026-06-25)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id19">New features</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id20">New features</a></li>
 </ul>
 </li>
 </ul>
@@ -2726,7 +2780,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-10-20.
+  Last updated on 2026-10-21.
   <br/>
 </p></div>
       

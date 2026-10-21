@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=aab0ad53"></script>
+    <script src="../_static/documentation_options.js?v=667d6772"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -70,12 +70,12 @@
     <link rel="canonical" href="https://polyxios.org/stable/formats/3mf.html" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="OFF" href="off.html" />
+    <link rel="next" title="AMF" href="amf.html" />
     <link rel="prev" title="STL" href="stl.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.6" />
-    <meta name="docbuild:last-update" content="2026-10-20"/>
+    <meta name="docbuild:last-update" content="2026-10-21"/>
   
     
     <script src="../_static/searchtools.js"></script>
@@ -430,6 +430,8 @@
 <li class="toctree-l2"><a class="reference internal" href="ply.html">Stanford PLY</a></li>
 <li class="toctree-l2"><a class="reference internal" href="stl.html">STL</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">3MF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="amf.html">AMF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dxf.html">DXF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="off.html">OFF</a></li>
 <li class="toctree-l2"><a class="reference internal" href="abaqus.html">Abaqus</a></li>
 <li class="toctree-l2"><a class="reference internal" href="avs.html">AVS-UCD</a></li>
@@ -622,7 +624,7 @@
 </div>
 <p>The build is read the way a printer would see it: every item’s object, a mesh outright or an assembly through its components, with each <code class="docutils literal notranslate"><span class="pre">transform</span></code> composed on the way down and applied to the vertices. A transform that mirrors turns each triangle inside out, so the winding of a mirrored placement is reversed to keep the surface facing outward. Each mesh object’s triangles become an element tag group named by the object’s <code class="docutils literal notranslate"><span class="pre">name</span></code>, or <code class="docutils literal notranslate"><span class="pre">object_&lt;id&gt;</span></code> when it has none; an object placed twice - two components of one part - contributes twice under the one name. An object the build never places is not read.</p>
 <p>A triangle’s material is its colour: a <code class="docutils literal notranslate"><span class="pre">pid</span></code>/<code class="docutils literal notranslate"><span class="pre">p1</span></code> naming a <code class="docutils literal notranslate"><span class="pre">&lt;basematerials&gt;</span></code> entry or a materials-extension <code class="docutils literal notranslate"><span class="pre">&lt;colorgroup&gt;</span></code> entry reads into <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code> as RGBA in 0..1, the object’s <code class="docutils literal notranslate"><span class="pre">pid</span></code>/<code class="docutils literal notranslate"><span class="pre">pindex</span></code> standing in for a triangle that names none, NaN on the triangles with no colour at all. A texture, composite or multi-property is not a colour and reads as NaN. The model’s <code class="docutils literal notranslate"><span class="pre">unit</span></code> and every <code class="docutils literal notranslate"><span class="pre">&lt;metadata&gt;</span></code> entry land in <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> under their own names. <code class="docutils literal notranslate"><span class="pre">lazy=True</span></code> raises <code class="xref py py-class docutils literal notranslate"><span class="pre">LazyReadError</span></code>: a ZIP member has to be inflated before it can be parsed.</p>
-<p>The model part is found through <code class="docutils literal notranslate"><span class="pre">_rels/.rels</span></code>; a package without one is read through the conventional <code class="docutils literal notranslate"><span class="pre">3D/3dmodel.model</span></code>. A file that is not a ZIP, a package with no model part, a triangle naming a vertex the object does not hold, an item naming an object the model does not hold, an object that contains itself, and a transform that is not twelve numbers each raise <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the fault.</p>
+<p>The model part is found through <code class="docutils literal notranslate"><span class="pre">_rels/.rels</span></code>; a package without one is read through the conventional <code class="docutils literal notranslate"><span class="pre">3D/3dmodel.model</span></code>. A file that is not a ZIP or that Python’s <code class="docutils literal notranslate"><span class="pre">zipfile</span></code> cannot open, a package with no model part, a triangle naming a vertex the object does not hold, an item naming an object the model does not hold, an object that contains itself, a transform that is not twelve numbers, a model part or <code class="docutils literal notranslate"><span class="pre">_rels/.rels</span></code> declaring an XML entity, and a part that is encrypted, stored in a method Python’s <code class="docutils literal notranslate"><span class="pre">zipfile</span></code> lacks or declares more than 256 MiB inflated at over 200 times its stored size - a mesh’s XML stores at 5:1 to 15:1, a ZIP bomb near 1000:1 - each raise <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> naming the fault.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
@@ -630,7 +632,7 @@
 <span class="n">px</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="s2">"out.3mf"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"inch"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>3MF holds triangles, so the writer works in them: a triangle goes out as it is, a quad, pixel, polygon or triangle strip is split into triangles, and a quadratic surface element keeps its corners. Lines, vertices and volume elements have no triangle to be written as and are dropped with a warning; a mesh with elements and no surface at all is refused. Every element tag group goes out as an <code class="docutils literal notranslate"><span class="pre">&lt;object&gt;</span></code> of its name, in the order of the groups, and the triangles no group claims as one last unnamed object. A 3MF object owns its triangles, so an element in two groups stays with the first and the second is told so; each object also carries its own vertex list, so a vertex two objects share is written to both. <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code> - three or four columns, 0..1 as floats or 0..255 as integers - becomes one <code class="docutils literal notranslate"><span class="pre">&lt;basematerials&gt;</span></code> with a <code class="docutils literal notranslate"><span class="pre">&lt;base&gt;</span></code> per distinct colour, each triangle naming its own; a NaN row names none. The unit is the <code class="docutils literal notranslate"><span class="pre">unit=</span></code> argument, else <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;unit&quot;]</span></code>, else millimetres; a mesh unit the format lacks - <code class="docutils literal notranslate"><span class="pre">mm</span></code> from another reader, say - is written as millimetres with a warning, while a <code class="docutils literal notranslate"><span class="pre">unit=</span></code> the format lacks is refused. A global attribute named as the specification names its metadata - <code class="docutils literal notranslate"><span class="pre">Title</span></code>, <code class="docutils literal notranslate"><span class="pre">Designer</span></code>, <code class="docutils literal notranslate"><span class="pre">Description</span></code>, <code class="docutils literal notranslate"><span class="pre">Copyright</span></code>, <code class="docutils literal notranslate"><span class="pre">LicenseTerms</span></code>, <code class="docutils literal notranslate"><span class="pre">Rating</span></code>, <code class="docutils literal notranslate"><span class="pre">CreationDate</span></code>, <code class="docutils literal notranslate"><span class="pre">ModificationDate</span></code>, <code class="docutils literal notranslate"><span class="pre">Application</span></code> - is written as <code class="docutils literal notranslate"><span class="pre">&lt;metadata&gt;</span></code>. Every other attribute has no place in the format and is not written. Two writes of one mesh are byte-identical: the ZIP entries carry a fixed timestamp.</p>
+<p>3MF holds triangles, so the writer works in them: a triangle goes out as it is, a quad, pixel, polygon or triangle strip is split into triangles, and a quadratic surface element keeps its corners. Lines, vertices and volume elements have no triangle to be written as and are dropped with a warning; a mesh with elements and no surface at all is refused. Every element tag group goes out as an <code class="docutils literal notranslate"><span class="pre">&lt;object&gt;</span></code> of its name, in the order of the groups, and the triangles no group claims as one last unnamed object. A 3MF object owns its triangles, so an element in two groups stays with the first and the second is told so; each object also carries its own vertex list, so a vertex two objects share is written to both. <code class="docutils literal notranslate"><span class="pre">element_attrs[&quot;colors&quot;]</span></code> - three or four columns, 0..1 as floats or 0..255 as integers - becomes one <code class="docutils literal notranslate"><span class="pre">&lt;basematerials&gt;</span></code> with a <code class="docutils literal notranslate"><span class="pre">&lt;base&gt;</span></code> per distinct colour, each triangle naming its own; a NaN row names none. The unit is the <code class="docutils literal notranslate"><span class="pre">unit=</span></code> argument, else <code class="docutils literal notranslate"><span class="pre">global_attrs[&quot;unit&quot;]</span></code>, else millimetres; a mesh unit the format lacks - <code class="docutils literal notranslate"><span class="pre">mm</span></code> from another reader, say - is written as millimetres with a warning, the vertices scaled to match when the unit is a length, such as DXF’s <code class="docutils literal notranslate"><span class="pre">yard</span></code>, while a <code class="docutils literal notranslate"><span class="pre">unit=</span></code> the format lacks is refused. A global attribute named as the specification names its metadata - <code class="docutils literal notranslate"><span class="pre">Title</span></code>, <code class="docutils literal notranslate"><span class="pre">Designer</span></code>, <code class="docutils literal notranslate"><span class="pre">Description</span></code>, <code class="docutils literal notranslate"><span class="pre">Copyright</span></code>, <code class="docutils literal notranslate"><span class="pre">LicenseTerms</span></code>, <code class="docutils literal notranslate"><span class="pre">Rating</span></code>, <code class="docutils literal notranslate"><span class="pre">CreationDate</span></code>, <code class="docutils literal notranslate"><span class="pre">ModificationDate</span></code>, <code class="docutils literal notranslate"><span class="pre">Application</span></code> - is written as <code class="docutils literal notranslate"><span class="pre">&lt;metadata&gt;</span></code>. Every other attribute has no place in the format and is not written. Two writes of one mesh are byte-identical: the ZIP entries carry a fixed timestamp.</p>
 </section>
 <section id="format-specific-options">
 <h2>Format-specific options<a class="headerlink" href="#format-specific-options" title="Link to this heading">#</a></h2>
@@ -695,11 +697,11 @@ back to <code class="docutils literal notranslate"><span class="pre">global_attr
       </div>
     </a>
     <a class="right-next"
-       href="off.html"
+       href="amf.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">OFF</p>
+        <p class="prev-next-title">AMF</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -785,7 +787,7 @@ back to <code class="docutils literal notranslate"><span class="pre">global_attr
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-10-20.
+  Last updated on 2026-10-21.
   <br/>
 </p></div>
       
