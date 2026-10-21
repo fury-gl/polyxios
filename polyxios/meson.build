@@ -36,6 +36,7 @@ py.install_sources(
     '_tags.py',
     '_trs.py',
     '_types.py',
+    '_units.py',
     '_warn.py',
     'exceptions.py',
     'transforms.py',

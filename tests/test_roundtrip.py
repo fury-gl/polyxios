@@ -723,6 +723,36 @@ CAPABILITIES: dict[str, Cap] = {
         " unit comes back with it. Nothing in the format carries a vertex or"
         " element attribute but a colour.",
     ),
+    ".amf": Cap(
+        "surface",
+        n_vertices=7,
+        n_elements=3,
+        geometry=False,
+        coords=False,
+        element_tags=("a", "b"),
+        global_attrs=("unit",),
+        warns=(r"element tag group\(s\) \['b'\] name elements an earlier group",),
+        note="AMF holds triangles, so the quad is split in two; as in 3MF every"
+        " tag group goes out as an object of its name, an object owns its"
+        " triangles and its own vertex list, so an element in two groups stays"
+        " with the first and a vertex two objects share is written twice. The"
+        " unit comes back with it. Only colours and normals are attributes AMF"
+        " carries.",
+    ),
+    ".dxf": Cap(
+        "surface",
+        geometry=False,
+        coords=False,
+        element_tags=("a", "b"),
+        global_attrs=("dxf_version",),
+        tag_membership=False,
+        warns=(r"element tag group\(s\) \['b'\] name elements an earlier group",),
+        note="Each tag group is a layer and a DXF entity is on one, so an element"
+        " in two groups stays with the first. Faces of one layer share a"
+        " polyface mesh listing the vertices they use, so the vertices come back"
+        " in the order the faces first use them. DXF carries no attribute;"
+        " the version written, AC1009, comes back as dxf_version.",
+    ),
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
