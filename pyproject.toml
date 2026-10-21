@@ -101,6 +101,12 @@ netcdf = [
 laz = [
     "lazrs>=0.5",
 ]
+# SPZ version 4 compresses each stream with zstd, which Python ships from
+# 3.14 on. Before that a version 4 file is refused without it, with the
+# install line that fixes it; versions 1 to 3 need nothing.
+zstd = [
+    "zstandard>=0.22; python_version < '3.14'",
+]
 
 [project.scripts]
 pxios = "polyxios.cli:main"

@@ -42,9 +42,11 @@ contributions:
       "*.plt.gzip", "*.ply", "*.ply.gz", "*.ply.gzip", "*.post", "*.post.gz",
       "*.post.gzip", "*.pts", "*.pts.gz", "*.pts.gzip", "*.ptx", "*.ptx.gz",
       "*.ptx.gzip", "*.pvd", "*.pvd.gz", "*.pvd.gzip", "*.pvti", "*.pvtp", "*.pvtr",
-      "*.pvts", "*.pvtu", "*.splat", "*.splat.gz", "*.splat.gzip", "*.stl",
+      "*.pvts", "*.pvtu", "*.splat", "*.splat.gz", "*.splat.gzip", "*.spz",
+      "*.spz.gz", "*.spz.gzip", "*.stl",
       "*.stl.gz", "*.stl.gzip", "*.su2", "*.su2.gz", "*.su2.gzip", "*.tec",
-      "*.tec.gz", "*.tec.gzip", "*.ugrid", "*.ugrid.gz", "*.ugrid.gzip", "*.vol",
+      "*.tec.gz", "*.tec.gzip", "*.ugrid", "*.ugrid.gz", "*.ugrid.gzip", "*.unv",
+      "*.unv.gz", "*.unv.gzip", "*.vol",
       "*.vol.gz", "*.vol.gzip", "*.vti", "*.vti.gz", "*.vti.gzip", "*.vtk",
       "*.vtk.gz", "*.vtk.gzip", "*.vtkhdf", "*.vtkhdf.gz", "*.vtkhdf.gzip", "*.vtm",
       "*.vtp", "*.vtp.gz", "*.vtp.gzip", "*.vtr", "*.vtr.gz", "*.vtr.gzip", "*.vts",
@@ -60,7 +62,7 @@ contributions:
       filename_extensions: [
         ".ply", ".stl", ".obj", ".off", ".vtk", ".vtp", ".vtu", ".vtkhdf",
         ".glb", ".gltf", ".3mf", ".amf", ".dae", ".dxf", ".msh", ".inp",
-        ".med", ".mesh", ".meshb", ".exo"
+        ".med", ".mesh", ".meshb", ".exo", ".unv"
       ]
     - command: polyxios.write_points
       display_name: polyxios points

@@ -38,6 +38,13 @@ CORRUPT: dict[str, str] = {
         f"  0\nSECTION\n  2\nENTITIES\n  0\nMESH\n  8\n0\n 92\n{BIG}\n"
         " 10\n0\n 20\n0\n 30\n0\n  0\nENDSEC\n  0\nEOF\n"
     ),
+    # A universal file element declaring BIG nodes and listing one.
+    ".unv": (
+        "    -1\n  2411\n         1         1         1        11\n"
+        "  0.0  0.0  0.0\n    -1\n    -1\n  2412\n"
+        f"         1       111         1         1         7 {BIG}\n"
+        "         1\n    -1\n"
+    ),
     # A LAS 1.4 header of point format 0 whose 64-bit count is BIG; every
     # byte is below 128, so the text written is the bytes read.
     ".las": (
@@ -312,6 +319,9 @@ _NO_DECLARED_COUNT: frozenset[str] = frozenset(
         ".amf",
         # Write-only: there is no reader for a count to reach.
         ".svg",
+        # The point count is 32 bits wide, short of BIG; tests/codecs/test_spz.py
+        # refuses the widest one it can spell.
+        ".spz",
         # Every array is an HDF5 dataset of its own size; nothing declares one.
         ".hmf",
     }
