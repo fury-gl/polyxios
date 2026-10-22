@@ -214,6 +214,18 @@ def _shifted_parents(column: np.ndarray, offset: int) -> np.ndarray:
     return shifted
 
 
+def _shifted_tag_members(members: np.ndarray, offset: int) -> np.ndarray:
+    """Shift tag indices without overflowing their original integer width."""
+    if not members.size:
+        return members.copy()
+    if (
+        members.dtype.kind in "iu"
+        and int(members.max()) + offset > np.iinfo(members.dtype).max
+    ):
+        members = members.astype(np.int64)
+    return members + offset
+
+
 def merge(*polys: PolyData) -> PolyData:
     """Merge multiple PolyData into one by concatenating vertices and elements.
 
@@ -308,7 +320,9 @@ def merge(*polys: PolyData) -> PolyData:
     elem_offset = 0
     per_poly_etags: list[dict[str, np.ndarray]] = []
     for p in polys:
-        shifted = {k: v + elem_offset for k, v in p.element_tags.items()}
+        shifted = {
+            k: _shifted_tag_members(v, elem_offset) for k, v in p.element_tags.items()
+        }
         per_poly_etags.append(shifted)
         elem_offset += len(p.element_types)
 
@@ -325,7 +339,9 @@ def merge(*polys: PolyData) -> PolyData:
     vert_offset2 = 0
     per_poly_vtags: list[dict[str, np.ndarray]] = []
     for p in polys:
-        shifted = {k: v + vert_offset2 for k, v in p.vertex_tags.items()}
+        shifted = {
+            k: _shifted_tag_members(v, vert_offset2) for k, v in p.vertex_tags.items()
+        }
         per_poly_vtags.append(shifted)
         vert_offset2 += p.vertices.shape[0]
 

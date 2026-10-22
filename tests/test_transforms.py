@@ -73,6 +73,45 @@ def test_merge() -> None:
     assert int(merged.connectivity[5]) == 5
 
 
+@pytest.mark.parametrize("copies", [2, 4])
+@pytest.mark.parametrize(
+    "dtype,count",
+    [
+        (np.int8, 100),
+        (np.uint8, 200),
+        (np.int16, 20_000),
+        (np.uint16, 40_000),
+        (np.int32, 200),
+        (np.uint32, 200),
+        (np.int64, 200),
+        (np.uint64, 200),
+    ],
+)
+def test_merge_shifts_compact_tag_indices(dtype, count, copies) -> None:
+    """Group members must still name their own mesh after concatenation."""
+    members = np.array([0, count - 1], dtype=dtype)
+    empty = np.array([], dtype=dtype)
+    mesh = make_polydata(
+        np.zeros((count, 3)),
+        [("vertex", np.arange(count).reshape(-1, 1))],
+        vertex_tags={"ends": members, "empty": empty},
+        element_tags={"ends": members, "empty": empty},
+    )
+
+    result = merge(*([mesh] * copies))
+
+    expected = [
+        index
+        for start in range(0, copies * count, count)
+        for index in (start, start + count - 1)
+    ]
+    for tags in (result.vertex_tags, result.element_tags):
+        np.testing.assert_array_equal(tags["ends"], expected)
+        assert tags["ends"].dtype.kind in "iu"
+        assert tags["empty"].size == 0
+    np.testing.assert_array_equal(members, [0, count - 1])
+
+
 def test_filter_element_type() -> None:
     verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=np.float64)
     poly = make_polydata(
