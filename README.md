@@ -258,6 +258,7 @@ Primarily surface meshes, point clouds, and widely used interchange formats.
 | Medit ASCII | `.mesh`* `.medit` | ✓ | ✓ | reference integers → tags; write with `fmt=".medit"` |
 | Well-Known Text | `.wkt` | ✓ | ✓ | 2D padded to z=0, holes → element attrs, EWKT SRID dropped |
 | Gaussian splat | `.splat` | ✓ | ✓ | headerless 32-byte records, points only; lazy: zero-copy |
+| SPZ (compressed splat) | `.spz` | ✓ | ✓ | versions 1-4, quantised Gaussians → splat PLY attributes (`f_dc_*`, `f_rest_*`, `opacity`, `scale_*`, `rot_*`); writes v3, or v2 / v4 (v4 needs `polyxios[zstd]` before Python 3.14) |
 | PCD (Point Cloud Library) | `.pcd` | ✓ | ✓ | ascii, binary and LZF `binary_compressed`; fields → vertex attrs, packed `rgb` → `colors`, organised grid and viewpoint kept; lazy: binary views |
 | LAS / LAZ (LiDAR) | `.las` `.laz` | ✓ | ✓ | 1.0-1.4, point formats 0-10; scaled ints → float64, every field and flag → vertex attrs, `red green blue` → `colors`, extra bytes by name, WKT / GeoTIFF CRS → `crs_wkt` / `las_geokeys`; LAZ via `polyxios[laz]`; lazy: `.las` views |
 | ASCII point cloud | `.xyz` `.pts` `.ptx` | ✓ | ✓ | columns named by count and kind (intensity, colours, normals); `.pts` count line; `.ptx` scans transformed by their pose and tagged |
@@ -287,6 +288,7 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 | TetGen | `.ele`+`.node` | ✓ | ✓ | paired files, 1-/0-based indices, boundary markers → vertex tags, region attrs |
 | Kratos MDPA | `.mdpa` | ✓ | ✓ | ASCII, sub model parts → tags, nodal/elemental data → attrs, conditions read as elements |
 | PERMAS | `.dato` `.post` `.dat`* | ✓ | ✓ | ASCII, `$NSET`/`$ESET` → tags, free numbering → `original_ids`, `element_type=` picks the solver class |
+| I-DEAS universal | `.unv` | ✓ | ✓ | ASCII; nodes, elements incl. second order, groups → vertex and element tags, free numbering → `original_ids`, results (55, 2414) → attrs |
 | ANSYS Fluent | `.msh`* `.fluent` | ✓ | ✓ | ASCII + binary sections, cells assembled from faces, zones → element tags, boundary faces read as elements; write with `fmt="fluent"` |
 | SVG | `.svg` | – | ✓ | a picture of the mesh projected onto a plane, one `<path>` per element type; `plane=`, `width=`, `stroke_width=` |
 | XDMF | `.xdmf` `.xmf` | ✓ | ✓ | XML light data over HDF5 (`pip install "polyxios[hdf5]"`), binary or inline arrays; mixed topologies, lattices, `<Set>` → tags, time series via `helper.read_time_series` / `write_time_series`, `step=` on read |
@@ -318,7 +320,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**46 formats supported** across the 58 extensions in the tables, plus `.plt`, which
+**48 formats supported** across the 60 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

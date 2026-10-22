@@ -48,6 +48,30 @@ New features
   object's, its material's - lands in ``element_attrs["colors"]``, and
   vertex colours and normals in ``vertex_attrs``. Writing shares the 3MF
   mapping.
+- I-DEAS universal files (``.unv``) are read and written. Nodes (2411, 781,
+  15) and elements (2412) come back renumbered with their labels under
+  ``original_ids``, second order elements put in polyxios node order; an
+  element's FE descriptor is read as its family and its node count picks
+  the geometry, so every plane-stress, plate, membrane and shell variant
+  of a triangle reads as a triangle. Groups (2467, 2477, 2435, 2452)
+  become vertex and element tags of their name, and results - 55 at nodes,
+  2414 at nodes or on elements, real, complex or integer - become
+  attributes, NaN where an entity has no record. The writer spells nodes,
+  elements, a 2477 group per tag name and a 2414 dataset per attribute,
+  integer attributes as integer data.
+  Verified against Gmsh, which reads the writer's linear and second order
+  elements and groups back as given and whose files read here as its own
+  ``.msh`` does, and against pyuff on results.
+- SPZ (``.spz``), the compressed Gaussian splat format, is read in
+  versions 1 to 4 and written as version 3 by default, 2 or 4 on request.
+  The Gaussians come back as the attributes a splat PLY carries -
+  ``f_dc_*``, ``f_rest_*``, ``opacity``, ``scale_*``, ``rot_*`` - so an SPZ
+  converts to a splat PLY and back. Decoding and encoding follow the
+  reference implementation: its sample scenes decode to the same values
+  but for the last bit of a derived quaternion component, and the writer's
+  payload comes out byte for byte as its own. Version 4
+  compresses with zstd, which Python ships from 3.14; before that it needs
+  ``pip install "polyxios[zstd]"``.
 
 Bug fixes
 ~~~~~~~~~

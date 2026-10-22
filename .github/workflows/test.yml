@@ -61,7 +61,7 @@ jobs:
           pip install "meson-python>=0.15" "Cython>=3.0" "numpy>=1.24" meson ninja
 
       - name: Install polyxios
-        run: pip install --no-build-isolation -e ".[${{ matrix.extras || 'dev,hdf5,netcdf,laz' }}]" ${{ matrix.extra-packages }}
+        run: pip install --no-build-isolation -e ".[${{ matrix.extras || 'dev,hdf5,netcdf,laz,zstd' }}]" ${{ matrix.extra-packages }}
 
       - name: Run tests
         run: pytest tests/ -v --durations=10
@@ -95,7 +95,7 @@ jobs:
         run: pip install --no-build-isolation -e ".[dev]"
 
       - name: Install the comparison readers
-        run: pip install vtk meshio pycollada ezdxf
+        run: pip install vtk meshio pycollada ezdxf pyuff
 
       - name: Check they are importable
         # Every guard that uses them is importorskip'd, so a failed install
@@ -106,6 +106,7 @@ jobs:
           python -c "import meshio, meshio.netgen._netgen"
           python -c "import collada"
           python -c "import ezdxf.recover"
+          python -c "import pyuff"
 
       - name: Run tests
         run: pytest tests/ -v --durations=10

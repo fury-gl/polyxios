@@ -753,6 +753,43 @@ CAPABILITIES: dict[str, Cap] = {
         " in the order the faces first use them. DXF carries no attribute;"
         " the version written, AC1009, comes back as dxf_version.",
     ),
+    ".unv": Cap(
+        "mixed",
+        vertex_attrs=("scalar", "vector"),
+        element_attrs=("efloat", "eint"),
+        vertex_tags=("vgroup",),
+        element_tags=("a", "b"),
+        note="A universal file keeps nodes, elements, groups and analysis data:"
+        " each attribute is a 2414 dataset, of integers or of doubles, and each"
+        " tag a group of its name. Nothing in the format holds the globals.",
+    ),
+    ".spz": Cap(
+        "points",
+        n_elements=0,
+        geometry=False,
+        vertex_attrs=(
+            "f_dc_0",
+            "f_dc_1",
+            "f_dc_2",
+            "opacity",
+            "rot_0",
+            "rot_1",
+            "rot_2",
+            "rot_3",
+            "scale_0",
+            "scale_1",
+            "scale_2",
+        ),
+        warns=(
+            r"the cloud carries no \['f_dc_0'",
+            r"vertex attribute\(s\) \['scalar', 'vector'\] have no place",
+            r"holds points only; elements and tags were dropped",
+        ),
+        note="An SPZ file is a cloud of Gaussians with a fixed, quantised record:"
+        " it has no cells, no tags and no room for a caller's own attributes,"
+        " and a cloud lacking the splat attributes is written with zeros and"
+        " identity rotations, which come back as attributes of their own.",
+    ),
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
