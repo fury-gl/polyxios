@@ -2221,7 +2221,7 @@ def write_scene(
             n_entry["translation"] = t.tolist()
             n_entry["rotation"] = q.tolist()
             n_entry["scale"] = sc.tolist()
-        elif not np.allclose(node.matrix, identity):
+        elif not np.array_equal(node.matrix, identity):
             # glTF column-major = transpose of numpy row-major.
             n_entry["matrix"] = node.matrix.T.ravel().tolist()
         gltf_nodes.append(n_entry)

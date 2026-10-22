@@ -434,7 +434,7 @@ class SceneData:
             world = parent_world @ node.matrix
             if node.mesh is not None:
                 mesh = self.meshes[node.mesh]
-                if apply_transforms and not np.allclose(world, np.eye(4)):
+                if apply_transforms and not np.array_equal(world, np.eye(4)):
                     n = mesh.vertices.shape[0]
                     ones = np.ones((n, 1), dtype=np.float64)
                     homo = np.hstack([mesh.vertices, ones])
