@@ -856,6 +856,8 @@ def _counted_layout(
         if w < 2:
             raise fail(f"a record opens with {w} node(s) in")
         stride = w + 3
+        if stride > n - at:
+            raise fail("the file ends inside")
         if single_steps:
             single_steps -= 1
             widths[k] = w

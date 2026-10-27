@@ -10,7 +10,14 @@ import pytest
 import polyxios
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
-from polyxios.codecs._fluent import ZONE_TYPES_KEY, _signed_measure, read, sniff, write
+from polyxios.codecs._fluent import (
+    ZONE_TYPES_KEY,
+    _counted_layout,
+    _signed_measure,
+    read,
+    sniff,
+    write,
+)
 from polyxios.exceptions import CodecError
 
 _TET_VERTS = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
@@ -1216,3 +1223,10 @@ def test_two_count_prefixed_records_on_one_line_are_refused_by_line(
     text = _TET.replace("3 1 3 2 1 0\n3 1 2 4 1 0", "3 1 3 2 1 0 3 1 2 4 1 0")
     with pytest.raises(CodecError, match=r"carries 1 record line\(s\)"):
         read(_write(tmp_path, text))
+
+
+def test_a_record_wider_than_the_block_is_refused_before_it_is_strided() -> None:
+    """An unsigned 64-bit width past int64 made the strided starts overflow."""
+    raw = np.array([2**64 - 1, 1, 2, 3, 1, 0], "<u8")
+    with pytest.raises(RuntimeError, match="ends inside"):
+        _counted_layout(raw, 2, RuntimeError)
