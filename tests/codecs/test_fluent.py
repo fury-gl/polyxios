@@ -1230,3 +1230,15 @@ def test_a_record_wider_than_the_block_is_refused_before_it_is_strided() -> None
     raw = np.array([2**64 - 1, 1, 2, 3, 1, 0], "<u8")
     with pytest.raises(RuntimeError, match="ends inside"):
         _counted_layout(raw, 2, RuntimeError)
+
+
+def test_a_cell_count_no_face_backs_is_refused_before_it_is_allocated(
+    tmp_path: Path,
+) -> None:
+    """With no cell section the count was the largest cell a face names, and
+    a face naming cell 2**53 asked numpy for 68 PiB of zone ids."""
+    text = _TET.replace("(12 (0 1 1 0))\n(12 (b 1 1 1 2))\n", "").replace(
+        "3 1 3 2 1 0", "3 1 3 2 2000000000000 0"
+    )
+    with pytest.raises(CodecError, match="no mesh of that many faces"):
+        read(_write(tmp_path, text))
