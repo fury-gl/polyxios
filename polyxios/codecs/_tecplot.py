@@ -515,7 +515,7 @@ def _read_point(
             nodes[i * n_per_elem : (i + 1) * n_per_elem] = [
                 int(tok) for tok in parts[:n_per_elem]
             ]
-        except ValueError as exc:
+        except (ValueError, OverflowError) as exc:
             raise CodecError(
                 f".tec: malformed element line {no}: {' '.join(parts)!r}."
             ) from exc
@@ -570,7 +570,7 @@ def _read_block(
         raise CodecError(f".tec: malformed value in the zone's data: {exc}.") from exc
     try:
         nodes = np.array(tokens[n_values : n_values + n_conn], dtype=np.int64)
-    except ValueError as exc:
+    except (ValueError, OverflowError) as exc:
         raise CodecError(f".tec: malformed node reference: {exc}.") from exc
     return runs, nodes
 
