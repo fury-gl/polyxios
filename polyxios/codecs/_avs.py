@@ -32,6 +32,9 @@ _POLYXIOS_TO_AVS: dict[str, str] = {
 }
 
 
+_INT32_MIN, _INT32_MAX = int(np.iinfo(np.int32).min), int(np.iinfo(np.int32).max)
+
+
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse an AVS-UCD .avs file.
 
@@ -57,7 +60,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         )
     data_lines = [
         ln
-        for ln in read_text(path, encoding="utf-8").splitlines()
+        for ln in read_text(path, encoding="utf-8", errors="replace").splitlines()
         if ln.strip() and not ln.strip().startswith("#")
     ]
 
@@ -107,6 +110,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             parts = ln.split()
             avs_type = parts[2].lower()
             mat_id_val = int(parts[1])
+            if not _INT32_MIN <= mat_id_val <= _INT32_MAX:
+                raise CodecError(
+                    f".avs: material id {mat_id_val} does not fit int32: {ln!r}."
+                )
             if avs_type not in _AVS_TO_POLYXIOS:
                 raise CodecError(f".avs: unknown element type {avs_type!r}.")
             elem_name, n_nodes_elem = _AVS_TO_POLYXIOS[avs_type]

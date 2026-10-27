@@ -165,3 +165,19 @@ def test_file_header_format(tmp_path) -> None:
     n_verts, n_elems, *_ = first_line.split()
     assert int(n_verts) == 4
     assert int(n_elems) == 2
+
+
+def test_bytes_that_are_not_utf8_are_refused_as_malformed(tmp_path) -> None:
+    """A stray 0xff in a node line raised a UnicodeDecodeError naming no file."""
+    tmp = tmp_path / "bad.avs"
+    tmp.write_bytes(b"1 0 0 0 0\n1 0 0 \xff\n")
+    with pytest.raises(CodecError, match="malformed node line"):
+        read(tmp)
+
+
+def test_a_material_id_past_int32_is_refused(tmp_path) -> None:
+    """The id was parsed as a Python int and overflowed the int32 attribute."""
+    tmp = tmp_path / "big.avs"
+    tmp.write_text("3 1 0 0 0\n1 0 0 0\n2 1 0 0\n3 0 1 0\n1 33333333333 tri 1 2 3\n")
+    with pytest.raises(CodecError, match="material id 33333333333"):
+        read(tmp)
