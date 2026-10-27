@@ -1342,3 +1342,37 @@ def test_a_field_already_a_legal_width_is_left_alone(tmp_path: Path) -> None:
     write(poly, path)
     back = read(path)
     np.testing.assert_allclose(back.vertex_attrs["v"], poly.vertex_attrs["v"])
+
+
+_V2 = (
+    "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n$Nodes\n3\n1 0 0 0\n2 1 0 0\n"
+    "3 0 1 0\n$EndNodes\n$Elements\n1\n1 2 0 1 2 3\n$EndElements\n"
+)
+
+
+def test_a_node_coordinate_that_is_not_a_number_is_refused(tmp_path) -> None:
+    """numpy 2 raises ValueError from the bulk node parse on a stray token,
+    where it used to warn and stop early."""
+    path = tmp_path / "bad.msh"
+    path.write_text(_V2.replace("2 1 0 0", "2 ) 0 0"))
+    with pytest.raises(CodecError):
+        read(path)
+
+
+@pytest.mark.parametrize(
+    ("block", "match"),
+    [
+        ('1\n"f"\n1\n0.0\n3\n0\n4611686018427387904\n3\n1 0\n2 0\n3 0\n', "component"),
+        ('1\n"f"\n1\n0.0\n3\n0\n1\n1\n' + "9" * 30 + " 0\n", "malformed row"),
+    ],
+)
+def test_a_data_block_its_rows_cannot_hold_is_skipped(tmp_path, block, match) -> None:
+    """A component count past what any row spells sized an array numpy
+    refuses, and a row tag past int64 overflowed the tag column; both
+    escaped the skip a malformed data block gets."""
+    path = tmp_path / "bad.msh"
+    path.write_text(_V2 + f"$NodeData\n{block}$EndNodeData\n")
+    with pytest.warns(UserWarning, match=f"skipping a data section.*{match}"):
+        poly = read(path)
+    assert poly.vertices.shape == (3, 3)
+    assert not poly.vertex_attrs
