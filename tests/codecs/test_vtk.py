@@ -3417,3 +3417,67 @@ def test_a_cell_type_no_table_names_is_written_as_a_polygon(codes) -> None:
     assert written.dtype == np.int32
     assert written[0] == 5
     assert written[1] == (9 if codes[1] == 9 else 7)
+
+
+_UG_HEAD = "# vtk DataFile Version {v}\nfuzz\n{mode}\nDATASET UNSTRUCTURED_GRID\n"
+
+
+def _tri_ug() -> PolyData:
+    return make_polydata(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_cell_naming_a_point_the_file_lacks_is_refused(tmp_path, binary) -> None:
+    """No legacy reader bounded CELLS against POINTS, so the index came back
+    in the connectivity of a mesh holding no such vertex."""
+    path = tmp_path / "m.vtk"
+    write(_tri_ug(), path, binary=binary)
+    raw = path.read_bytes()
+    if binary:
+        record = np.array([3, 0, 1, 2], ">i4").tobytes()
+        bad = raw.replace(record, np.array([3, 0, 1, 9], ">i4").tobytes())
+    else:
+        bad = raw.replace(b"3 0 1 2", b"3 0 1 9")
+    assert bad != raw
+    path.write_bytes(bad)
+    with pytest.raises(CodecError, match="naming point 9, outside 0..2"):
+        read(path)
+
+
+@pytest.mark.parametrize(
+    "cells",
+    [
+        "CELLS 1 4\n3 0 1 {big}\n",
+        "CELLS 1 4\n3 0\n1 {big}\n",
+        "CELLS 2 3\nOFFSETS vtktypeint64\n0 3\nCONNECTIVITY vtktypeint64\n0 1 {big}\n",
+    ],
+    ids=["rows", "stream", "v5.1"],
+)
+def test_a_cell_index_past_int32_is_refused(tmp_path, cells) -> None:
+    """The index was kept as a Python int and overflowed the int32 array,
+    on every one of the three ASCII cell paths."""
+    version = "5.1" if "OFFSETS" in cells else "4.2"
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v=version, mode="ASCII")
+        + "POINTS 3 double\n0 0 0\n1 0 0\n0 1 0\n"
+        + cells.format(big="1" * 20)
+        + "CELL_TYPES 1\n5\n"
+    )
+    # A wrapped cell that fails the stream walk too is reported by its row.
+    with pytest.raises(CodecError, match="past int32|does not list"):
+        read(path)
+
+
+def test_an_array_whose_lines_hold_more_than_it_declares_is_refused(tmp_path) -> None:
+    """Values are read a line at a time, and a surplus failed the reshape to
+    the declared count with numpy's ValueError."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v="4.2", mode="ASCII")
+        + "POINTS 3 double\n0 0 0\n1 0 0\n0 1 0\n"
+        + "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        + "POINT_DATA 3\nSCALARS s double 2\nLOOKUP_TABLE default\n1 2 3\n4 5 6 7 8 9\n"
+    )
+    with pytest.raises(CodecError, match="declares 6 values but its lines hold 9"):
+        read(path)

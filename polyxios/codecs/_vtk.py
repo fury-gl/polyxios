@@ -294,17 +294,17 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     if "UNSTRUCTURED_GRID" in dataset_line:
         if is_binary:
-            return _read_binary(path, lazy=lazy)
+            return _bounded(_read_binary(path, lazy=lazy), path)
         else:
             if lazy:
                 raise LazyReadError("VTK ASCII format does not support lazy reads.")
-            return _read_ascii(path)
+            return _bounded(_read_ascii(path), path)
     elif "POLYDATA" in dataset_line:
         if lazy:
             raise LazyReadError("VTK POLYDATA format does not support lazy reads.")
         if is_binary:
-            return _read_polydata_binary(path)
-        return _read_polydata_ascii(path)
+            return _bounded(_read_polydata_binary(path), path)
+        return _bounded(_read_polydata_ascii(path), path)
     elif "RECTILINEAR_GRID" in dataset_line:
         if lazy:
             raise LazyReadError(
@@ -334,6 +334,26 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise CodecError(
             f"VTK codec supports DATASET UNSTRUCTURED_GRID or POLYDATA, got: {dataset_line!r}"
         )
+
+
+def _bounded(poly: PolyData, path: Source) -> PolyData:
+    """Hand back ``poly``, refusing a cell that names a point the file lacks.
+
+    ``CELLS``, ``POLYGONS`` and their kin spell point indices the file never
+    checks against ``POINTS``, so an index past them would come back as a
+    connectivity entry the mesh holds no vertex for.
+    """
+    conn = poly.connectivity
+    if conn.size:
+        low, high = int(conn.min()), int(conn.max())
+        n_verts = poly.vertices.shape[0]
+        if low < 0 or high >= n_verts:
+            held = f"0..{n_verts - 1}" if n_verts else "no point at all"
+            raise CodecError(
+                f".vtk: '{source_name(path)}' has a cell naming point"
+                f" {low if low < 0 else high}, outside {held}."
+            )
+    return poly
 
 
 def write(poly: PolyData, path: Source, **opts: Any) -> None:
@@ -2037,11 +2057,16 @@ def _parse_v51_cells_ascii(
                 " CONNECTIVITY of a v5.1 CELLS section should be."
             ) from exc
         i += 1
-    return (
-        np.array(conn_vals, dtype=np.int32),
-        np.array(off_vals, dtype=np.int32),
-        i,
-    )
+    try:
+        return (
+            np.array(conn_vals, dtype=np.int32),
+            np.array(off_vals, dtype=np.int32),
+            i,
+        )
+    except OverflowError as exc:
+        raise CodecError(
+            f".vtk: a v5.1 CELLS section holds a value past int32: {exc}."
+        ) from exc
 
 
 def _read_ascii_values(
@@ -2100,6 +2125,14 @@ def _read_ascii_values(
             ) from exc
         vals.extend(row)
         i += 1
+    if len(vals) > count:
+        # Values are read a whole line at a time, and no array shares a line
+        # with the next one's header: a surplus is a count the file got wrong,
+        # which shaped by the declared count would fail in a reshape.
+        raise CodecError(
+            f".vtk: array {name!r} declares {count} values but its lines hold"
+            f" {len(vals)}."
+        )
     return i, vals
 
 
@@ -2463,15 +2496,14 @@ def _cells_by_row(
         try:
             connectivity, offsets = parse_ascii_cells_v42(lines, i, n_cells)
         except (IndexError, OverflowError, ValueError):
-            _walk_cell_rows(lines, i, n_cells)
-            raise  # pragma: no cover - the walk above names the row first
+            conn_list, widths, _ = _walk_cell_rows(lines, i, n_cells)
+            # The walk names a malformed row; one whose numbers only overflow
+            # is refused by the packing.
+            _cell_arrays(conn_list, widths)
+            raise  # pragma: no cover - one of the two above names the fault
         return connectivity, offsets, i + n_cells
     conn_list, widths, end = _walk_cell_rows(lines, i, n_cells)
-    return (
-        np.array(conn_list, dtype=np.int32),
-        np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
-        end,
-    )
+    return (*_cell_arrays(conn_list, widths), end)
 
 
 def _cells_by_stream(
@@ -2513,11 +2545,22 @@ def _cells_by_stream(
     conn_list, widths = _walk_cell_stream(
         _whole_numbers(tokens, "CELLS"), n_cells, "CELLS"
     )
-    return (
-        np.array(conn_list, dtype=np.int32),
-        np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
-        end,
-    )
+    return (*_cell_arrays(conn_list, widths), end)
+
+
+def _cell_arrays(
+    conn_list: list[int], widths: list[int]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Pack a walked ``CELLS`` block, refusing a number int32 cannot hold."""
+    try:
+        return (
+            np.array(conn_list, dtype=np.int32),
+            np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
+        )
+    except OverflowError as exc:
+        raise CodecError(
+            f".vtk: a CELLS section holds a point index or a width past int32: {exc}."
+        ) from exc
 
 
 def _walk_cell_stream(
