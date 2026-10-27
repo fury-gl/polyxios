@@ -456,6 +456,9 @@ def _read_ascii(raw: bytes) -> tuple[np.ndarray, np.ndarray]:
                 )
             verts_list.append(current_verts)
             normals_list.append(current_normal)
+            # A facet is closed once accepted: vertex lines after it belong to
+            # no facet, and appending them to this list would grow it in place.
+            current_verts = []
 
     if not verts_list:
         return np.empty((0, 3, 3), dtype=np.float32), np.empty((0, 3), dtype=np.float32)
