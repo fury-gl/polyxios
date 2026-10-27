@@ -34,6 +34,7 @@ from polyxios._scene import (
     SceneMaterial,
     SceneNode,
     SceneTexture,
+    infinite_node,
 )
 from polyxios._trs import (
     _EXACT_TOLERANCE,
@@ -181,7 +182,7 @@ def _parse_glb(data: bytes) -> tuple[dict, bytes | None]:
         pos += chunk_length
 
         if chunk_type == _CHUNK_JSON:
-            gltf_json = json.loads(chunk_data.rstrip(b" ").decode("utf-8"))
+            gltf_json = _json_object(chunk_data.rstrip(b" "))
         elif chunk_type == _CHUNK_BIN:
             bin_data = bytes(chunk_data)
 
@@ -244,7 +245,14 @@ def _read_accessor(
     byte_offset_acc: int = acc.get("byteOffset", 0)
 
     if "bufferView" not in acc:
-        # No data (no bufferView, no sparse): return zeros.
+        # No data (no bufferView, no sparse): return zeros. Nothing in the
+        # file spells them, so the count is held to what the buffers could
+        # have held, with 1 MiB of slack for a file that has none.
+        if count * dtype.itemsize * n_comp > max(sum(map(len, buffers)), 1 << 20):
+            raise CodecError(
+                f"glTF: accessor {accessor_index} declares {count} elements but "
+                "has no bufferView; the file holds no data for that many."
+            )
         shape = (count,) if n_comp == 1 else (count, n_comp)
         return np.zeros(shape, dtype=dtype)
 
@@ -371,6 +379,11 @@ def _read_vertex_set(gltf: dict, attrs: dict, buffers: list[bytes]) -> PolyData:
         If an attribute holds a different number of entries than ``POSITION``.
     """
     vertices = _read_accessor(gltf, attrs["POSITION"], buffers).astype(np.float64)
+    if vertices.ndim != 2 or vertices.shape[1] != 3:
+        raise CodecError(
+            f"glTF: POSITION accessor {attrs['POSITION']} is not VEC3"
+            f" (shape {vertices.shape})."
+        )
     n_verts = vertices.shape[0]
     vertex_attrs: dict[str, np.ndarray] = {}
 
@@ -936,6 +949,305 @@ def _decode_animations(
     return result
 
 
+def _json_object(raw: bytes) -> dict:
+    """Decode a glTF JSON document, which has to be one object."""
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        raise CodecError(f"glTF: invalid JSON — {exc}") from exc
+    if not isinstance(doc, dict):
+        raise CodecError(
+            f"glTF: the JSON document is a {type(doc).__name__}, not an object."
+        )
+    return doc
+
+
+def _objects(*, gltf: dict, key: str) -> list:
+    """Return the top-level array ``key``, refusing one not made of objects.
+
+    Parameters
+    ----------
+    gltf
+        Parsed glTF JSON dict.
+    key
+        Name of a top-level array, such as ``"nodes"``.
+
+    Returns
+    -------
+    list
+        The array, empty when the document leaves it out.
+
+    Raises
+    ------
+    CodecError
+        If the property is not an array, or an entry is not an object.
+    """
+    entries = gltf.get(key, [])
+    if not isinstance(entries, list):
+        raise CodecError(f"glTF: {key} is not an array.")
+    for k, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise CodecError(f"glTF: {key} {k} is not an object.")
+    return entries
+
+
+def _is_count(*, value: Any) -> bool:
+    """Return whether a JSON value is a non-negative integer."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _is_numbers(*, value: Any, n: int) -> bool:
+    """Return whether a JSON value is an array of ``n`` numbers."""
+    return (
+        isinstance(value, list)
+        and len(value) == n
+        and all(isinstance(v, int | float) and not isinstance(v, bool) for v in value)
+    )
+
+
+def _check_optional(*, entry: dict, key: str, ok: bool, where: str) -> None:
+    """Refuse ``entry[key]`` when present and ``ok`` is False."""
+    if key in entry and not ok:
+        raise CodecError(f"glTF: {where} {key} is not valid ({entry[key]!r:.80}).")
+
+
+def _check_document(*, gltf: dict) -> None:
+    """Refuse a glTF document whose arrays the reader would index blindly.
+
+    Every property the reader takes on trust is checked here, once, against
+    the type the glTF 2.0 schema gives it and the array it indexes, so the
+    decoding that follows meets only the problems a file's bytes can hold.
+
+    Parameters
+    ----------
+    gltf
+        Parsed glTF JSON dict.
+
+    Raises
+    ------
+    CodecError
+        If ``asset`` is not an object; ``buffers``, ``bufferViews``,
+        ``accessors``, ``meshes``, ``materials``, ``samplers``, ``textures``,
+        ``images``, ``nodes`` or ``scenes`` is not an array of objects; a
+        property they hold is not of its type or names no entry of the array
+        it indexes; a node is the child of two parents or of itself; or
+        ``scene`` names no scene.
+    """
+    if not isinstance(gltf.get("asset", {}), dict):
+        raise CodecError("glTF: asset is not an object.")
+    buffers = _objects(gltf=gltf, key="buffers")
+    views = _objects(gltf=gltf, key="bufferViews")
+    accessors = _objects(gltf=gltf, key="accessors")
+    meshes = _objects(gltf=gltf, key="meshes")
+    textures = _objects(gltf=gltf, key="textures")
+    samplers = _objects(gltf=gltf, key="samplers")
+    nodes = _objects(gltf=gltf, key="nodes")
+    scenes = _objects(gltf=gltf, key="scenes")
+    images = _objects(gltf=gltf, key="images")
+    for k, buf in enumerate(buffers):
+        _check_optional(
+            entry=buf,
+            key="uri",
+            ok=isinstance(buf.get("uri"), str),
+            where=f"buffer {k}",
+        )
+    for k, view in enumerate(views):
+        where = f"bufferView {k}"
+        if not _is_index(view.get("buffer"), len(buffers)):
+            raise CodecError(f"glTF: {where} names no buffer ({view.get('buffer')!r}).")
+        if not _is_count(value=view.get("byteLength")):
+            raise CodecError(f"glTF: {where} has no byteLength.")
+        _check_optional(
+            entry=view,
+            key="byteOffset",
+            ok=_is_count(value=view.get("byteOffset")),
+            where=where,
+        )
+        stride = view.get("byteStride")
+        _check_optional(
+            entry=view,
+            key="byteStride",
+            ok=_is_count(value=stride) and stride > 0,
+            where=where,
+        )
+    for k, acc in enumerate(accessors):
+        where = f"accessor {k}"
+        if not _is_count(value=acc.get("count")):
+            raise CodecError(f"glTF: {where} has no count.")
+        if not isinstance(acc.get("componentType"), int):
+            raise CodecError(f"glTF: {where} has no componentType.")
+        if not isinstance(acc.get("type"), str):
+            raise CodecError(f"glTF: {where} has no type.")
+        _check_optional(
+            entry=acc,
+            key="byteOffset",
+            ok=_is_count(value=acc.get("byteOffset")),
+            where=where,
+        )
+        in_views = _is_index(acc.get("bufferView"), len(views))
+        _check_optional(entry=acc, key="bufferView", ok=in_views, where=where)
+    for k, mesh in enumerate(meshes):
+        prims = mesh.get("primitives", [])
+        _check_optional(
+            entry=mesh, key="primitives", ok=isinstance(prims, list), where=f"mesh {k}"
+        )
+    for k, mat in enumerate(_objects(gltf=gltf, key="materials")):
+        where = f"material {k}"
+        pbr = mat.get("pbrMetallicRoughness", {})
+        if not isinstance(pbr, dict):
+            raise CodecError(f"glTF: {where} pbrMetallicRoughness is not an object.")
+        for owner, key, n in (
+            (pbr, "baseColorFactor", 4),
+            (pbr, "metallicFactor", 0),
+            (pbr, "roughnessFactor", 0),
+            (mat, "emissiveFactor", 3),
+            (mat, "alphaCutoff", 0),
+        ):
+            value = owner.get(key)
+            number = isinstance(value, int | float) and not isinstance(value, bool)
+            _check_optional(
+                entry=owner,
+                key=key,
+                ok=_is_numbers(value=value, n=n) if n else number,
+                where=where,
+            )
+        for slot in (
+            "baseColorTexture",
+            "normalTexture",
+            "metallicRoughnessTexture",
+            "occlusionTexture",
+            "emissiveTexture",
+        ):
+            for owner in (mat, pbr):
+                info = owner.get(slot)
+                ok = isinstance(info, dict) and _is_count(value=info.get("index"))
+                _check_optional(entry=owner, key=slot, ok=ok, where=where)
+    for k, tex in enumerate(textures):
+        where = f"texture {k}"
+        _check_optional(
+            entry=tex, key="source", ok=_is_count(value=tex.get("source")), where=where
+        )
+        in_samplers = _is_index(tex.get("sampler"), len(samplers))
+        _check_optional(entry=tex, key="sampler", ok=in_samplers, where=where)
+        exts = tex.get("extensions")
+        _check_optional(
+            entry=tex, key="extensions", ok=isinstance(exts, dict), where=where
+        )
+        for ext in (exts or {}).values():
+            if isinstance(ext, dict) and not _is_count(value=ext.get("source", 0)):
+                raise CodecError(f"glTF: {where} extension source is not valid.")
+    for k, img in enumerate(images):
+        where = f"image {k}"
+        _check_optional(
+            entry=img,
+            key="bufferView",
+            ok=_is_index(img.get("bufferView"), len(views)),
+            where=where,
+        )
+        _check_optional(
+            entry=img, key="uri", ok=isinstance(img.get("uri"), str), where=where
+        )
+    parent: dict[int, int] = {}
+    for k, node in enumerate(nodes):
+        where = f"node {k}"
+        _check_optional(
+            entry=node,
+            key="mesh",
+            ok=_is_index(node.get("mesh"), len(meshes)),
+            where=where,
+        )
+        children = node.get("children", [])
+        if not isinstance(children, list) or not all(
+            _is_index(c, len(nodes)) for c in children
+        ):
+            raise CodecError(f"glTF: {where} children name no node ({children!r:.80}).")
+        for c in children:
+            if c == k:
+                raise CodecError(f"glTF: node {k} is a child of itself.")
+            if c in parent:
+                raise CodecError(
+                    f"glTF: node {c} is a child of node {parent[c]} and of node"
+                    f" {k}; glTF nodes form disjoint trees."
+                )
+            parent[c] = k
+        for key, n in (
+            ("matrix", 16),
+            ("translation", 3),
+            ("rotation", 4),
+            ("scale", 3),
+        ):
+            _check_optional(
+                entry=node,
+                key=key,
+                ok=_is_numbers(value=node.get(key), n=n),
+                where=where,
+            )
+    for k in range(len(nodes)):
+        seen = {k}
+        up = parent.get(k)
+        while up is not None:
+            if up in seen:
+                raise CodecError(f"glTF: node {k} is its own ancestor.")
+            seen.add(up)
+            up = parent.get(up)
+    for k, scene in enumerate(scenes):
+        roots = scene.get("nodes", [])
+        if not isinstance(roots, list) or not all(
+            _is_index(r, len(nodes)) for r in roots
+        ):
+            raise CodecError(f"glTF: scene {k} nodes name no node ({roots!r:.80}).")
+        if len(set(roots)) != len(roots) or any(r in parent for r in roots):
+            raise CodecError(
+                f"glTF: scene {k} names a node twice or a node that is not a root."
+            )
+    if "scene" in gltf and not _is_index(gltf["scene"], max(len(scenes), 1)):
+        raise CodecError(f"glTF: scene {gltf['scene']!r:.80} names no scene.")
+
+
+def _external_buffer(*, base_dir: Path, uri: str, path: Source) -> bytes:
+    """Read the file a buffer's ``uri`` names beside the glTF document.
+
+    Parameters
+    ----------
+    base_dir
+        Directory of the document.
+    uri
+        The buffer's relative URI.
+    path
+        The document, for messages.
+
+    Returns
+    -------
+    bytes
+        The buffer's contents.
+
+    Raises
+    ------
+    CodecError
+        If the URI escapes ``base_dir``, or the file it names cannot be
+        read: missing, a directory, or unreadable.
+    """
+    target = _safe_resolve(base_dir, uri)
+    try:
+        return read_bytes(target)
+    except OSError as exc:
+        raise CodecError(
+            f"glTF: '{source_name(path)}' names buffer {uri!r}, which cannot be"
+            f" read: {exc.strerror or exc}."
+        ) from exc
+
+
+def _data_uri(*, uri: str) -> bytes:
+    """Decode the payload of a base64 ``data:`` URI."""
+    parts = uri.split(",", 1)
+    if len(parts) != 2:
+        raise CodecError(f"glTF: malformed data URI (no comma): {uri[:80]!r}")
+    try:
+        return base64.b64decode(parts[1])
+    except ValueError as exc:
+        raise CodecError(f"glTF: data URI is not valid base64: {exc}") from exc
+
+
 def read_scene(path: Source) -> SceneData:
     """Read a glTF or GLB file and return a SceneData.
 
@@ -953,13 +1265,17 @@ def read_scene(path: Source) -> SceneData:
     ------
     CodecError
         On invalid GLB magic, unsupported version, missing JSON chunk,
-        unknown accessor types, or buffer overreads.
+        unknown accessor types, or buffer overreads, and whenever the JSON
+        is not shaped the way glTF lays it out - a missing property, an
+        index past its array, a value of the wrong type, a node hierarchy
+        that is not a forest.
     """
     raw = read_bytes(path)
     file_size = len(raw)
     suffix = format_suffix(path).lower()
     if suffix == ".glb" or raw[:4] == b"glTF":
         gltf, bin_chunk = _parse_glb(raw)
+        _check_document(gltf=gltf)
         buffers: list[bytes] = []
         # Iterate ALL buffers in order; for entry 0 without a uri the BIN
         # chunk (if any) is authoritative, otherwise resolve the uri normally.
@@ -969,28 +1285,22 @@ def read_scene(path: Source) -> SceneData:
             if _buf_idx == 0 and bin_chunk is not None and not _uri:
                 buffers.append(bin_chunk)
             elif _uri.startswith("data:"):
-                _parts = _uri.split(",", 1)
-                if len(_parts) != 2:
-                    raise CodecError(
-                        f"glTF: malformed data URI (no comma): {_uri[:80]!r}"
-                    )
-                _, _payload = _parts
-                buffers.append(base64.b64decode(_payload))
+                buffers.append(_data_uri(uri=_uri))
             elif _uri:
                 if base_dir_glb is None:
                     raise CodecError(
                         "glTF: cannot resolve external buffer URIs from a stream; "
                         "provide a filesystem path."
                     )
-                buffers.append(read_bytes(_safe_resolve(base_dir_glb, _uri)))
+                buffers.append(
+                    _external_buffer(base_dir=base_dir_glb, uri=_uri, path=path)
+                )
             else:
                 # No uri and no applicable BIN chunk — placeholder keeps index alignment.
                 buffers.append(b"")
     else:
-        try:
-            gltf = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise CodecError(f"glTF: invalid JSON — {exc}") from exc
+        gltf = _json_object(raw)
+        _check_document(gltf=gltf)
         # Raise early when a stream has non-data URI buffers to resolve.
         raw_bufs = gltf.get("buffers", [])
         has_external = any(
@@ -1007,16 +1317,10 @@ def read_scene(path: Source) -> SceneData:
         for buf_entry in raw_bufs:
             uri: str = buf_entry.get("uri", "")
             if uri.startswith("data:"):
-                parts = uri.split(",", 1)
-                if len(parts) != 2:
-                    raise CodecError(
-                        f"glTF: malformed data URI (no comma): {uri[:80]!r}"
-                    )
-                _, payload = parts
-                buffers.append(base64.b64decode(payload))
+                buffers.append(_data_uri(uri=uri))
             elif uri:
                 # Percent-decode and validate before resolving.
-                buffers.append(read_bytes(_safe_resolve(base_dir, uri)))
+                buffers.append(_external_buffer(base_dir=base_dir, uri=uri, path=path))
             else:
                 # Missing/empty uri — append placeholder to keep index alignment.
                 buffers.append(b"")
@@ -1086,6 +1390,9 @@ def read_scene(path: Source) -> SceneData:
     else:
         # Mesh-only file: synthesize one identity node per mesh.
         nodes = tuple(SceneNode(mesh=i) for i in range(len(meshes)))
+    bad = infinite_node(nodes=nodes)
+    if bad is not None:
+        raise CodecError(f"glTF: node {bad} has a transform that is not finite.")
 
     # Scenes.
     raw_scenes = gltf.get("scenes", [])
@@ -1181,13 +1488,10 @@ def _build_image(img: dict, buffers: list[bytes], gltf: dict) -> SceneImage:
         )
     uri: str = img.get("uri", "")
     if uri.startswith("data:"):
-        _img_parts = uri.split(",", 1)
-        if len(_img_parts) != 2:
-            raise CodecError(f"glTF: malformed data URI (no comma): {uri[:80]!r}")
-        mime, payload = _img_parts
+        mime = uri.split(",", 1)[0]
         media_type = mime.split(";")[0].split(":", 1)[1] if ":" in mime else None
         return SceneImage(
-            data=base64.b64decode(payload),
+            data=_data_uri(uri=uri),
             media_type=media_type,
             name=img.get("name", ""),
         )
