@@ -6841,3 +6841,48 @@ def test_read_unbound_and_id_bound_instances_share_one_mesh(tmp_path: Path) -> N
     scene = read_scene(_write(tmp_path, text))
     assert len(scene.meshes) == 1
     assert [n.mesh for n in scene.nodes] == [0, 0]
+
+
+@pytest.mark.parametrize("value", ["inf", "nan", "1e308"])
+def test_a_node_transform_that_is_not_finite_is_refused(tmp_path, value) -> None:
+    """Flattening a node whose matrix held an infinity, or overflowed once
+    squared by a child, failed in numpy's pseudo-inverse of the normals'
+    rotation with LinAlgError."""
+    poly = make_polydata(
+        np.eye(3),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"normals": np.tile([0.0, 0.0, 1.0], (3, 1))},
+    )
+    buf = io.BytesIO()
+    polyxios.write(poly, buf, fmt=".dae")
+    identity = "1.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0"
+    text = (
+        buf.getvalue()
+        .decode()
+        .replace(
+            f'<matrix sid="transform">{identity}</matrix>',
+            f'<matrix sid="transform">{value} 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>'
+            f'<node id="inner"><matrix>{value} 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>'
+            '<instance_geometry url="#geometry0"/></node>',
+        )
+    )
+    path = tmp_path / "huge.dae"
+    path.write_text(text)
+    with pytest.raises(CodecError, match="not finite"):
+        polyxios.read_scene(path)
+
+
+def test_node_transform_elements_overflowing_together_are_refused(tmp_path) -> None:
+    """Two finite scales of 1e200 composed past float64 inside one node."""
+    poly = make_polydata(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+    buf = io.BytesIO()
+    polyxios.write(poly, buf, fmt=".dae")
+    text = re.sub(
+        r'<matrix sid="transform">[^<]*</matrix>',
+        "<scale>1e200 1 1</scale><scale>1e200 1 1</scale>",
+        buf.getvalue().decode(),
+    )
+    path = tmp_path / "overflow.dae"
+    path.write_text(text)
+    with pytest.raises(CodecError, match="not finite"):
+        polyxios.read_scene(path)

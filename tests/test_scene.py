@@ -473,3 +473,53 @@ def test_scene_equality_compares_meshes_by_value() -> None:
     assert scene(0.0) == scene(0.0)
     assert scene(0.0) != scene(1.0)
     assert scene(0.0) != SceneData(meshes=(), nodes=(SceneNode(mesh=0),))
+
+
+@pytest.mark.parametrize(
+    ("name", "values"),
+    [
+        ("normals", np.ones((3, 2))),
+        ("tangents", np.ones((3, 2))),
+        ("normals", np.ones(3)),
+    ],
+)
+def test_directions_without_three_columns_are_kept_unturned(name, values) -> None:
+    """A COLLADA NORMAL source of two params read as (n, 2) normals, and the
+    transform multiplied them by a 3x3 matrix and raised numpy's ValueError."""
+    rot = np.eye(4)
+    rot[:3, :3] = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+    mesh = make_polydata(
+        np.eye(3),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={name: values},
+    )
+    scene = SceneData(
+        meshes=(mesh,),
+        nodes=(SceneNode(mesh=0, matrix=rot),),
+        scenes=((0,),),
+        active_scene=0,
+    )
+    result = scene.to_polydata(apply_transforms=True)
+    np.testing.assert_array_equal(result.vertex_attrs[name], values)
+
+
+@pytest.mark.parametrize("dtype", [np.int32, np.uint8, np.float32])
+def test_integer_tangents_are_turned_in_floating_point(dtype) -> None:
+    """The tangents were turned in place in their own dtype, so an integer
+    array raised numpy's UFuncTypeError on the normalising division."""
+    rot = np.eye(4)
+    rot[:3, :3] = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+    mesh = make_polydata(
+        np.eye(3),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"tangents": np.tile(np.array([1, 0, 0, 1], dtype=dtype), (3, 1))},
+    )
+    scene = SceneData(
+        meshes=(mesh,),
+        nodes=(SceneNode(mesh=0, matrix=rot),),
+        scenes=((0,),),
+        active_scene=0,
+    )
+    tangents = scene.to_polydata().vertex_attrs["tangents"]
+    assert tangents.dtype == np.result_type(dtype, np.float32)
+    np.testing.assert_allclose(tangents, [[0, 1, 0, 1]] * 3, atol=1e-6)

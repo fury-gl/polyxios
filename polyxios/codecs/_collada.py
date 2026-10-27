@@ -50,6 +50,7 @@ from polyxios._scene import (
     SceneMaterial,
     SceneNode,
     SceneTexture,
+    infinite_node,
 )
 from polyxios._trs import matrix_of_element, trs_of_matrix
 from polyxios._types import PolyData
@@ -454,6 +455,10 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         *(_finish_mesh(st, m) for m in meshes if m is not None),
         *st.variants,
     )
+
+    bad = infinite_node(nodes=st.nodes)
+    if bad is not None:
+        raise CodecError(f"{name!r}: node {bad} has a transform that is not finite.")
 
     skins = _resolve_skins(st, scenes)
     if skins:
@@ -2011,7 +2016,10 @@ def _node_transforms(
         if size is None:
             continue
         values = _floats(child.text, f"{what} <{kind}>", n=size)
-        matrix = matrix @ matrix_of_element(kind=kind, values=values)
+        with np.errstate(over="ignore", invalid="ignore"):
+            matrix = matrix @ matrix_of_element(kind=kind, values=values)
+        if not np.all(np.isfinite(matrix)):
+            raise CodecError(f"{what} has a transform that is not finite.")
         spelled.append(
             {"kind": kind, "sid": child.get("sid"), "values": values.tolist()}
         )
