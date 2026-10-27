@@ -606,14 +606,16 @@ def _as_utf8(raw: bytes, name: str) -> bytes:
     try:
         if encoding is None:
             raise LookupError("no encoding declared")
-        text = raw[match.end(0) :].decode(encoding)
-    except (LookupError, UnicodeDecodeError) as exc:
+        # Encoded back inside the guard: a codec such as UTF-7 decodes a lone
+        # surrogate that UTF-8 refuses to spell.
+        body = raw[match.end(0) :].decode(encoding).encode("utf-8")
+    except (LookupError, UnicodeError) as exc:
         raise CodecError(
             f"{name!r} is not well-formed XML: encoding {encoding!r} cannot "
             f"be read ({exc})."
         ) from exc
     head = match.group(1) + b"UTF-8" + match.group(3)
-    return head.removeprefix(b"\xef\xbb\xbf") + text.encode("utf-8")
+    return head.removeprefix(b"\xef\xbb\xbf") + body
 
 
 def _ids(root: ET.Element) -> dict[str, ET.Element]:

@@ -6843,6 +6843,15 @@ def test_read_unbound_and_id_bound_instances_share_one_mesh(tmp_path: Path) -> N
     assert [n.mesh for n in scene.nodes] == [0, 0]
 
 
+def test_a_utf7_document_spelling_a_lone_surrogate_is_refused(tmp_path) -> None:
+    """UTF-7 decodes "+3v66644f" to a lone surrogate, which the transcode
+    back to UTF-8 refused with UnicodeEncodeError outside the reader's guard."""
+    path = tmp_path / "bad.dae"
+    path.write_bytes(b'<?xml version="1.0" encoding="utf-7"?>+3v66644f<COLLADA/>')
+    with pytest.raises(CodecError, match="cannot be read"):
+        read_scene(path)
+
+
 @pytest.mark.parametrize("value", ["inf", "nan", "1e308"])
 def test_a_node_transform_that_is_not_finite_is_refused(tmp_path, value) -> None:
     """Flattening a node whose matrix held an infinity, or overflowed once
