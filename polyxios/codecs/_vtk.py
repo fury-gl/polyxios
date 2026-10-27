@@ -12,6 +12,7 @@ from numpy.typing import ArrayLike
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
+    MAX_SAFE_CONN,
     POLYXIOS_TO_VTK,
     VTK_TO_POLYXIOS,
 )
@@ -345,6 +346,18 @@ def _bounded(poly: PolyData, path: Source) -> PolyData:
     connectivity entry the mesh holds no vertex for; and a ``CELLS`` block
     whose ``CELL_TYPES`` never comes leaves cells with no type.
     """
+    offsets = poly.offsets
+    if offsets.size and (
+        int(offsets[0]) != 0
+        or int(offsets[-1]) != poly.connectivity.size
+        or bool(np.any(np.diff(offsets) < 0))
+    ):
+        # v5.1 spells its OFFSETS outright, so nothing but this says they run
+        # from 0 to the connectivity's length without stepping back.
+        raise CodecError(
+            f".vtk: '{source_name(path)}' has cell offsets that do not run"
+            f" from 0 to its {poly.connectivity.size} connectivity entries."
+        )
     n_types, n_offsets = poly.element_types.shape[0], poly.offsets.shape[0]
     if n_offsets != n_types + 1:
         # A CELLS block with no CELL_TYPES after it - a header the reader
@@ -1915,6 +1928,11 @@ def _read_ascii(path: Source) -> PolyData:
             where = f"line {i + 1}"
             n_elems = _attr_count(parts, 1, where)
             total_size = _attr_count(parts, 2, where)
+            if n_elems < 0 or total_size < 0:
+                raise CodecError(
+                    f".vtk: {where} holds {line.strip()!r}, a CELLS header"
+                    " with a negative count."
+                )
             i += 1
             validate_header(n_verts, n_elems, total_size, file_size)
 
@@ -2495,12 +2513,13 @@ def _cells_by_row(
     if _HAS_CYTHON:
         try:
             connectivity, offsets = parse_ascii_cells_v42(lines, i, n_cells)
-        except (IndexError, OverflowError, ValueError):
+        except (IndexError, OverflowError, ValueError) as exc:
             conn_list, widths, _ = _walk_cell_rows(lines, i, n_cells)
             # The walk names a malformed row; one whose numbers only overflow
-            # is refused by the packing.
+            # is refused by the packing; what neither names is still the
+            # compiled parser's refusal of the block.
             _cell_arrays(conn_list, widths)
-            raise  # pragma: no cover - one of the two above names the fault
+            raise CodecError(f".vtk: a CELLS section is malformed: {exc}.") from exc
         return connectivity, offsets, i + n_cells
     conn_list, widths, end = _walk_cell_rows(lines, i, n_cells)
     return (*_cell_arrays(conn_list, widths), end)
@@ -2703,6 +2722,21 @@ def _attr_count(
         ) from exc
 
 
+def _scalars_width(parts: list[str], where: str) -> int:
+    """Read a ``SCALARS`` line's component count, refusing one no array has.
+
+    A width past the cap shaped even an empty array past what numpy can
+    index, and one below 1 holds no value per item.
+    """
+    n_comp = _attr_count(parts, 3, where, default=1)
+    if not 1 <= n_comp <= MAX_SAFE_CONN:
+        raise CodecError(
+            f".vtk: {where} holds {' '.join(parts)!r}, whose component count"
+            f" {n_comp} is outside 1..{MAX_SAFE_CONN}."
+        )
+    return n_comp
+
+
 def _attr_reals(parts: list[str], where: str, count: int) -> list[float]:
     """Read a run of numbers off a header.
 
@@ -2835,7 +2869,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 3, where, default=1)
+            n_comp = _scalars_width(parts, where)
             i += 1
             # Skip LOOKUP_TABLE line
             if i < n_lines and "LOOKUP_TABLE" in lines[i].upper():
@@ -3739,7 +3773,7 @@ def _parse_binary_attrs(
         elif upper.startswith("SCALARS"):
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 3, where, default=1)
+            n_comp = _scalars_width(parts, where)
             np_dt = _binary_dtype(parts, 2, where)
             # Skip the LOOKUP_TABLE line, if the section carries one: the
             # format leaves it optional, and swallowing a line that is not
@@ -4833,7 +4867,7 @@ def _scan_structured_attr(
 
     if upper.startswith("SCALARS"):
         name = _attr_name(parts, where)
-        n_comp = _attr_count(parts, 3, where, default=1)
+        n_comp = _scalars_width(parts, where)
         i += 1
         if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
             i += 1

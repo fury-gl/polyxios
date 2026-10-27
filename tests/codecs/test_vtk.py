@@ -3506,3 +3506,38 @@ def test_cells_whose_types_never_come_are_refused(tmp_path, binary, lazy) -> Non
     path.write_bytes(raw.replace(b"CELL_TYPES", b"CELL_\x14YPES"))
     with pytest.raises(CodecError, match="1 cell\\(s\\) but 0 cell type"):
         read(path, lazy=lazy)
+
+
+_TRI_POINTS = "POINTS 3 double\n0 0 0\n1 0 0\n0 1 0\n"
+
+
+@pytest.mark.parametrize(
+    ("version", "body", "match"),
+    [
+        ("4.2", "CELLS -9 0\nCELL_TYPES 0\n", "negative count"),
+        (
+            "5.1",
+            "CELLS 3 3\nOFFSETS vtktypeint64\n0 3 1\n"
+            "CONNECTIVITY vtktypeint64\n0 1 2\nCELL_TYPES 2\n5\n5\n",
+            "do not run from 0",
+        ),
+        (
+            "4.2",
+            "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+            f"POINT_DATA 0\nSCALARS s double {2**62}\nLOOKUP_TABLE default\n",
+            "component count",
+        ),
+    ],
+    ids=["negative-cell-count", "v5.1-offsets-step-back", "scalars-width"],
+)
+def test_counts_the_compiled_parser_or_numpy_refuse_are_codec_errors(
+    tmp_path, version, body, match
+) -> None:
+    """A negative cell count read as no cells or reached the compiled
+    parser's IndexError, v5.1 OFFSETS stepping back came out as a mesh
+    validate() refuses, and a SCALARS width past the cap shaped an empty
+    array numpy cannot index."""
+    path = tmp_path / "m.vtk"
+    path.write_text(_UG_HEAD.format(v=version, mode="ASCII") + _TRI_POINTS + body)
+    with pytest.raises(CodecError, match=match):
+        read(path)
