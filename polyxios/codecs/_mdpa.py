@@ -69,6 +69,7 @@ from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".mdpa"
+_INT64_MIN, _INT64_MAX = -(2**63), 2**63 - 1
 
 #: Where a reader records the Properties block each element pointed at.
 PROPERTY_KEY: str = "mdpa_property_id"
@@ -430,6 +431,10 @@ def _read_cells(
             raw = [int(tok) for tok in parts[2 : 2 + n_nodes]]
         except ValueError as exc:
             raise CodecError(f".mdpa: malformed {kind} line {no}: {line!r}.") from exc
+        if not _INT64_MIN <= prop <= _INT64_MAX:
+            raise CodecError(
+                f".mdpa: {kind} line {no} names property {prop}, past int64."
+            )
         if cid in index_of:
             raise CodecError(f".mdpa: {kind} id {cid} is declared twice, line {no}.")
         if len(cells.types) >= MAX_SAFE_ELEMENTS:
@@ -586,7 +591,7 @@ def _as_column(
     # A generator rather than a flattened list: the first float settles the
     # dtype, and a column of a million integers is never materialised twice.
     integral = all(
-        isinstance(v, int)
+        isinstance(v, int) and _INT64_MIN <= v <= _INT64_MAX
         for _, val in rows
         for v in (val if isinstance(val, list) else (val,))
     )
