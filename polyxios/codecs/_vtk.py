@@ -4451,13 +4451,14 @@ def _read_field_data(path: Source) -> PolyData:
             except ValueError:
                 i += 1
                 continue
-            if n_comp < 0 or n_tuples < 0:
+            if not (0 <= n_comp <= MAX_SAFE_CONN and 0 <= n_tuples <= MAX_SAFE_CONN):
                 # The two counts are the only thing that says where this
                 # array ends, and a negative one is no length: it slices the
                 # values it read from the wrong end and reshapes to a
                 # dimension numpy infers rather than the one the header
-                # claimed. Skipped, the way every other line this reader
-                # makes no sense of is.
+                # claimed; one past the cap shapes even an empty array past
+                # what numpy can index. Skipped, the way every other line
+                # this reader makes no sense of is.
                 i += 1
                 continue
             # The header line first, then the n_tuples data lines after it.

@@ -3541,3 +3541,17 @@ def test_counts_the_compiled_parser_or_numpy_refuse_are_codec_errors(
     path.write_text(_UG_HEAD.format(v=version, mode="ASCII") + _TRI_POINTS + body)
     with pytest.raises(CodecError, match=match):
         read(path)
+
+
+def test_a_field_array_wider_than_numpy_can_shape_is_skipped() -> None:
+    """An array of no tuples and a width past the cap reshaped an empty
+    array past what numpy can index; it is skipped like a negative count."""
+    tmp = _write_tmp(
+        b"# vtk DataFile Version 2.0\ns\nASCII\nDATASET FIELD FieldData 2\n"
+        + f"wide {'6' * 40} 0 float\n".encode()
+        + b"arr 1 2 float\n1 2\n"
+    )
+    with pytest.warns(UserWarning, match="no geometry"):
+        poly = read(tmp)
+    assert "wide" not in poly.global_attrs
+    np.testing.assert_allclose(poly.global_attrs["arr"], [1.0, 2.0])
