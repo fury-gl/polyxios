@@ -1983,3 +1983,15 @@ def test_a_compression_level_without_a_method_is_refused_up_front(
     with pytest.raises(CodecError, match="compression names no method"):
         write(_two_triangles(), tmp_path / "m.xdmf", compression_opts=4)
     assert not (tmp_path / "m.h5").exists()
+
+
+@pytest.mark.parametrize("encoding", ["utf-9", "cp932"])
+def test_an_encoding_expat_cannot_decode_is_refused(tmp_path: Path, encoding) -> None:
+    """expat raises LookupError for an unknown encoding and ValueError for a
+    multi-byte one, and neither is the ParseError the reader caught."""
+    path = tmp_path / "bad.xdmf"
+    path.write_bytes(
+        f'<?xml version="1.0" encoding="{encoding}"?><Xdmf Version="3.0"/>'.encode()
+    )
+    with pytest.raises(CodecError, match="not well-formed XML"):
+        polyxios.read(path)

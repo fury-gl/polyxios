@@ -1106,3 +1106,29 @@ def test_read_warnings_point_at_the_caller(tmp_path: Path) -> None:
     with pytest.warns(UserWarning, match="'cubit' is not one 3MF defines") as caught:
         polyxios.read(path)
     assert {w.filename for w in caught} == {__file__}
+
+
+@pytest.mark.parametrize("method", [zipfile.ZIP_BZIP2, zipfile.ZIP_LZMA])
+def test_a_member_that_is_not_the_stream_its_method_names_is_refused(
+    tmp_path: Path, method: int
+) -> None:
+    """A deflated model labelled bzip2 or LZMA escaped as the decompressor's
+    own OSError or LZMAError."""
+    path = tmp_path / "ok.3mf"
+    write(_tet_poly(), path)
+    bad = tmp_path / "bad.3mf"
+    bad.write_bytes(
+        _patch_members(path.read_bytes(), "3D/3dmodel.model", method=method)
+    )
+    with pytest.raises(CodecError, match="does not inflate"):
+        read(bad)
+
+
+@pytest.mark.parametrize("encoding", ["utf-9", "cp932"])
+def test_an_encoding_expat_cannot_decode_is_refused(tmp_path: Path, encoding) -> None:
+    """expat raises LookupError for an unknown encoding and ValueError for a
+    multi-byte one, and neither is the ParseError the reader caught."""
+    model = _model("", "").replace('encoding="UTF-8"', f'encoding="{encoding}"')
+    path = _package(tmp_path / "bad.3mf", model)
+    with pytest.raises(CodecError, match="not well-formed XML"):
+        read(path)

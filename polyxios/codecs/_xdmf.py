@@ -416,7 +416,7 @@ def _open_document(path: Source, *, lazy: bool = False) -> dict[str, Any]:
     raw = read_bytes(path)
     try:
         root = ET.fromstring(raw)
-    except ET.ParseError as exc:
+    except (ET.ParseError, LookupError, ValueError) as exc:
         raise CodecError(
             f"'{source_name(path)}': not well-formed XML ({exc})."
         ) from None
