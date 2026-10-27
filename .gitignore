@@ -239,3 +239,12 @@ AGENTS.md
 
 # macOS
 .DS_Store
+
+# Fuzzing: generated seeds, engine work dirs, findings
+fuzz/corpus/
+fuzz/work/
+fuzz/crashes/
+crash-*
+timeout-*
+oom-*
+slow-unit-*
