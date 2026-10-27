@@ -924,3 +924,17 @@ def test_truncated_face_block_raises(tmp_path: Path) -> None:
     path = _write_off(tmp_path, "OFF\n1 2 0\n0 0 0\n3 0 0 0\n")
     with pytest.raises(CodecError, match="expected 2 face lines, got 1"):
         read(path)
+
+
+@pytest.mark.parametrize("index", ["8" * 40, "inf", "nan"])
+def test_a_colormap_index_no_int32_holds_drops_the_colours(
+    tmp_path: Path, index: str
+) -> None:
+    """The index was rounded to a Python int and overflowed int32, or failed
+    to round at all when it was not finite."""
+    path = tmp_path / "big.off"
+    path.write_text(f"OFF\n3 1 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2 {index}\n")
+    with pytest.warns(UserWarning, match="not a finite int32"):
+        poly = read(path)
+    assert "color_index" not in poly.element_attrs
+    assert poly.connectivity.tolist() == [0, 1, 2]

@@ -21,6 +21,7 @@ from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".off"
+_INT32_MAX: int = 2**31 - 1
 
 # Header keyword is ``[ST][C][N][4][n]OFF``, optionally followed by ``BINARY``.
 # ``N``/``C``/``ST`` add per-vertex normals, colours and texture coordinates;
@@ -545,8 +546,15 @@ def _face_color_attrs(
         return {}, None
 
     if widths == {1}:
-        index = np.array([int(round(v[0])) for v in values], dtype=np.int32)
-        return {_COLOR_INDEX: index}, None
+        spelled = np.array([v[0] for v in values], dtype=np.float64)
+        if not np.all(np.isfinite(spelled)) or np.any(np.abs(spelled) > _INT32_MAX):
+            warnings.warn(
+                ".off: a face colormap index is not a finite int32; dropping"
+                " the face colours.",
+                stacklevel=2,
+            )
+            return {}, None
+        return {_COLOR_INDEX: np.round(spelled).astype(np.int32)}, None
 
     # A file may spell some faces RGB and others RGBA; the short ones gain an
     # opaque alpha, filled after scaling so it stays opaque on either scale.
