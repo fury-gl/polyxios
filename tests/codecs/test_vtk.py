@@ -3593,3 +3593,17 @@ def test_point_data_overtaken_by_a_second_points_block_is_refused(tmp_path) -> N
     )
     with pytest.raises(CodecError, match="POINT_DATA array 's' of 3 value"):
         read(path)
+
+
+def test_a_structured_field_array_width_past_the_cap_is_dropped(tmp_path) -> None:
+    """The structured readers' FIELD arrays took their shape unbounded too;
+    like any malformed data section there, it is dropped with a warning."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        "# vtk DataFile Version 4.2\nfuzz\nASCII\nDATASET STRUCTURED_POINTS\n"
+        "DIMENSIONS 2 1 1\nORIGIN 0 0 0\nSPACING 1 1 1\nPOINT_DATA 2\n"
+        f"FIELD FieldData 1\nf {'7' * 40} 0 double\n"
+    )
+    with pytest.warns(UserWarning, match="count no array has"):
+        poly = read(path)
+    assert "f" not in poly.vertex_attrs

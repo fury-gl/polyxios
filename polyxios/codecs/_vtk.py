@@ -4990,8 +4990,7 @@ def _scan_structured_attr(
             fparts = texts[i].split()
             fwhere = f"line {i + 1}"
             arr_name = fparts[0]
-            n_comp_f = _attr_count(fparts, 1, fwhere)
-            n_tuples_f = _attr_count(fparts, 2, fwhere)
+            n_comp_f, n_tuples_f = _field_shape(fparts, fwhere)
             i += 1
             if is_binary:
                 np_dt_f = _binary_dtype(fparts, 3, fwhere)
