@@ -23,6 +23,7 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, VTK_TO_POLYXIOS
 from polyxios._io import Source, map_read, read_bytes, source_name
+from polyxios._warn import warn_caller as _warn_caller
 from polyxios.exceptions import CodecError, LazyReadError
 
 # Polyxios code for every VTK cell type in one uint8 table, so a file's
@@ -1613,11 +1614,11 @@ def _split_xml(raw: bytes | mmap.mmap, path: Source, *, fmt: str) -> Parsed:
                 " only a raw appended section can be mapped. Read it eagerly"
                 " (lazy=False)."
             )
-        root = _tree(raw.decode("utf-8"), path, fmt=fmt)
+        root = _tree(raw, path, fmt=fmt)
         return root, None, header_type, big_endian, compressed, False, size
 
     xml_bytes = raw[:app_pos] + b"</VTKFile>"
-    root = _tree(xml_bytes.decode("utf-8", errors="replace"), path, fmt=fmt)
+    root = _tree(xml_bytes, path, fmt=fmt)
 
     app_tag_end = raw.find(b">", app_pos)
     app_tag = raw[app_pos : app_tag_end + 1].decode("ascii", errors="replace")
@@ -1658,14 +1659,62 @@ def _split_xml(raw: bytes | mmap.mmap, path: Source, *, fmt: str) -> Parsed:
     )
 
 
-def _tree(text: str, path: Source, *, fmt: str) -> ET.Element:
-    """Parse the XML head of a file, naming the file when it does not parse."""
+def _tree(data: bytes, path: Source, *, fmt: str) -> ET.Element:
+    """Parse the XML head of a file, naming the file when it does not parse.
+
+    Parameters
+    ----------
+    data
+        The XML bytes, decoded by expat as their declaration says.
+    path
+        The source, for messages.
+    fmt
+        Extension the messages name.
+
+    Returns
+    -------
+    xml.etree.ElementTree.Element
+        The document's root.
+
+    Raises
+    ------
+    CodecError
+        If the XML is not well-formed, or declares an encoding expat cannot
+        decode.
+
+    Warns
+    -----
+    UserWarning
+        When the bytes are not UTF-8 and declare no encoding that says what
+        they are: they are read as Latin-1, which every byte decodes to, so a
+        name keeps the characters its legacy writer meant rather than turning
+        into replacement characters.
+    """
     try:
-        return ET.fromstring(text)
-    except ET.ParseError as exc:
+        return ET.fromstring(data)
+    except (LookupError, ValueError) as exc:
         raise CodecError(
-            f"{fmt}: '{source_name(path)}' is not well-formed XML: {exc}"
+            f"{fmt}: '{source_name(path)}' declares an XML encoding that"
+            f" cannot be read: {exc}"
         ) from exc
+    except ET.ParseError as exc:
+        error = exc
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            root = ET.fromstring(data.decode("latin-1"))
+        except ET.ParseError:
+            pass
+        else:
+            _warn_caller(
+                f"{fmt}: '{source_name(path)}' is not UTF-8 and declares no"
+                " encoding; its text was read as Latin-1."
+            )
+            return root
+    raise CodecError(
+        f"{fmt}: '{source_name(path)}' is not well-formed XML: {error}"
+    ) from error
 
 
 def _decode_chars(text: bytes, start: int, byte_count: int) -> bytes:
@@ -2053,7 +2102,12 @@ def decode_da(
         return parse_ascii_values(text, dtype_str, name=name)
 
     # inline binary / base64
-    raw = base64.b64decode(text.encode())
+    try:
+        raw = base64.b64decode(text.encode())
+    except ValueError as exc:
+        raise CodecError(
+            f"VTK XML: DataArray '{name}' is not valid base64: {exc}"
+        ) from exc
     if len(raw) <= h_dt.itemsize:
         return np.array([], dtype=dtype_str)
     dt = np.dtype(endian + dtype_str)

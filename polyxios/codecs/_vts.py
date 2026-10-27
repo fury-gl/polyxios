@@ -86,11 +86,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     sg = root.find("StructuredGrid")
     if sg is None:
-        raise ValueError("No <StructuredGrid> element found in VTS file.")
+        raise CodecError("No <StructuredGrid> element found in VTS file.")
 
     piece = sg.find("Piece")
     if piece is None:
-        raise ValueError("No <Piece> element found.")
+        raise CodecError("No <Piece> element found.")
 
     extent_str = piece.get("Extent", sg.get("WholeExtent", "0 1 0 1 0 1"))
     extent = xml_extent(extent_str, fmt=".vts", where="Extent")
@@ -115,10 +115,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     points_elem = piece.find("Points")
     if points_elem is None:
-        raise ValueError("No <Points> element found.")
+        raise CodecError("No <Points> element found.")
     da = points_elem.find("DataArray")
     if da is None:
-        raise ValueError("No <DataArray> under <Points>.")
+        raise CodecError("No <DataArray> under <Points>.")
 
     flat = _decode(da)
     if not n_verts:
