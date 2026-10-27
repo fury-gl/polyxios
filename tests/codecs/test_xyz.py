@@ -254,6 +254,8 @@ def test_ptx_scans_that_disagree_on_colour_keep_none_with_a_warning() -> None:
         (("1 0 0 0.7 0 255 0\n", "1 0 0 0.7 0\n"), "4 or 7 columns, found 5"),
         (("1 0 0 0.7 0 255 0\n", "1 0 0 0.7 0 255 0\nstray\n"), "not a scan header"),
         (("2\n1\n0 0 0", "-2\n-1\n0 0 0"), "PTX scan of -2 x -1 points"),
+        # An empty scan whose other side overflowed the int64 dimensions column.
+        (("2\n1\n0 0 0", "0\n" + "1" * 30 + "\n0 0 0"), "PTX scan of 0 x 1111"),
     ],
 )
 def test_a_malformed_ptx_names_what_is_wrong(edit, message) -> None:

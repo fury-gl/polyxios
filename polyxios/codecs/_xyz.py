@@ -40,6 +40,7 @@ _DIMENSIONS_KEY: str = "ptx_dimensions"
 # A PTX scan starts with ten header lines: the grid's columns and rows, the
 # scanner position, its three axes, and a 4 x 4 row-vector transform.
 _PTX_HEADER_SHAPE: tuple[int, ...] = (1, 1, 3, 3, 3, 3, 4, 4, 4, 4)
+_PTX_MAX_SIDE: int = 2**31 - 1
 _PTX_HEADER_LINES: int = len(_PTX_HEADER_SHAPE)
 _PTX_INVALID: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.5)
 _PTX_DEFAULT_INTENSITY: float = 1.0
@@ -433,7 +434,9 @@ def _read_ptx(lines: list[str], first: int, *, name: str) -> PolyData:
             [[float(t) for t in lines[pos + 6 + r].split()] for r in range(4)],
             dtype=np.float64,
         )
-        if rows < 0 or cols < 0:
+        if not (0 <= rows <= _PTX_MAX_SIDE and 0 <= cols <= _PTX_MAX_SIDE):
+            # A side past int32 is no scanner's; with the other side 0 the
+            # scan holds no point and the size would still overflow its column.
             raise CodecError(f"'{name}': PTX scan of {cols} x {rows} points.")
         count = rows * cols
         start = pos + _PTX_HEADER_LINES
