@@ -1056,3 +1056,32 @@ def test_a_header_declaring_vertex_twice_is_refused(tmp_path: Path) -> None:
     extra = "element vertex 4\nproperty double x\n"
     with pytest.raises(CodecError, match="vertex element twice"):
         read(_tri_ply(tmp_path, extra))
+
+
+@pytest.mark.parametrize("fmt", ["ascii", "binary_little_endian"])
+def test_a_property_declared_twice_is_refused_by_the_header(
+    tmp_path: Path, fmt
+) -> None:
+    """An ASCII vertex element naming eint twice read both columns into one
+    attribute of twice the vertex count."""
+    path = tmp_path / "twice.ply"
+    path.write_bytes(
+        f"ply\nformat {fmt} 1.0\nelement vertex 1\nproperty float x\n"
+        "property float y\nproperty float z\nproperty int eint\n"
+        "property int eint\nend_header\n".encode()
+        + (b"0 0 0 1 2\n" if fmt == "ascii" else bytes(20))
+    )
+    with pytest.raises(CodecError, match="'eint' more than once"):
+        read(path)
+
+
+@pytest.mark.parametrize("line", ["property list uchar", "property list uchar int"])
+def test_a_list_property_short_of_its_name_is_refused(tmp_path: Path, line) -> None:
+    """The repeated-name check read the list property's name before the
+    line was checked to hold one, raising IndexError."""
+    path = tmp_path / "short.ply"
+    path.write_bytes(
+        f"ply\nformat ascii 1.0\nelement face 1\n{line}\nend_header\n".encode()
+    )
+    with pytest.raises(CodecError):
+        read(path)

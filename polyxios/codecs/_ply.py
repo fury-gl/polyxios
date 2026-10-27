@@ -1596,17 +1596,6 @@ def _scalar_record_dtype(
     """
     if any(isinstance(ptype, tuple) for _, ptype in props):
         return None
-    names = [pname for pname, _ in props]
-    if len(set(names)) != len(names):
-        # A record is read by naming its fields, and two fields answering to
-        # one name leave no way to say which column a property is. numpy
-        # refuses the dtype outright, which is the right answer said badly:
-        # the error names neither the element nor the file.
-        repeated = sorted({name for name in names if names.count(name) > 1})
-        raise CodecError(
-            f".ply: the {where} element declares {repeated} more than once,"
-            " so a record names no one column for them."
-        )
     return np.dtype(
         [(pname, endian + _scalar_code(ptype, where)) for pname, ptype in props]
     )
@@ -2034,6 +2023,16 @@ def _parse_header(fh: object) -> tuple[dict, int]:
             header["elements"].append(current_elem)
         elif kw == "property" and current_elem is not None:
             _need(parts, 2, line)
+            at = 4 if parts[1] == "list" else 2
+            pname = parts[at] if len(parts) > at else ""
+            if any(name == pname for name, _ in current_elem["properties"]):
+                # Every reader keys a column by its name; a second one either
+                # merges into the first, a column twice the element's length,
+                # or names no one field of the record.
+                raise CodecError(
+                    f".ply: the {current_elem['name']} element declares"
+                    f" {pname!r} more than once, in the header line {line!r}."
+                )
             if parts[1] == "list":
                 # property list count_type data_type name
                 _need(parts, 5, line)
