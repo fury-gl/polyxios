@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Any
 import warnings
 
@@ -144,9 +145,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         )
 
     _read_section_int(all_tokens, "dimension")  # validated but not used directly
-    n_elems, elem_data = _read_section_table(all_tokens, "elements")
+    n_elems, elem_data = _read_section_table(all_tokens, "elements", path=path)
     # boundary section is optional; we skip it
-    n_verts, vert_data = _read_section_table(all_tokens, "vertices")
+    n_verts, vert_data = _read_section_table(all_tokens, "vertices", path=path)
 
     validate_header(n_verts, n_elems, n_elems * 4, file_size)
 
@@ -160,35 +161,23 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     if coord_dim_token in ("nodes", "elements", "boundary", ""):
         # High-order mesh: read coordinates from the 'nodes' FEM field instead
-        vertices, coord_dim = _parse_nodes_field(all_tokens, n_verts)
+        vertices, coord_dim = _parse_nodes_field(all_tokens, n_verts, path=path)
     else:
-        coord_dim = int(coord_dim_token)
-        for vi in range(n_verts):
-            coords = [float(next(vert_iter)) for _ in range(coord_dim)]
-            vertices[vi, : len(coords)] = coords
+        coord_dim = _as_dim(token=coord_dim_token, what="vertices dimension", path=path)
+        vertices[:, :coord_dim] = _coordinates(
+            tokens=vert_data[1 : 1 + n_verts * coord_dim],
+            n_verts=n_verts,
+            dim=coord_dim,
+            path=path,
+        )
 
-    # Parse elements: each row = attr type v0 v1 ...
-    conn_list: list[int] = []
-    offsets_list: list[int] = [0]
-    types_list: list[int] = []
-
-    elem_iter = iter(elem_data)
-    for _ in range(n_elems):
-        _attr = int(next(elem_iter))
-        geom = int(next(elem_iter))
-        poly_name, n_nodes = _MFEM_GEOM.get(geom, ("polygon", -1))
-        if n_nodes < 0:
-            raise CodecError(
-                f"Unknown MFEM geometry type {geom} in '{source_name(path)}'."
-            )
-        indices = [int(next(elem_iter)) for _ in range(n_nodes)]
-        conn_list.extend(indices)
-        offsets_list.append(offsets_list[-1] + n_nodes)
-        types_list.append(ELEMENT_TYPES.get(poly_name, 0))
+    connectivity, offsets_list, types_list = _elements(
+        data=elem_data, n_elems=n_elems, n_verts=n_verts, path=path
+    )
 
     return PolyData(
         vertices=vertices,
-        connectivity=np.array(conn_list, dtype=np.int32),
+        connectivity=connectivity,
         offsets=np.array(offsets_list, dtype=np.int32),
         element_types=np.array(types_list, dtype=np.uint8),
         vertex_attrs={},
@@ -526,30 +515,37 @@ def _read_nurbs(
         mesh.Save("standard.mesh")
         poly = polyxios.read("standard.mesh")
     """
-    n_verts, vert_data = _read_section_table(tokens, "vertices")
-    n_elems, elem_data = _read_section_table(tokens, "elements")
+    n_verts, vert_data = _read_section_table(tokens, "vertices", path=path)
+    n_elems, elem_data = _read_section_table(tokens, "elements", path=path)
 
     validate_header(n_verts, n_elems, n_elems * 4, file_size)
 
     # Control points live in the nodes FiniteElementSpace field, and its vdim
     # is the geometric dimension the same way a standard mesh's coord_dim is.
-    vertices, coord_dim = _parse_nodes_field(tokens, n_verts)
+    vertices, coord_dim = _parse_nodes_field(tokens, n_verts, path=path)
 
     # Parse element connectivity (same layout as standard mesh)
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
     types_list: list[int] = []
     elem_iter = iter(elem_data)
-    for _ in range(n_elems):
-        try:
-            _attr = int(next(elem_iter))
-            geom = int(next(elem_iter))
-        except StopIteration:
+    for e in range(n_elems):
+        # The patch topology ends wherever the records stop being records.
+        head = [next(elem_iter, None) for _ in range(2)]
+        if None in head:
             break
+        _attr = _as_int(token=head[0], what=f"element {e} attribute", path=path)
+        geom = _as_int(token=head[1], what=f"element {e} geometry", path=path)
         poly_name, n_nodes = _MFEM_GEOM.get(geom, ("polygon", -1))
         if n_nodes < 0:
             break
-        indices = [int(next(elem_iter)) for _ in range(n_nodes)]
+        indices = _take_vertices(
+            it=elem_iter,
+            n_nodes=n_nodes,
+            n_verts=n_verts,
+            what=f"element {e}",
+            path=path,
+        )
         conn_list.extend(indices)
         offsets_list.append(offsets_list[-1] + n_nodes)
         types_list.append(ELEMENT_TYPES.get(poly_name, 0))
@@ -644,7 +640,7 @@ def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> Po
         mesh.Save("standard.mesh")
         poly = polyxios.read("standard.mesh")
     """
-    n_elems_total, elem_data = _read_section_table(tokens, "elements")
+    n_elems_total, elem_data = _read_section_table(tokens, "elements", path=path)
 
     # Parse only LEAF elements (rank >= 0)
     conn_list: list[int] = []
@@ -653,56 +649,29 @@ def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> Po
     n_leaf = 0
 
     elem_iter = iter(elem_data)
-    for _ in range(n_elems_total):
-        try:
-            rank = int(next(elem_iter))
-            _attr = int(next(elem_iter))
-            geom = int(next(elem_iter))
-            _ref_type = int(next(elem_iter))
-        except StopIteration:
+    for e in range(n_elems_total):
+        head = [next(elem_iter, None) for _ in range(4)]
+        if None in head:
             break
+        rank, _attr, geom, _ref_type = (
+            _as_int(token=tok, what=f"element {e} header", path=path) for tok in head
+        )
         poly_name, n_nodes = _MFEM_GEOM.get(geom, ("polygon", -1))
         if n_nodes < 0:
             break
-        indices_raw = [int(next(elem_iter)) for _ in range(n_nodes)]
+        indices_raw = [
+            _take_int(it=elem_iter, what=f"element {e} vertex", path=path)
+            for _ in range(n_nodes)
+        ]
         if rank >= 0:
             conn_list.extend(indices_raw)
             offsets_list.append(offsets_list[-1] + n_nodes)
             types_list.append(ELEMENT_TYPES.get(poly_name, 0))
             n_leaf += 1
 
-    # Build full vertex table from base coordinates + midpoint rules
-    vertices = np.zeros((0, 3), dtype=np.float64)
-    nc_dim = 3
-    try:
-        c_idx = tokens.index("coordinates")
-        n_base = int(tokens[c_idx + 1])
-        coord_dim = int(tokens[c_idx + 2])
-        base_vals = [float(tokens[c_idx + 3 + i]) for i in range(n_base * coord_dim)]
-        base_verts = np.array(base_vals, dtype=np.float64).reshape(n_base, coord_dim)
-
-        # Determine full table size from max vertex index referenced by leaf elements
-        max_idx = max(conn_list) if conn_list else n_base - 1
-        full = np.zeros((max_idx + 1, 3), dtype=np.float64)
-        full[:n_base, :coord_dim] = base_verts
-
-        # Apply midpoint rules in listed order (parents always precede children)
-        try:
-            vp_idx = tokens.index("vertex_parents")
-            n_parents = int(tokens[vp_idx + 1])
-            for j in range(n_parents):
-                child = int(tokens[vp_idx + 2 + j * 3])
-                p1 = int(tokens[vp_idx + 3 + j * 3])
-                p2 = int(tokens[vp_idx + 4 + j * 3])
-                if child <= max_idx:
-                    full[child] = 0.5 * (full[p1] + full[p2])
-        except (ValueError, IndexError):
-            pass
-
-        vertices = full
-        nc_dim = coord_dim
-    except (ValueError, IndexError):
-        pass
+    vertices, nc_dim = _nc_vertices(
+        tokens=tokens, conn_list=conn_list, file_size=file_size, path=path
+    )
 
     return PolyData(
         vertices=vertices,
@@ -719,7 +688,113 @@ def _read_nc(path: Source, header: str, tokens: list[str], file_size: int) -> Po
     )
 
 
-def _parse_nodes_field(tokens: list[str], n_verts: int) -> tuple[np.ndarray, int]:
+def _nc_vertices(
+    *, tokens: list[str], conn_list: list[int], file_size: int, path: Source
+) -> tuple[np.ndarray, int]:
+    """Build an NC mesh's vertex table from base coordinates and midpoint rules.
+
+    Parameters
+    ----------
+    tokens
+        The file's tokens after the header.
+    conn_list
+        The vertex indices the leaf elements name.
+    file_size
+        Size of the source, which bounds the table the indices ask for.
+    path
+        The source, for messages.
+
+    Returns
+    -------
+    vertices : numpy.ndarray
+        ``(n, 3)`` float64, one row per vertex up to the largest index a leaf
+        element names; empty when the file has no ``coordinates`` section and
+        names no vertex.
+    dim : int
+        The dimension the ``coordinates`` section declares, 3 without one.
+
+    Raises
+    ------
+    CodecError
+        If a leaf element names a negative vertex, or vertices without a
+        ``coordinates`` section, more vertices than the file can describe, a
+        coordinate or a rule that is not a number, or a section shorter than
+        its count; or a midpoint rule names a parent past the table.
+    """
+    if conn_list and min(conn_list) < 0:
+        raise CodecError(
+            f"'{source_name(path)}': a leaf element names vertex {min(conn_list)}."
+        )
+    if "coordinates" not in tokens:
+        if conn_list:
+            raise CodecError(
+                f"'{source_name(path)}': leaf elements name vertices but the"
+                " file has no coordinates section."
+            )
+        return np.zeros((0, 3), dtype=np.float64), 3
+    c_idx = tokens.index("coordinates")
+    n_base = _as_int(
+        token=_token_at(tokens=tokens, index=c_idx + 1, path=path),
+        what="coordinates count",
+        path=path,
+    )
+    if n_base < 0:
+        raise CodecError(
+            f"'{source_name(path)}': coordinates count {n_base} is negative."
+        )
+    coord_dim = _as_dim(
+        token=_token_at(tokens=tokens, index=c_idx + 2, path=path),
+        what="coordinates dimension",
+        path=path,
+    )
+    n_full = max(max(conn_list) + 1 if conn_list else 0, n_base)
+    # Every vertex past the base is spelled by a midpoint rule of three tokens.
+    validate_header(n_full, 0, 0, file_size)
+    base_vals = [
+        _as_float(
+            token=_token_at(tokens=tokens, index=c_idx + 3 + i, path=path),
+            what="coordinate",
+            path=path,
+        )
+        for i in range(n_base * coord_dim)
+    ]
+    full = np.zeros((n_full, 3), dtype=np.float64)
+    full[:n_base, :coord_dim] = np.array(base_vals, dtype=np.float64).reshape(
+        n_base, coord_dim
+    )
+
+    # Apply midpoint rules in listed order (parents always precede children)
+    if "vertex_parents" in tokens:
+        vp_idx = tokens.index("vertex_parents")
+        n_parents = _as_int(
+            token=_token_at(tokens=tokens, index=vp_idx + 1, path=path),
+            what="vertex_parents count",
+            path=path,
+        )
+        for j in range(n_parents):
+            child, p1, p2 = (
+                _as_int(
+                    token=_token_at(
+                        tokens=tokens, index=vp_idx + 2 + j * 3 + k, path=path
+                    ),
+                    what=f"vertex_parents rule {j}",
+                    path=path,
+                )
+                for k in range(3)
+            )
+            if not (0 <= p1 < n_full and 0 <= p2 < n_full):
+                raise CodecError(
+                    f"'{source_name(path)}': vertex_parents rule {j} names a"
+                    f" parent outside 0..{n_full - 1}."
+                )
+            if 0 <= child < n_full:
+                full[child] = 0.5 * (full[p1] + full[p2])
+    return full, coord_dim
+
+
+def _parse_nodes_field(
+    tokens: list[str], n_verts: int, *, path: Source
+) -> tuple[np.ndarray, int]:
     """Extract vertex coordinates from an MFEM 'nodes' FiniteElementSpace field.
 
     High-order MFEM meshes omit explicit coordinates in the ``vertices`` section
@@ -744,10 +819,18 @@ def _parse_nodes_field(tokens: list[str], n_verts: int) -> tuple[np.ndarray, int
         elif tok.startswith("FiniteElementCollection:"):
             pos += 2  # skip collection name token
         elif tok == "VDim:":
-            vdim = int(tokens[pos + 1])
+            vdim = _as_dim(
+                token=_token_at(tokens=tokens, index=pos + 1, path=path),
+                what="VDim",
+                path=path,
+            )
             pos += 2
         elif tok == "Ordering:":
-            ordering = int(tokens[pos + 1])
+            ordering = _as_int(
+                token=_token_at(tokens=tokens, index=pos + 1, path=path),
+                what="Ordering",
+                path=path,
+            )
             pos += 2
         else:
             break  # reached the float data
@@ -817,7 +900,9 @@ def _read_section_int(tokens: list[str], keyword: str) -> int:
         return 0
 
 
-def _read_section_table(tokens: list[str], keyword: str) -> tuple[int, list[str]]:
+def _read_section_table(
+    tokens: list[str], keyword: str, *, path: Source
+) -> tuple[int, list[str]]:
     """Find *keyword* section, read the count, return (count, remaining_tokens).
 
     Returns the tokens that belong to this section (count × row_width tokens)
@@ -829,7 +914,244 @@ def _read_section_table(tokens: list[str], keyword: str) -> tuple[int, list[str]
         idx = tokens.index(keyword)
     except ValueError:
         return 0, []
-    count = int(tokens[idx + 1])
+    count = _as_int(
+        token=_token_at(tokens=tokens, index=idx + 1, path=path),
+        what=f"{keyword} count",
+        path=path,
+    )
+    if count < 0:
+        raise CodecError(f"'{source_name(path)}': {keyword} count {count} is negative.")
     # Return the slice starting after the count token
     data = tokens[idx + 2 :]
     return count, data
+
+
+def _as_int(*, token: str, what: str, path: Source) -> int:
+    """Read ``token`` as an integer, naming ``what`` it is when it is not."""
+    try:
+        return int(token)
+    except ValueError as exc:
+        raise CodecError(
+            f"'{source_name(path)}': {what} {token[:40]!r} is not an integer."
+        ) from exc
+
+
+def _as_float(*, token: str, what: str, path: Source) -> float:
+    """Read ``token`` as a number, naming ``what`` it is when it is not."""
+    try:
+        return float(token)
+    except ValueError as exc:
+        raise CodecError(
+            f"'{source_name(path)}': {what} {token[:40]!r} is not a number."
+        ) from exc
+
+
+def _as_dim(*, token: str, what: str, path: Source) -> int:
+    """Read a coordinate count, refusing one outside 1..3."""
+    dim = _as_int(token=token, what=what, path=path)
+    if not 1 <= dim <= 3:
+        raise CodecError(f"'{source_name(path)}': {what} {dim} is not 1, 2 or 3.")
+    return dim
+
+
+def _token_at(*, tokens: list[str], index: int, path: Source) -> str:
+    """Return ``tokens[index]``, refusing a file that ends before it."""
+    if index >= len(tokens):
+        raise CodecError(f"'{source_name(path)}': the file ends inside a section.")
+    return tokens[index]
+
+
+def _take(*, it: Iterator[str], what: str, path: Source) -> str:
+    """Return the next token, refusing a section that ends before ``what``."""
+    tok = next(it, None)
+    if tok is None:
+        raise CodecError(f"'{source_name(path)}': the file ends before {what}.")
+    return tok
+
+
+def _take_int(*, it: Iterator[str], what: str, path: Source) -> int:
+    """Return the next token as an integer."""
+    return _as_int(token=_take(it=it, what=what, path=path), what=what, path=path)
+
+
+def _take_vertices(
+    *, it: Iterator[str], n_nodes: int, n_verts: int, what: str, path: Source
+) -> list[int]:
+    """Return an element's ``n_nodes`` vertex indices, each below ``n_verts``.
+
+    Parameters
+    ----------
+    it
+        The section's token stream, at the element's first vertex.
+    n_nodes
+        How many vertices the element's geometry holds.
+    n_verts
+        How many vertices the mesh has.
+    what
+        Names the element in messages.
+    path
+        The source, for messages.
+
+    Returns
+    -------
+    list of int
+        The indices.
+
+    Raises
+    ------
+    CodecError
+        If the section ends first, a token is not an integer, or an index is
+        negative or past the vertices.
+    """
+    indices = [_take_int(it=it, what=what, path=path) for _ in range(n_nodes)]
+    bad = next((i for i in indices if not 0 <= i < n_verts), None)
+    if bad is not None:
+        raise CodecError(
+            f"'{source_name(path)}': {what} names vertex {bad}, outside"
+            f" 0..{n_verts - 1}."
+        )
+    return indices
+
+
+def _coordinates(
+    *, tokens: list[str], n_verts: int, dim: int, path: Source
+) -> np.ndarray:
+    """Parse a standard mesh's ``vertices`` rows in one pass.
+
+    Parameters
+    ----------
+    tokens
+        The ``n_verts * dim`` tokens after the dimension, or fewer when the
+        file ends first.
+    n_verts
+        How many vertices the section declares.
+    dim
+        Coordinates per vertex.
+    path
+        The source, for messages.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``(n_verts, dim)`` float64.
+
+    Raises
+    ------
+    CodecError
+        If the file ends before the last coordinate, or a token is not a
+        number.
+    """
+    if len(tokens) < n_verts * dim:
+        raise CodecError(
+            f"'{source_name(path)}': the file ends before vertex {len(tokens) // dim}."
+        )
+    try:
+        return np.array(tokens, dtype=np.float64).reshape(n_verts, dim)
+    except ValueError:
+        k = next(k for k, tok in enumerate(tokens) if not _is_float(tok))
+        raise CodecError(
+            f"'{source_name(path)}': vertex {k // dim} {tokens[k][:40]!r} is not"
+            " a number."
+        ) from None
+
+
+def _is_int(token: str) -> bool:
+    """Return whether ``int`` reads ``token``."""
+    try:
+        int(token)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_float(token: str) -> bool:
+    """Return whether ``float`` reads ``token``."""
+    try:
+        float(token)
+    except ValueError:
+        return False
+    return True
+
+
+def _elements(
+    *, data: list[str], n_elems: int, n_verts: int, path: Source
+) -> tuple[np.ndarray, list[int], list[int]]:
+    """Walk a standard mesh's ``elements`` records.
+
+    Parameters
+    ----------
+    data
+        The tokens after the section's count.
+    n_elems
+        How many records the section declares.
+    n_verts
+        How many vertices the mesh has.
+    path
+        The source, for messages.
+
+    Returns
+    -------
+    connectivity : numpy.ndarray
+        int32 vertex indices.
+    offsets : list of int
+        CSR offsets, starting at 0.
+    types : list of int
+        polyxios type codes.
+
+    Raises
+    ------
+    CodecError
+        If the file ends inside a record, a token is not an integer, a
+        geometry is unknown, or an index is negative or past the vertices.
+    """
+    conn_list: list[int] = []
+    offsets_list: list[int] = [0]
+    types_list: list[int] = []
+    pos = 0
+    for e in range(n_elems):
+        record = data[pos : pos + 2]
+        if len(record) < 2:
+            raise CodecError(
+                f"'{source_name(path)}': the file ends before element {e}."
+            )
+        try:
+            int(record[0])
+            geom = int(record[1])
+        except ValueError:
+            raise CodecError(
+                f"'{source_name(path)}': element {e} {' '.join(record)[:40]!r} is"
+                " not an attribute and a geometry."
+            ) from None
+        poly_name, n_nodes = _MFEM_GEOM.get(geom, ("polygon", -1))
+        if n_nodes < 0:
+            raise CodecError(
+                f"Unknown MFEM geometry type {geom} in '{source_name(path)}'."
+            )
+        nodes = data[pos + 2 : pos + 2 + n_nodes]
+        if len(nodes) < n_nodes:
+            raise CodecError(
+                f"'{source_name(path)}': the file ends inside element {e}."
+            )
+        try:
+            conn_list.extend(map(int, nodes))
+        except ValueError:
+            bad = next(tok for tok in nodes if not _is_int(tok))
+            raise CodecError(
+                f"'{source_name(path)}': element {e} {bad[:40]!r} is not an integer."
+            ) from None
+        offsets_list.append(offsets_list[-1] + n_nodes)
+        types_list.append(ELEMENT_TYPES.get(poly_name, 0))
+        pos += 2 + n_nodes
+    try:
+        connectivity = np.array(conn_list, dtype=np.int64)
+        in_range = (connectivity >= 0) & (connectivity < n_verts)
+    except OverflowError:
+        in_range = np.array([0 <= i < n_verts for i in conn_list], dtype=bool)
+    if not in_range.all():
+        k = int(np.argmin(in_range))
+        e = int(np.searchsorted(offsets_list, k, side="right")) - 1
+        raise CodecError(
+            f"'{source_name(path)}': element {e} names vertex {conn_list[k]}, outside"
+            f" 0..{n_verts - 1}."
+        )
+    return connectivity.astype(np.int32), offsets_list, types_list

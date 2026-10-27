@@ -8,7 +8,7 @@ import pytest
 
 from polyxios import make_polydata
 from polyxios.codecs._mesh import read, write
-from polyxios.exceptions import CodecError
+from polyxios.exceptions import CodecError, PolyxiosError
 from polyxios.fetcher import fetch
 
 
@@ -295,3 +295,79 @@ def test_a_byte_order_mark_does_not_hide_the_header(tmp_path) -> None:
     # A file the registry had already claimed as MFEM: the mark is not
     # whitespace, so strip left it in place and the header matched no branch.
     assert len(read(path).vertices) == 3
+
+
+_TRIS = "MFEM mesh v1.0\n\ndimension\n2\n\nelements\n2\n1 2 0 1 2\n1 2 1 3 2\n\n"
+_VERTS = "vertices\n4\n2\n0 0\n1 0\n0 1\n1 1\n"
+
+
+@pytest.mark.parametrize(
+    ("text", "match"),
+    [
+        (_TRIS.replace("1 3 2", "1 ` 2") + _VERTS, "element 1 '`' is not an integer"),
+        (_TRIS + _VERTS.replace("4\n2", "4\n\xff7"), "dimension .* not an integer"),
+        (_TRIS + _VERTS.replace("vertices\n4", "vertices\n6"), "ends before vertex 4"),
+        (_TRIS + "vertices\n", "ends inside a section"),
+        (_TRIS + _VERTS.replace("4\n2", "4\n5"), "dimension 5 is not 1, 2 or 3"),
+        (_TRIS.replace("elements\n2", "elements\n-2") + _VERTS, "count -2"),
+        (
+            _TRIS.replace("1 3 2", "1 3 \u00b2") + _VERTS,
+            "element 1 '.' is not an integer",
+        ),
+        (_TRIS + _VERTS.replace("1 1\n", "1 x\n"), "vertex 3 'x' is not a number"),
+        (_TRIS.replace("1 3 2", "1 3" + "0" * 30 + " 2") + _VERTS, "outside 0..3"),
+        (_TRIS.replace("1 3 2", "1 7 2") + _VERTS, "names vertex 7"),
+        (_TRIS + _VERTS.replace("vertices", "Jvertices"), "outside 0..-1"),
+    ],
+)
+def test_a_mesh_its_counts_or_tokens_do_not_hold_is_refused(tmp_path, text, match):
+    """A token that is not a number, a section shorter than its count and a
+    vertex index past the vertices escaped as ValueError, StopIteration,
+    IndexError, an int32 overflow, or a mesh pointing past its vertices."""
+    path = tmp_path / "bad.mesh"
+    path.write_text(text, encoding="latin-1")
+    with pytest.raises(CodecError, match=match):
+        read(path)
+
+
+_NC = (
+    "MFEM NC mesh v1.0\n\ndimension\n2\n\nelements\n1\n0 1 2 0 0 1 2\n\n"
+    "coordinates\n3\n2\n0 0\n1 0\n0 1\n"
+)
+_NODES = (
+    "MFEM mesh v1.0\n\ndimension\n2\n\nelements\n1\n1 2 0 1 2\n\nvertices\n3\n\n"
+    "nodes\nFiniteElementSpace\nFiniteElementCollection: H1_2D_P1\nVDim: 2\n"
+    "Ordering: 1\n0 0 1 0 0 1\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "match"),
+    [
+        (_NC.split("coordinates")[0], "no coordinates section"),
+        (_NC.replace("0 0 1 2\n", "0 0 -1 2\n"), "names vertex -1"),
+        (_NC.replace("0 0 1 2\n", "0 0 1 99999999999\n"), "declared_n_verts"),
+        (_NC + "vertex_parents\n1\n2 0 -1\n", "parent outside 0..2"),
+        (_NC.replace("3\n2\n0 0", "3\n0\n0 0"), "dimension 0"),
+        (_NC.replace("coordinates\n3", "coordinates\n-1"), "count -1"),
+        (_NODES.replace("VDim: 2", "VDim: 0"), "VDim 0"),
+        (_NODES.replace("VDim: 2", "VDim: 5"), "VDim 5"),
+    ],
+)
+def test_nc_and_nodes_sections_they_do_not_hold_are_refused(tmp_path, text, match):
+    """A leaf naming a vertex with no coordinates section came back pointing
+    past an empty vertex array, a negative parent wrapped to the last vertex,
+    a VDim of 0 divided by zero and one past 3 failed to broadcast."""
+    path = tmp_path / "bad.mesh"
+    path.write_text(text)
+    with pytest.raises(PolyxiosError, match=match):
+        read(path)
+
+
+def test_nc_and_nodes_seeds_read(tmp_path) -> None:
+    for text in (_NC, _NODES):
+        path = tmp_path / "ok.mesh"
+        path.write_text(text)
+        poly = read(path)
+        assert poly.vertices.shape == (3, 3)
+        np.testing.assert_array_equal(poly.connectivity, [0, 1, 2])
