@@ -338,12 +338,21 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
 
 def _bounded(poly: PolyData, path: Source) -> PolyData:
-    """Hand back ``poly``, refusing a cell that names a point the file lacks.
+    """Hand back ``poly``, refusing cells the file does not hold together.
 
     ``CELLS``, ``POLYGONS`` and their kin spell point indices the file never
     checks against ``POINTS``, so an index past them would come back as a
-    connectivity entry the mesh holds no vertex for.
+    connectivity entry the mesh holds no vertex for; and a ``CELLS`` block
+    whose ``CELL_TYPES`` never comes leaves cells with no type.
     """
+    n_types, n_offsets = poly.element_types.shape[0], poly.offsets.shape[0]
+    if n_offsets != n_types + 1:
+        # A CELLS block with no CELL_TYPES after it - a header the reader
+        # did not recognise - or the other way round.
+        raise CodecError(
+            f".vtk: '{source_name(path)}' gives {n_offsets - 1} cell(s) but"
+            f" {n_types} cell type(s)."
+        )
     return bounded_by_points(poly, path, fmt=".vtk")
 
 

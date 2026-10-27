@@ -3490,3 +3490,19 @@ def test_the_cython_cell_parser_is_found_when_it_is_built() -> None:
     it, so every install fell back to the pure-Python parse."""
     built = importlib.util.find_spec("polyxios.codecs._vtk_parse") is not None
     assert vtk_module._HAS_CYTHON is built
+
+
+@pytest.mark.parametrize("binary", [False, True])
+@pytest.mark.parametrize("lazy", [False, True])
+def test_cells_whose_types_never_come_are_refused(tmp_path, binary, lazy) -> None:
+    """A CELL_TYPES header the reader did not recognise left three cells of
+    offsets and none of types, a mesh validate() refuses."""
+    if lazy and not binary:
+        pytest.skip("ASCII is never read lazily")
+    path = tmp_path / "m.vtk"
+    write(_tri_ug(), path, binary=binary)
+    raw = path.read_bytes()
+    assert raw.count(b"CELL_TYPES") == 1
+    path.write_bytes(raw.replace(b"CELL_TYPES", b"CELL_\x14YPES"))
+    with pytest.raises(CodecError, match="1 cell\\(s\\) but 0 cell type"):
+        read(path, lazy=lazy)
