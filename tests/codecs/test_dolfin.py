@@ -297,3 +297,69 @@ def test_sniff_accepts_what_write_produces(tmp_path):
     out = tmp_path / "m.xml"
     write(_tet_mesh(), out)
     assert sniff(out.read_bytes())
+
+
+def _interval_xml(*, encoding: str = "utf-8", v1: str = "1", index: str = "0") -> bytes:
+    return (
+        f"<?xml version='1.0' encoding='{encoding}'?>\n"
+        '<dolfin><mesh celltype="interval" dim="1">'
+        '<vertices size="2"><vertex index="0" x="0" y="0"/>'
+        '<vertex index="1" x="1" y="0"/></vertices>'
+        f'<cells size="1"><interval index="{index}" v0="0" v1="{v1}"/></cells>'
+        "</mesh></dolfin>"
+    ).encode()
+
+
+@pytest.mark.parametrize("encoding", ["utf-9", "utf-16"])
+def test_an_encoding_the_parser_cannot_use_is_refused(tmp_path, encoding):
+    """expat raised LookupError for an unknown encoding and ValueError for a
+    multi-byte one, both past the ParseError the reader caught."""
+    out = tmp_path / "m.xml"
+    out.write_bytes(_interval_xml(encoding=encoding))
+    with pytest.raises(CodecError, match="encoding"):
+        read(out)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"index": ",3"}, "cell index ',3' is not an integer"),
+        ({"v1": "x"}, "cell 0 v1 'x' is not an integer"),
+        ({"v1": "7"}, "v1=7 is not one of the 2 vertices"),
+        ({"v1": "-1"}, "v1=-1 is not one of the 2 vertices"),
+        ({"v1": "7" * 40}, "is not one of the 2 vertices"),
+    ],
+)
+def test_a_cell_that_names_no_vertex_is_refused(tmp_path, kwargs, match):
+    """A cell index past the vertices was handed back in the connectivity, and
+    one past int64 overflowed while the array was built."""
+    out = tmp_path / "m.xml"
+    out.write_bytes(_interval_xml(**kwargs))
+    with pytest.raises(CodecError, match=match):
+        read(out)
+
+
+def test_a_coordinate_that_is_not_a_number_is_refused(tmp_path):
+    out = tmp_path / "m.xml"
+    out.write_bytes(_interval_xml().replace(b' x="1"', b' x="1,5"'))
+    with pytest.raises(CodecError, match="vertex 1 x '1,5' is not a number"):
+        read(out)
+
+
+@pytest.mark.parametrize(
+    ("dim", "was_2d"),
+    [("2", True), (" 2 ", True), ("9" * 5000, True), ("２", True), ("3", False)],
+)
+def test_a_dim_that_is_not_one_digit_is_read_off_the_vertices(
+    tmp_path: Path, dim: str, was_2d: bool
+) -> None:
+    """Five thousand digits passed isdigit() and int() refused them."""
+    f = tmp_path / "dim.xml"
+    f.write_text(
+        f'<dolfin><mesh celltype="triangle" dim="{dim}"><vertices size="3">'
+        '<vertex index="0" x="0" y="0"/><vertex index="1" x="1" y="0"/>'
+        '<vertex index="2" x="0" y="1"/></vertices><cells size="1">'
+        '<triangle index="0" v0="0" v1="1" v2="2"/></cells></mesh></dolfin>',
+        encoding="utf-8",
+    )
+    assert read(f).global_attrs.get("was_2d", False) is was_2d
