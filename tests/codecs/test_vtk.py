@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
 from pathlib import Path
 import tempfile
 
@@ -9,6 +10,7 @@ import pytest
 
 from polyxios import PolyData, make_polydata
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios.codecs import _vtk as vtk_module
 from polyxios.codecs._vtk import _vtk_cell_codes, read, write
 from polyxios.exceptions import (
     CodecError,
@@ -3481,3 +3483,10 @@ def test_an_array_whose_lines_hold_more_than_it_declares_is_refused(tmp_path) ->
     )
     with pytest.raises(CodecError, match="declares 6 values but its lines hold 9"):
         read(path)
+
+
+def test_the_cython_cell_parser_is_found_when_it_is_built() -> None:
+    """The reader imported it from polyxios._vtk_parse, where meson never put
+    it, so every install fell back to the pure-Python parse."""
+    built = importlib.util.find_spec("polyxios.codecs._vtk_parse") is not None
+    assert vtk_module._HAS_CYTHON is built

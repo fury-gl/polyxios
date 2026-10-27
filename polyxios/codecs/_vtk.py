@@ -37,7 +37,7 @@ from polyxios.exceptions import (
 from polyxios.validate import validate_header
 
 try:
-    from polyxios._vtk_parse import (  # type: ignore[import]
+    from polyxios.codecs._vtk_parse import (  # type: ignore[import]
         parse_ascii_cells_v42,
         parse_ascii_coords,
     )
