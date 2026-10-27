@@ -3555,3 +3555,26 @@ def test_a_field_array_wider_than_numpy_can_shape_is_skipped() -> None:
         poly = read(tmp)
     assert "wide" not in poly.global_attrs
     np.testing.assert_allclose(poly.global_attrs["arr"], [1.0, 2.0])
+
+
+@pytest.mark.parametrize(
+    "attr",
+    [
+        "TEXTURE_COORDINATES t {big} double\n",
+        "COLOR_SCALARS c {big}\n",
+        "NORMALS n double\n0 0 1\n0 0 1\n0 0 1\nFIELD FieldData 1\nf {big} 0 double\n",
+    ],
+    ids=["texture-coordinates", "color-scalars", "field-block"],
+)
+def test_an_attribute_width_past_the_cap_is_refused(tmp_path, attr) -> None:
+    """Every attribute line's width sized an array before anything bounded
+    it, so a width of forty digits over no values reached numpy's reshape."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v="4.2", mode="ASCII")
+        + _TRI_POINTS
+        + "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\nPOINT_DATA 3\n"
+        + attr.format(big="7" * 40)
+    )
+    with pytest.raises(CodecError, match="count"):
+        read(path)

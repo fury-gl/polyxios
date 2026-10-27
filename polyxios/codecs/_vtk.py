@@ -1008,7 +1008,7 @@ def _field_shape(parts: list[str], where: str) -> tuple[int, int]:
     """
     n_comp = _attr_count(parts, 1, where)
     n_tuples = _attr_count(parts, 2, where)
-    if n_comp < 0 or n_tuples < 0:
+    if not (0 <= n_comp <= MAX_SAFE_CONN and 0 <= n_tuples <= MAX_SAFE_CONN):
         raise CodecError(
             f".vtk: {where} holds {' '.join(parts)!r}, whose field array is"
             f" {n_tuples} tuple(s) of {n_comp} - a count no array has."
@@ -2722,13 +2722,13 @@ def _attr_count(
         ) from exc
 
 
-def _scalars_width(parts: list[str], where: str) -> int:
-    """Read a ``SCALARS`` line's component count, refusing one no array has.
+def _width(parts: list[str], index: int, where: str, *, default: int) -> int:
+    """Read an attribute line's component count, refusing one no array has.
 
     A width past the cap shaped even an empty array past what numpy can
     index, and one below 1 holds no value per item.
     """
-    n_comp = _attr_count(parts, 3, where, default=1)
+    n_comp = _attr_count(parts, index, where, default=default)
     if not 1 <= n_comp <= MAX_SAFE_CONN:
         raise CodecError(
             f".vtk: {where} holds {' '.join(parts)!r}, whose component count"
@@ -2869,7 +2869,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _scalars_width(parts, where)
+            n_comp = _width(parts, 3, where, default=1)
             i += 1
             # Skip LOOKUP_TABLE line
             if i < n_lines and "LOOKUP_TABLE" in lines[i].upper():
@@ -2885,7 +2885,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=1)
+            n_comp = _width(parts, 2, where, default=1)
             i += 1
             i, vals = _read_ascii_values(lines, i, n_declared * n_comp, name=name)
             arr = np.array(vals, dtype=np.float64)
@@ -2902,7 +2902,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=2)
+            n_comp = _width(parts, 2, where, default=2)
             i += 1
             i, vals = _read_ascii_values(lines, i, n_declared * n_comp, name=name)
             arr = np.array(vals, dtype=np.float64)
@@ -2945,8 +2945,7 @@ def _parse_vtk_data_attrs(
                 fparts = lines[i].strip().split()
                 fwhere = f"line {i + 1}"
                 fname = fparts[0]
-                n_comp_f = _attr_count(fparts, 1, fwhere)
-                n_tuples = _attr_count(fparts, 2, fwhere)
+                n_comp_f, n_tuples = _field_shape(fparts, fwhere)
                 i += 1
                 i, vals = _read_ascii_values(lines, i, n_tuples * n_comp_f, name=fname)
                 arr = np.array(vals, dtype=np.float64)
@@ -3773,7 +3772,7 @@ def _parse_binary_attrs(
         elif upper.startswith("SCALARS"):
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _scalars_width(parts, where)
+            n_comp = _width(parts, 3, where, default=1)
             np_dt = _binary_dtype(parts, 2, where)
             # Skip the LOOKUP_TABLE line, if the section carries one: the
             # format leaves it optional, and swallowing a line that is not
@@ -3796,7 +3795,7 @@ def _parse_binary_attrs(
             # encodings must not read back as two different arrays.
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=1)
+            n_comp = _width(parts, 2, where, default=1)
             n_bytes = n_items * n_comp
             _check_block(pos, n_bytes, file_size, name=name)
             raw = _block(mm, pos, np.uint8, n_bytes, copy=True) / _COLOR_SCALE
@@ -3818,7 +3817,7 @@ def _parse_binary_attrs(
         elif upper.startswith("TEXTURE_COORDINATES"):
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=2)
+            n_comp = _width(parts, 2, where, default=2)
             np_dt = _binary_dtype(parts, 3, where)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
@@ -3872,8 +3871,7 @@ def _parse_binary_attrs(
                 # at the bytes rather than at the line that is wrong.
                 fwhere = f"byte {hdr_start}"
                 arr_name = hparts[0]
-                n_comp_f = _attr_count(hparts, 1, fwhere)
-                n_tuples_f = _attr_count(hparts, 2, fwhere)
+                n_comp_f, n_tuples_f = _field_shape(hparts, fwhere)
                 np_dt_f = _binary_dtype(hparts, 3, fwhere)
                 n_bytes_f = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
                 _check_block(pos, n_bytes_f, file_size, name=arr_name)
@@ -4868,7 +4866,7 @@ def _scan_structured_attr(
 
     if upper.startswith("SCALARS"):
         name = _attr_name(parts, where)
-        n_comp = _scalars_width(parts, where)
+        n_comp = _width(parts, 3, where, default=1)
         i += 1
         if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
             i += 1
@@ -4895,7 +4893,7 @@ def _scan_structured_attr(
         # 0..1 in ASCII; the byte is scaled so the same colour reads back
         # the same way whichever encoding the file used.
         name = _attr_name(parts, where)
-        n_comp = _attr_count(parts, 2, where, default=1)
+        n_comp = _width(parts, 2, where, default=1)
         i += 1
         if is_binary:
             data_pos = offsets[i] if i < len(offsets) else len(raw)
@@ -4935,7 +4933,7 @@ def _scan_structured_attr(
 
     if upper.startswith("TEXTURE_COORDINATES"):
         name = _attr_name(parts, where)
-        n_comp = _attr_count(parts, 2, where, default=2)
+        n_comp = _width(parts, 2, where, default=2)
         i += 1
         if is_binary:
             np_dt = _binary_dtype(parts, 3, where)
