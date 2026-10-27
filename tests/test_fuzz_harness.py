@@ -53,7 +53,7 @@ _ALIASES = {
 
 def test_every_target_has_an_entry_point_and_back() -> None:
     entry_points = {p.stem.removeprefix("fuzz_") for p in FUZZ.glob("fuzz_*.py")}
-    assert entry_points == set(harness.TARGETS)
+    assert entry_points == set(harness.TARGETS) | set(harness.LAZY_TARGETS)
 
 
 def test_every_format_read_from_bytes_is_fuzzed() -> None:
@@ -84,6 +84,31 @@ def test_every_seed_passes_the_oracle(corpus, name: str) -> None:
     assert seeds, f"{name} has no seed"
     for seed in seeds:
         harness.read_one(seed.read_bytes(), fmt=harness.TARGETS[name])
+
+
+@pytest.mark.parametrize("name", sorted(harness.LAZY_TARGETS))
+def test_every_lazy_seed_passes_the_oracle(corpus, tmp_path, name: str) -> None:
+    seeds = sorted((corpus / name).iterdir())
+    assert seeds, f"{name} has no seed"
+    for seed in seeds:
+        harness.read_one(
+            seed.read_bytes(), fmt=harness.LAZY_TARGETS[name], scratch=tmp_path
+        )
+    assert not any(tmp_path.iterdir())
+
+
+def test_a_lazy_target_reads_through_a_mapping(tmp_path, monkeypatch) -> None:
+    calls = []
+    real = polyxios.read
+
+    def spy(source, **kwargs):
+        calls.append(kwargs.get("lazy"))
+        return real(source, **kwargs)
+
+    monkeypatch.setattr(harness.polyxios, "read", spy)
+    data = (FUZZ / "make_corpus.py").read_bytes()
+    harness.read_one(data, fmt=".stl", scratch=tmp_path)
+    assert calls == [True]
 
 
 def test_the_oracle_refuses_a_mesh_pointing_past_its_vertices() -> None:

@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+import shutil
 import sys
 import warnings
 
-from _harness import TARGETS
+from _harness import LAZY_TARGETS, TARGETS
 import numpy as np
 
 import polyxios
@@ -200,6 +201,11 @@ def main(*, out: Path) -> None:
             (target / f"handwritten_{seeds}").write_bytes(data)
             seeds += 1
         print(f"{name:8} {seeds} seeds")
+    # A lazy target starts from the same files as the eager one.
+    for name in LAZY_TARGETS:
+        shutil.copytree(
+            out / name.removeprefix("lazy_"), out / name, dirs_exist_ok=True
+        )
 
 
 if __name__ == "__main__":
