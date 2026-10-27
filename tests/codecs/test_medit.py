@@ -597,3 +597,16 @@ def test_the_element_cap_is_counted_over_the_file_not_the_section(
     )
     with pytest.raises(CodecError, match="element count exceeds the safety cap"):
         read(path)
+
+
+def test_an_element_index_past_int64_is_refused(tmp_path) -> None:
+    """A vertex index of 41 digits overflowed int64 while the record block
+    was converted, escaping as OverflowError."""
+    path = tmp_path / "big.mesh"
+    path.write_text(
+        "MeshVersionFormatted 2\nDimension 3\nVertices\n3\n"
+        "0 0 0 0\n1 0 0 0\n0 1 0 0\n"
+        f"Triangles\n1\n1 2 {'7' * 41} 0\nEnd\n"
+    )
+    with pytest.raises(CodecError, match="malformed Triangles record"):
+        read(path)
