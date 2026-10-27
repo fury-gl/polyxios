@@ -312,19 +312,19 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             raise LazyReadError(
                 "VTK RECTILINEAR_GRID format does not support lazy reads."
             )
-        return _read_rectilinear_grid(path, is_binary=is_binary)
+        return _bounded(_read_rectilinear_grid(path, is_binary=is_binary), path)
     elif "STRUCTURED_GRID" in dataset_line:
         if lazy:
             raise LazyReadError(
                 "VTK STRUCTURED_GRID format does not support lazy reads."
             )
-        return _read_structured_grid(path, is_binary=is_binary)
+        return _bounded(_read_structured_grid(path, is_binary=is_binary), path)
     elif "STRUCTURED_POINTS" in dataset_line:
         if lazy:
             raise LazyReadError(
                 "VTK STRUCTURED_POINTS format does not support lazy reads."
             )
-        return _read_structured_points(path, is_binary=is_binary)
+        return _bounded(_read_structured_points(path, is_binary=is_binary), path)
     elif "FIELD" in dataset_line:
         # The line still carries its 'DATASET ' keyword here, so asking what
         # it starts with never matched and every field-data file was refused
@@ -358,6 +358,18 @@ def _bounded(poly: PolyData, path: Source) -> PolyData:
             f".vtk: '{source_name(path)}' has cell offsets that do not run"
             f" from 0 to its {poly.connectivity.size} connectivity entries."
         )
+    for kind, attrs, expected in (
+        ("POINT_DATA", poly.vertex_attrs, poly.vertices.shape[0]),
+        ("CELL_DATA", poly.element_attrs, poly.element_types.shape[0]),
+    ):
+        for name, arr in attrs.items():
+            if len(arr) != expected:
+                # The section's count is the file's word against POINTS or
+                # CELLS: spelled before them, or overtaken by a second block.
+                raise CodecError(
+                    f".vtk: '{source_name(path)}' has {kind} array {name!r} of"
+                    f" {len(arr)} value(s) over {expected}."
+                )
     n_types, n_offsets = poly.element_types.shape[0], poly.offsets.shape[0]
     if n_offsets != n_types + 1:
         # A CELLS block with no CELL_TYPES after it - a header the reader

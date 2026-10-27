@@ -3578,3 +3578,18 @@ def test_an_attribute_width_past_the_cap_is_refused(tmp_path, attr) -> None:
     )
     with pytest.raises(CodecError, match="count"):
         read(path)
+
+
+def test_point_data_overtaken_by_a_second_points_block_is_refused(tmp_path) -> None:
+    """POINT_DATA counted the first POINTS block, a second one replaced the
+    vertices, and the attribute came back the wrong length for them."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v="4.2", mode="ASCII")
+        + _TRI_POINTS
+        + "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        + "POINT_DATA 3\nSCALARS s double 1\nLOOKUP_TABLE default\n1 2 3\n"
+        + "POINTS 4 double\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+    )
+    with pytest.raises(CodecError, match="POINT_DATA array 's' of 3 value"):
+        read(path)
