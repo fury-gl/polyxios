@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios.codecs import _vtk_xml
@@ -1630,6 +1631,23 @@ def test_a_raw_section_with_no_marker_is_refused(tmp_path, lazy) -> None:
     path.write_bytes(path.read_bytes().replace(b"\n   _", b"\n   ", 1))
     with pytest.raises(CodecError, match="no '_' marker"):
         read(path, lazy=lazy)
+
+
+@pytest.mark.parametrize("fmt", [".vtu", ".vtp"])
+@pytest.mark.parametrize("bad", ["0 1 9", "0 -1 2"])
+def test_a_cell_naming_a_point_the_piece_lacks_is_refused(tmp_path, fmt, bad) -> None:
+    """The connectivity array was never checked against NumberOfPoints, so
+    an entry past it came back indexing no vertex of the mesh."""
+    poly = make_polydata(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+    buf = io.BytesIO()
+    polyxios.write(poly, buf, fmt=fmt, binary=False)
+    text = buf.getvalue().decode()
+    spelled = 'connectivity" format="ascii">0 1 2<'
+    assert spelled in text
+    path = tmp_path / f"bad{fmt}"
+    path.write_text(text.replace(spelled, spelled.replace("0 1 2", bad)))
+    with pytest.raises(CodecError, match="outside 0..2"):
+        (read if fmt == ".vtu" else vtp_read)(path)
 
 
 @pytest.mark.parametrize("appended", [False, True])

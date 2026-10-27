@@ -23,6 +23,7 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, VTK_TO_POLYXIOS
 from polyxios._io import Source, map_read, read_bytes, source_name
+from polyxios._types import PolyData
 from polyxios._warn import warn_caller as _warn_caller
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -2279,6 +2280,43 @@ def piece_count(piece: ET.Element, attr: str, *, fmt: str) -> int:
         raise CodecError(
             f"{fmt}: a Piece declares {attr}='{text}', which is not a count."
         ) from exc
+
+
+def bounded_by_points(poly: PolyData, path: Source, *, fmt: str) -> PolyData:
+    """Hand back ``poly``, refusing a cell that names a point the piece lacks.
+
+    Parameters
+    ----------
+    poly
+        The mesh a reader assembled.
+    path
+        The file it came from, for the message.
+    fmt
+        Extension the message names, such as ``'.vtu'``.
+
+    Returns
+    -------
+    PolyData
+        ``poly`` itself.
+
+    Raises
+    ------
+    CodecError
+        When a connectivity entry is negative or past the points. The file
+        never checks its connectivity array against ``NumberOfPoints``, so
+        such an entry would come back indexing no vertex of the mesh.
+    """
+    conn = poly.connectivity
+    if conn.size:
+        low, high = int(conn.min()), int(conn.max())
+        n_verts = poly.vertices.shape[0]
+        if low < 0 or high >= n_verts:
+            held = f"0..{n_verts - 1}" if n_verts else "no point at all"
+            raise CodecError(
+                f"{fmt}: '{source_name(path)}' has a cell naming point"
+                f" {low if low < 0 else high}, outside {held}."
+            )
+    return poly
 
 
 def xml_extent(text: str, *, fmt: str, where: str) -> list[int]:

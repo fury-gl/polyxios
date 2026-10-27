@@ -15,6 +15,7 @@ from polyxios.codecs._vtk_xml import (
     appended_header_type,
     appended_section,
     attr_nbytes,
+    bounded_by_points,
     decode_da,
     format_attr_da,
     format_da,
@@ -80,7 +81,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # and a stream that cannot seek cannot be measured at all.
     parsed = parse_xml(path, lazy=lazy, fmt=EXTENSION)
     try:
-        return _assemble(parsed, lazy=lazy)
+        return bounded_by_points(_assemble(parsed, lazy=lazy), path, fmt=EXTENSION)
     except BaseException:
         release_appended(parsed[1])
         raise

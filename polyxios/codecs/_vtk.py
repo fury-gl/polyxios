@@ -28,6 +28,7 @@ from polyxios._io import (
 )
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
+from polyxios.codecs._vtk_xml import bounded_by_points
 from polyxios.exceptions import (
     CodecError,
     IndexOverflowError,
@@ -343,17 +344,7 @@ def _bounded(poly: PolyData, path: Source) -> PolyData:
     checks against ``POINTS``, so an index past them would come back as a
     connectivity entry the mesh holds no vertex for.
     """
-    conn = poly.connectivity
-    if conn.size:
-        low, high = int(conn.min()), int(conn.max())
-        n_verts = poly.vertices.shape[0]
-        if low < 0 or high >= n_verts:
-            held = f"0..{n_verts - 1}" if n_verts else "no point at all"
-            raise CodecError(
-                f".vtk: '{source_name(path)}' has a cell naming point"
-                f" {low if low < 0 else high}, outside {held}."
-            )
-    return poly
+    return bounded_by_points(poly, path, fmt=".vtk")
 
 
 def write(poly: PolyData, path: Source, **opts: Any) -> None:

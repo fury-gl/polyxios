@@ -40,6 +40,13 @@ not others, the ones it does are views and the rest are built in memory -
 the offsets of a uniform topology, the element types, a padded third
 coordinate. The per-format table below says which is which.
 
+A lazy read still checks the cells before it hands them back. ``.vtu``,
+``.vtp`` and ``.vtk`` take the minimum and maximum of the connectivity, so
+that no index points past the vertices, and ``.vtk`` also checks that the
+offsets never step back. That reads every page of the connectivity and the
+offsets once, and the offsets check holds one temporary as long as the
+offsets. The vertices and attributes are not touched.
+
 Which formats
 -------------
 
