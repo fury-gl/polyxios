@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=05591bd4"></script>
+    <script src="../../_static/documentation_options.js?v=6a3a2765"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -545,6 +545,26 @@
     <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">equal_nan</span><span class="o">=</span><span class="n">both_float</span><span class="p">))</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_xyz</span><span class="p">(</span><span class="n">arr</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Report whether ``arr`` holds a direction in its first three columns.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    arr</span>
+<span class="sd">        A vertex attribute, or None when the mesh has none.</span>
+<span class="sd">    width</span>
+<span class="sd">        The number of columns ``arr`` must have; None for at least three.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True for a 2-D numeric array of that width.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">arr</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="s2">"fiu"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">width</span> <span class="k">if</span> <span class="n">width</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">3</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_same_mesh</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return whether two meshes hold the same arrays and attributes.</span>
 
@@ -729,6 +749,40 @@
 
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">infinite_node</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SceneNode</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">SceneNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a node whose world transform is not finite, if one is.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nodes</span>
+<span class="sd">        A scene's nodes.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int or None</span>
+<span class="sd">        The first node, walking down from the roots, whose local matrix or</span>
+<span class="sd">        product with its ancestors' holds an infinity or a NaN: finite TRS</span>
+<span class="sd">        values can overflow once composed, and flattening such a node fails</span>
+<span class="sd">        in the normals' pseudo-inverse. None when every node reached is</span>
+<span class="sd">        finite. A node only a cycle reaches is left to :meth:`SceneData.to_polydata`,</span>
+<span class="sd">        which refuses the cycle.</span>
+<span class="sd">    """</span>
+    <span class="n">children</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span> <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">}</span>
+    <span class="n">stack</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="p">))</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">children</span><span class="p">]</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">over</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">invalid</span><span class="o">=</span><span class="s2">"ignore"</span><span class="p">):</span>
+        <span class="k">while</span> <span class="n">stack</span><span class="p">:</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">parent_world</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">seen</span> <span class="ow">or</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="n">world</span> <span class="o">=</span> <span class="n">parent_world</span> <span class="o">@</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">nodes</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">matrix</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">world</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">k</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">extend</span><span class="p">((</span><span class="n">c</span><span class="p">,</span> <span class="n">world</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
 <div class="viewcode-block" id="SceneData">
 <a class="viewcode-back" href="../../api/generated/polyxios.SceneData.html#polyxios.SceneData">[docs]</a>
 <span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">eq</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -907,13 +961,17 @@
                     <span class="n">new_vertices</span> <span class="o">=</span> <span class="p">(</span><span class="n">homo</span> <span class="o">@</span> <span class="n">world</span><span class="o">.</span><span class="n">T</span><span class="p">)[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
                     <span class="n">R</span> <span class="o">=</span> <span class="n">world</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
                     <span class="n">vertex_attrs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="s2">"normals"</span> <span class="ow">in</span> <span class="n">vertex_attrs</span><span class="p">:</span>
+                    <span class="c1"># A file may spell normals or tangents in fewer than three</span>
+                    <span class="c1"># columns; those have no direction to turn and are kept.</span>
+                    <span class="k">if</span> <span class="n">_has_xyz</span><span class="p">(</span><span class="n">vertex_attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"normals"</span><span class="p">),</span> <span class="n">width</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
                         <span class="n">normals</span> <span class="o">=</span> <span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"normals"</span><span class="p">]</span> <span class="o">@</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">R</span><span class="p">)</span>
                         <span class="n">norms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">normals</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                         <span class="n">norms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">norms</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">norms</span><span class="p">)</span>
                         <span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"normals"</span><span class="p">]</span> <span class="o">=</span> <span class="n">normals</span> <span class="o">/</span> <span class="n">norms</span>
-                    <span class="k">if</span> <span class="s2">"tangents"</span> <span class="ow">in</span> <span class="n">vertex_attrs</span><span class="p">:</span>
-                        <span class="n">tgts</span> <span class="o">=</span> <span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"tangents"</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">_has_xyz</span><span class="p">(</span><span class="n">vertex_attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tangents"</span><span class="p">),</span> <span class="n">width</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                        <span class="n">tgts</span> <span class="o">=</span> <span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"tangents"</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+                            <span class="n">np</span><span class="o">.</span><span class="n">result_type</span><span class="p">(</span><span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"tangents"</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+                        <span class="p">)</span>
                         <span class="n">tgts</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">tgts</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">@</span> <span class="n">R</span><span class="o">.</span><span class="n">T</span>
                         <span class="n">t_norms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">tgts</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                         <span class="n">t_norms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">t_norms</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">t_norms</span><span class="p">)</span>

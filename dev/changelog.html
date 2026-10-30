@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=05591bd4"></script>
+    <script src="_static/documentation_options.js?v=6a3a2765"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -661,6 +661,68 @@ scales the vertices to millimetres along with labelling them so; they
 used to be labelled millimetres unscaled. A <code class="docutils literal notranslate"><span class="pre">.amf</span></code> is written the same
 way. The warnings the 3MF reader and writer raise now point at the
 caller’s line rather than inside polyxios.</p></li>
+<li><p>Readers fuzzed with Atheris (<code class="docutils literal notranslate"><span class="pre">fuzz/</span></code>, one target per format read from
+bytes, nightly in CI) now answer a malformed file with <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+where they raised <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>, <code class="docutils literal notranslate"><span class="pre">KeyError</span></code>, <code class="docutils literal notranslate"><span class="pre">IndexError</span></code>,
+<code class="docutils literal notranslate"><span class="pre">TypeError</span></code>, <code class="docutils literal notranslate"><span class="pre">OverflowError</span></code>, <code class="docutils literal notranslate"><span class="pre">UnicodeDecodeError</span></code>, <code class="docutils literal notranslate"><span class="pre">LookupError</span></code>
+or <code class="docutils literal notranslate"><span class="pre">MemoryError</span></code>, hung, or allocated what the file never paid for:</p>
+<ul>
+<li><p>Cells naming a point the file lacks are refused by the legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.vtu</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtp</span></code>, <code class="docutils literal notranslate"><span class="pre">.meshb</span></code>, <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> (MFEM) and DOLFIN <code class="docutils literal notranslate"><span class="pre">.xml</span></code>
+readers; they used to come back in the connectivity of a mesh holding
+no such vertex.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.glb</span></code> and <code class="docutils literal notranslate"><span class="pre">.gltf</span></code> check the JSON document against the shape glTF
+gives it before decoding, and refuse a missing property, an index past
+its array, a value of the wrong type, a <code class="docutils literal notranslate"><span class="pre">POSITION</span></code> that is not
+<code class="docutils literal notranslate"><span class="pre">VEC3</span></code>, a node hierarchy that is not a forest, a node transform that
+is not finite once composed, a data URI that is not base64, and an
+accessor with no <code class="docutils literal notranslate"><span class="pre">bufferView</span></code> declaring more zeros than the buffers
+hold bytes. A buffer file that cannot be read is a <code class="docutils literal notranslate"><span class="pre">CodecError</span></code>
+naming the document rather than a <code class="docutils literal notranslate"><span class="pre">FileNotFoundError</span></code>.</p></li>
+<li><p>MFEM <code class="docutils literal notranslate"><span class="pre">.mesh</span></code> names the token, section or index it cannot read; a
+<code class="docutils literal notranslate"><span class="pre">vertices</span></code>, <code class="docutils literal notranslate"><span class="pre">coordinates</span></code> or <code class="docutils literal notranslate"><span class="pre">VDim</span></code> dimension outside 1..3, a
+negative count, an NC leaf naming a vertex with no <code class="docutils literal notranslate"><span class="pre">coordinates</span></code>
+section and an NC midpoint rule naming no vertex are refused.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.dae</span></code> refuses a node transform that is not finite once composed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.ply</span></code> bounds an element’s declared count by the bytes its records
+spend before walking or sizing it: an element of no properties declared
+a billion times hung the reader, and a list element’s columns asked
+numpy for 605 TiB. A header declaring the vertex element twice is
+refused.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">.vti</span></code> whose extent ends before it starts along one axis is an
+empty grid; the other axes’ coordinates were still built, 21 GB for a
+180-byte file.</p></li>
+<li><p>An ASCII <code class="docutils literal notranslate"><span class="pre">.stl</span></code> facet is closed at <code class="docutils literal notranslate"><span class="pre">endfacet</span></code>, so later vertex lines
+can no longer grow a facet already accepted.</p></li>
+<li><p>Numbers past <code class="docutils literal notranslate"><span class="pre">int32</span></code> or <code class="docutils literal notranslate"><span class="pre">int64</span></code> are refused, or read as floats where
+a column holds them, in <code class="docutils literal notranslate"><span class="pre">.avs</span></code>, <code class="docutils literal notranslate"><span class="pre">.vtk</span></code>, <code class="docutils literal notranslate"><span class="pre">.su2</span></code>, <code class="docutils literal notranslate"><span class="pre">.tec</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.mdpa</span></code>, Medit <code class="docutils literal notranslate"><span class="pre">.mesh</span></code>, <code class="docutils literal notranslate"><span class="pre">.msh</span></code> and <code class="docutils literal notranslate"><span class="pre">.fluent</span></code>; an <code class="docutils literal notranslate"><span class="pre">.off</span></code>
+colormap index no <code class="docutils literal notranslate"><span class="pre">int32</span></code> holds drops the face colours with a warning.</p></li>
+<li><p>An XML encoding expat cannot decode is refused by <code class="docutils literal notranslate"><span class="pre">.3mf</span></code>, <code class="docutils literal notranslate"><span class="pre">.amf</span></code>,
+<code class="docutils literal notranslate"><span class="pre">.xdmf</span></code>, <code class="docutils literal notranslate"><span class="pre">.pvd</span></code> and DOLFIN <code class="docutils literal notranslate"><span class="pre">.xml</span></code>, and a <code class="docutils literal notranslate"><span class="pre">.3mf</span></code> or <code class="docutils literal notranslate"><span class="pre">.amf</span></code>
+member labelled bzip2 or LZMA that is not such a stream by both.</p></li>
+<li><p>Scene flattening keeps normals and tangents of fewer than three columns
+as read rather than failing to rotate them, and turns integer tangents
+in floating point.</p></li>
+<li><p>The VTK XML readers hand the XML to expat as bytes, so a declared
+encoding such as ISO-8859-1 is honoured; a file that is not UTF-8 and
+declares nothing is read as Latin-1 with a warning, where its names
+used to come back with replacement characters.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.fluent</span></code> bounds a cell count no section declares by the faces (a
+face naming cell 2**53 asked for 68 PiB); a <code class="docutils literal notranslate"><span class="pre">.tec</span></code> <code class="docutils literal notranslate"><span class="pre">VARLOCATION</span></code>
+range is no longer expanded index by index (<code class="docutils literal notranslate"><span class="pre">[5-999...]</span></code> never
+finished); a <code class="docutils literal notranslate"><span class="pre">.ptx</span></code> scan side past <code class="docutils literal notranslate"><span class="pre">int32</span></code> is refused; a <code class="docutils literal notranslate"><span class="pre">.dae</span></code>
+whose declared encoding decodes to text UTF-8 cannot spell is refused.</p></li>
+<li><p>The legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> reader also refuses cells whose <code class="docutils literal notranslate"><span class="pre">CELL_TYPES</span></code>
+never comes, <code class="docutils literal notranslate"><span class="pre">OFFSETS</span></code> that step back, a negative <code class="docutils literal notranslate"><span class="pre">CELLS</span></code> count, an
+attribute width or <code class="docutils literal notranslate"><span class="pre">FIELD</span></code> array shape past the cap, and a
+<code class="docutils literal notranslate"><span class="pre">POINT_DATA</span></code> or <code class="docutils literal notranslate"><span class="pre">CELL_DATA</span></code> array sized for other points or cells.</p></li>
+</ul>
+</li>
+<li><p>The legacy <code class="docutils literal notranslate"><span class="pre">.vtk</span></code> reader imported its compiled cell and coordinate
+parser from a module path meson never installs, so every install fell
+back to the Python parse. It now loads it: a 31 MB ASCII grid reads in
+0.6 s instead of 1.05 s.</p></li>
 </ul>
 </section>
 </section>
