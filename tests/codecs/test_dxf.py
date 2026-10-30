@@ -957,6 +957,21 @@ def test_large_polygons_and_strips_are_split_facing_one_way(tmp_path: Path) -> N
     assert normals[4] < 0 and normals[5] < 0
 
 
+def test_stitched_strip_writes_no_zero_area_face(tmp_path: Path) -> None:
+    """A strip repeats a vertex to stitch or to turn parity; the triangles
+    naming it twice cover no area and were written as 3DFACEs."""
+    verts = np.column_stack([np.arange(6) // 2, np.arange(6) % 2, np.zeros(6)])
+    poly = make_polydata(
+        verts.astype(float),
+        [("triangle_strip", np.array([[0, 1, 2, 2, 3, 3, 4, 5]]))],
+    )
+    back = _round_trip(poly, tmp_path)
+    assert _coords(back) == [
+        [[0, 0, 0], [0, 1, 0], [1, 0, 0]],
+        [[2, 0, 0], [1, 1, 0], [2, 1, 0]],
+    ]
+
+
 def test_a_pixel_is_written_as_a_quad(tmp_path: Path) -> None:
     poly = make_polydata(_SQUARE, [("pixel", np.array([[0, 1, 3, 2]]))])
     back = _round_trip(poly, tmp_path)

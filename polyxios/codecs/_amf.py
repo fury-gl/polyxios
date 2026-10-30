@@ -214,8 +214,9 @@ def write(
     Raises
     ------
     CodecError
-        When the mesh has elements but none of them is a surface, a vertex
-        a triangle uses is not finite, a tag group name or metadata value
+        When the mesh has elements but none of them is a surface, a
+        fixed-size surface element holds a node count other than its type's,
+        a vertex a triangle uses is not finite, a tag group name or metadata value
         holds a character XML cannot carry, or ``unit`` is not one the
         format defines.
     """
