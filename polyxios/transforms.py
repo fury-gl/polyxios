@@ -10,16 +10,32 @@ from polyxios._element_types import (
     ELEMENT_FACES,
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
-    QUADRATIC_SURFACE_CORNERS,
     SURFACE_ELEMENT_TYPES,
 )
 from polyxios._faces import FACE_PARENT_KEY
 from polyxios._tags import member_indices, members_array
-from polyxios._types import PolyData
+from polyxios._types import PolyData, surface_triangles
 
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
-_QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
+_POLYGON_CODE = ELEMENT_TYPES["polygon"]
+_STRIP_CODE = ELEMENT_TYPES["triangle_strip"]
+
+# The vertex order that reverses each fixed-size surface element while keeping
+# its first vertex: corners run backwards, and so do the midside nodes, since
+# midside k sits on the edge from corner k to corner k + 1.
+_WINDING_FLIPS: Final[dict[int, np.ndarray]] = {
+    ELEMENT_TYPES[name]: np.array(perm)
+    for name, perm in {
+        "triangle": [0, 2, 1],
+        "quad": [0, 3, 2, 1],
+        "pixel": [1, 0, 3, 2],
+        "quadratic_triangle": [0, 2, 1, 5, 4, 3],
+        "biquadratic_triangle": [0, 2, 1, 5, 4, 3, 6],
+        "quadratic_quad": [0, 3, 2, 1, 7, 6, 5, 4],
+        "biquadratic_quad": [0, 3, 2, 1, 7, 6, 5, 4, 8],
+    }.items()
+}
 
 # The vertex attribute a codec writes colours to when the format names them
 # (.off, and anything else that grows colour support).
@@ -141,6 +157,42 @@ def _fill_like(ref: np.ndarray, length: int) -> np.ndarray:
     )
 
 
+def _opaque_alpha(dtype: np.dtype) -> float | int:
+    """Return the alpha value that means fully opaque in a colour of ``dtype``."""
+    if np.issubdtype(dtype, np.integer):
+        return np.iinfo(dtype).max
+    return 1.0
+
+
+def _promoted_to_rgba(parts: list[np.ndarray]) -> list[np.ndarray]:
+    """Widen RGB colour blocks to RGBA when other blocks carry alpha.
+
+    Parameters
+    ----------
+    parts
+        One colour block per merged mesh, each shaped (n, 3) or (n, 4).
+
+    Returns
+    -------
+    list of numpy.ndarray
+        ``parts`` unchanged unless both widths are present; then every
+        (n, 3) block gains an opaque alpha column in its own dtype - 1 for
+        floats, the type's maximum for integers - and the RGB values and the
+        alpha already held elsewhere are kept as they are.
+    """
+    widths = {p.shape[1:] for p in parts}
+    if widths != {(3,), (4,)}:
+        return parts
+    return [
+        np.concatenate(
+            [p, np.full((p.shape[0], 1), _opaque_alpha(p.dtype), p.dtype)], 1
+        )
+        if p.shape[1:] == (3,)
+        else p
+        for p in parts
+    ]
+
+
 def _concat_attr(parts: list[np.ndarray], what: str) -> np.ndarray:
     """Join one attribute's blocks, naming it if their channels disagree."""
     shapes = {p.shape[1:] for p in parts}
@@ -226,6 +278,13 @@ def merge(*polys: PolyData) -> PolyData:
     -------
     PolyData
         Single PolyData with all vertices and elements from inputs.
+
+    Raises
+    ------
+    ValueError
+        If no PolyData is given, or an attribute's channel count differs
+        across inputs - except for ``colors``, where RGB blocks are widened
+        to RGBA with an opaque alpha when another input carries alpha.
     """
     if not polys:
         raise ValueError("merge requires at least one PolyData")
@@ -272,6 +331,8 @@ def merge(*polys: PolyData) -> PolyData:
             else:
                 ref = next(q.vertex_attrs[key] for q in polys if key in q.vertex_attrs)
                 parts.append(_fill_like(ref, p.vertices.shape[0]))
+        if key == _COLOR_ATTR_NAME:
+            parts = _promoted_to_rgba(parts)
         merged_vertex_attrs[key] = _concat_attr(parts, f"vertex_attrs['{key}']")
 
     # Where each mesh's elements land, for the one attribute that is an
@@ -297,6 +358,8 @@ def merge(*polys: PolyData) -> PolyData:
                     q.element_attrs[key] for q in polys if key in q.element_attrs
                 )
                 parts.append(_fill_like(ref, len(p.element_types)))
+        if key == _COLOR_ATTR_NAME:
+            parts = _promoted_to_rgba(parts)
         merged_element_attrs[key] = _concat_attr(parts, f"element_attrs['{key}']")
 
     # Merge element_tags: shift element indices
@@ -539,8 +602,10 @@ def reindex(poly: PolyData) -> PolyData:
 def triangulate(poly: PolyData) -> PolyData:
     """Return a new PolyData with all surface elements converted to triangles.
 
-    Quads and pixels are split into 2 triangles. Polygons and triangle_strips
-    are fan-triangulated. Non-surface elements (lines, volumes) are dropped.
+    Quads and pixels are split into 2 triangles, triangle_strips into one
+    triangle per vertex past the second, and polygons are fan-triangulated;
+    every triangle keeps its element's winding. Non-surface elements (lines,
+    volumes) are dropped.
 
     Parameters
     ----------
@@ -562,22 +627,9 @@ def triangulate(poly: PolyData) -> PolyData:
         if etype not in _SURFACE_CODES:
             continue
         cell = poly.connectivity[poly.offsets[i] : poly.offsets[i + 1]]
-        # Quadratic elements: linearize to corner nodes before triangulating.
-        n_corners = QUADRATIC_SURFACE_CORNERS.get(etype)
-        if n_corners is not None:
-            cell = cell[:n_corners]
-            etype = _TRIANGLE_CODE if n_corners == 3 else int(ELEMENT_TYPES["quad"])
-        if etype == _TRIANGLE_CODE:
-            conn_parts.append(cell)
-            src_indices.append(i)
-        elif etype in _QUAD_PIXEL_CODES:
-            conn_parts.append(cell[[0, 1, 2]])
-            conn_parts.append(cell[[0, 2, 3]])
-            src_indices.extend([i, i])
-        else:
-            for j in range(1, len(cell) - 1):
-                conn_parts.append(cell[[0, j, j + 1]])
-                src_indices.append(i)
+        tris = surface_triangles(etype, cell)
+        conn_parts.extend(tris)
+        src_indices.extend([i] * len(tris))
 
     if not conn_parts:
         return dataclasses.replace(
@@ -617,6 +669,61 @@ def triangulate(poly: PolyData) -> PolyData:
         element_attrs=new_element_attrs,
         element_tags=new_element_tags,
     )
+
+
+def reversed_winding(poly: PolyData) -> PolyData:
+    """Return a new PolyData whose surface elements face the other way.
+
+    What a reflection baked into the vertices needs: mirroring the points
+    turns every surface inside out, and reversing each element's vertex
+    order turns it back.
+
+    Parameters
+    ----------
+    poly
+        Input PolyData.
+
+    Returns
+    -------
+    PolyData
+        New PolyData with every surface element's winding reversed.
+        Triangles, quads, polygons and their quadratic forms keep their
+        first vertex and run their other corners - and the midside nodes
+        between them - the other way round; a pixel swaps the two corners of
+        each row. A triangle strip with an odd vertex count is read backwards;
+        one with an even count gains a copy of its first vertex in front,
+        which shifts every triangle to the other parity at the cost of one
+        zero-area triangle at the start. Lines, volumes and every other
+        element are left as they are, as are all attributes and tags.
+    """
+    types = poly.element_types
+    if not np.isin(types, list(_SURFACE_CODES)).any():
+        return poly
+    old = poly.connectivity
+    offsets = poly.offsets
+    conn = old.copy()
+    starts = offsets[:-1]
+    for code, perm in _WINDING_FLIPS.items():
+        rows = starts[types == code][:, None]
+        if rows.size:
+            conn[rows + np.arange(len(perm))] = old[rows + perm]
+    for i in np.flatnonzero(types == _POLYGON_CODE):
+        s, e = int(offsets[i]), int(offsets[i + 1])
+        conn[s + 1 : e] = old[s + 1 : e][::-1]
+    grow = np.zeros(len(types), dtype=np.int64)
+    for i in np.flatnonzero(types == _STRIP_CODE):
+        s, e = int(offsets[i]), int(offsets[i + 1])
+        if e - s < 3:
+            continue
+        if (e - s) % 2:
+            conn[s:e] = old[s:e][::-1]
+        else:
+            grow[i] = 1
+    if grow.any():
+        at = starts[grow > 0]
+        conn = np.insert(conn, at, old[at])
+        offsets = offsets + np.concatenate([[0], np.cumsum(grow)]).astype(offsets.dtype)
+    return dataclasses.replace(poly, connectivity=conn, offsets=offsets)
 
 
 def vertex_colors(poly: PolyData) -> np.ndarray | None:

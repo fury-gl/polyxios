@@ -158,6 +158,18 @@ Bug fixes
   parser from a module path meson never installs, so every install fell
   back to the Python parse. It now loads it: a 31 MB ASCII grid reads in
   0.6 s instead of 1.05 s.
+- ``SceneData.to_polydata`` flattens a scene whose meshes mix RGB and RGBA
+  ``colors``: ``transforms.merge`` widens the RGB ones to RGBA with an
+  opaque alpha rather than raising over the channel counts.
+- A node transform that mirrors - negative determinant - now reverses the
+  winding of its mesh as ``SceneData.to_polydata`` bakes it in, as glTF's
+  instantiation rules ask, so each face keeps facing the way its normals
+  do. ``transforms.reversed_winding`` does the same for any mesh.
+- ``PolyData.faces`` and ``transforms.triangulate`` split a triangle strip
+  into its own triangles, every other one turned back, where they fanned it
+  from the first vertex, joining vertices the strip never joins. A pixel
+  is split along its diagonal rather than across its row order, which
+  folded it into two overlapping triangles facing opposite ways.
 
 .. _changes_0.5.1:
 

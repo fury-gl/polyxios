@@ -15,7 +15,9 @@ from polyxios.exceptions import UnknownElementTypeError
 _SURFACE_CODES = SURFACE_ELEMENT_TYPES
 _LINE_CODES = LINE_ELEMENT_TYPES
 _TRIANGLE_CODE = ELEMENT_TYPES["triangle"]
-_QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
+_QUAD_CODE = ELEMENT_TYPES["quad"]
+_PIXEL_CODE = ELEMENT_TYPES["pixel"]
+_STRIP_CODE = ELEMENT_TYPES["triangle_strip"]
 
 # TOPOLOGICAL_DIMENSION spread over the whole uint8 code space, -1 where no
 # element type claims the code. Indexing it dimensions every element in one
@@ -23,6 +25,45 @@ _QUAD_PIXEL_CODES = frozenset({ELEMENT_TYPES["quad"], ELEMENT_TYPES["pixel"]})
 _DIMENSION_BY_CODE: Final[np.ndarray] = np.array(
     [TOPOLOGICAL_DIMENSION.get(code, -1) for code in range(256)], dtype=np.int8
 )
+
+
+def surface_triangles(etype: int, cell: np.ndarray) -> list[np.ndarray]:
+    """Split one surface element into triangles that keep its winding.
+
+    Parameters
+    ----------
+    etype
+        The element's polyxios type code, one of ``SURFACE_ELEMENT_TYPES``.
+    cell
+        The element's vertex indices, in the order its type numbers them.
+
+    Returns
+    -------
+    list of numpy.ndarray
+        One length-3 index array per triangle, each wound like the element.
+        A quadratic element is cut along its corner nodes only. A quad is
+        split along its 0-2 diagonal, a pixel - whose corners run row by row,
+        not around the ring - along its 0-3 one. A triangle strip yields one
+        triangle per vertex past the second, every other one turned back so
+        the whole strip faces one way. A polygon is fanned from its first
+        vertex.
+    """
+    n_corners = QUADRATIC_SURFACE_CORNERS.get(etype)
+    if n_corners is not None:
+        cell = cell[:n_corners]
+        etype = _TRIANGLE_CODE if n_corners == 3 else _QUAD_CODE
+    if etype == _TRIANGLE_CODE:
+        return [cell]
+    if etype == _QUAD_CODE:
+        return [cell[[0, 1, 2]], cell[[0, 2, 3]]]
+    if etype == _PIXEL_CODE:
+        return [cell[[0, 1, 3]], cell[[0, 3, 2]]]
+    if etype == _STRIP_CODE:
+        return [
+            cell[[j, j + 1, j + 2]] if j % 2 == 0 else cell[[j + 1, j, j + 2]]
+            for j in range(len(cell) - 2)
+        ]
+    return [cell[[0, j, j + 1]] for j in range(1, len(cell) - 1)]
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,9 +143,10 @@ class PolyData:
     def faces(self) -> np.ndarray | None:
         """Triangle face indices, shape (n_tris, 3), dtype int32.
 
-        Surface elements are triangulated: quads and pixels split into 2
-        triangles, polygons and triangle_strips fan-triangulated.
-        Non-surface elements (lines, volumes) are excluded.
+        Surface elements are triangulated with their winding kept: quads and
+        pixels split into 2 triangles, triangle_strips into one triangle per
+        vertex past the second, polygons fan-triangulated. Non-surface
+        elements (lines, volumes) are excluded.
 
         Returns
         -------
@@ -124,18 +166,7 @@ class PolyData:
             if etype not in _SURFACE_CODES:
                 continue
             cell = self.connectivity[self.offsets[i] : self.offsets[i + 1]]
-            # Quadratic elements: use corner nodes only for linearized rendering.
-            n_corners = QUADRATIC_SURFACE_CORNERS.get(etype)
-            if n_corners is not None:
-                cell = cell[:n_corners]
-                etype = _TRIANGLE_CODE if n_corners == 3 else int(ELEMENT_TYPES["quad"])
-            if etype == _TRIANGLE_CODE:
-                tris.append(cell)
-            elif etype in _QUAD_PIXEL_CODES:
-                tris.append(cell[[0, 1, 2]])
-                tris.append(cell[[0, 2, 3]])
-            else:
-                tris.extend(cell[[0, j, j + 1]] for j in range(1, len(cell) - 1))
+            tris.extend(surface_triangles(etype, cell))
         return np.array(tris, dtype=np.int32) if tris else None
 
     @property
