@@ -443,12 +443,17 @@ class SceneData:
             :attr:`active_scene`.  Ignored when :attr:`nodes` is empty.
         apply_transforms
             When ``True``, each mesh's vertices are multiplied by the
-            node's world-space transform before merging.
+            node's world-space transform before merging. Where that
+            transform mirrors - its determinant is negative - the mesh's
+            surface elements have their winding reversed as well, so each
+            keeps the front face it had before the reflection, as glTF's
+            instantiation rules ask.
 
         Returns
         -------
         PolyData
-            All scene geometry merged into one mesh.
+            All scene geometry merged into one mesh. Meshes whose ``colors``
+            mix RGB and RGBA come back as RGBA, the RGB ones opaque.
         """
         if len(self.nodes) == 0:
             if not self.meshes:
@@ -514,6 +519,8 @@ class SceneData:
                     mesh = dataclasses.replace(
                         mesh, vertices=new_vertices, vertex_attrs=vertex_attrs
                     )
+                    if np.linalg.det(R) < 0:
+                        mesh = transforms.reversed_winding(mesh)
                 collected.append(mesh)
             for child in reversed(node.children):
                 if child in visited_nodes:

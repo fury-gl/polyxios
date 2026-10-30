@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios import make_polydata
 from polyxios._scene import SceneData, SceneMaterial, SceneNode
 from polyxios._types import PolyData
@@ -523,3 +524,117 @@ def test_integer_tangents_are_turned_in_floating_point(dtype) -> None:
     tangents = scene.to_polydata().vertex_attrs["tangents"]
     assert tangents.dtype == np.result_type(dtype, np.float32)
     np.testing.assert_allclose(tangents, [[0, 1, 0, 1]] * 3, atol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Flattening a scene read back from glTF
+# ---------------------------------------------------------------------------
+
+
+def _round_trip(scene: SceneData, path: Path) -> PolyData:
+    """Write ``scene`` to ``path``, read it back and flatten it."""
+    polyxios.write_scene(scene, path)
+    return polyxios.read_scene(path).to_polydata()
+
+
+@pytest.mark.parametrize("ext", ["glb", "gltf"])
+def test_triangle_strip_keeps_its_triangles(tmp_path: Path, ext: str) -> None:
+    """A strip came back fanned from its first vertex, which joins vertices
+    the strip never does and turns half its triangles over."""
+    vertices = np.array(
+        [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0], [2, 0, 0]], dtype=float
+    )
+    poly = make_polydata(vertices, [("triangle_strip", np.array([[0, 1, 2, 3, 4]]))])
+    scene = SceneData(meshes=(poly,), nodes=(SceneNode(mesh=0),), scenes=((0,),))
+    faces = _round_trip(scene, tmp_path / f"strip.{ext}").faces
+    np.testing.assert_array_equal(faces, [[0, 1, 2], [2, 1, 3], [2, 3, 4]])
+
+
+def _front_facing(poly: PolyData) -> np.ndarray:
+    """Dot each triangle's geometric normal with its first vertex normal."""
+    tris = poly.vertices[poly.faces]
+    geometric = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    normals = poly.vertex_attrs["normals"][poly.faces[:, 0]]
+    return np.einsum("ij,ij->i", geometric, normals)
+
+
+@pytest.mark.parametrize("ext", ["glb", "gltf"])
+def test_mirrored_node_keeps_the_front_face(tmp_path: Path, ext: str) -> None:
+    """The reflection was baked into the points and the normals but not the
+    winding, so the triangle faced away from its own normals."""
+    vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=float)
+    poly = make_polydata(
+        vertices,
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"normals": np.tile([0.0, 0.0, 1.0], (3, 1))},
+    )
+    scene = SceneData(
+        meshes=(poly,),
+        nodes=(SceneNode(mesh=0, matrix=np.diag([-1.0, 1.0, 1.0, 1.0])),),
+        scenes=((0,),),
+    )
+    assert (_front_facing(_round_trip(scene, tmp_path / f"mirror.{ext}")) > 0).all()
+
+
+@pytest.mark.parametrize("n_verts", [5, 6])
+def test_mirrored_strip_keeps_the_front_face(n_verts: int) -> None:
+    """A strip is flipped by reading it backwards or, when that would keep
+    its parity, by starting it one vertex earlier."""
+    x = np.arange(n_verts) // 2
+    y = np.arange(n_verts) % 2
+    vertices = np.column_stack([x, y, np.zeros(n_verts)]).astype(float)
+    poly = make_polydata(
+        vertices,
+        [("triangle_strip", np.arange(n_verts)[None])],
+        vertex_attrs={"normals": np.tile([0.0, 0.0, -1.0], (n_verts, 1))},
+    )
+    assert (_front_facing(poly) > 0).all()
+    scene = SceneData(
+        meshes=(poly,),
+        nodes=(SceneNode(mesh=0, matrix=np.diag([1.0, -1.0, 1.0, 1.0])),),
+        scenes=((0,),),
+    )
+    dots = _front_facing(scene.to_polydata())
+    assert (dots[~np.isclose(dots, 0)] > 0).all()
+    assert np.count_nonzero(dots > 0) == n_verts - 2
+
+
+def test_double_mirror_keeps_the_winding() -> None:
+    """Two reflections make a rotation; nothing is flipped."""
+    mesh = _triangle_mesh()
+    scene = SceneData(
+        meshes=(mesh,),
+        nodes=(SceneNode(mesh=0, matrix=np.diag([-1.0, -1.0, 1.0, 1.0])),),
+        scenes=((0,),),
+    )
+    np.testing.assert_array_equal(scene.to_polydata().faces, mesh.faces)
+
+
+@pytest.mark.parametrize("ext", ["glb", "gltf"])
+def test_mixed_rgb_and_rgba_meshes_flatten(tmp_path: Path, ext: str) -> None:
+    """One mesh's colours carried alpha and another's did not, and merging
+    them raised over the channel counts."""
+    vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=float)
+    rgb = np.tile([0.25, 0.5, 0.75], (3, 1))
+    rgba = np.tile([0.1, 0.2, 0.3, 0.4], (3, 1))
+    meshes = tuple(
+        make_polydata(
+            vertices,
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={"colors": colors},
+        )
+        for colors in (rgb, rgba)
+    )
+    scene = SceneData(
+        meshes=meshes,
+        nodes=(SceneNode(mesh=0), SceneNode(mesh=1)),
+        scenes=((0, 1),),
+    )
+    flat = _round_trip(scene, tmp_path / f"mixed.{ext}")
+    assert flat.vertices.shape == (6, 3)
+    assert flat.faces.shape == (2, 3)
+    np.testing.assert_allclose(
+        flat.vertex_attrs["colors"],
+        np.vstack([np.column_stack([rgb, np.ones(3)]), rgba]),
+        rtol=1e-6,
+    )
