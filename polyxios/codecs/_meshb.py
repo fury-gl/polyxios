@@ -547,7 +547,7 @@ def _decode(mm: mmap.mmap | bytes, *, lazy: bool = False) -> PolyData:
             [("nodes", endian + "i4", (n_nodes,)), ("ref", endian + "i4")]
         )
         arr = np.frombuffer(mm, dtype=elem_dt, count=n_elems, offset=estart)
-        conn_parts.append(arr["nodes"].astype(np.int32).ravel() - 1)  # 0-based
+        conn_parts.append(arr["nodes"].astype(np.int64).ravel() - 1)  # 0-based
         types_parts.append(
             np.full(n_elems, ELEMENT_TYPES.get(elem_name, 0), dtype=np.uint8)
         )
@@ -565,6 +565,17 @@ def _decode(mm: mmap.mmap | bytes, *, lazy: bool = False) -> PolyData:
             # survive a conversion as a named group.
             elem_tags = group_by_value(refs_flat, _REF_TAG_PREFIX)
 
+    connectivity = np.concatenate(conn_parts) if conn_parts else np.empty(0, np.int64)
+    if connectivity.size:
+        low, high = int(connectivity.min()), int(connectivity.max())
+        if low < 0 or high >= vertices.shape[0]:
+            # References are 1-based; one outside the vertex section would be
+            # handed back as an index into memory the mesh does not own.
+            raise CodecError(
+                f".meshb: an element references vertex {low + 1}..{high + 1},"
+                f" outside 1..{vertices.shape[0]}."
+            )
+
     sizes_arr = (
         np.concatenate(elem_sizes_parts).astype(np.int32)
         if elem_sizes_parts
@@ -574,9 +585,7 @@ def _decode(mm: mmap.mmap | bytes, *, lazy: bool = False) -> PolyData:
 
     return PolyData(
         vertices=vertices,
-        connectivity=np.concatenate(conn_parts).astype(np.int32)
-        if conn_parts
-        else np.empty(0, np.int32),
+        connectivity=connectivity.astype(np.int32),
         offsets=offsets,
         element_types=np.concatenate(types_parts)
         if types_parts

@@ -93,6 +93,26 @@ def _same_array(a: np.ndarray, b: np.ndarray) -> bool:
     return bool(np.array_equal(a, b, equal_nan=both_float))
 
 
+def _has_xyz(arr: np.ndarray | None, *, width: int | None) -> bool:
+    """Report whether ``arr`` holds a direction in its first three columns.
+
+    Parameters
+    ----------
+    arr
+        A vertex attribute, or None when the mesh has none.
+    width
+        The number of columns ``arr`` must have; None for at least three.
+
+    Returns
+    -------
+    bool
+        True for a 2-D numeric array of that width.
+    """
+    if arr is None or arr.ndim != 2 or arr.dtype.kind not in "fiu":
+        return False
+    return arr.shape[1] == width if width is not None else arr.shape[1] >= 3
+
+
 def _same_mesh(a: PolyData, b: PolyData) -> bool:
     """Return whether two meshes hold the same arrays and attributes.
 
@@ -263,6 +283,40 @@ class SceneNode:
         )
 
     __hash__ = None
+
+
+def infinite_node(*, nodes: tuple[SceneNode, ...] | list[SceneNode]) -> int | None:
+    """Return a node whose world transform is not finite, if one is.
+
+    Parameters
+    ----------
+    nodes
+        A scene's nodes.
+
+    Returns
+    -------
+    int or None
+        The first node, walking down from the roots, whose local matrix or
+        product with its ancestors' holds an infinity or a NaN: finite TRS
+        values can overflow once composed, and flattening such a node fails
+        in the normals' pseudo-inverse. None when every node reached is
+        finite. A node only a cycle reaches is left to :meth:`SceneData.to_polydata`,
+        which refuses the cycle.
+    """
+    children = {c for node in nodes for c in node.children}
+    stack = [(k, np.eye(4)) for k in range(len(nodes)) if k not in children]
+    seen: set[int] = set()
+    with np.errstate(over="ignore", invalid="ignore"):
+        while stack:
+            k, parent_world = stack.pop()
+            if k in seen or not 0 <= k < len(nodes):
+                continue
+            seen.add(k)
+            world = parent_world @ np.asarray(nodes[k].matrix, dtype=np.float64)
+            if not np.all(np.isfinite(world)):
+                return k
+            stack.extend((c, world) for c in nodes[k].children)
+    return None
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -441,13 +495,17 @@ class SceneData:
                     new_vertices = (homo @ world.T)[:, :3]
                     R = world[:3, :3]
                     vertex_attrs = dict(mesh.vertex_attrs)
-                    if "normals" in vertex_attrs:
+                    # A file may spell normals or tangents in fewer than three
+                    # columns; those have no direction to turn and are kept.
+                    if _has_xyz(vertex_attrs.get("normals"), width=3):
                         normals = vertex_attrs["normals"] @ np.linalg.pinv(R)
                         norms = np.linalg.norm(normals, axis=1, keepdims=True)
                         norms = np.where(norms == 0, 1.0, norms)
                         vertex_attrs["normals"] = normals / norms
-                    if "tangents" in vertex_attrs:
-                        tgts = vertex_attrs["tangents"].copy()
+                    if _has_xyz(vertex_attrs.get("tangents"), width=None):
+                        tgts = vertex_attrs["tangents"].astype(
+                            np.result_type(vertex_attrs["tangents"], np.float32)
+                        )
                         tgts[:, :3] = tgts[:, :3] @ R.T
                         t_norms = np.linalg.norm(tgts[:, :3], axis=1, keepdims=True)
                         t_norms = np.where(t_norms == 0, 1.0, t_norms)

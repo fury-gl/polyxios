@@ -31,6 +31,7 @@ from polyxios._warn import warn_caller
 from polyxios.codecs._3mf import (
     _ZIP_ERRORS,
     _assemble,
+    _check_declared_encoding,
     _check_inflation,
     _escape,
     _facet_colors,
@@ -153,6 +154,7 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
     if raw.startswith(_ZIP_MAGIC):
         raw = _unzip(raw, name)
     _refuse_entities(raw, repr(name), fmt="AMF")
+    _check_declared_encoding(raw, repr(name))
     target = _AmfTarget(name)
     parser = ET.XMLParser(target=target)
     try:

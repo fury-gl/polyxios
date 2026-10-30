@@ -159,7 +159,7 @@ def _entries(index: Path) -> tuple[list[float], list[_Entry]]:
     """Every dataset the index names, and the ascending times they cover."""
     try:
         root = ET.parse(index).getroot()
-    except ET.ParseError as exc:
+    except (ET.ParseError, LookupError, ValueError) as exc:
         raise CodecError(f"'{index}': not a PVD file ({exc}).") from None
     except OSError as exc:
         raise CodecError(f"'{index}': {exc.strerror or exc}.") from None

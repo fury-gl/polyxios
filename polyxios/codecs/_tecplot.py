@@ -515,7 +515,7 @@ def _read_point(
             nodes[i * n_per_elem : (i + 1) * n_per_elem] = [
                 int(tok) for tok in parts[:n_per_elem]
             ]
-        except ValueError as exc:
+        except (ValueError, OverflowError) as exc:
             raise CodecError(
                 f".tec: malformed element line {no}: {' '.join(parts)!r}."
             ) from exc
@@ -570,7 +570,7 @@ def _read_block(
         raise CodecError(f".tec: malformed value in the zone's data: {exc}.") from exc
     try:
         nodes = np.array(tokens[n_values : n_values + n_conn], dtype=np.int64)
-    except ValueError as exc:
+    except (ValueError, OverflowError) as exc:
         raise CodecError(f".tec: malformed node reference: {exc}.") from exc
     return runs, nodes
 
@@ -693,7 +693,7 @@ def _parse_varlocation(
             )
         if location == "NODAL":
             continue
-        indices.update(_parse_varloc_spec(spec, clause))
+        indices.update(_parse_varloc_spec(spec, clause, n_vars=n_vars))
 
     if not indices:
         return frozenset()
@@ -725,8 +725,13 @@ def _parse_varlocation(
     return frozenset(indices)
 
 
-def _parse_varloc_spec(spec: str, clause: str) -> set[int]:
-    """Return the zero-based indices a ``[1-3,5]`` bracket list names."""
+def _parse_varloc_spec(spec: str, clause: str, *, n_vars: int) -> set[int]:
+    """Return the zero-based indices a ``[1-3,5]`` bracket list names.
+
+    A range is expanded no further than one past the ``n_vars`` variables
+    the zone declares, keeping its own ends, so the caller still reports the
+    first index past the list while ``[5-9999...]`` costs no memory.
+    """
     indices: set[int] = set()
     for part in spec.split(","):
         token = part.strip()
@@ -738,7 +743,8 @@ def _parse_varloc_spec(spec: str, clause: str) -> set[int]:
                 lo, hi = int(span.group(1)), int(span.group(2))
                 if lo < 1 or hi < lo:
                     raise ValueError(token)
-                indices.update(range(lo - 1, hi))
+                indices.update(range(lo - 1, min(hi, n_vars + 1)))
+                indices.update((lo - 1, hi - 1))
             else:
                 one = int(token)
                 if one < 1:

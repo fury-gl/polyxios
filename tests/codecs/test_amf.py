@@ -925,3 +925,15 @@ def test_write_warnings_point_at_the_caller(tmp_path: Path) -> None:
     with pytest.warns(UserWarning, match="not an AMF unit") as caught:
         polyxios.write(poly, tmp_path / "out.amf")
     assert {w.filename for w in caught} == {__file__}
+
+
+@pytest.mark.parametrize("encoding", ["utf-9", "cp932"])
+def test_an_encoding_expat_cannot_decode_is_refused(tmp_path: Path, encoding) -> None:
+    """expat raises LookupError for an unknown encoding and ValueError for a
+    multi-byte one, and neither is the ParseError the reader caught."""
+    path = tmp_path / "bad.amf"
+    path.write_bytes(
+        f'<?xml version="1.0" encoding="{encoding}"?><amf><object id="0"/></amf>'.encode()
+    )
+    with pytest.raises(CodecError, match="not well-formed XML"):
+        read(path)

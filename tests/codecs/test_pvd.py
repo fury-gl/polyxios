@@ -453,3 +453,16 @@ def test_the_module_lists_its_public_names() -> None:
         "write",
         "write_time_series",
     }
+
+
+@pytest.mark.parametrize("encoding", ["utf-9", "cp932"])
+def test_an_encoding_expat_cannot_decode_is_refused(tmp_path: Path, encoding) -> None:
+    """expat raises LookupError for an unknown encoding and ValueError for a
+    multi-byte one, and neither is the ParseError the reader caught."""
+    path = tmp_path / "bad.pvd"
+    path.write_bytes(
+        f'<?xml version="1.0" encoding="{encoding}"?>'
+        '<VTKFile type="Collection"><Collection/></VTKFile>'.encode()
+    )
+    with pytest.raises(CodecError, match="not a PVD file"):
+        read(path)

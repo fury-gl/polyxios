@@ -1,0 +1,80 @@
+name: Fuzz
+
+# OSS-Fuzz and ClusterFuzzLite build on Python 3.11, below polyxios' floor, so
+# the readers are fuzzed here until they move. Each shard runs a quarter of the
+# targets in fuzz/ for FUZZ_SECONDS each; a finding fails the job and uploads
+# the input that caused it.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # nightly
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds per target"
+        default: "90"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fuzz:
+    if: github.event_name != 'schedule' || github.repository_owner == 'fury-gl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      FUZZ_SECONDS: ${{ inputs.seconds || '90' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install polyxios and atheris
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[laz]" "atheris>=2.3"
+
+      - name: Seed the corpus
+        run: python fuzz/make_corpus.py
+
+      - name: Fuzz this shard's targets
+        run: |
+          mkdir -p fuzz/crashes
+          failed=""
+          i=0
+          for script in fuzz/fuzz_*.py; do
+            if (( i++ % 4 != ${{ matrix.shard }} )); then continue; fi
+            name=$(basename "$script" .py); name=${name#fuzz_}
+            mkdir -p "fuzz/work/$name"
+            cp fuzz/corpus/"$name"/* "fuzz/work/$name/" 2>/dev/null || true
+            echo "::group::$name"
+            if ! python "$script" "fuzz/work/$name" -max_total_time="$FUZZ_SECONDS" \
+                -timeout=10 -rss_limit_mb=3072 -max_len=65536 \
+                -artifact_prefix="fuzz/crashes/$name-"; then
+              failed="$failed $name"
+            fi
+            echo "::endgroup::"
+          done
+          if [[ -n "$failed" ]]; then
+            echo "::error::findings in:$failed"
+            exit 1
+          fi
+
+      - name: Upload findings
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: fuzz-findings-${{ matrix.shard }}
+          path: fuzz/crashes/

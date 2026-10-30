@@ -856,6 +856,8 @@ def _counted_layout(
         if w < 2:
             raise fail(f"a record opens with {w} node(s) in")
         stride = w + 3
+        if stride > n - at:
+            raise fail("the file ends inside")
         if single_steps:
             single_steps -= 1
             widths[k] = w
@@ -1555,6 +1557,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             [z.last for z in sections.cells]
             + ([int(max(left.max(), right.max()))] if n_faces else []),
             default=0,
+        )
+    # A cell is bounded by faces, and a face borders two cells at most, so a
+    # count past twice the faces - plus a byte of slack per byte of file for a
+    # mesh listing cells it gives no face - is one no data in the file backs.
+    if n_cells > 2 * n_faces + len(data):
+        raise CodecError(
+            f"{EXTENSION}: {n_cells} cell(s) are declared or named over"
+            f" {n_faces} face(s); no mesh of that many faces holds them."
         )
     if n_faces and (
         min(left.min(), right.min()) < 0 or max(left.max(), right.max()) > n_cells

@@ -3999,3 +3999,136 @@ def test_write_names_the_vertex_count_tangents_miss(tmp_path: Path) -> None:
     with pytest.warns(UserWarning, match=r"for each of the 3 vertices"):
         back = _written_attrs(tmp_path, attrs)
     assert sorted(back) == ["normals"]
+
+
+def _triangle_mutated(mutate) -> bytes:
+    """The triangle GLB with its JSON document passed through ``mutate``."""
+    glb, _ = _triangle_glb()
+    (json_len,) = struct.unpack_from("<I", glb, 12)
+    doc = json.loads(glb[20 : 20 + json_len])
+    bin_len, _ = struct.unpack_from("<II", glb, 20 + json_len)
+    bin_data = glb[28 + json_len : 28 + json_len + bin_len]
+    mutate(doc)
+    return _make_glb(doc, bin_data)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda d: d["accessors"][0].pop("componentType"), "no componentType"),
+        (lambda d: d["accessors"][0].update(bufferView=9), "accessor 0 bufferView"),
+        (lambda d: d["bufferViews"][0].pop("buffer"), "names no buffer"),
+        (lambda d: d.update(buffers=[7]), "buffers 0 is not an object"),
+        (lambda d: d.update(materials=[{"pbrMetallicRoughness": 3}]), "not an object"),
+        (
+            lambda d: d.update(textures=[{"source": 0, "sampler": 4}]),
+            "texture 0 sampler",
+        ),
+        (lambda d: d["accessors"][0].update(type="SCALAR", count=9), "not VEC3"),
+    ],
+)
+def test_json_not_shaped_as_gltf_is_refused(tmp_path: Path, mutate, match) -> None:
+    """Every property the reader indexed was trusted to exist with the type
+    glTF gives it, so a fuzzed file escaped as KeyError, IndexError,
+    TypeError or AttributeError, and a SCALAR POSITION came back as a
+    one-dimensional vertex array."""
+    path = tmp_path / "bad.glb"
+    path.write_bytes(_triangle_mutated(mutate))
+    with pytest.raises(CodecError, match=match):
+        read_scene(path)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda d: d.update(scene=5), "5 names no scene"),
+        (lambda d: d["nodes"][0].update(mesh=3), "node 0 mesh"),
+        (lambda d: d["scenes"][0].update(nodes=[[0]]), "scene 0 nodes"),
+        (lambda d: d["nodes"][0].update(children=[0]), "child of itself"),
+        (
+            lambda d: d["nodes"].extend([{"children": [2]}, {"children": [1]}]),
+            "ancestor|child of",
+        ),
+    ],
+)
+def test_a_scene_graph_naming_nothing_is_refused_when_flattened(
+    tmp_path: Path, mutate, match
+) -> None:
+    path = tmp_path / "bad.glb"
+    path.write_bytes(_triangle_mutated(mutate))
+    with (
+        pytest.warns(UserWarning, match="scene format"),
+        pytest.raises(CodecError, match=match),
+    ):
+        polyxios.read(path)
+
+
+@pytest.mark.parametrize(
+    "document", [b"[1, 2]", b'{"asset": \xff}', b'{"asset": {"version": "2.0"', b"7"]
+)
+def test_a_json_document_that_is_not_an_object_is_refused(
+    tmp_path: Path, document: bytes
+) -> None:
+    for path, data in (
+        (tmp_path / "bad.gltf", document),
+        (tmp_path / "bad.glb", _make_glb({}).replace(b"{}  ", document[:4].ljust(4))),
+    ):
+        path.write_bytes(data)
+        with pytest.raises(CodecError, match="JSON"):
+            read_scene(path)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (lambda d: d["nodes"][0].update(rotation=[0, 0, 1e308, 1]), "not finite"),
+        (lambda d: d["accessors"][0].pop("bufferView"), None),
+        (
+            lambda d: (
+                d["accessors"][0].pop("bufferView"),
+                d["accessors"][0].update(count=2**40),
+            ),
+            "has no bufferView",
+        ),
+        (lambda d: d["scenes"][0].update(nodes=[0, 0]), "names a node twice"),
+        (lambda d: d["buffers"].append({"uri": "data:;base64,AAAAA"}), "base64"),
+    ],
+)
+def test_a_document_is_refused_for_what_it_spells(
+    tmp_path: Path, mutate, match
+) -> None:
+    """Each of these escaped the reader as an exception numpy or base64 raised,
+    turned into a CodecError naming only its class - a rotation overflowing
+    the world transform failed in the normals' pseudo-inverse, an accessor
+    with no bufferView sized its zeros by a count no byte paid for, and a
+    scene naming a node twice was taken for a cycle."""
+    path = tmp_path / "bad.glb"
+    path.write_bytes(_triangle_mutated(mutate))
+    with pytest.warns(UserWarning, match="scene format"):
+        if match is None:
+            assert polyxios.read(path).vertices.shape == (3, 3)
+            return
+        with pytest.raises(CodecError, match=match):
+            polyxios.read(path)
+
+
+@pytest.mark.parametrize("uri", ["missing.bin", "sub"])
+def test_a_buffer_file_that_cannot_be_read_is_a_codec_error(
+    tmp_path: Path, uri
+) -> None:
+    """A missing buffer file escaped as FileNotFoundError, and a buffer URI
+    naming a directory as IsADirectoryError, neither naming the document."""
+    (tmp_path / "sub").mkdir()
+    doc = {
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": uri, "byteLength": 36}],
+        "bufferViews": [{"buffer": 0, "byteLength": 36}],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}
+        ],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+    }
+    path = tmp_path / "ext.gltf"
+    path.write_text(json.dumps(doc))
+    with pytest.raises(CodecError, match=rf"'ext.gltf' names buffer '{uri}'"):
+        read_scene(path)

@@ -63,6 +63,20 @@ def sniff(head: bytes) -> bool:
     return _ROOT_TAG.match(head) is not None and _MESH_TAG.search(head) is not None
 
 
+def _int(text: str, *, what: str) -> int:
+    try:
+        return int(text)
+    except ValueError as exc:
+        raise CodecError(f".xml: {what} {text[:40]!r} is not an integer.") from exc
+
+
+def _float(text: str, *, what: str) -> float:
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise CodecError(f".xml: {what} {text[:40]!r} is not a number.") from exc
+
+
 def read(path: Source, *, lazy: bool = False) -> PolyData:
     """Parse a DOLFIN XML .xml mesh file.
 
@@ -96,6 +110,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             tree = ET.parse(fh)
     except ET.ParseError as exc:
         raise CodecError(f".xml: XML parse error: {exc}") from exc
+    except (LookupError, ValueError) as exc:
+        # expat raises these for an encoding its prolog names but it cannot
+        # decode: unknown, or multi-byte.
+        raise CodecError(f".xml: XML encoding not readable: {exc}") from exc
 
     root = tree.getroot()
     # Some exporters omit the <dolfin> wrapper and use <mesh> as root directly.
@@ -120,9 +138,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     saw_z = False
     for expected_idx, v in enumerate(verts_el):
         idx_attr = v.get("index")
-        if idx_attr is not None and int(idx_attr) != expected_idx:
+        if idx_attr is not None and _int(idx_attr, what="vertex index") != expected_idx:
             raise CodecError(
-                f".xml: vertex index {int(idx_attr)} != expected {expected_idx}"
+                f".xml: vertex index {idx_attr} != expected {expected_idx}"
                 f" (non-sequential indices not supported)."
             )
         for attr in ("x", "y"):
@@ -132,13 +150,20 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     f".xml: vertex (index={v.get('index', '?')!r}) missing"
                     f" '{attr}' attribute."
                 )
-            coords.append(float(val))
+            coords.append(_float(val, what=f"vertex {expected_idx} {attr}"))
         z_attr = v.get("z")
         saw_z = saw_z or z_attr is not None
-        coords.append(float(z_attr) if z_attr is not None else 0.0)
+        coords.append(
+            _float(z_attr, what=f"vertex {expected_idx} z")
+            if z_attr is not None
+            else 0.0
+        )
     n_verts = len(coords) // 3
     declared_verts = verts_el.get("size")
-    if declared_verts is not None and int(declared_verts) != n_verts:
+    if (
+        declared_verts is not None
+        and _int(declared_verts, what="vertices size") != n_verts
+    ):
         raise CodecError(
             f".xml: <vertices size={declared_verts!r}> but parsed {n_verts}."
         )
@@ -154,9 +179,9 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     elem_code = ELEMENT_TYPES[elem_name]
     for expected_idx, cell in enumerate(cells_el):
         idx_attr = cell.get("index")
-        if idx_attr is not None and int(idx_attr) != expected_idx:
+        if idx_attr is not None and _int(idx_attr, what="cell index") != expected_idx:
             raise CodecError(
-                f".xml: cell index {int(idx_attr)} != expected {expected_idx}"
+                f".xml: cell index {idx_attr} != expected {expected_idx}"
                 f" (non-sequential indices not supported)."
             )
         nodes: list[int] = []
@@ -167,23 +192,32 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                     f".xml: cell (index={cell.get('index', '?')!r}) missing"
                     f" '{attr}' attribute."
                 )
-            nodes.append(int(val))
+            node = _int(val, what=f"cell {expected_idx} {attr}")
+            if not 0 <= node < n_verts:
+                raise CodecError(
+                    f".xml: cell {expected_idx} {attr}={node} is not one of the"
+                    f" {n_verts} vertices."
+                )
+            nodes.append(node)
         conn_list.extend(nodes)
         offsets_list.append(offsets_list[-1] + n_nodes_per)
         types_list.append(elem_code)
 
     n_cells = len(types_list)
     declared_cells = cells_el.get("size")
-    if declared_cells is not None and int(declared_cells) != n_cells:
+    if (
+        declared_cells is not None
+        and _int(declared_cells, what="cells size") != n_cells
+    ):
         raise CodecError(f".xml: <cells size={declared_cells!r}> but parsed {n_cells}.")
 
     # <mesh dim=> is DOLFIN's own geometric dimension and outranks the guess;
-    # only a file that omitted it, or spelt it as something other than a whole
-    # number, is read off the vertices.
-    declared_dim = mesh_el.get("dim")
+    # only a file that omitted it, or spelt it as something other than the
+    # one digit a dimension is, is read off the vertices.
+    declared_dim = (mesh_el.get("dim") or "").strip()
     read_dim = (
         int(declared_dim)
-        if declared_dim is not None and declared_dim.strip().isdigit()
+        if declared_dim.isascii() and declared_dim.isdigit() and len(declared_dim) == 1
         else (2 if n_verts and not saw_z else 3)
     )
 

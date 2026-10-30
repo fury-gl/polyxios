@@ -664,3 +664,60 @@ def test_an_image_of_a_size_worth_reading_is_still_read(tmp_path) -> None:
 
     assert len(poly.vertices) == 64**3
     validate(poly)
+
+
+def _vti_text(*, extent: str, piece: bool = True, data: str = "") -> str:
+    body = (
+        f'<Piece Extent="{extent}"><PointData>{data}</PointData></Piece>'
+        if piece
+        else ""
+    )
+    return (
+        '<?xml version="1.0"?>\n<VTKFile type="ImageData" version="1.0"'
+        ' byte_order="LittleEndian">'
+        f'<ImageData WholeExtent="{extent}" Origin="0 0 0" Spacing="1 1 1">'
+        f"{body}</ImageData></VTKFile>"
+    )
+
+
+def test_an_axis_ending_before_it_starts_builds_no_coordinates(tmp_path) -> None:
+    """The grid such an axis empties still had the other axes' coordinates
+    built: a 180-byte file spelling 0..2666666666 along x took 21 GB."""
+    path = tmp_path / "flat.vti"
+    path.write_text(_vti_text(extent="0 2666666666 0 2 8 0"))
+    poly = read(path)
+    assert poly.vertices.shape == (0, 3)
+
+
+@pytest.mark.parametrize(
+    ("text", "match"),
+    [
+        (_vti_text(extent="0 1 0 1 0 1", piece=False), "No <Piece>"),
+        (
+            _vti_text(
+                extent="0 1 0 1 0 1",
+                data='<DataArray type="Float32" Name="s" format="binary">AAAAA</DataArray>',
+            ),
+            "not valid base64",
+        ),
+    ],
+)
+def test_a_malformed_image_is_a_codec_error(tmp_path, text: str, match: str) -> None:
+    """A missing piece raised ValueError and bad base64 binascii.Error."""
+    path = tmp_path / "bad.vti"
+    path.write_text(text)
+    with pytest.raises(CodecError, match=match):
+        read(path)
+
+
+def test_bytes_that_are_not_utf8_do_not_escape_the_xml_parse(tmp_path) -> None:
+    """A file keeping its arrays inline was decoded as strict UTF-8, so a
+    stray byte raised UnicodeDecodeError; the appended path already replaced
+    it."""
+    path = tmp_path / "odd.vti"
+    text = _vti_text(extent="0 1 0 1 0 1").replace(
+        'Spacing="1 1 1"', 'Spacing="1 1 1" Note="\xff"'
+    )
+    path.write_bytes(text.encode("latin-1"))
+    with pytest.warns(UserWarning, match="read as Latin-1"):
+        assert read(path).vertices.shape == (8, 3)

@@ -213,7 +213,7 @@ def _checked_count(value: str, cap: int, what: str) -> int:
     """Parse a declared count, rejecting negatives and absurd values."""
     try:
         count = int(value)
-    except ValueError as exc:
+    except (ValueError, OverflowError) as exc:
         raise CodecError(f".mesh: non-integer {what} count {value!r}.") from exc
     if count < 0:
         raise CodecError(f".mesh: negative {what} count {count}.")
@@ -364,7 +364,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 raise CodecError(".mesh: Dimension names no value.")
             try:
                 dim = int(tokens[cursor])
-            except ValueError as exc:
+            except (ValueError, OverflowError) as exc:
                 raise CodecError(
                     f".mesh: Dimension names {tokens[cursor]!r}, which is not a number."
                 ) from exc
@@ -416,7 +416,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             cursor += need
             try:
                 values = np.array(block, dtype=np.float64).reshape(n_verts, width)
-            except ValueError as exc:
+            except (ValueError, OverflowError) as exc:
                 raise CodecError(f".mesh: malformed vertex record: {exc}.") from exc
             coords = np.zeros((n_verts, 3), dtype=np.float64)
             coords[:, :dim] = values[:, :dim]
@@ -452,7 +452,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             continue
         try:
             records = np.array(block, dtype=np.int64).reshape(n_elems, width)
-        except ValueError as exc:
+        except (ValueError, OverflowError) as exc:
             raise CodecError(f".mesh: malformed {word} record: {exc}.") from exc
         if len(types) + n_elems > MAX_SAFE_ELEMENTS:
             # Counted over the file and not over the section: a mesh spreads

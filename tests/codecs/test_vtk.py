@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
 from pathlib import Path
 import tempfile
 
@@ -9,6 +10,7 @@ import pytest
 
 from polyxios import PolyData, make_polydata
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
+from polyxios.codecs import _vtk as vtk_module
 from polyxios.codecs._vtk import _vtk_cell_codes, read, write
 from polyxios.exceptions import (
     CodecError,
@@ -3417,3 +3419,191 @@ def test_a_cell_type_no_table_names_is_written_as_a_polygon(codes) -> None:
     assert written.dtype == np.int32
     assert written[0] == 5
     assert written[1] == (9 if codes[1] == 9 else 7)
+
+
+_UG_HEAD = "# vtk DataFile Version {v}\nfuzz\n{mode}\nDATASET UNSTRUCTURED_GRID\n"
+
+
+def _tri_ug() -> PolyData:
+    return make_polydata(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_cell_naming_a_point_the_file_lacks_is_refused(tmp_path, binary) -> None:
+    """No legacy reader bounded CELLS against POINTS, so the index came back
+    in the connectivity of a mesh holding no such vertex."""
+    path = tmp_path / "m.vtk"
+    write(_tri_ug(), path, binary=binary)
+    raw = path.read_bytes()
+    if binary:
+        record = np.array([3, 0, 1, 2], ">i4").tobytes()
+        bad = raw.replace(record, np.array([3, 0, 1, 9], ">i4").tobytes())
+    else:
+        bad = raw.replace(b"3 0 1 2", b"3 0 1 9")
+    assert bad != raw
+    path.write_bytes(bad)
+    with pytest.raises(CodecError, match="naming point 9, outside 0..2"):
+        read(path)
+
+
+@pytest.mark.parametrize(
+    "cells",
+    [
+        "CELLS 1 4\n3 0 1 {big}\n",
+        "CELLS 1 4\n3 0\n1 {big}\n",
+        "CELLS 2 3\nOFFSETS vtktypeint64\n0 3\nCONNECTIVITY vtktypeint64\n0 1 {big}\n",
+    ],
+    ids=["rows", "stream", "v5.1"],
+)
+def test_a_cell_index_past_int32_is_refused(tmp_path, cells) -> None:
+    """The index was kept as a Python int and overflowed the int32 array,
+    on every one of the three ASCII cell paths."""
+    version = "5.1" if "OFFSETS" in cells else "4.2"
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v=version, mode="ASCII")
+        + "POINTS 3 double\n0 0 0\n1 0 0\n0 1 0\n"
+        + cells.format(big="1" * 20)
+        + "CELL_TYPES 1\n5\n"
+    )
+    # A wrapped cell that fails the stream walk too is reported by its row.
+    with pytest.raises(CodecError, match="past int32|does not list"):
+        read(path)
+
+
+def test_an_array_whose_lines_hold_more_than_it_declares_is_refused(tmp_path) -> None:
+    """Values are read a line at a time, and a surplus failed the reshape to
+    the declared count with numpy's ValueError."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v="4.2", mode="ASCII")
+        + "POINTS 3 double\n0 0 0\n1 0 0\n0 1 0\n"
+        + "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        + "POINT_DATA 3\nSCALARS s double 2\nLOOKUP_TABLE default\n1 2 3\n4 5 6 7 8 9\n"
+    )
+    with pytest.raises(CodecError, match="declares 6 values but its lines hold 9"):
+        read(path)
+
+
+def test_the_cython_cell_parser_is_found_when_it_is_built() -> None:
+    """The reader imported it from polyxios._vtk_parse, where meson never put
+    it, so every install fell back to the pure-Python parse."""
+    built = importlib.util.find_spec("polyxios.codecs._vtk_parse") is not None
+    assert vtk_module._HAS_CYTHON is built
+
+
+@pytest.mark.parametrize("binary", [False, True])
+@pytest.mark.parametrize("lazy", [False, True])
+def test_cells_whose_types_never_come_are_refused(tmp_path, binary, lazy) -> None:
+    """A CELL_TYPES header the reader did not recognise left three cells of
+    offsets and none of types, a mesh validate() refuses."""
+    if lazy and not binary:
+        pytest.skip("ASCII is never read lazily")
+    path = tmp_path / "m.vtk"
+    write(_tri_ug(), path, binary=binary)
+    raw = path.read_bytes()
+    assert raw.count(b"CELL_TYPES") == 1
+    path.write_bytes(raw.replace(b"CELL_TYPES", b"CELL_\x14YPES"))
+    with pytest.raises(CodecError, match="1 cell\\(s\\) but 0 cell type"):
+        read(path, lazy=lazy)
+
+
+_TRI_POINTS = "POINTS 3 double\n0 0 0\n1 0 0\n0 1 0\n"
+
+
+@pytest.mark.parametrize(
+    ("version", "body", "match"),
+    [
+        ("4.2", "CELLS -9 0\nCELL_TYPES 0\n", "negative count"),
+        (
+            "5.1",
+            "CELLS 3 3\nOFFSETS vtktypeint64\n0 3 1\n"
+            "CONNECTIVITY vtktypeint64\n0 1 2\nCELL_TYPES 2\n5\n5\n",
+            "do not run from 0",
+        ),
+        (
+            "4.2",
+            "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+            f"POINT_DATA 0\nSCALARS s double {2**62}\nLOOKUP_TABLE default\n",
+            "component count",
+        ),
+    ],
+    ids=["negative-cell-count", "v5.1-offsets-step-back", "scalars-width"],
+)
+def test_counts_the_compiled_parser_or_numpy_refuse_are_codec_errors(
+    tmp_path, version, body, match
+) -> None:
+    """A negative cell count read as no cells or reached the compiled
+    parser's IndexError, v5.1 OFFSETS stepping back came out as a mesh
+    validate() refuses, and a SCALARS width past the cap shaped an empty
+    array numpy cannot index."""
+    path = tmp_path / "m.vtk"
+    path.write_text(_UG_HEAD.format(v=version, mode="ASCII") + _TRI_POINTS + body)
+    with pytest.raises(CodecError, match=match):
+        read(path)
+
+
+def test_a_field_array_wider_than_numpy_can_shape_is_skipped() -> None:
+    """An array of no tuples and a width past the cap reshaped an empty
+    array past what numpy can index; it is skipped like a negative count."""
+    tmp = _write_tmp(
+        b"# vtk DataFile Version 2.0\ns\nASCII\nDATASET FIELD FieldData 2\n"
+        + f"wide {'6' * 40} 0 float\n".encode()
+        + b"arr 1 2 float\n1 2\n"
+    )
+    with pytest.warns(UserWarning, match="no geometry"):
+        poly = read(tmp)
+    assert "wide" not in poly.global_attrs
+    np.testing.assert_allclose(poly.global_attrs["arr"], [1.0, 2.0])
+
+
+@pytest.mark.parametrize(
+    "attr",
+    [
+        "TEXTURE_COORDINATES t {big} double\n",
+        "COLOR_SCALARS c {big}\n",
+        "NORMALS n double\n0 0 1\n0 0 1\n0 0 1\nFIELD FieldData 1\nf {big} 0 double\n",
+    ],
+    ids=["texture-coordinates", "color-scalars", "field-block"],
+)
+def test_an_attribute_width_past_the_cap_is_refused(tmp_path, attr) -> None:
+    """Every attribute line's width sized an array before anything bounded
+    it, so a width of forty digits over no values reached numpy's reshape."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v="4.2", mode="ASCII")
+        + _TRI_POINTS
+        + "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\nPOINT_DATA 3\n"
+        + attr.format(big="7" * 40)
+    )
+    with pytest.raises(CodecError, match="count"):
+        read(path)
+
+
+def test_point_data_overtaken_by_a_second_points_block_is_refused(tmp_path) -> None:
+    """POINT_DATA counted the first POINTS block, a second one replaced the
+    vertices, and the attribute came back the wrong length for them."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        _UG_HEAD.format(v="4.2", mode="ASCII")
+        + _TRI_POINTS
+        + "CELLS 1 4\n3 0 1 2\nCELL_TYPES 1\n5\n"
+        + "POINT_DATA 3\nSCALARS s double 1\nLOOKUP_TABLE default\n1 2 3\n"
+        + "POINTS 4 double\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n"
+    )
+    with pytest.raises(CodecError, match="POINT_DATA array 's' of 3 value"):
+        read(path)
+
+
+def test_a_structured_field_array_width_past_the_cap_is_dropped(tmp_path) -> None:
+    """The structured readers' FIELD arrays took their shape unbounded too;
+    like any malformed data section there, it is dropped with a warning."""
+    path = tmp_path / "m.vtk"
+    path.write_text(
+        "# vtk DataFile Version 4.2\nfuzz\nASCII\nDATASET STRUCTURED_POINTS\n"
+        "DIMENSIONS 2 1 1\nORIGIN 0 0 0\nSPACING 1 1 1\nPOINT_DATA 2\n"
+        f"FIELD FieldData 1\nf {'7' * 40} 0 double\n"
+    )
+    with pytest.warns(UserWarning, match="count no array has"):
+        poly = read(path)
+    assert "f" not in poly.vertex_attrs

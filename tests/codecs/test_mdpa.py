@@ -1149,3 +1149,26 @@ def test_a_tag_naming_a_dropped_element_is_reported(tmp_path) -> None:
     text = (tmp_path / "m.mdpa").read_text()
     assert "Begin SubModelPart edge" in text
     assert "Begin SubModelPartElements\n    End" in text
+
+
+_TRI = (
+    "Begin Nodes\n 1 0 0 0\n 2 1 0 0\n 3 0 1 0\nEnd Nodes\n\n"
+    "Begin Elements Element2D3N\n 1 {prop} 1 2 3\nEnd Elements\n\n"
+)
+
+
+def test_a_property_id_past_int64_is_refused(tmp_path) -> None:
+    """The id was kept as a Python int and overflowed the int64 attribute."""
+    path = _write(_TRI.format(prop="7" * 30), tmp_path / "big.mdpa")
+    with pytest.raises(CodecError, match="past int64"):
+        read(path)
+
+
+def test_elemental_data_past_int64_reads_as_floats(tmp_path) -> None:
+    """An integer column was built as int64 whatever its values held."""
+    text = _TRI.format(prop=0) + (
+        "Begin ElementalData big\n 1 " + "9" * 25 + "\nEnd ElementalData\n"
+    )
+    poly = read(_write(text, tmp_path / "data.mdpa"))
+    assert poly.element_attrs["big"].dtype == np.float64
+    assert poly.element_attrs["big"][0] == pytest.approx(1e25)

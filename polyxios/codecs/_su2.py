@@ -560,7 +560,12 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # cumulative sum MAX_SAFE_CONN lets past 2**31, where int32 would overflow;
     # widen the pair together so the CSR dtypes stay consistent.
     idx_dtype = np.int64 if len(conn) > np.iinfo(np.int32).max else np.int32
-    connectivity = np.array(conn, dtype=idx_dtype)
+    try:
+        connectivity = np.array(conn, dtype=idx_dtype)
+    except OverflowError as exc:
+        raise CodecError(
+            f".su2: a node reference does not fit {idx_dtype.__name__}."
+        ) from exc
     if connectivity.size:
         lo, hi = int(connectivity.min()), int(connectivity.max())
         if lo < 0 or hi >= n_points:

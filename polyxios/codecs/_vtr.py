@@ -120,11 +120,11 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     rg = root.find("RectilinearGrid")
     if rg is None:
-        raise ValueError("No <RectilinearGrid> element found in VTR file.")
+        raise CodecError("No <RectilinearGrid> element found in VTR file.")
 
     piece = rg.find("Piece")
     if piece is None:
-        raise ValueError("No <Piece> element found.")
+        raise CodecError("No <Piece> element found.")
 
     extent_str = piece.get("Extent", "0 0 0 0 0 0")
     extent = xml_extent(extent_str, fmt=".vtr", where="Extent")
@@ -151,7 +151,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     coords_elem = piece.find("Coordinates")
     if coords_elem is None:
-        raise ValueError("No <Coordinates> element found.")
+        raise CodecError("No <Coordinates> element found.")
 
     coord_arrays = list(coords_elem)
     x_arr, y_arr, z_arr = (

@@ -527,3 +527,19 @@ def test_a_file_shorter_than_its_header_is_a_codec_error(tmp_path, size) -> None
     tmp.write_bytes(_flat_meshb(3)[:size])
     with pytest.raises(CodecError, match="too short"):
         read(path=tmp)
+
+
+@pytest.mark.parametrize("bad", [99, 0, -(2**31)])
+def test_an_element_naming_no_vertex_is_refused(tmp_path, bad: int) -> None:
+    """A reference past the vertex section, or 0 in a 1-based file, was
+    handed back in the connectivity as an index the mesh does not hold."""
+    poly = make_polydata(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+    buf = io.BytesIO()
+    write(poly=poly, path=buf)
+    record = struct.pack("<4i", 1, 2, 3, 0)
+    raw = buf.getvalue()
+    assert raw.count(record) == 1
+    path = tmp_path / "bad.meshb"
+    path.write_bytes(raw.replace(record, struct.pack("<4i", 1, 2, bad, 0)))
+    with pytest.raises(CodecError, match="outside 1..3"):
+        read(path=path)

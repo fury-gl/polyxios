@@ -812,3 +812,11 @@ def test_a_medit_mesh_converts_to_su2(tmp_path: Path) -> None:
     back = api_read(out)
     np.testing.assert_allclose(back.vertices, _tagged_volume().vertices)
     assert len(back.element_types) == 2
+
+
+def test_a_node_reference_past_int64_is_refused(tmp_path: Path) -> None:
+    """The reference was kept as a Python int and overflowed the array."""
+    path = tmp_path / "big.su2"
+    path.write_text(_MINIMAL.replace("10 0 1 2 3 0", f"10 0 1 2 {'9' * 30} 0"))
+    with pytest.raises(CodecError):
+        read(path)

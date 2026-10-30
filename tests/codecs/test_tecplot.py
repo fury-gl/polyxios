@@ -1235,3 +1235,36 @@ def test_a_nodal_variable_carrying_a_missing_value_is_not_written(
         write(_tetra_with(vertex_attrs={"t": np.array([1.0, 2.0, np.nan, 4.0])}), out)
     assert "nan" not in out.read_text()
     assert not read(out).vertex_attrs
+
+
+@pytest.mark.parametrize("packing", ["POINT", "BLOCK"])
+def test_a_node_reference_past_int64_is_refused(tmp_path: Path, packing: str) -> None:
+    """numpy and an int64 slot raise OverflowError, not ValueError, for a
+    reference past int64, so it escaped the malformed-line check."""
+    values = "0 0 0\n1 0 0\n0 1 0\n" if packing == "POINT" else "0 1 0\n0 0 1\n0 0 0\n"
+    text = (
+        'VARIABLES = "X" "Y" "Z"\n'
+        f"ZONE N=3, E=1, DATAPACKING={packing}, ZONETYPE=FETRIANGLE\n"
+        f"{values}1 2 {'9' * 30}\n"
+    )
+    with pytest.raises(CodecError, match="malformed"):
+        read(_write_tec(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    ("spec", "first"), [("4-" + "9" * 40, 5), ("9" * 30 + "-" + "9" * 40, "9" * 30)]
+)
+def test_a_varlocation_range_past_the_variables_is_not_expanded(
+    tmp_path: Path, spec: str, first
+) -> None:
+    """The range was expanded into a set of every index it spans before any
+    was checked against the variable list, which a 156-byte file turned into
+    an allocation that never finished."""
+    path = _write_tec(
+        tmp_path,
+        'VARIABLES = "X","Y","Z","P"\n'
+        f"ZONE N=4, E=2, F=FEBLOCK, ET=TRIANGLE, VARLOCATION=([{spec}]=CELLCENTERED)\n"
+        "0 1 0 1\n0 0 1 1\n0 0 0 0\n7 8\n1 2 3\n1 2 4\n",
+    )
+    with pytest.raises(CodecError, match=f"names variable {first}, past the 4"):
+        read(path)

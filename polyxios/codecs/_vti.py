@@ -329,7 +329,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     img = root.find("ImageData")
     if img is None:
-        raise ValueError("No <ImageData> element found in VTI file.")
+        raise CodecError("No <ImageData> element found in VTI file.")
 
     # WholeExtent="x0 x1 y0 y1 z0 z1" gives the global grid dimensions
     whole_extent_str = img.get("WholeExtent", "0 1 0 1 0 1")
@@ -343,7 +343,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     piece = img.find("Piece")
     if piece is None:
-        raise ValueError("No <Piece> element found.")
+        raise CodecError("No <Piece> element found.")
 
     piece_extent_str = piece.get("Extent", whole_extent_str)
     pe = xml_extent(piece_extent_str, fmt=".vti", where="Extent")
@@ -368,12 +368,18 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         spells_connectivity=False,
     )
 
-    x = origin[0] + np.arange(i0, i1 + 1) * spacing[0]
-    y = origin[1] + np.arange(j0, j1 + 1) * spacing[1]
-    z = origin[2] + np.arange(k0, k1 + 1) * spacing[2]
-
-    zz, yy, xx = np.meshgrid(z, y, x, indexing="ij")
-    vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
+    if n_verts:
+        x = origin[0] + np.arange(i0, i1 + 1) * spacing[0]
+        y = origin[1] + np.arange(j0, j1 + 1) * spacing[1]
+        z = origin[2] + np.arange(k0, k1 + 1) * spacing[2]
+        zz, yy, xx = np.meshgrid(z, y, x, indexing="ij")
+        vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(
+            np.float64
+        )
+    else:
+        # An axis ending before it starts empties the grid; the other axes'
+        # coordinates are not built, however long the extent spells them.
+        vertices = np.empty((0, 3), dtype=np.float64)
 
     connectivity, _, _ = structured_cells(nx, ny, nz)
     offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell

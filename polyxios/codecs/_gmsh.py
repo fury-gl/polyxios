@@ -20,6 +20,8 @@ from polyxios._types import PolyData
 from polyxios.exceptions import CodecError
 
 EXTENSION: str = ".msh"
+# Components a data block may declare per row, before its rows are counted.
+_MAX_COMPONENTS: int = 1 << 20
 # '.msh' is ANSYS Fluent's extension as well, so it is shared rather than
 # owned: the two are told apart by what the file opens with. Gmsh keeps the
 # writes, since an output file has no content to sniff and '.msh' has meant
@@ -752,7 +754,11 @@ def _bulk_parse_nodes_v2(
     common case of tags running 1..n, then by re-reading the leading field of
     every record and requiring it to match the column the bulk parse produced.
     """
-    flat = np.fromstring(" ".join(records), sep=" ", dtype=np.float64)
+    try:
+        flat = np.fromstring(" ".join(records), sep=" ", dtype=np.float64)
+    except ValueError:
+        # A token that is not a number: the per-record parse names it.
+        return None
     if flat.size != 4 * n_nodes:
         return None
 
@@ -1146,6 +1152,14 @@ def _parse_data_block(
             f".msh: {kind} '{name}' declares {n_rows} row(s) but only"
             f" {len(lines) - cursor} follow."
         )
+    # A value takes two characters at least, its digit and a separator; a
+    # width the rows cannot spell is refused before it sizes an array.
+    spelled = sum(len(ln) + 1 for ln in lines[cursor : cursor + n_rows])
+    if n_components > _MAX_COMPONENTS or n_rows * n_components * 2 > spelled:
+        raise CodecError(
+            f".msh: {kind} '{name}' declares {n_components} component(s),"
+            f" more than its {n_rows} row(s) hold."
+        )
 
     tags = np.empty(n_rows, dtype=np.int64)
     values = np.empty((n_rows, n_components), dtype=np.float64)
@@ -1159,7 +1173,7 @@ def _parse_data_block(
         try:
             tags[i] = int(fields[0])
             values[i] = [float(tok) for tok in fields[1 : n_components + 1]]
-        except ValueError as exc:
+        except (ValueError, OverflowError) as exc:
             raise CodecError(
                 f".msh: {kind} '{name}' has a malformed row {ln!r}."
             ) from exc

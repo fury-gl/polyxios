@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
 import struct
 import tempfile
 import warnings
@@ -1005,3 +1006,82 @@ def test_a_negative_element_count_is_a_codec_error(tmp_path, element, lazy) -> N
     )
     with pytest.raises(CodecError, match="negative count"):
         read(path, lazy=lazy)
+
+
+def _tri_ply(tmp_path: Path, extra: str, body: bytes = b"") -> Path:
+    header = (
+        "ply\nformat binary_little_endian 1.0\nelement vertex 3\n"
+        "property float x\nproperty float y\nproperty float z\n"
+        f"{extra}end_header\n"
+    )
+    path = tmp_path / "m.ply"
+    path.write_bytes(header.encode() + np.eye(3, dtype="<f4").tobytes() + body)
+    return path
+
+
+def test_an_element_of_no_properties_is_not_walked_record_by_record(
+    tmp_path: Path,
+) -> None:
+    """A record of no properties spends no bytes, so a declared count of a
+    billion was walked a billion times; the fuzzer timed out on it."""
+    poly = read(_tri_ply(tmp_path, f"element junk {10**9}\n"))
+    assert poly.vertices.shape == (3, 3)
+
+
+def test_a_list_element_whose_count_the_file_cannot_pay_for_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The columns of a non-face element carrying a list were sized by the
+    declared count before it was bounded, asking numpy for 605 TiB."""
+    extra = f"element thing {10**14}\nproperty list uchar int verts\nproperty int w\n"
+    with pytest.raises(CodecError, match="ends inside"):
+        read(_tri_ply(tmp_path, extra))
+
+
+def test_an_ascii_index_past_int64_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "big.ply"
+    path.write_text(
+        "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\n"
+        "property float y\nproperty float z\nelement face 1\n"
+        "property list uchar int vertex_indices\nend_header\n"
+        f"0 0 0\n1 0 0\n0 1 0\n3 0 1 {'1' * 40}\n"
+    )
+    with pytest.raises(CodecError, match="past int64"):
+        read(path)
+
+
+def test_a_header_declaring_vertex_twice_is_refused(tmp_path: Path) -> None:
+    """The second block's properties were read as attributes of the first
+    block's vertices, a column longer than the mesh it belonged to."""
+    extra = "element vertex 4\nproperty double x\n"
+    with pytest.raises(CodecError, match="vertex element twice"):
+        read(_tri_ply(tmp_path, extra))
+
+
+@pytest.mark.parametrize("fmt", ["ascii", "binary_little_endian"])
+def test_a_property_declared_twice_is_refused_by_the_header(
+    tmp_path: Path, fmt
+) -> None:
+    """An ASCII vertex element naming eint twice read both columns into one
+    attribute of twice the vertex count."""
+    path = tmp_path / "twice.ply"
+    path.write_bytes(
+        f"ply\nformat {fmt} 1.0\nelement vertex 1\nproperty float x\n"
+        "property float y\nproperty float z\nproperty int eint\n"
+        "property int eint\nend_header\n".encode()
+        + (b"0 0 0 1 2\n" if fmt == "ascii" else bytes(20))
+    )
+    with pytest.raises(CodecError, match="'eint' more than once"):
+        read(path)
+
+
+@pytest.mark.parametrize("line", ["property list uchar", "property list uchar int"])
+def test_a_list_property_short_of_its_name_is_refused(tmp_path: Path, line) -> None:
+    """The repeated-name check read the list property's name before the
+    line was checked to hold one, raising IndexError."""
+    path = tmp_path / "short.ply"
+    path.write_bytes(
+        f"ply\nformat ascii 1.0\nelement face 1\n{line}\nend_header\n".encode()
+    )
+    with pytest.raises(CodecError):
+        read(path)

@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios.codecs import _vtk_xml
@@ -1630,3 +1631,49 @@ def test_a_raw_section_with_no_marker_is_refused(tmp_path, lazy) -> None:
     path.write_bytes(path.read_bytes().replace(b"\n   _", b"\n   ", 1))
     with pytest.raises(CodecError, match="no '_' marker"):
         read(path, lazy=lazy)
+
+
+@pytest.mark.parametrize("fmt", [".vtu", ".vtp"])
+@pytest.mark.parametrize("bad", ["0 1 9", "0 -1 2"])
+def test_a_cell_naming_a_point_the_piece_lacks_is_refused(tmp_path, fmt, bad) -> None:
+    """The connectivity array was never checked against NumberOfPoints, so
+    an entry past it came back indexing no vertex of the mesh."""
+    poly = make_polydata(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+    buf = io.BytesIO()
+    polyxios.write(poly, buf, fmt=fmt, binary=False)
+    text = buf.getvalue().decode()
+    spelled = 'connectivity" format="ascii">0 1 2<'
+    assert spelled in text
+    path = tmp_path / f"bad{fmt}"
+    path.write_text(text.replace(spelled, spelled.replace("0 1 2", bad)))
+    with pytest.raises(CodecError, match="outside 0..2"):
+        (read if fmt == ".vtu" else vtp_read)(path)
+
+
+@pytest.mark.parametrize("appended", [False, True])
+@pytest.mark.parametrize("declared", [False, True])
+def test_a_latin1_array_name_keeps_its_characters(
+    tmp_path, appended: bool, declared: bool
+) -> None:
+    """The XML was decoded as UTF-8 with replacement before expat saw it, so
+    a declared ISO-8859-1 encoding was ignored and a Latin-1 name came back
+    with U+FFFD in place of its accented letters, with no word said."""
+    poly = make_polydata(
+        np.eye(3),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"tempXrature": np.arange(3.0)},
+    )
+    buf = io.BytesIO()
+    write(poly, buf, binary=False, appended=appended)
+    data = buf.getvalue().replace(b"tempXrature", "température".encode("latin-1"))
+    if declared:
+        data = data.replace(
+            b'<?xml version="1.0"?>', b'<?xml version="1.0" encoding="ISO-8859-1"?>'
+        )
+    path = tmp_path / "latin.vtu"
+    path.write_bytes(data)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        back = read(path)
+    assert "température" in back.vertex_attrs
+    assert any("Latin-1" in str(w.message) for w in caught) is not declared

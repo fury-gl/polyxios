@@ -13,6 +13,7 @@ from __future__ import annotations
 import array
 from collections.abc import Iterator
 import io
+import lzma
 import re
 from typing import Any
 import urllib.parse
@@ -57,11 +58,15 @@ _INFLATE_FLOOR: int = 1 << 28
 # What opening a ZIP or reading a member raises beyond a bad archive: an
 # encrypted member (RuntimeError), a compression method or ZIP version
 # zipfile lacks (NotImplementedError), and offsets that point before the
-# archive or a name flagged UTF-8 that is not (ValueError).
+# archive or a name flagged UTF-8 that is not (ValueError). A bzip2 or LZMA
+# member that does not decompress raises OSError or LZMAError; every source
+# is opened from memory, so no OSError here is about a file.
 _ZIP_ERRORS: tuple[type[Exception], ...] = (
     zipfile.BadZipFile,
     zlib.error,
+    lzma.LZMAError,
     EOFError,
+    OSError,
     RuntimeError,
     NotImplementedError,
     ValueError,
@@ -176,6 +181,8 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
             where = f"{name!r}: {model_part}"
             tail = b""
             for chunk in _inflated(package, model_part, name):
+                if not tail:
+                    _check_declared_encoding(chunk, where)
                 _refuse_entities(tail + chunk[:_ENTITY_SPAN], where, fmt="3MF")
                 _refuse_entities(chunk, where, fmt="3MF")
                 tail = chunk[-_ENTITY_SPAN:]
@@ -448,6 +455,39 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+_XML_DECLARATION = re.compile(rb"\A(?:\xef\xbb\xbf)?<\?xml\b[^>]*?\?>")
+
+
+def _check_declared_encoding(head: bytes, where: str) -> None:
+    """Refuse a document whose XML declaration names an encoding expat lacks.
+
+    Parameters
+    ----------
+    head
+        The document's opening bytes.
+    where
+        The document, or the part of a package, as a message starts.
+
+    Raises
+    ------
+    CodecError
+        When expat cannot decode the declared encoding: it raises
+        LookupError for one it does not know and ValueError for a multi-byte
+        one. The declaration is parsed on its own so that neither is
+        confused with what a parser target raises later.
+    """
+    match = _XML_DECLARATION.match(head)
+    if match is None:
+        return
+    try:
+        ET.fromstring(match.group(0) + b"<a/>")
+    except (LookupError, ValueError) as exc:
+        raise CodecError(f"{where} is not well-formed XML: {exc}") from exc
+    except ET.ParseError:
+        # Anything else wrong with the declaration is the parser's to report.
+        return
+
+
 def _refuse_entities(data: bytes, where: str, *, fmt: str) -> None:
     """Refuse XML text that declares an entity.
 
@@ -505,6 +545,7 @@ def _model_part(package: zipfile.ZipFile, name: str) -> str:
         _check_inflation(package.getinfo(_RELS_PART), name)
         data = b"".join(_inflated(package, _RELS_PART, name))
         _refuse_entities(data, f"{name!r}: {_RELS_PART}", fmt="3MF")
+        _check_declared_encoding(data, f"{name!r}: {_RELS_PART}")
         try:
             rels = ET.fromstring(data)
         except (ET.ParseError, LookupError) as exc:

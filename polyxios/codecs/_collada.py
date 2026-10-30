@@ -50,6 +50,7 @@ from polyxios._scene import (
     SceneMaterial,
     SceneNode,
     SceneTexture,
+    infinite_node,
 )
 from polyxios._trs import matrix_of_element, trs_of_matrix
 from polyxios._types import PolyData
@@ -455,6 +456,10 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         *st.variants,
     )
 
+    bad = infinite_node(nodes=st.nodes)
+    if bad is not None:
+        raise CodecError(f"{name!r}: node {bad} has a transform that is not finite.")
+
     skins = _resolve_skins(st, scenes)
     if skins:
         global_attrs["skins"] = skins
@@ -601,14 +606,16 @@ def _as_utf8(raw: bytes, name: str) -> bytes:
     try:
         if encoding is None:
             raise LookupError("no encoding declared")
-        text = raw[match.end(0) :].decode(encoding)
-    except (LookupError, UnicodeDecodeError) as exc:
+        # Encoded back inside the guard: a codec such as UTF-7 decodes a lone
+        # surrogate that UTF-8 refuses to spell.
+        body = raw[match.end(0) :].decode(encoding).encode("utf-8")
+    except (LookupError, UnicodeError) as exc:
         raise CodecError(
             f"{name!r} is not well-formed XML: encoding {encoding!r} cannot "
             f"be read ({exc})."
         ) from exc
     head = match.group(1) + b"UTF-8" + match.group(3)
-    return head.removeprefix(b"\xef\xbb\xbf") + text.encode("utf-8")
+    return head.removeprefix(b"\xef\xbb\xbf") + body
 
 
 def _ids(root: ET.Element) -> dict[str, ET.Element]:
@@ -2011,7 +2018,10 @@ def _node_transforms(
         if size is None:
             continue
         values = _floats(child.text, f"{what} <{kind}>", n=size)
-        matrix = matrix @ matrix_of_element(kind=kind, values=values)
+        with np.errstate(over="ignore", invalid="ignore"):
+            matrix = matrix @ matrix_of_element(kind=kind, values=values)
+        if not np.all(np.isfinite(matrix)):
+            raise CodecError(f"{what} has a transform that is not finite.")
         spelled.append(
             {"kind": kind, "sid": child.get("sid"), "values": values.tolist()}
         )

@@ -474,3 +474,28 @@ def test_merge_vertices_is_reachable_from_the_public_read(tmp_path: Path) -> Non
     write(_tetrahedron(), tmp, binary=True)
     assert polyxios.read(tmp, merge_vertices=False).vertices.shape[0] == 4 * 3
     assert polyxios.read(tmp, merge_vertices=True).vertices.shape[0] == 4
+
+
+_FACET = (
+    "facet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\n"
+    "endloop\nendfacet\n"
+)
+
+
+def test_vertex_lines_after_a_facet_do_not_grow_it(tmp_path: Path) -> None:
+    """The accepted facet's vertex list stayed the one later vertex lines
+    appended to, so a repeated endfacet and three stray vertices left a
+    facet of six corners and a reshape error naming no file."""
+    path = tmp_path / "stray.stl"
+    path.write_text(
+        "solid s\n" + _FACET + "endfacet\nvertex 2 2 2\nvertex 3 3 3\n"
+        "vertex 4 4 4\nendsolid s\n"
+    )
+    with pytest.raises(CodecError, match="facet has 0 vertices"):
+        read(path)
+    path.write_text(
+        "solid s\n" + _FACET + "vertex 2 2 2\nvertex 3 3 3\nvertex 4 4 4\nendsolid s\n"
+    )
+    poly = read(path)
+    assert poly.vertices.shape == (3, 3)
+    assert poly.connectivity.tolist() == [0, 1, 2]

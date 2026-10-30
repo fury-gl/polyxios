@@ -12,6 +12,7 @@ from numpy.typing import ArrayLike
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
+    MAX_SAFE_CONN,
     POLYXIOS_TO_VTK,
     VTK_TO_POLYXIOS,
 )
@@ -28,6 +29,7 @@ from polyxios._io import (
 )
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
+from polyxios.codecs._vtk_xml import bounded_by_points
 from polyxios.exceptions import (
     CodecError,
     IndexOverflowError,
@@ -37,7 +39,7 @@ from polyxios.exceptions import (
 from polyxios.validate import validate_header
 
 try:
-    from polyxios._vtk_parse import (  # type: ignore[import]
+    from polyxios.codecs._vtk_parse import (  # type: ignore[import]
         parse_ascii_cells_v42,
         parse_ascii_coords,
     )
@@ -294,35 +296,35 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
 
     if "UNSTRUCTURED_GRID" in dataset_line:
         if is_binary:
-            return _read_binary(path, lazy=lazy)
+            return _bounded(_read_binary(path, lazy=lazy), path)
         else:
             if lazy:
                 raise LazyReadError("VTK ASCII format does not support lazy reads.")
-            return _read_ascii(path)
+            return _bounded(_read_ascii(path), path)
     elif "POLYDATA" in dataset_line:
         if lazy:
             raise LazyReadError("VTK POLYDATA format does not support lazy reads.")
         if is_binary:
-            return _read_polydata_binary(path)
-        return _read_polydata_ascii(path)
+            return _bounded(_read_polydata_binary(path), path)
+        return _bounded(_read_polydata_ascii(path), path)
     elif "RECTILINEAR_GRID" in dataset_line:
         if lazy:
             raise LazyReadError(
                 "VTK RECTILINEAR_GRID format does not support lazy reads."
             )
-        return _read_rectilinear_grid(path, is_binary=is_binary)
+        return _bounded(_read_rectilinear_grid(path, is_binary=is_binary), path)
     elif "STRUCTURED_GRID" in dataset_line:
         if lazy:
             raise LazyReadError(
                 "VTK STRUCTURED_GRID format does not support lazy reads."
             )
-        return _read_structured_grid(path, is_binary=is_binary)
+        return _bounded(_read_structured_grid(path, is_binary=is_binary), path)
     elif "STRUCTURED_POINTS" in dataset_line:
         if lazy:
             raise LazyReadError(
                 "VTK STRUCTURED_POINTS format does not support lazy reads."
             )
-        return _read_structured_points(path, is_binary=is_binary)
+        return _bounded(_read_structured_points(path, is_binary=is_binary), path)
     elif "FIELD" in dataset_line:
         # The line still carries its 'DATASET ' keyword here, so asking what
         # it starts with never matched and every field-data file was refused
@@ -334,6 +336,49 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         raise CodecError(
             f"VTK codec supports DATASET UNSTRUCTURED_GRID or POLYDATA, got: {dataset_line!r}"
         )
+
+
+def _bounded(poly: PolyData, path: Source) -> PolyData:
+    """Hand back ``poly``, refusing cells the file does not hold together.
+
+    ``CELLS``, ``POLYGONS`` and their kin spell point indices the file never
+    checks against ``POINTS``, so an index past them would come back as a
+    connectivity entry the mesh holds no vertex for; and a ``CELLS`` block
+    whose ``CELL_TYPES`` never comes leaves cells with no type.
+    """
+    offsets = poly.offsets
+    if offsets.size and (
+        int(offsets[0]) != 0
+        or int(offsets[-1]) != poly.connectivity.size
+        or bool(np.any(np.diff(offsets) < 0))
+    ):
+        # v5.1 spells its OFFSETS outright, so nothing but this says they run
+        # from 0 to the connectivity's length without stepping back.
+        raise CodecError(
+            f".vtk: '{source_name(path)}' has cell offsets that do not run"
+            f" from 0 to its {poly.connectivity.size} connectivity entries."
+        )
+    for kind, attrs, expected in (
+        ("POINT_DATA", poly.vertex_attrs, poly.vertices.shape[0]),
+        ("CELL_DATA", poly.element_attrs, poly.element_types.shape[0]),
+    ):
+        for name, arr in attrs.items():
+            if len(arr) != expected:
+                # The section's count is the file's word against POINTS or
+                # CELLS: spelled before them, or overtaken by a second block.
+                raise CodecError(
+                    f".vtk: '{source_name(path)}' has {kind} array {name!r} of"
+                    f" {len(arr)} value(s) over {expected}."
+                )
+    n_types, n_offsets = poly.element_types.shape[0], poly.offsets.shape[0]
+    if n_offsets != n_types + 1:
+        # A CELLS block with no CELL_TYPES after it - a header the reader
+        # did not recognise - or the other way round.
+        raise CodecError(
+            f".vtk: '{source_name(path)}' gives {n_offsets - 1} cell(s) but"
+            f" {n_types} cell type(s)."
+        )
+    return bounded_by_points(poly, path, fmt=".vtk")
 
 
 def write(poly: PolyData, path: Source, **opts: Any) -> None:
@@ -975,7 +1020,7 @@ def _field_shape(parts: list[str], where: str) -> tuple[int, int]:
     """
     n_comp = _attr_count(parts, 1, where)
     n_tuples = _attr_count(parts, 2, where)
-    if n_comp < 0 or n_tuples < 0:
+    if not (0 <= n_comp <= MAX_SAFE_CONN and 0 <= n_tuples <= MAX_SAFE_CONN):
         raise CodecError(
             f".vtk: {where} holds {' '.join(parts)!r}, whose field array is"
             f" {n_tuples} tuple(s) of {n_comp} - a count no array has."
@@ -1895,6 +1940,11 @@ def _read_ascii(path: Source) -> PolyData:
             where = f"line {i + 1}"
             n_elems = _attr_count(parts, 1, where)
             total_size = _attr_count(parts, 2, where)
+            if n_elems < 0 or total_size < 0:
+                raise CodecError(
+                    f".vtk: {where} holds {line.strip()!r}, a CELLS header"
+                    " with a negative count."
+                )
             i += 1
             validate_header(n_verts, n_elems, total_size, file_size)
 
@@ -2037,11 +2087,16 @@ def _parse_v51_cells_ascii(
                 " CONNECTIVITY of a v5.1 CELLS section should be."
             ) from exc
         i += 1
-    return (
-        np.array(conn_vals, dtype=np.int32),
-        np.array(off_vals, dtype=np.int32),
-        i,
-    )
+    try:
+        return (
+            np.array(conn_vals, dtype=np.int32),
+            np.array(off_vals, dtype=np.int32),
+            i,
+        )
+    except OverflowError as exc:
+        raise CodecError(
+            f".vtk: a v5.1 CELLS section holds a value past int32: {exc}."
+        ) from exc
 
 
 def _read_ascii_values(
@@ -2100,6 +2155,14 @@ def _read_ascii_values(
             ) from exc
         vals.extend(row)
         i += 1
+    if len(vals) > count:
+        # Values are read a whole line at a time, and no array shares a line
+        # with the next one's header: a surplus is a count the file got wrong,
+        # which shaped by the declared count would fail in a reshape.
+        raise CodecError(
+            f".vtk: array {name!r} declares {count} values but its lines hold"
+            f" {len(vals)}."
+        )
     return i, vals
 
 
@@ -2462,16 +2525,16 @@ def _cells_by_row(
     if _HAS_CYTHON:
         try:
             connectivity, offsets = parse_ascii_cells_v42(lines, i, n_cells)
-        except (IndexError, OverflowError, ValueError):
-            _walk_cell_rows(lines, i, n_cells)
-            raise  # pragma: no cover - the walk above names the row first
+        except (IndexError, OverflowError, ValueError) as exc:
+            conn_list, widths, _ = _walk_cell_rows(lines, i, n_cells)
+            # The walk names a malformed row; one whose numbers only overflow
+            # is refused by the packing; what neither names is still the
+            # compiled parser's refusal of the block.
+            _cell_arrays(conn_list, widths)
+            raise CodecError(f".vtk: a CELLS section is malformed: {exc}.") from exc
         return connectivity, offsets, i + n_cells
     conn_list, widths, end = _walk_cell_rows(lines, i, n_cells)
-    return (
-        np.array(conn_list, dtype=np.int32),
-        np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
-        end,
-    )
+    return (*_cell_arrays(conn_list, widths), end)
 
 
 def _cells_by_stream(
@@ -2513,11 +2576,22 @@ def _cells_by_stream(
     conn_list, widths = _walk_cell_stream(
         _whole_numbers(tokens, "CELLS"), n_cells, "CELLS"
     )
-    return (
-        np.array(conn_list, dtype=np.int32),
-        np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
-        end,
-    )
+    return (*_cell_arrays(conn_list, widths), end)
+
+
+def _cell_arrays(
+    conn_list: list[int], widths: list[int]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Pack a walked ``CELLS`` block, refusing a number int32 cannot hold."""
+    try:
+        return (
+            np.array(conn_list, dtype=np.int32),
+            np.array(list(accumulate(widths, initial=0)), dtype=np.int32),
+        )
+    except OverflowError as exc:
+        raise CodecError(
+            f".vtk: a CELLS section holds a point index or a width past int32: {exc}."
+        ) from exc
 
 
 def _walk_cell_stream(
@@ -2660,6 +2734,21 @@ def _attr_count(
         ) from exc
 
 
+def _width(parts: list[str], index: int, where: str, *, default: int) -> int:
+    """Read an attribute line's component count, refusing one no array has.
+
+    A width past the cap shaped even an empty array past what numpy can
+    index, and one below 1 holds no value per item.
+    """
+    n_comp = _attr_count(parts, index, where, default=default)
+    if not 1 <= n_comp <= MAX_SAFE_CONN:
+        raise CodecError(
+            f".vtk: {where} holds {' '.join(parts)!r}, whose component count"
+            f" {n_comp} is outside 1..{MAX_SAFE_CONN}."
+        )
+    return n_comp
+
+
 def _attr_reals(parts: list[str], where: str, count: int) -> list[float]:
     """Read a run of numbers off a header.
 
@@ -2792,7 +2881,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 3, where, default=1)
+            n_comp = _width(parts, 3, where, default=1)
             i += 1
             # Skip LOOKUP_TABLE line
             if i < n_lines and "LOOKUP_TABLE" in lines[i].upper():
@@ -2808,7 +2897,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=1)
+            n_comp = _width(parts, 2, where, default=1)
             i += 1
             i, vals = _read_ascii_values(lines, i, n_declared * n_comp, name=name)
             arr = np.array(vals, dtype=np.float64)
@@ -2825,7 +2914,7 @@ def _parse_vtk_data_attrs(
             parts = line.split()
             where = f"line {i + 1}"
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=2)
+            n_comp = _width(parts, 2, where, default=2)
             i += 1
             i, vals = _read_ascii_values(lines, i, n_declared * n_comp, name=name)
             arr = np.array(vals, dtype=np.float64)
@@ -2868,8 +2957,7 @@ def _parse_vtk_data_attrs(
                 fparts = lines[i].strip().split()
                 fwhere = f"line {i + 1}"
                 fname = fparts[0]
-                n_comp_f = _attr_count(fparts, 1, fwhere)
-                n_tuples = _attr_count(fparts, 2, fwhere)
+                n_comp_f, n_tuples = _field_shape(fparts, fwhere)
                 i += 1
                 i, vals = _read_ascii_values(lines, i, n_tuples * n_comp_f, name=fname)
                 arr = np.array(vals, dtype=np.float64)
@@ -3696,7 +3784,7 @@ def _parse_binary_attrs(
         elif upper.startswith("SCALARS"):
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 3, where, default=1)
+            n_comp = _width(parts, 3, where, default=1)
             np_dt = _binary_dtype(parts, 2, where)
             # Skip the LOOKUP_TABLE line, if the section carries one: the
             # format leaves it optional, and swallowing a line that is not
@@ -3719,7 +3807,7 @@ def _parse_binary_attrs(
             # encodings must not read back as two different arrays.
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=1)
+            n_comp = _width(parts, 2, where, default=1)
             n_bytes = n_items * n_comp
             _check_block(pos, n_bytes, file_size, name=name)
             raw = _block(mm, pos, np.uint8, n_bytes, copy=True) / _COLOR_SCALE
@@ -3741,7 +3829,7 @@ def _parse_binary_attrs(
         elif upper.startswith("TEXTURE_COORDINATES"):
             parts = line.split()
             name = _attr_name(parts, where)
-            n_comp = _attr_count(parts, 2, where, default=2)
+            n_comp = _width(parts, 2, where, default=2)
             np_dt = _binary_dtype(parts, 3, where)
             n_bytes = n_items * n_comp * np.dtype(np_dt).itemsize
             _check_block(pos, n_bytes, file_size, name=name)
@@ -3795,8 +3883,7 @@ def _parse_binary_attrs(
                 # at the bytes rather than at the line that is wrong.
                 fwhere = f"byte {hdr_start}"
                 arr_name = hparts[0]
-                n_comp_f = _attr_count(hparts, 1, fwhere)
-                n_tuples_f = _attr_count(hparts, 2, fwhere)
+                n_comp_f, n_tuples_f = _field_shape(hparts, fwhere)
                 np_dt_f = _binary_dtype(hparts, 3, fwhere)
                 n_bytes_f = n_tuples_f * n_comp_f * np.dtype(np_dt_f).itemsize
                 _check_block(pos, n_bytes_f, file_size, name=arr_name)
@@ -4374,13 +4461,14 @@ def _read_field_data(path: Source) -> PolyData:
             except ValueError:
                 i += 1
                 continue
-            if n_comp < 0 or n_tuples < 0:
+            if not (0 <= n_comp <= MAX_SAFE_CONN and 0 <= n_tuples <= MAX_SAFE_CONN):
                 # The two counts are the only thing that says where this
                 # array ends, and a negative one is no length: it slices the
                 # values it read from the wrong end and reshapes to a
                 # dimension numpy infers rather than the one the header
-                # claimed. Skipped, the way every other line this reader
-                # makes no sense of is.
+                # claimed; one past the cap shapes even an empty array past
+                # what numpy can index. Skipped, the way every other line
+                # this reader makes no sense of is.
                 i += 1
                 continue
             # The header line first, then the n_tuples data lines after it.
@@ -4790,7 +4878,7 @@ def _scan_structured_attr(
 
     if upper.startswith("SCALARS"):
         name = _attr_name(parts, where)
-        n_comp = _attr_count(parts, 3, where, default=1)
+        n_comp = _width(parts, 3, where, default=1)
         i += 1
         if i < n_lines and "LOOKUP_TABLE" in texts[i].upper():
             i += 1
@@ -4817,7 +4905,7 @@ def _scan_structured_attr(
         # 0..1 in ASCII; the byte is scaled so the same colour reads back
         # the same way whichever encoding the file used.
         name = _attr_name(parts, where)
-        n_comp = _attr_count(parts, 2, where, default=1)
+        n_comp = _width(parts, 2, where, default=1)
         i += 1
         if is_binary:
             data_pos = offsets[i] if i < len(offsets) else len(raw)
@@ -4857,7 +4945,7 @@ def _scan_structured_attr(
 
     if upper.startswith("TEXTURE_COORDINATES"):
         name = _attr_name(parts, where)
-        n_comp = _attr_count(parts, 2, where, default=2)
+        n_comp = _width(parts, 2, where, default=2)
         i += 1
         if is_binary:
             np_dt = _binary_dtype(parts, 3, where)
@@ -4902,8 +4990,7 @@ def _scan_structured_attr(
             fparts = texts[i].split()
             fwhere = f"line {i + 1}"
             arr_name = fparts[0]
-            n_comp_f = _attr_count(fparts, 1, fwhere)
-            n_tuples_f = _attr_count(fparts, 2, fwhere)
+            n_comp_f, n_tuples_f = _field_shape(fparts, fwhere)
             i += 1
             if is_binary:
                 np_dt_f = _binary_dtype(fparts, 3, fwhere)

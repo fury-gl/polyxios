@@ -98,6 +98,66 @@ Bug fixes
   used to be labelled millimetres unscaled. A ``.amf`` is written the same
   way. The warnings the 3MF reader and writer raise now point at the
   caller's line rather than inside polyxios.
+- Readers fuzzed with Atheris (``fuzz/``, one target per format read from
+  bytes, nightly in CI) now answer a malformed file with ``CodecError``
+  where they raised ``ValueError``, ``KeyError``, ``IndexError``,
+  ``TypeError``, ``OverflowError``, ``UnicodeDecodeError``, ``LookupError``
+  or ``MemoryError``, hung, or allocated what the file never paid for:
+
+  - Cells naming a point the file lacks are refused by the legacy ``.vtk``,
+    ``.vtu``, ``.vtp``, ``.meshb``, ``.mesh`` (MFEM) and DOLFIN ``.xml``
+    readers; they used to come back in the connectivity of a mesh holding
+    no such vertex.
+  - ``.glb`` and ``.gltf`` check the JSON document against the shape glTF
+    gives it before decoding, and refuse a missing property, an index past
+    its array, a value of the wrong type, a ``POSITION`` that is not
+    ``VEC3``, a node hierarchy that is not a forest, a node transform that
+    is not finite once composed, a data URI that is not base64, and an
+    accessor with no ``bufferView`` declaring more zeros than the buffers
+    hold bytes. A buffer file that cannot be read is a ``CodecError``
+    naming the document rather than a ``FileNotFoundError``.
+  - MFEM ``.mesh`` names the token, section or index it cannot read; a
+    ``vertices``, ``coordinates`` or ``VDim`` dimension outside 1..3, a
+    negative count, an NC leaf naming a vertex with no ``coordinates``
+    section and an NC midpoint rule naming no vertex are refused.
+  - ``.dae`` refuses a node transform that is not finite once composed.
+  - ``.ply`` bounds an element's declared count by the bytes its records
+    spend before walking or sizing it: an element of no properties declared
+    a billion times hung the reader, and a list element's columns asked
+    numpy for 605 TiB. A header declaring the vertex element twice is
+    refused.
+  - A ``.vti`` whose extent ends before it starts along one axis is an
+    empty grid; the other axes' coordinates were still built, 21 GB for a
+    180-byte file.
+  - An ASCII ``.stl`` facet is closed at ``endfacet``, so later vertex lines
+    can no longer grow a facet already accepted.
+  - Numbers past ``int32`` or ``int64`` are refused, or read as floats where
+    a column holds them, in ``.avs``, ``.vtk``, ``.su2``, ``.tec``,
+    ``.mdpa``, Medit ``.mesh``, ``.msh`` and ``.fluent``; an ``.off``
+    colormap index no ``int32`` holds drops the face colours with a warning.
+  - An XML encoding expat cannot decode is refused by ``.3mf``, ``.amf``,
+    ``.xdmf``, ``.pvd`` and DOLFIN ``.xml``, and a ``.3mf`` or ``.amf``
+    member labelled bzip2 or LZMA that is not such a stream by both.
+  - Scene flattening keeps normals and tangents of fewer than three columns
+    as read rather than failing to rotate them, and turns integer tangents
+    in floating point.
+  - The VTK XML readers hand the XML to expat as bytes, so a declared
+    encoding such as ISO-8859-1 is honoured; a file that is not UTF-8 and
+    declares nothing is read as Latin-1 with a warning, where its names
+    used to come back with replacement characters.
+  - ``.fluent`` bounds a cell count no section declares by the faces (a
+    face naming cell 2**53 asked for 68 PiB); a ``.tec`` ``VARLOCATION``
+    range is no longer expanded index by index (``[5-999...]`` never
+    finished); a ``.ptx`` scan side past ``int32`` is refused; a ``.dae``
+    whose declared encoding decodes to text UTF-8 cannot spell is refused.
+  - The legacy ``.vtk`` reader also refuses cells whose ``CELL_TYPES``
+    never comes, ``OFFSETS`` that step back, a negative ``CELLS`` count, an
+    attribute width or ``FIELD`` array shape past the cap, and a
+    ``POINT_DATA`` or ``CELL_DATA`` array sized for other points or cells.
+- The legacy ``.vtk`` reader imported its compiled cell and coordinate
+  parser from a module path meson never installs, so every install fell
+  back to the Python parse. It now loads it: a 31 MB ASCII grid reads in
+  0.6 s instead of 1.05 s.
 
 .. _changes_0.5.1:
 
