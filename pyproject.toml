@@ -137,7 +137,19 @@ testpaths = ["tests"]
 # covers, so it fails the run. Codecs warn a lot by design; every one of those
 # belongs inside a `pytest.warns`, and nesting two catches a call that warns
 # twice.
-filterwarnings = ["error"]
+#
+# npe2 0.9 still spells its models in pydantic v1 idioms (`Field(min_ver=...)`,
+# `allow_mutation`), which pydantic 2.14 warns about while npe2 is imported.
+# npe2 registers its own pytest plugin, so the import happens at plugin load,
+# before any test, and `-p no:napari` does not stop it. polyxios does not use
+# pydantic, so these are npe2's. Matched on the message because naming the
+# category would make pytest import pydantic in every environment.
+filterwarnings = [
+    "error",
+    "ignore:Using extra keyword arguments on `Field` is deprecated:DeprecationWarning",
+    "ignore:`allow_mutation` is deprecated:DeprecationWarning",
+    "ignore:`json_encoders` is deprecated:DeprecationWarning",
+]
 markers = [
     "network: downloads assets from the remote data catalog (deselect with -m 'not network')",
 ]
