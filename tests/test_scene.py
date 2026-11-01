@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from polyxios import make_polydata
+from polyxios import make_polydata, read_scene
 from polyxios._scene import SceneData, SceneMaterial, SceneNode
 from polyxios._types import PolyData
 from polyxios.codecs._gltf import _parse_glb, write_scene
@@ -76,6 +76,72 @@ def test_transform_applied() -> None:
         result.vertices[:, 0], mesh.vertices[:, 0] + 5.0, atol=1e-10
     )
     np.testing.assert_allclose(result.vertices[:, 1:], mesh.vertices[:, 1:], atol=1e-10)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize("apply_transforms", [False, True])
+@pytest.mark.parametrize("kind", ["grow", "shrink", "translate", "shear"])
+def test_small_nonidentity_transform(kind, apply_transforms, nested) -> None:
+    """A matrix close to identity can still move a mesh appreciably."""
+    mesh = _triangle_mesh()
+    matrix = np.eye(4)
+    expected = mesh.vertices.copy()
+    if kind in {"grow", "shrink"}:
+        mesh = make_polydata(
+            mesh.vertices + [1e6, 0, 0],
+            [("triangle", np.array([[0, 1, 2]]))],
+        )
+        matrix[0, 0] = 1 + (1e-6 if kind == "grow" else -1e-6)
+        expected = mesh.vertices.copy()
+        expected[:, 0] *= matrix[0, 0]
+    elif kind == "translate":
+        matrix[0, 3] = 5e-9
+        expected[:, 0] += 5e-9
+    else:
+        matrix[0, 1] = 5e-9
+        expected[:, 0] += 5e-9 * mesh.vertices[:, 1]
+
+    if nested:
+        parent = np.diag([2.0, 2.0, 2.0, 1.0])
+        nodes = (
+            SceneNode(children=(1,), matrix=parent),
+            SceneNode(mesh=0, matrix=np.diag([0.5, 0.5, 0.5, 1.0]) @ matrix),
+        )
+    else:
+        nodes = (SceneNode(mesh=0, matrix=matrix),)
+    scene = SceneData(meshes=(mesh,), nodes=nodes, scenes=((0,),))
+
+    result = scene.to_polydata(apply_transforms=apply_transforms)
+
+    np.testing.assert_array_equal(
+        result.vertices, expected if apply_transforms else mesh.vertices
+    )
+
+
+@pytest.mark.parametrize("suffix", [".gltf", ".glb"])
+@pytest.mark.parametrize(
+    "matrix",
+    [
+        np.eye(4),
+        np.diag([1.000001, 1.0, 1.0, 1.0]),
+        _translation_matrix(5e-9, 0, 0),
+        np.array([[1, 5e-9, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]),
+    ],
+    ids=["identity", "scale", "translate", "shear"],
+)
+def test_gltf_preserves_small_node_transform(tmp_path, suffix, matrix) -> None:
+    """Writing a static scene preserves every nonidentity node matrix."""
+    scene = SceneData(
+        meshes=(_triangle_mesh(),),
+        nodes=(SceneNode(mesh=0, matrix=matrix),),
+        scenes=((0,),),
+    )
+    path = tmp_path / f"small{suffix}"
+
+    write_scene(scene, path)
+    restored = read_scene(path)
+
+    np.testing.assert_array_equal(restored.nodes[0].matrix, matrix)
 
 
 def test_hierarchical_transform() -> None:
