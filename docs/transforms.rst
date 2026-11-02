@@ -28,6 +28,8 @@ nothing is modified in place - so they compose freely.
      - Weld coincident vertices into one.
    * - ``triangulate(poly)``
      - Split every surface element into triangles.
+   * - ``reversed_winding(poly)``
+     - Flip every surface element to face the other way.
    * - ``extract_surface(poly)``
      - Return the boundary faces of a volumetric mesh.
    * - ``vertex_colors(poly)``
