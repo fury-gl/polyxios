@@ -41,7 +41,7 @@ from polyxios._element_types import (
 )
 from polyxios._io import GZIP_SUFFIXES, format_suffix, open_read, source_suffix
 from polyxios._registry import Codec, sniff_head
-from polyxios._types import PolyData, make_polydata
+from polyxios._types import PolyData, make_polydata, surface_triangles
 from polyxios._warn import warn_caller
 from polyxios.codecs import _exodus, _gltf, _tecplot, _vti, _vtr, _vts
 from polyxios.codecs._vtk_xml import (
@@ -286,7 +286,8 @@ def _fan(rings: np.ndarray) -> np.ndarray:
     k = rings.shape[1]
     if k < 3:
         return np.empty((0, 3), dtype=rings.dtype)
-    picks = np.array([[0, j, j + 1] for j in range(1, k - 1)])
+    j = np.arange(1, k - 1)
+    picks = np.column_stack([np.zeros_like(j), j, j + 1])
     return rings[:, picks].reshape(-1, 3)
 
 
@@ -300,15 +301,14 @@ def _surface_rings(poly: PolyData) -> Iterator[np.ndarray]:
             # A pixel numbers its corners row by row, not around the ring.
             yield rows[:, [0, 1, 3, 2]]
         elif code == _STRIP_CODE:
-            if rows.shape[1] >= 3:
-                # Every other triangle of a strip is wound backwards.
-                picks = np.array(
-                    [
-                        [j, j + 1, j + 2] if j % 2 == 0 else [j + 1, j, j + 2]
-                        for j in range(rows.shape[1] - 2)
-                    ]
-                )
-                yield rows[:, picks].reshape(-1, 3)
+            m, width = rows.shape
+            tris, _ = surface_triangles(
+                rows.reshape(-1),
+                offsets=np.arange(0, m * width + 1, width),
+                element_types=np.full(m, code, dtype=np.uint8),
+            )
+            if len(tris):
+                yield tris
         else:
             yield rows
 

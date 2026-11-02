@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from polyxios import make_polydata, transforms
+from polyxios._element_types import ELEMENT_TYPES
+from polyxios._types import PolyData
 from polyxios.transforms import (
     extract_surface,
     filter_element_type,
@@ -217,12 +219,12 @@ def test_merge_rejects_mismatched_channel_counts() -> None:
     a = make_polydata(
         np.zeros((3, 3)),
         [("triangle", np.array([[0, 1, 2]]))],
-        vertex_attrs={"colors": np.ones((3, 3))},
+        vertex_attrs={"normals": np.ones((3, 3))},
     )
     b = make_polydata(
         np.zeros((3, 3)),
         [("triangle", np.array([[0, 1, 2]]))],
-        vertex_attrs={"colors": np.ones((3, 4))},
+        vertex_attrs={"normals": np.ones((3, 2))},
     )
     with pytest.raises(ValueError, match="channel counts differ"):
         transforms.merge(a, b)
@@ -557,3 +559,355 @@ def test_every_face_of_a_solid_is_wound_outward(type_name: str) -> None:
     ]
 
     assert not inward
+
+
+@pytest.mark.parametrize(("dtype", "opaque"), [(np.float32, 1.0), (np.uint8, 255)])
+def test_merge_widens_rgb_colors_next_to_rgba(dtype, opaque) -> None:
+    rgb = np.array([[10, 20, 30]] * 3, dtype=dtype)
+    rgba = np.array([[1, 2, 3, 4]] * 3, dtype=dtype)
+    a, b = (
+        make_polydata(
+            np.zeros((3, 3)),
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={"colors": colors},
+            element_attrs={"colors": colors[:1]},
+        )
+        for colors in (rgb, rgba)
+    )
+    merged = transforms.merge(a, b)
+    expected = np.vstack([np.column_stack([rgb, np.full(3, opaque, dtype)]), rgba])
+    np.testing.assert_array_equal(merged.vertex_attrs["colors"], expected)
+    np.testing.assert_array_equal(merged.element_attrs["colors"], expected[::3])
+    assert merged.vertex_attrs["colors"].dtype == dtype
+
+
+@pytest.mark.parametrize("order", [(0, 1, 2), (2, 1, 0), (1, 0, 2)])
+def test_merge_fills_missing_colors_whole_next_to_rgb_and_rgba(order) -> None:
+    """A missing block took its width from whichever input came first, so it
+    read as an opaque NaN colour behind an RGB block and as NaN behind RGBA."""
+    rgb, rgba = np.ones((3, 3)), np.full((3, 4), 0.5)
+    polys = [
+        make_polydata(
+            np.zeros((3, 3)),
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={} if colors is None else {"colors": colors},
+            element_attrs={} if colors is None else {"colors": colors[:1]},
+        )
+        for colors in (rgb, None, rgba)
+    ]
+    merged = transforms.merge(*(polys[i] for i in order))
+    expected = [np.column_stack([rgb, np.ones(3)]), np.full((3, 4), np.nan), rgba]
+    blocks = [expected[i] for i in order]
+    np.testing.assert_array_equal(merged.vertex_attrs["colors"], np.vstack(blocks))
+    np.testing.assert_array_equal(
+        merged.element_attrs["colors"], np.vstack([b[:1] for b in blocks])
+    )
+
+
+@pytest.mark.parametrize("order", [(0, 1, 2), (2, 1, 0)])
+def test_merge_fills_in_the_joined_dtype(order) -> None:
+    """The fill took the dtype of whichever input came first: -1 behind an
+    int block, which the float join then carried as a real -1.0."""
+    polys = [
+        make_polydata(
+            np.zeros((3, 3)),
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={} if values is None else {"weight": values},
+        )
+        for values in (np.arange(3), None, np.full(3, 0.5))
+    ]
+    weight = transforms.merge(*(polys[i] for i in order)).vertex_attrs["weight"]
+    assert weight.dtype == np.float64
+    assert np.isnan(weight[3:6]).all()
+
+
+def test_merge_judges_opaque_on_each_block_scale() -> None:
+    """A uint8 RGB block joined to float RGBA keeps its 0-255 channels, and
+    an alpha of 1.0 beside them reads as 1/255 - nearly transparent."""
+    a, b = (
+        make_polydata(
+            np.zeros((3, 3)),
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={"colors": colors},
+        )
+        for colors in (
+            np.full((3, 3), 200, np.uint8),
+            np.full((3, 4), 0.5, np.float32),
+        )
+    )
+    colors = transforms.merge(a, b).vertex_attrs["colors"]
+    assert colors.dtype == np.float32
+    np.testing.assert_array_equal(colors[:3], [[200, 200, 200, 255]] * 3)
+    np.testing.assert_array_equal(colors[3:], 0.5)
+
+
+def test_merge_widens_narrow_rgb_to_its_own_alpha() -> None:
+    """A uint8 RGB block joined to uint16 RGBA keeps its 0-255 channels, so
+    its alpha is 255, not the 65535 that would sit off their scale."""
+    a, b = (
+        make_polydata(
+            np.zeros((3, 3)),
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={"colors": colors},
+        )
+        for colors in (
+            np.full((3, 3), 200, np.uint8),
+            np.full((3, 4), 7, np.uint16),
+        )
+    )
+    colors = transforms.merge(a, b).vertex_attrs["colors"]
+    assert colors.dtype == np.uint16
+    np.testing.assert_array_equal(colors[:3], [[200, 200, 200, 255]] * 3)
+
+
+@pytest.mark.parametrize(("dtype", "opaque"), [(np.int64, 255), (np.int8, 127)])
+def test_merge_widens_signed_rgb_to_a_byte_alpha(dtype, opaque) -> None:
+    """A signed integer RGB block gained its type's maximum as alpha, which
+    for int64 is an alpha no 0-255 channel next to it can mean."""
+    a, b = (
+        make_polydata(
+            np.zeros((3, 3)),
+            [("triangle", np.array([[0, 1, 2]]))],
+            vertex_attrs={"colors": np.full((3, k), 9, dtype)},
+        )
+        for k in (3, 4)
+    )
+    colors = transforms.merge(a, b).vertex_attrs["colors"]
+    assert colors.dtype == dtype
+    np.testing.assert_array_equal(colors[:3, 3], opaque)
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.uint32, np.uint64])
+def test_merge_fills_a_missing_unsigned_attr(dtype) -> None:
+    """The -1 fill overflowed an unsigned attribute and merge raised."""
+    a = make_polydata(
+        np.zeros((3, 3)),
+        [("triangle", np.array([[0, 1, 2]]))],
+        vertex_attrs={"colors": np.full((3, 3), 7, dtype)},
+        element_attrs={"id": np.array([3], dtype)},
+    )
+    b = make_polydata(np.zeros((3, 3)), [("triangle", np.array([[0, 1, 2]]))])
+    merged = transforms.merge(a, b)
+    top = np.iinfo(dtype).max
+    assert merged.vertex_attrs["colors"].dtype == dtype
+    np.testing.assert_array_equal(merged.vertex_attrs["colors"][3:], top)
+    np.testing.assert_array_equal(merged.element_attrs["id"], [3, top])
+
+
+def test_faces_of_a_triangle_strip_alternate() -> None:
+    poly = make_polydata(
+        np.zeros((5, 3)), [("triangle_strip", np.array([[0, 1, 2, 3, 4]]))]
+    )
+    expected = [[0, 1, 2], [2, 1, 3], [2, 3, 4]]
+    np.testing.assert_array_equal(poly.faces, expected)
+    tri = transforms.triangulate(poly)
+    np.testing.assert_array_equal(tri.connectivity.reshape(-1, 3), expected)
+
+
+def test_strip_triangles_naming_a_vertex_twice_are_dropped() -> None:
+    """Strips stitched with a repeated vertex gave zero-area triangles that
+    a GPU never draws."""
+    poly = make_polydata(
+        np.zeros((6, 3)),
+        [
+            ("triangle_strip", np.array([[0, 1, 2, 2, 3, 3, 4, 5]])),
+            ("triangle", np.array([[0, 0, 1]])),
+        ],
+        element_attrs={"id": np.array([7, 8])},
+        element_tags={"strip": np.array([0])},
+    )
+    expected = [[0, 1, 2], [4, 3, 5], [0, 0, 1]]
+    np.testing.assert_array_equal(poly.faces, expected)
+    tri = transforms.triangulate(poly)
+    np.testing.assert_array_equal(tri.connectivity.reshape(-1, 3), expected)
+    np.testing.assert_array_equal(tri.element_attrs["id"], [7, 7, 8])
+    np.testing.assert_array_equal(tri.element_tags["strip"], [0, 1])
+
+
+def test_reversed_even_strip_keeps_its_triangle_count() -> None:
+    """The copy of the first vertex that turns an even strip's parity added
+    a zero-area triangle to ``faces``."""
+    poly = make_polydata(
+        np.zeros((6, 3)), [("triangle_strip", np.array([[0, 1, 2, 3, 4, 5]]))]
+    )
+    flipped = transforms.reversed_winding(poly).faces
+    assert len(flipped) == len(poly.faces) == 4
+    assert {tuple(sorted(t)) for t in flipped} == {tuple(sorted(t)) for t in poly.faces}
+
+
+def test_faces_of_a_pixel_follow_its_rows() -> None:
+    """A pixel numbers its corners row by row; the 0-2 diagonal is an edge."""
+    verts = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], dtype=float)
+    poly = make_polydata(verts, [("pixel", np.array([[0, 1, 2, 3]]))])
+    tris = verts[poly.faces]
+    normals = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    np.testing.assert_allclose(normals, [[0, 0, 1], [0, 0, 1]])
+
+
+def _signed_normals(poly) -> np.ndarray:
+    tris = poly.vertices[poly.faces]
+    normals = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    return normals[np.linalg.norm(normals, axis=1) > 0]
+
+
+@pytest.mark.parametrize(
+    ("etype", "cell"),
+    [
+        ("triangle", [0, 1, 2]),
+        ("quad", [0, 1, 3, 2]),
+        ("pixel", [0, 1, 2, 3]),
+        ("polygon", [0, 1, 3, 2]),
+        ("quadratic_triangle", [0, 1, 2, 4, 5, 6]),
+        ("biquadratic_triangle", [0, 1, 2, 4, 5, 6, 7]),
+        ("quadratic_quad", [0, 1, 3, 2, 4, 5, 6, 7]),
+        ("biquadratic_quad", [0, 1, 3, 2, 4, 5, 6, 7, 8]),
+        ("triangle_strip", [0, 1, 2, 3]),
+        ("triangle_strip", [0, 1, 2, 3, 4, 5, 6]),
+    ],
+)
+def test_reversed_winding_turns_every_surface_over(etype, cell) -> None:
+    rng = np.random.default_rng(0)
+    verts = np.column_stack([np.arange(9) % 2, np.arange(9) // 2, np.zeros(9)]).astype(
+        float
+    )
+    verts[:, :2] += rng.uniform(-0.05, 0.05, (9, 2))
+    poly = make_polydata(verts, [(etype, np.array([cell]))])
+    flipped = transforms.reversed_winding(poly)
+    before, after = _signed_normals(poly)[:, 2], _signed_normals(flipped)[:, 2]
+    assert np.all(np.sign(before) == np.sign(before[0]))
+    assert np.all(np.sign(after) == -np.sign(before[0]))
+    assert len(after) == len(before)
+
+
+def test_reversed_winding_keeps_midside_nodes_on_their_edges() -> None:
+    poly = make_polydata(
+        np.zeros((8, 3)), [("quadratic_quad", np.array([[0, 1, 2, 3, 4, 5, 6, 7]]))]
+    )
+    flipped = transforms.reversed_winding(poly)
+    np.testing.assert_array_equal(flipped.connectivity, [0, 3, 2, 1, 7, 6, 5, 4])
+
+
+def test_reversed_winding_leaves_lines_and_volumes_alone() -> None:
+    poly = make_polydata(
+        np.zeros((5, 3)),
+        [
+            ("tetra", np.array([[0, 1, 2, 3]])),
+            ("line", np.array([[0, 4]])),
+            ("triangle_strip", np.array([[0, 1, 2, 3]])),
+            ("triangle", np.array([[1, 2, 3]])),
+        ],
+        element_attrs={"id": np.arange(4)},
+    )
+    flipped = transforms.reversed_winding(poly)
+    np.testing.assert_array_equal(
+        flipped.connectivity, [0, 1, 2, 3, 0, 4, 0, 0, 1, 2, 3, 1, 3, 2]
+    )
+    np.testing.assert_array_equal(flipped.offsets, [0, 4, 6, 11, 14])
+    np.testing.assert_array_equal(flipped.element_attrs["id"], np.arange(4))
+
+
+def test_reversed_winding_of_many_polygons_and_strips() -> None:
+    """Every polygon and strip of a mixed mesh is reversed on its own span."""
+    cells = [
+        ("polygon", [0, 1, 2, 3, 4]),
+        ("triangle_strip", [5, 6]),
+        ("triangle_strip", [0, 1, 2]),
+        ("quad", [1, 2, 3, 4]),
+        ("polygon", [6, 5, 4]),
+        ("triangle_strip", [3, 4, 5, 6]),
+        ("triangle_strip", [6, 5, 4, 3, 2]),
+        ("polygon", [0, 2, 4, 6, 1, 3]),
+    ]
+    poly = make_polydata(
+        np.zeros((7, 3)), [(etype, np.array([cell])) for etype, cell in cells]
+    )
+    expected = [
+        [0, 4, 3, 2, 1],
+        [5, 6],
+        [2, 1, 0],
+        [1, 4, 3, 2],
+        [6, 4, 5],
+        [3, 3, 4, 5, 6],
+        [2, 3, 4, 5, 6],
+        [0, 3, 1, 6, 4, 2],
+    ]
+    flipped = transforms.reversed_winding(poly)
+    got = [
+        flipped.connectivity[s:e].tolist()
+        for s, e in zip(flipped.offsets[:-1], flipped.offsets[1:])
+    ]
+    assert got == expected
+
+
+@pytest.mark.parametrize(
+    ("code", "conn", "offsets"),
+    [
+        (ELEMENT_TYPES["triangle"], [0, 1, 2, 3, 4], [0, 4, 5]),
+        (ELEMENT_TYPES["quad"], [0, 1, 2, 3], [0, 1, 4]),
+    ],
+)
+def test_reversed_winding_rejects_a_misfit_element(code, conn, offsets) -> None:
+    """A triangle of four nodes was half permuted, and a quad cut short read
+    its flip from the next element's nodes."""
+    poly = PolyData(
+        vertices=np.zeros((5, 3)),
+        connectivity=np.array(conn, dtype=np.int32),
+        offsets=np.array(offsets, dtype=np.int32),
+        element_types=np.array(
+            [code, ELEMENT_TYPES["vertex"]]
+            if code == ELEMENT_TYPES["triangle"]
+            else [ELEMENT_TYPES["vertex"], code],
+            dtype=np.uint8,
+        ),
+    )
+    with pytest.raises(ValueError, match="nodes; the type has"):
+        transforms.reversed_winding(poly)
+
+
+def test_triangulating_a_short_quad_names_the_element() -> None:
+    """A quad of three nodes surfaced as a bare IndexError from its split."""
+    poly = PolyData(
+        vertices=np.zeros((4, 3)),
+        connectivity=np.array([0, 1, 2], dtype=np.int32),
+        offsets=np.array([0, 3], dtype=np.int32),
+        element_types=np.array([ELEMENT_TYPES["quad"]], dtype=np.uint8),
+    )
+    with pytest.raises(ValueError, match="element 0 is a quad of 3 nodes"):
+        _ = poly.faces
+    with pytest.raises(ValueError, match="element 0 is a quad of 3 nodes"):
+        transforms.triangulate(poly)
+
+
+def test_triangulate_keeps_tags_on_each_cut_triangle() -> None:
+    poly = make_polydata(
+        np.zeros((6, 3)),
+        [
+            ("line", np.array([[0, 1]])),
+            ("triangle_strip", np.array([[0, 1, 2, 3, 4]])),
+            ("quad", np.array([[0, 1, 2, 3]])),
+        ],
+        element_tags={"group": np.array([2, 0, 1, 7, -1])},
+    )
+    tri = transforms.triangulate(poly)
+    np.testing.assert_array_equal(tri.element_tags["group"], [3, 4, 0, 1, 2])
+
+
+def test_reversed_winding_of_a_mesh_without_surfaces_is_itself() -> None:
+    poly = make_polydata(np.zeros((4, 3)), [("tetra", np.array([[0, 1, 2, 3]]))])
+    assert transforms.reversed_winding(poly) is poly
+
+
+def test_reversed_winding_keeps_an_empty_polygon_empty() -> None:
+    """An empty polygon's span to reverse ran from past its end, a negative
+    length that numpy refused."""
+    poly = PolyData(
+        vertices=np.eye(3),
+        connectivity=np.array([0, 1, 2]),
+        offsets=np.array([0, 0, 3]),
+        element_types=np.array(
+            [ELEMENT_TYPES["polygon"], ELEMENT_TYPES["triangle"]], dtype=np.uint8
+        ),
+    )
+    flipped = transforms.reversed_winding(poly)
+    np.testing.assert_array_equal(flipped.connectivity, [0, 2, 1])
+    np.testing.assert_array_equal(flipped.offsets, [0, 0, 3])

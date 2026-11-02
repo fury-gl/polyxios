@@ -600,6 +600,16 @@ def _round_trip(poly, tmp_path: Path, **kwargs):
     return read(path)
 
 
+def test_stitched_strip_writes_no_zero_area_triangle(tmp_path: Path) -> None:
+    verts = np.column_stack([np.arange(6) // 2, np.arange(6) % 2, np.zeros(6)])
+    poly = make_polydata(
+        verts.astype(float),
+        [("triangle_strip", np.array([[0, 1, 2, 2, 3, 3, 4, 5]]))],
+    )
+    back = _round_trip(poly, tmp_path)
+    np.testing.assert_array_equal(back.faces, [[0, 1, 2], [4, 3, 5]])
+
+
 def test_tags_become_objects_and_quads_split(tmp_path: Path) -> None:
     poly = make_polydata(
         _SQUARE,

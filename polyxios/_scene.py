@@ -443,12 +443,23 @@ class SceneData:
             :attr:`active_scene`.  Ignored when :attr:`nodes` is empty.
         apply_transforms
             When ``True``, each mesh's vertices are multiplied by the
-            node's world-space transform before merging.
+            node's world-space transform before merging. Where that
+            transform mirrors - its determinant is negative - the mesh's
+            surface elements have their winding reversed as well, so each
+            keeps the front face it had before the reflection, as glTF's
+            instantiation rules ask, and the handedness ``w`` of each
+            four-column tangent is negated, so the bitangent rebuilt as
+            ``cross(normal, tangent) * w`` turns with the mesh. Volume
+            elements keep their node order, so a mirrored tetra or
+            hexahedron comes back inside out; the scene formats carry
+            surfaces only, and :func:`~polyxios.transforms.reversed_winding`
+            leaves volumes alone too.
 
         Returns
         -------
         PolyData
-            All scene geometry merged into one mesh.
+            All scene geometry merged into one mesh. Meshes whose ``colors``
+            mix RGB and RGBA come back as RGBA, the RGB ones opaque.
         """
         if len(self.nodes) == 0:
             if not self.meshes:
@@ -494,6 +505,7 @@ class SceneData:
                     homo = np.hstack([mesh.vertices, ones])
                     new_vertices = (homo @ world.T)[:, :3]
                     R = world[:3, :3]
+                    mirrors = np.linalg.det(R) < 0
                     vertex_attrs = dict(mesh.vertex_attrs)
                     # A file may spell normals or tangents in fewer than three
                     # columns; those have no direction to turn and are kept.
@@ -510,10 +522,16 @@ class SceneData:
                         t_norms = np.linalg.norm(tgts[:, :3], axis=1, keepdims=True)
                         t_norms = np.where(t_norms == 0, 1.0, t_norms)
                         tgts[:, :3] /= t_norms
+                        # The bitangent is rebuilt as cross(N, T) * w, and a
+                        # reflection turns that cross product the other way.
+                        if mirrors and tgts.shape[1] >= 4:
+                            tgts[:, 3] = -tgts[:, 3]
                         vertex_attrs["tangents"] = tgts
                     mesh = dataclasses.replace(
                         mesh, vertices=new_vertices, vertex_attrs=vertex_attrs
                     )
+                    if mirrors:
+                        mesh = transforms.reversed_winding(mesh)
                 collected.append(mesh)
             for child in reversed(node.children):
                 if child in visited_nodes:

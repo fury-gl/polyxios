@@ -1631,13 +1631,32 @@ def _runs(poly: PolyData, layers: _Layers) -> list[_Run]:
     conns: list[np.ndarray] = []
     kinds: list[np.ndarray] = []
 
-    def block(rows: np.ndarray, pattern: np.ndarray | list[int], kind: int) -> None:
+    def block(
+        rows: np.ndarray,
+        pattern: np.ndarray | list[int],
+        kind: int,
+        *,
+        drop_repeats: bool = False,
+    ) -> None:
         pattern = np.asarray(pattern, dtype=np.int64).reshape(-1, np.shape(pattern)[-1])
         cells = connectivity[offsets[rows][:, None, None] + pattern[None]]
-        owners.append(np.repeat(rows, len(pattern)))
-        sizes.append(np.full(cells.shape[0] * cells.shape[1], pattern.shape[1]))
+        cells = cells.reshape(-1, pattern.shape[1])
+        owner = np.repeat(rows, len(pattern))
+        if drop_repeats:
+            # A strip repeats a vertex to stitch strips or turn parity; the
+            # triangles naming it twice cover no area, and faces drops them.
+            keep = (
+                (cells[:, 0] != cells[:, 1])
+                & (cells[:, 1] != cells[:, 2])
+                & (cells[:, 0] != cells[:, 2])
+            )
+            cells, owner = cells[keep], owner[keep]
+        if not len(owner):
+            return
+        owners.append(owner)
+        sizes.append(np.full(len(owner), pattern.shape[1]))
         conns.append(cells.ravel())
-        kinds.append(np.full(cells.shape[0] * cells.shape[1], kind))
+        kinds.append(np.full(len(owner), kind))
 
     fixed: dict[int, tuple[list[int], int]] = {
         _TRIANGLE: ([0, 1, 2], _FACE),
@@ -1667,7 +1686,7 @@ def _runs(poly: PolyData, layers: _Layers) -> list[_Run]:
                 label = ELEMENT_TYPES_INV[code]
                 degenerate[label] = degenerate.get(label, 0) + len(same)
             else:
-                block(same, pattern, kind)
+                block(same, pattern, kind, drop_repeats=code == _STRIP)
     drawn = set(fixed) | {_POLYGON, _STRIP, _POLY_LINE, _POLY_VERTEX}
     dropped = {
         ELEMENT_TYPES_INV.get(code, str(code)): int((types == code).sum())

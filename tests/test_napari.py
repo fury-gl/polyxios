@@ -185,6 +185,15 @@ def test_triangle_strip_alternates_its_triangles():
     np.testing.assert_array_equal(data[1], [[0, 1, 2], [2, 1, 3]])
 
 
+def test_stitched_strip_draws_no_degenerate_triangle():
+    verts = np.column_stack([np.arange(6), np.arange(6) % 2, np.zeros(6)]).astype(float)
+    poly = make_polydata(
+        verts, [("triangle_strip", np.array([[0, 1, 2, 2, 3, 3, 4, 5]]))]
+    )
+    [(data, _, _)] = layer_data(poly, name="s", axis_order="xyz")
+    np.testing.assert_array_equal(data[1], [[0, 1, 2], [4, 3, 5]])
+
+
 def _drawn_normal(vertices: np.ndarray, faces: np.ndarray) -> np.ndarray:
     # napari draws a Surface with its columns and its faces both reversed.
     v = np.asarray(vertices)[:, ::-1]

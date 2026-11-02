@@ -26,10 +26,10 @@ import numpy as np
 from polyxios._element_types import (
     ELEMENT_TYPES,
     ELEMENT_TYPES_INV,
-    QUADRATIC_SURFACE_CORNERS,
+    SURFACE_ELEMENT_TYPES,
 )
 from polyxios._io import Source, read_bytes, source_name, write_bytes
-from polyxios._types import PolyData
+from polyxios._types import PolyData, surface_triangles
 from polyxios._units import conversion
 from polyxios._warn import warn_caller
 from polyxios.exceptions import CodecError, LazyReadError
@@ -102,25 +102,6 @@ _HEX_COLOR = re.compile(r"^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$")
 _XML_FORBIDDEN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 
 _TRIANGLE: int = ELEMENT_TYPES["triangle"]
-_QUAD: int = ELEMENT_TYPES["quad"]
-_PIXEL: int = ELEMENT_TYPES["pixel"]
-_POLYGON: int = ELEMENT_TYPES["polygon"]
-_STRIP: int = ELEMENT_TYPES["triangle_strip"]
-
-# For each element type of a fixed corner count, the corner triples of the
-# triangles it fans into; a quadratic surface fans like its linear corners.
-_TRIANGLE_FAN: np.ndarray = np.array([[0, 1, 2]])
-_QUAD_FAN: np.ndarray = np.array([[0, 1, 2], [0, 2, 3]])
-_PIXEL_FAN: np.ndarray = np.array([[0, 1, 3], [0, 3, 2]])
-_FIXED_FANS: dict[int, np.ndarray] = {
-    _TRIANGLE: _TRIANGLE_FAN,
-    _QUAD: _QUAD_FAN,
-    _PIXEL: _PIXEL_FAN,
-    **{
-        code: _TRIANGLE_FAN if corners == 3 else _QUAD_FAN
-        for code, corners in QUADRATIC_SURFACE_CORNERS.items()
-    },
-}
 
 # A 4x3 affine matrix in the row-vector convention the specification uses -
 # ``m00 m01 m02 m10 m11 m12 m20 m21 m22 m30 m31 m32``, the last row the
@@ -378,8 +359,9 @@ def write(
     Raises
     ------
     CodecError
-        When the mesh has elements but none of them is a surface, a vertex
-        a triangle uses is not finite, a tag group name or metadata value
+        When the mesh has elements but none of them is a surface, a
+        fixed-size surface element holds a node count other than its type's,
+        a vertex a triangle uses is not finite, a tag group name or metadata value
         holds a character XML cannot carry, or ``unit`` is not one the
         format defines.
     """
@@ -987,40 +969,19 @@ def _triangles(
         element, so a per-element colour or tag can follow its triangles.
     """
     types = np.asarray(poly.element_types)
-    connectivity = np.asarray(poly.connectivity)
-    offsets = np.asarray(poly.offsets)
-    tris: list[np.ndarray] = []
-    source: list[np.ndarray] = []
-    # Every type of a fixed corner count is fanned in one gather over the
-    # elements of that type; only the ragged types are walked one by one.
-    for code, fan in _FIXED_FANS.items():
-        rows = np.flatnonzero(types == code)
-        if rows.size == 0:
-            continue
-        starts = offsets[rows]
-        for corner_fan in fan:
-            tris.append(connectivity[starts[:, None] + corner_fan[None, :]])
-            source.append(rows)
-    for code in (_POLYGON, _STRIP):
-        for i in np.flatnonzero(types == code).tolist():
-            cell = connectivity[offsets[i] : offsets[i + 1]]
-            n = len(cell) - 2
-            if n <= 0:
-                continue
-            if code == _POLYGON:
-                fan = np.column_stack([np.full(n, cell[0]), cell[1:-1], cell[2:]])
-            else:
-                fan = np.column_stack([cell[:-2], cell[1:-1], cell[2:]])
-                fan[1::2, :2] = fan[1::2, 1::-1]
-            tris.append(fan)
-            source.append(np.full(n, i))
+    try:
+        tris, source = surface_triangles(
+            poly.connectivity, offsets=poly.offsets, element_types=types
+        )
+    except ValueError as exc:
+        raise CodecError(f"{fmt}: {exc}.") from None
     dropped: dict[str, int] = {}
     for code in np.unique(types).tolist():
-        if code not in _FIXED_FANS and code not in (_POLYGON, _STRIP):
+        if code not in SURFACE_ELEMENT_TYPES:
             label = ELEMENT_TYPES_INV.get(code, str(code))
             dropped[label] = int((types == code).sum())
     named = ", ".join(f"{n} {label}" for label, n in dropped.items())
-    if not tris:
+    if not len(tris):
         if dropped:
             raise CodecError(
                 f"{fmt}: {_label(fmt)} holds triangles only, and the mesh has"
@@ -1032,9 +993,7 @@ def _triangles(
             f"{fmt}: {_label(fmt)} holds triangles only; {named} element(s) have no"
             " triangle to be written as and were dropped."
         )
-    all_source = np.concatenate(source).astype(np.int64)
-    order = np.argsort(all_source, kind="stable")
-    return np.concatenate(tris).astype(np.int64)[order], all_source[order]
+    return tris.astype(np.int64), source
 
 
 def _facet_colors(

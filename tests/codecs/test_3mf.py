@@ -692,6 +692,32 @@ def test_polygons_strips_and_pixels_are_split_into_triangles(tmp_path: Path) -> 
     np.testing.assert_array_equal(back, expected)
 
 
+def test_stitched_strip_writes_no_zero_area_triangle(tmp_path: Path) -> None:
+    """A strip repeats a vertex to stitch or to turn parity; the triangles
+    naming it twice cover no area and were written as facets."""
+    verts = np.column_stack([np.arange(6) // 2, np.arange(6) % 2, np.zeros(6)])
+    poly = make_polydata(
+        verts.astype(float),
+        [("triangle_strip", np.array([[0, 1, 2, 2, 3, 3, 4, 5]]))],
+    )
+    path = tmp_path / "out.3mf"
+    write(poly, path)
+    np.testing.assert_array_equal(read(path).faces, [[0, 1, 2], [4, 3, 5]])
+
+
+def test_wrong_node_count_is_a_codec_error(tmp_path: Path) -> None:
+    """A three-node quad was cut with its fourth corner read from the next
+    element."""
+    poly = PolyData(
+        vertices=np.eye(3),
+        connectivity=np.array([0, 1, 2, 0, 1, 2]),
+        offsets=np.array([0, 3, 6]),
+        element_types=np.array([9, 5], dtype=np.uint8),
+    )
+    with pytest.raises(CodecError, match="quad of 3 nodes"):
+        write(poly, tmp_path / "out.3mf")
+
+
 def test_mixed_element_types_keep_their_order(tmp_path: Path) -> None:
     """A triangle, a quad, a triangle: the quad's two halves sit between them."""
     verts = np.array(

@@ -158,6 +158,39 @@ Bug fixes
   parser from a module path meson never installs, so every install fell
   back to the Python parse. It now loads it: a 31 MB ASCII grid reads in
   0.6 s instead of 1.05 s.
+- ``SceneData.to_polydata`` flattens a scene whose meshes mix RGB and RGBA
+  ``colors``: ``transforms.merge`` widens the RGB ones to RGBA with an
+  opaque alpha on each block's own scale (255 for byte colours, 1.0 for
+  float ones) rather than raising over the channel counts. A mesh with no
+  ``colors`` next to both is filled whole, alpha included.
+- ``transforms.merge`` fills an attribute missing from one input in the
+  dtype every input's block is joined in, whichever input comes first.
+  Previously an int block ahead of a float one filled with ``-1``, read
+  back as a real ``-1.0`` rather than NaN, and a missing unsigned integer
+  attribute raised ``OverflowError`` over that ``-1``; it is now filled
+  with the type's maximum, so missing uint8 ``colors`` read as opaque
+  white.
+- A node transform that mirrors - negative determinant - now reverses the
+  winding of its mesh as ``SceneData.to_polydata`` bakes it in, as glTF's
+  instantiation rules ask, so each face keeps facing the way its normals
+  do, and negates each tangent's handedness so the bitangent turns with
+  it. ``transforms.reversed_winding`` reverses the winding of any mesh.
+- ``PolyData.faces`` and ``transforms.triangulate`` split a triangle strip
+  into its own triangles, every other one turned back, where they fanned it
+  from the first vertex, joining vertices the strip never joins. A pixel
+  is split along its diagonal rather than across its row order, which
+  folded it into two overlapping triangles facing opposite ways. A strip
+  triangle naming one vertex twice - where strips are stitched together,
+  or where ``transforms.reversed_winding`` turns an even strip's parity -
+  covers no area and is dropped. Both now cut the whole mesh in one
+  vectorised pass, about 14 times faster on 1.5 million elements, and raise
+  ``ValueError`` on a fixed-size surface element holding the wrong node
+  count.
+- The 3MF, AMF and DXF writers cut strips the same way, so a strip
+  triangle naming one vertex twice is no longer written as a zero-area
+  facet or 3DFACE. The 3MF and AMF writers raise ``CodecError`` on a
+  fixed-size surface element holding the wrong node count, where a
+  three-node quad took its fourth corner from the next element.
 
 .. _changes_0.5.1:
 
