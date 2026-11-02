@@ -15,6 +15,7 @@ polyxios.transforms
       pipeline
       reindex
       remove_orphan_vertices
+      reversed_winding
       triangulate
       vertex_colors
    

@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=05263531"></script>
+    <script src="_static/documentation_options.js?v=2a28be62"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -75,7 +75,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.6" />
-    <meta name="docbuild:last-update" content="2026-11-01"/>
+    <meta name="docbuild:last-update" content="2026-11-02"/>
   
     
     <script src="_static/searchtools.js"></script>
@@ -723,6 +723,39 @@ attribute width or <code class="docutils literal notranslate"><span class="pre">
 parser from a module path meson never installs, so every install fell
 back to the Python parse. It now loads it: a 31 MB ASCII grid reads in
 0.6 s instead of 1.05 s.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SceneData.to_polydata</span></code> flattens a scene whose meshes mix RGB and RGBA
+<code class="docutils literal notranslate"><span class="pre">colors</span></code>: <code class="docutils literal notranslate"><span class="pre">transforms.merge</span></code> widens the RGB ones to RGBA with an
+opaque alpha on each block’s own scale (255 for byte colours, 1.0 for
+float ones) rather than raising over the channel counts. A mesh with no
+<code class="docutils literal notranslate"><span class="pre">colors</span></code> next to both is filled whole, alpha included.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transforms.merge</span></code> fills an attribute missing from one input in the
+dtype every input’s block is joined in, whichever input comes first.
+Previously an int block ahead of a float one filled with <code class="docutils literal notranslate"><span class="pre">-1</span></code>, read
+back as a real <code class="docutils literal notranslate"><span class="pre">-1.0</span></code> rather than NaN, and a missing unsigned integer
+attribute raised <code class="docutils literal notranslate"><span class="pre">OverflowError</span></code> over that <code class="docutils literal notranslate"><span class="pre">-1</span></code>; it is now filled
+with the type’s maximum, so missing uint8 <code class="docutils literal notranslate"><span class="pre">colors</span></code> read as opaque
+white.</p></li>
+<li><p>A node transform that mirrors - negative determinant - now reverses the
+winding of its mesh as <code class="docutils literal notranslate"><span class="pre">SceneData.to_polydata</span></code> bakes it in, as glTF’s
+instantiation rules ask, so each face keeps facing the way its normals
+do, and negates each tangent’s handedness so the bitangent turns with
+it. <code class="docutils literal notranslate"><span class="pre">transforms.reversed_winding</span></code> reverses the winding of any mesh.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PolyData.faces</span></code> and <code class="docutils literal notranslate"><span class="pre">transforms.triangulate</span></code> split a triangle strip
+into its own triangles, every other one turned back, where they fanned it
+from the first vertex, joining vertices the strip never joins. A pixel
+is split along its diagonal rather than across its row order, which
+folded it into two overlapping triangles facing opposite ways. A strip
+triangle naming one vertex twice - where strips are stitched together,
+or where <code class="docutils literal notranslate"><span class="pre">transforms.reversed_winding</span></code> turns an even strip’s parity -
+covers no area and is dropped. Both now cut the whole mesh in one
+vectorised pass, about 14 times faster on 1.5 million elements, and raise
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> on a fixed-size surface element holding the wrong node
+count.</p></li>
+<li><p>The 3MF, AMF and DXF writers cut strips the same way, so a strip
+triangle naming one vertex twice is no longer written as a zero-area
+facet or 3DFACE. The 3MF and AMF writers raise <code class="docutils literal notranslate"><span class="pre">CodecError</span></code> on a
+fixed-size surface element holding the wrong node count, where a
+three-node quad took its fourth corner from the next element.</p></li>
 </ul>
 </section>
 </section>
@@ -2868,7 +2901,7 @@ commit hash for development builds (e.g. <code class="docutils literal notransla
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-11-01.
+  Last updated on 2026-11-02.
   <br/>
 </p></div>
       

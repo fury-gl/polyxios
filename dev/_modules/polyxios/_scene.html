@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=05263531"></script>
+    <script src="../../_static/documentation_options.js?v=2a28be62"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -61,7 +61,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.6" />
-    <meta name="docbuild:last-update" content="2026-11-01"/>
+    <meta name="docbuild:last-update" content="2026-11-02"/>
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -909,12 +909,23 @@
 <span class="sd">            :attr:`active_scene`.  Ignored when :attr:`nodes` is empty.</span>
 <span class="sd">        apply_transforms</span>
 <span class="sd">            When ``True``, each mesh's vertices are multiplied by the</span>
-<span class="sd">            node's world-space transform before merging.</span>
+<span class="sd">            node's world-space transform before merging. Where that</span>
+<span class="sd">            transform mirrors - its determinant is negative - the mesh's</span>
+<span class="sd">            surface elements have their winding reversed as well, so each</span>
+<span class="sd">            keeps the front face it had before the reflection, as glTF's</span>
+<span class="sd">            instantiation rules ask, and the handedness ``w`` of each</span>
+<span class="sd">            four-column tangent is negated, so the bitangent rebuilt as</span>
+<span class="sd">            ``cross(normal, tangent) * w`` turns with the mesh. Volume</span>
+<span class="sd">            elements keep their node order, so a mirrored tetra or</span>
+<span class="sd">            hexahedron comes back inside out; the scene formats carry</span>
+<span class="sd">            surfaces only, and :func:`~polyxios.transforms.reversed_winding`</span>
+<span class="sd">            leaves volumes alone too.</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        PolyData</span>
-<span class="sd">            All scene geometry merged into one mesh.</span>
+<span class="sd">            All scene geometry merged into one mesh. Meshes whose ``colors``</span>
+<span class="sd">            mix RGB and RGBA come back as RGBA, the RGB ones opaque.</span>
 <span class="sd">        """</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">meshes</span><span class="p">:</span>
@@ -960,6 +971,7 @@
                     <span class="n">homo</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">ones</span><span class="p">])</span>
                     <span class="n">new_vertices</span> <span class="o">=</span> <span class="p">(</span><span class="n">homo</span> <span class="o">@</span> <span class="n">world</span><span class="o">.</span><span class="n">T</span><span class="p">)[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
                     <span class="n">R</span> <span class="o">=</span> <span class="n">world</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+                    <span class="n">mirrors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="n">R</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span>
                     <span class="n">vertex_attrs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="p">)</span>
                     <span class="c1"># A file may spell normals or tangents in fewer than three</span>
                     <span class="c1"># columns; those have no direction to turn and are kept.</span>
@@ -976,10 +988,16 @@
                         <span class="n">t_norms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">tgts</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                         <span class="n">t_norms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">t_norms</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">t_norms</span><span class="p">)</span>
                         <span class="n">tgts</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">/=</span> <span class="n">t_norms</span>
+                        <span class="c1"># The bitangent is rebuilt as cross(N, T) * w, and a</span>
+                        <span class="c1"># reflection turns that cross product the other way.</span>
+                        <span class="k">if</span> <span class="n">mirrors</span> <span class="ow">and</span> <span class="n">tgts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">:</span>
+                            <span class="n">tgts</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">tgts</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span>
                         <span class="n">vertex_attrs</span><span class="p">[</span><span class="s2">"tangents"</span><span class="p">]</span> <span class="o">=</span> <span class="n">tgts</span>
                     <span class="n">mesh</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span>
                         <span class="n">mesh</span><span class="p">,</span> <span class="n">vertices</span><span class="o">=</span><span class="n">new_vertices</span><span class="p">,</span> <span class="n">vertex_attrs</span><span class="o">=</span><span class="n">vertex_attrs</span>
                     <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">mirrors</span><span class="p">:</span>
+                        <span class="n">mesh</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">reversed_winding</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
                 <span class="n">collected</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">visited_nodes</span><span class="p">:</span>
@@ -1049,7 +1067,7 @@
     <div class="footer-items__end">
       
         <div class="footer-item"><p class="last-updated">
-  Last updated on 2026-11-01.
+  Last updated on 2026-11-02.
   <br/>
 </p></div>
       
