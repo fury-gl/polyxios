@@ -16,6 +16,7 @@ from polyxios.codecs._vtk_xml import (
     format_attr_da,
     format_field_data,
     grid_axes,
+    lattice_vertices,
     parse_xml,
     read_field_data,
     require_grid_order,
@@ -26,6 +27,7 @@ from polyxios.codecs._vtk_xml import (
     structured_cell_shape,
     structured_cells,
     structured_cells_fit,
+    structured_offsets,
     structured_spans_from_cells,
     vertices_match_axes,
     whole_extent,
@@ -369,20 +371,14 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     )
 
     if n_verts:
-        x = origin[0] + np.arange(i0, i1 + 1) * spacing[0]
-        y = origin[1] + np.arange(j0, j1 + 1) * spacing[1]
-        z = origin[2] + np.arange(k0, k1 + 1) * spacing[2]
-        zz, yy, xx = np.meshgrid(z, y, x, indexing="ij")
-        vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(
-            np.float64
-        )
+        vertices = lattice_vertices(*_metadata_axes(origin, spacing, pe))
     else:
         # An axis ending before it starts empties the grid; the other axes'
         # coordinates are not built, however long the extent spells them.
         vertices = np.empty((0, 3), dtype=np.float64)
 
     connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    offsets = structured_offsets(n_cells, n_per_cell)
     element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
 
     point_data: dict[str, np.ndarray] = {}
