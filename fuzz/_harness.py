@@ -16,6 +16,7 @@ OSS-Fuzz builds them), and ``make_corpus.py`` writes their seed files.
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import io
 import itertools
 import os
@@ -29,6 +30,10 @@ import numpy as np
 import polyxios
 from polyxios.exceptions import PolyxiosError, ValidationError
 from polyxios.validate import validate
+
+# By path: ``polyxios.validate`` is the function the package re-exports,
+# which shadows the module on every attribute-based import of it.
+validate_module = importlib.import_module("polyxios.validate")
 
 # The engine is needed only to fuzz; the oracle and the corpus run without it.
 try:
@@ -102,6 +107,14 @@ LAZY_TARGETS: dict[str, str] = {
     "lazy_vtp": ".vtp",
     "lazy_vtu": ".vtu",
 }
+
+
+# The structured grids (.vti, .vtr) spell six indices for any number of
+# points, so a header a few bytes long reaches MAX_IMPLIED_VERTICES and the
+# reader honestly allocates several gigabytes for it - past the engine's
+# -rss_limit_mb, which records it as an out-of-memory finding. Lowered only
+# while fuzzing: the cap is the code path under test, not its value.
+FUZZ_MAX_IMPLIED_VERTICES: int = 10_000_000
 
 
 class InvalidMesh(AssertionError):
@@ -200,6 +213,11 @@ def _read_and_check(source: object, *, fmt: str, lazy: bool) -> None:
 def main(*, name: str) -> None:
     """Run the fuzzing engine on the reader of target ``name``.
 
+    Lowers ``polyxios.validate.MAX_IMPLIED_VERTICES`` to
+    :data:`FUZZ_MAX_IMPLIED_VERTICES` for the rest of the process and never
+    restores it: libFuzzer ends the process from C, so there is no after.
+    Call it only as a fuzzing entry point, never from a test.
+
     Parameters
     ----------
     name
@@ -216,6 +234,7 @@ def main(*, name: str) -> None:
     # The system's temporary directory itself, not one made for the run:
     # libFuzzer ends the process from C, so no cleanup would remove it.
     scratch = Path(tempfile.gettempdir()) if name in LAZY_TARGETS else None
+    validate_module.MAX_IMPLIED_VERTICES = FUZZ_MAX_IMPLIED_VERTICES
 
     def test_one_input(data: bytes) -> None:
         read_one(data, fmt=fmt, scratch=scratch)
