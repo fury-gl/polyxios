@@ -1,13 +1,27 @@
+import io
 import warnings
 
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._faces import report_flattened_faces
-from polyxios._io import Source, open_text, source_name, write_text
+from polyxios._io import (
+    Source,
+    _is_text_handle,
+    is_buffer,
+    open_text,
+    read_bytes,
+    source_name,
+    write_text,
+)
 from polyxios._tags import member_values
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, LazyReadError
+
+try:
+    from polyxios.codecs._obj_parse import parse_plain  # type: ignore[import]
+except ImportError:  # pragma: no cover - the compiled module is optional
+    parse_plain = None
 
 EXTENSION: str = ".obj"
 
@@ -89,7 +103,17 @@ def read(path: Source, *, lazy: bool = False, split_seams: bool = False) -> Poly
     # than per line; a message is spelled only when one is raised.
     source = source_name(path)
 
-    with open_text(path, encoding="utf-8", errors="replace") as fh:
+    # A handle opened in text mode is parsed as it is: the compiled pass
+    # reads bytes, and a str stream has none to give it.
+    raw = None if is_buffer(path) and _is_text_handle(path) else read_bytes(path)
+    plain = parse_plain(raw) if parse_plain is not None and raw is not None else None
+    if plain is not None:
+        return _plain_polydata(*plain)
+    # A source can be read once, so the Python reader parses the bytes the
+    # fast path already holds, decoded as a file opened in text mode is.
+    stream = path if raw is None else io.BytesIO(raw)
+
+    with open_text(stream, encoding="utf-8", errors="replace") as fh:
         for line_no, raw_line in enumerate(fh, start=1):
             line = raw_line.strip()
             if not line or line.startswith("#"):
@@ -253,6 +277,44 @@ def read(path: Source, *, lazy: bool = False, split_seams: bool = False) -> Poly
         element_attrs=element_attrs,
         element_tags=element_tags,
         global_attrs=global_attrs,
+    )
+
+
+def _plain_polydata(
+    vertices: np.ndarray, connectivity: np.ndarray, sizes: np.ndarray
+) -> PolyData:
+    """Build the mesh of a plain file from what the compiled pass read.
+
+    Parameters
+    ----------
+    vertices
+        The ``v`` records, ``(n, 3)`` float64.
+    connectivity
+        Every face's 0-based vertex indices, end to end, int32.
+    sizes
+        How many vertices each face names.
+
+    Returns
+    -------
+    PolyData
+        The mesh the Python reader builds from the same file: a triangle
+        for three corners, a quad for four, a polygon for any other count,
+        and no attribute, tag or global, since a plain file carries none.
+    """
+    offsets = np.zeros(len(sizes) + 1, dtype=np.int32)
+    np.cumsum(sizes, out=offsets[1:])
+    element_types = np.full(len(sizes), ELEMENT_TYPES["polygon"], dtype=np.uint8)
+    element_types[sizes == 3] = ELEMENT_TYPES["triangle"]
+    element_types[sizes == 4] = ELEMENT_TYPES["quad"]
+    return PolyData(
+        vertices=vertices,
+        connectivity=connectivity,
+        offsets=offsets,
+        element_types=element_types,
+        vertex_attrs={},
+        element_attrs={},
+        element_tags={},
+        global_attrs={},
     )
 
 
