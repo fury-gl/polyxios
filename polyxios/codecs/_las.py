@@ -746,8 +746,15 @@ def _read_records(
             strides=(record.itemsize, 4),
         )
     else:
-        ints = np.column_stack([raw["X"], raw["Y"], raw["Z"]]).astype(np.float64)
-        vertices = ints * header.scale + header.origin
+        # Scaled a column at a time into the one array kept: the cast, the
+        # scale and the offset are the arithmetic a column_stack, an astype
+        # and two whole-array operations did, in one pass over the records
+        # per axis and without three more copies of the coordinates.
+        vertices = np.empty((n, 3), dtype=np.float64)
+        for axis, field in enumerate(("X", "Y", "Z")):
+            column = vertices[:, axis]
+            np.multiply(raw[field], header.scale[axis], out=column)
+            column += header.origin[axis]
 
     attrs: dict[str, np.ndarray] = {}
     for field_name, _ in standard.descr:
@@ -755,8 +762,16 @@ def _read_records(
             continue
         attrs[field_name] = take(field_name)
     bits = _NEW_BITS if pf in _NEW_STYLE else _LEGACY_BITS
+    # Each packed byte is gathered out of the records once; the bit fields
+    # it holds are then cut from that contiguous copy, where every shift
+    # and mask is one pass over n bytes rather than a strided walk.
+    packed_bytes: dict[str, np.ndarray] = {}
     for attr, packed, shift, width in bits:
-        attrs[attr] = ((raw[packed] >> shift) & ((1 << width) - 1)).astype(np.uint8)
+        if packed not in packed_bytes:
+            packed_bytes[packed] = np.ascontiguousarray(raw[packed])
+        value = np.right_shift(packed_bytes[packed], shift)
+        value &= (1 << width) - 1
+        attrs[attr] = value
     if "red" in standard.names:
         if n == 0 and lazy:
             attrs[_COLORS] = np.empty((0, 3), dtype="<u2")
@@ -769,10 +784,10 @@ def _read_records(
                 strides=(record.itemsize, 2),
             )
         else:
-            attrs[_COLORS] = (
-                np.column_stack([raw[c] for c in _RGB]).astype(np.float64)
-                / _COLOR_SCALE
-            )
+            colors = np.empty((n, 3), dtype=np.float64)
+            for axis, field in enumerate(_RGB):
+                np.divide(raw[field], _COLOR_SCALE, out=colors[:, axis])
+            attrs[_COLORS] = colors
     for i, extra in enumerate(extras):
         column = take(f"e{i}")
         if extra.scale is not None or extra.offset is not None:
