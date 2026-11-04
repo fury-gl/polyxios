@@ -7,6 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue.svg)](https://pypi.org/project/polyxios/)
 [![License](https://img.shields.io/github/license/fury-gl/polyxios.svg)](https://github.com/fury-gl/polyxios/blob/master/LICENSE)
 [![Tests](https://github.com/fury-gl/polyxios/actions/workflows/test.yml/badge.svg)](https://github.com/fury-gl/polyxios/actions/workflows/test.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/fury-gl/polyxios/badge)](https://scorecard.dev/viewer/?uri=github.com/fury-gl/polyxios)
 
 **Documentation: [polyxios.org](https://polyxios.org)**
 

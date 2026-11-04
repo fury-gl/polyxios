@@ -223,6 +223,16 @@ Bug fixes
   fixed-size surface element holding the wrong node count, where a
   three-node quad took its fourth corner from the next element.
 
+Packaging
+~~~~~~~~~
+
+- Each GitHub Release attaches a CycloneDX SBOM,
+  ``polyxios-<version>.cdx.json``, listing polyxios and the dependency
+  versions a ``pip install`` of the release resolves. ``SECURITY.md``
+  says how to verify a release.
+- The repository is scored weekly by OpenSSF Scorecard, shown as a badge
+  in the README.
+
 .. _changes_0.5.1:
 
 0.5.1 (2026-10-15)
