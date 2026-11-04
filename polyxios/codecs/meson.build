@@ -81,6 +81,14 @@ py.extension_module(
 )
 
 py.extension_module(
+  '_obj_parse',
+  '_obj_parse.pyx',
+  dependencies: py_dep,
+  install: true,
+  subdir: 'polyxios/codecs',
+)
+
+py.extension_module(
   '_vtp_base64',
   '_vtp_base64.pyx',
   include_directories: inc_np,

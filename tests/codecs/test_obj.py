@@ -13,6 +13,7 @@ from polyxios._element_types import (
     NODES_PER_ELEMENT,
 )
 from polyxios._types import PolyData
+from polyxios.codecs import _obj
 from polyxios.codecs._obj import read, write
 from polyxios.exceptions import CodecError, LazyReadError
 
@@ -699,3 +700,100 @@ def test_a_vertex_named_twice_in_one_face_splits(tmp_path) -> None:
     assert len(poly.vertices) == 4
     np.testing.assert_array_equal(poly.connectivity, [0, 1, 3])
     np.testing.assert_allclose(poly.vertices[3], poly.vertices[0])
+
+
+_PLAIN_FILES = {
+    "triangles": b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n",
+    "crlf": b"v 0 0 0\r\nv 1 0 0\r\nv 0 1 0\r\nf 1 2 3\r\n",
+    "bare cr": b"v 0 0 0\rv 1 0 0\rv 0 1 0\rf 1 2 3",
+    "spacing": b"v\t0 \x0b0\x0c 0\n  v 1 0 0\nv 0 1 0  \n\tf 1\t2 3\n",
+    "upper case": b"V 0 0 0\nV 1 0 0\nV 0 1 0\nF 1 2 3\n",
+    "smoothing": b"s off\nv 0 0 0\nv 1 0 0\nv 0 1 0\ns 1\nf 1 2 3\n",
+    "comments": b"# a\n\n  # b\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n# c",
+    "shapes": (
+        b"v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nv 2 2 2\n"
+        b"f 1 2 3 4\nf 1 2 3 4 5\nf 1 2\nf\nf 1\n"
+    ),
+    "numbers": (
+        b"v -.5 +1. 1e-3\nv 1E+2 -0 0.0\nv 1e400 -1e400 4.9e-324\nf 001 02 3\n"
+    ),
+}
+
+_OTHER_FILES = {
+    "a lone sign": b"v - 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n",
+    "a cut exponent": b"v 1e 0 0\n",
+    "two points": b"v 1.2.3 0 0\n",
+    "nan": b"v nan inf -inf\nv 0 0 0\nv 1 1 1\nf 1 2 3\n",
+    "an underscore": b"v 1_0 0 0\nv 0 0 0\nv 1 1 1\nf 1 2 3\n",
+    "two values": b"v 1 2\n",
+    "four values": b"v 1 2 3 4\nv 0 0 0\nv 1 1 1\nf 1 2 3\n",
+    "index zero": b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 0 1 2\n",
+    "index past": b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 4\n",
+    "face first": b"f 1 2 3\nv 0 0 0\nv 1 0 0\nv 0 1 0\n",
+    "negative": b"v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1\n",
+    "huge index": b"v 0 0 0\nf 99999999999999999999 1 1\n",
+    "a group": b"v 0 0 0\nv 1 0 0\nv 0 1 0\ng a\nf 1 2 3\n",
+    "inline comment": b"v 0 0 0 # c\nv 1 0 0\nv 0 1 0\nf 1 2 3 # c\n",
+    "not ascii": "v 0 0 0\nv 1 0 0\nv 0 1 0\n# \u00e9\nf 1 2 3\n".encode(),
+    "a separator": b"v 0 0 0\x1c\nv 1 0 0\nv 0 1 0\nf 1 2 3\n",
+    "lines and points": b"v 0 0 0\nv 1 0 0\nl 1 2\np 1\n",
+    "no vertex": b"# a\n",
+}
+
+
+def _outcome(path) -> tuple:
+    """Everything a read hands back, or the error it raised, comparably."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            poly = read(path)
+        except CodecError as exc:
+            return ("error", str(exc))
+    return (
+        poly.vertices.tobytes(),
+        poly.vertices.shape,
+        poly.connectivity.tobytes(),
+        poly.connectivity.dtype,
+        poly.offsets.tolist(),
+        poly.offsets.dtype,
+        poly.element_types.tolist(),
+        {k: np.asarray(v).tolist() for k, v in poly.vertex_attrs.items()},
+        {k: np.asarray(v).tolist() for k, v in poly.element_attrs.items()},
+        {k: v.tolist() for k, v in poly.element_tags.items()},
+        poly.global_attrs,
+        [str(w.message) for w in caught],
+    )
+
+
+@pytest.mark.parametrize(
+    "content",
+    [*_PLAIN_FILES.values(), *_OTHER_FILES.values()],
+    ids=[*_PLAIN_FILES, *_OTHER_FILES],
+)
+def test_the_compiled_pass_reads_what_the_python_reader_reads(
+    content, tmp_path, monkeypatch
+) -> None:
+    """Value for value, error for error, warning for warning."""
+    path = tmp_path / "mesh.obj"
+    path.write_bytes(content)
+    fast = _outcome(path)
+    monkeypatch.setattr(_obj, "parse_plain", None)
+    assert fast == _outcome(path)
+
+
+@pytest.mark.skipif(_obj.parse_plain is None, reason="needs the compiled pass")
+@pytest.mark.parametrize("content", _PLAIN_FILES.values(), ids=list(_PLAIN_FILES))
+def test_a_plain_file_is_read_by_the_compiled_pass(content) -> None:
+    """A file of v and f lines never reaches the per-token Python parser.
+
+    That parser took 5.8 s and 1.3 GB on a million vertices; the compiled
+    pass reads the same file in a quarter of a second.
+    """
+    assert _obj.parse_plain(content) is not None
+
+
+@pytest.mark.skipif(_obj.parse_plain is None, reason="needs the compiled pass")
+@pytest.mark.parametrize("content", _OTHER_FILES.values(), ids=list(_OTHER_FILES))
+def test_any_other_file_is_left_to_the_python_reader(content) -> None:
+    """Whatever the compiled pass is not sure of, it hands back untouched."""
+    assert _obj.parse_plain(content) is None

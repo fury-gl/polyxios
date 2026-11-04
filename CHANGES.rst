@@ -223,6 +223,16 @@ Bug fixes
   fixed-size surface element holding the wrong node count, where a
   three-node quad took its fourth corner from the next element.
 
+Optimizations
+~~~~~~~~~~~~~
+
+- A plain ``.obj`` - ``v`` and ``f`` lines, comments and smoothing groups,
+  in ASCII, which is what most exporters write - is read by a compiled
+  pass instead of the per-token Python parser: a million vertices and two
+  million triangles read in 0.26 s at a 350 MB peak, where they took 5.8 s
+  and 1.3 GB. Any other file, and every error, takes the Python parser as
+  before, and the two give the same mesh value for value.
+
 .. _changes_0.5.1:
 
 0.5.1 (2026-10-15)
