@@ -86,6 +86,23 @@ jobs:
           merge-multiple: true
           path: dist/
 
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: '3.12'
+
+      # The SBOM lists what a user gets from ``pip install polyxios`` on the
+      # day of the release: the wheel just built and the numpy it resolves.
+      # The environment has no pip of its own so that only those are listed.
+      - name: Build SBOM
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          python -m venv --without-pip sbom-env
+          python -m pip --python sbom-env/bin/python install dist/polyxios-*-cp312-cp312-manylinux*_x86_64.whl
+          python -m pip install cyclonedx-bom==8.0.1
+          cyclonedx-py environment --mc-type library --output-reproducible \
+            -o "dist/polyxios-${TAG#v}.cdx.json" sbom-env/bin/python
+
       - name: Extract changelog section
         id: changelog
         run: |
