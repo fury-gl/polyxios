@@ -10,6 +10,7 @@ read back through the same oracle the engine uses.
 from __future__ import annotations
 
 import importlib.util
+import io
 from pathlib import Path
 import sys
 
@@ -135,3 +136,28 @@ def test_the_oracle_refuses_offsets_short_of_the_connectivity() -> None:
 
 def test_a_polyxios_error_is_an_honest_answer() -> None:
     harness.read_one(b"not a mesh", fmt=".stl")
+
+
+def test_the_fuzzing_cap_lands_on_the_module_validate_header_reads(
+    monkeypatch,
+) -> None:
+    """Lowering the implied-grid cap reaches the check that enforces it.
+
+    ``polyxios.validate`` is also the name of a function, so a cap set
+    through an attribute-based import of the module lands on the function and
+    changes nothing: a 162-byte .vti still expanded to 67 million points and
+    the engine recorded the allocation as out-of-memory.
+    """
+    assert harness.validate_module is sys.modules["polyxios.validate"]
+    monkeypatch.setattr(harness.validate_module, "MAX_IMPLIED_VERTICES", 1_000)
+    data = (
+        b'<?xml version="1.0"?>\n'
+        b'<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        b'  <ImageData Origin="0 0 0" Spacing="1 1 1">\n'
+        b'    <Piece Extent="0 0 0 2000 0 0"/>\n'
+        b"  </ImageData>\n"
+        b"</VTKFile>\n"
+    )
+
+    with pytest.raises(polyxios.exceptions.ValidationError):
+        polyxios.read(io.BytesIO(data), fmt=".vti")

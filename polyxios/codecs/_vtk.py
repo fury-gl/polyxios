@@ -29,7 +29,13 @@ from polyxios._io import (
 )
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
-from polyxios.codecs._vtk_xml import bounded_by_points
+from polyxios.codecs._vtk_xml import (
+    bounded_by_points,
+    lattice_vertices,
+    structured_cell_shape,
+    structured_cells,
+    structured_offsets,
+)
 from polyxios.exceptions import (
     CodecError,
     IndexOverflowError,
@@ -4148,8 +4154,18 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
             continue
         i += 1
 
-    xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
-    vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+    # Three short arrays spell an outer product of any size, so the bytes
+    # the file spends on them are no measure of the points they ask for.
+    n_cells, per_cell, _ = structured_cell_shape(len(xs) - 1, len(ys) - 1, len(zs) - 1)
+    validate_header(
+        len(xs) * len(ys) * len(zs),
+        n_cells,
+        n_cells * per_cell,
+        len(raw),
+        spells_vertices=False,
+        spells_connectivity=False,
+    )
+    vertices = lattice_vertices(xs, ys, zs)
 
     # As above: the cells have to index the points that exist, so they are
     # generated over the coordinate arrays. A file whose header disagrees
@@ -4195,8 +4211,8 @@ def _read_rectilinear_grid(path: Source, *, is_binary: bool) -> PolyData:
 
     n_cells = len(cells)
     npc = cells.shape[1]
-    connectivity = cells.ravel().astype(np.int32)
-    offsets_arr = np.arange(0, (n_cells + 1) * npc, npc, dtype=np.int32)
+    connectivity = cells.ravel()
+    offsets_arr = structured_offsets(n_cells, npc)
     element_types_arr = np.full(n_cells, ELEMENT_TYPES[etype_name], dtype=np.uint8)
 
     return PolyData(
@@ -4394,8 +4410,8 @@ def _read_structured_grid(path: Source, *, is_binary: bool) -> PolyData:
 
     n_cells = len(cells)
     npc = cells.shape[1]
-    connectivity = cells.ravel().astype(np.int32)
-    offsets_arr = np.arange(0, (n_cells + 1) * npc, npc, dtype=np.int32)
+    connectivity = cells.ravel()
+    offsets_arr = structured_offsets(n_cells, npc)
     element_types_arr = np.full(n_cells, ELEMENT_TYPES[etype_name], dtype=np.uint8)
 
     return PolyData(
@@ -5044,8 +5060,9 @@ def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:
     which of the three that is decides nothing but the stride: an ``x``-``z``
     plane is as much a sheet of quads as an ``x``-``y`` one, and a column
     along ``y`` is a run of lines the same way a row along ``x`` is. The
-    axes that extend are picked out first, so the cell type follows how many
-    there are rather than which ones they happen to be.
+    cells are the ones the XML grids build, running ``x`` fastest: that is
+    the order a ``CELL_DATA`` section lists its values in, and cells run
+    ``x`` slowest put every value of it on another cell.
 
     Parameters
     ----------
@@ -5066,40 +5083,10 @@ def _structured_grid_cells(nx: int, ny: int, nz: int) -> tuple[np.ndarray, str]:
         # over no vertices - and the strides they were built from are zero.
         return np.zeros((0, 1), dtype=np.int32), "vertex"
 
-    dims = (nx, ny, nz)
-    # A point's index is x + y * nx + z * nx * ny, so this is the step along
-    # each axis.
-    strides = (1, nx, nx * ny)
-    axes = [axis for axis in range(3) if dims[axis] > 1]
-
-    if not axes:
+    connectivity, per_cell, kind = structured_cells(nx - 1, ny - 1, nz - 1)
+    if not per_cell:
         return np.zeros((0, 1), dtype=np.int32), "vertex"
-
-    spans = np.meshgrid(*(np.arange(dims[a] - 1) for a in axes), indexing="ij")
-    v0 = sum(span.ravel() * strides[a] for span, a in zip(spans, axes))
-
-    if len(axes) == 1:
-        step = strides[axes[0]]
-        return np.column_stack([v0, v0 + step]), "line"
-
-    if len(axes) == 2:
-        sa, sb = strides[axes[0]], strides[axes[1]]
-        return np.column_stack([v0, v0 + sa, v0 + sa + sb, v0 + sb]), "quad"
-
-    sa, sb, sc = strides
-    cells = np.column_stack(
-        [
-            v0,
-            v0 + sa,
-            v0 + sa + sb,
-            v0 + sb,
-            v0 + sc,
-            v0 + sa + sc,
-            v0 + sa + sb + sc,
-            v0 + sb + sc,
-        ]
-    )
-    return cells, "hexahedron"
+    return connectivity.reshape(-1, per_cell), kind
 
 
 def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
@@ -5218,11 +5205,26 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
             continue
         i += 1
 
-    xs = ox + np.arange(nx, dtype=np.float64) * sx
-    ys = oy + np.arange(ny, dtype=np.float64) * sy
-    zs = oz + np.arange(nz, dtype=np.float64) * sz
-    xx, yy, zz = np.meshgrid(xs, ys, zs, indexing="ij")
-    vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
+    n_verts = _grid_point_count(nx, ny, nz)
+    n_cells, per_cell, _ = structured_cell_shape(nx - 1, ny - 1, nz - 1)
+    validate_header(
+        n_verts,
+        n_cells,
+        n_cells * per_cell,
+        len(raw),
+        spells_vertices=False,
+        spells_connectivity=False,
+    )
+    if n_verts:
+        vertices = lattice_vertices(
+            ox + np.arange(nx, dtype=np.float64) * sx,
+            oy + np.arange(ny, dtype=np.float64) * sy,
+            oz + np.arange(nz, dtype=np.float64) * sz,
+        )
+    else:
+        # An axis of no points empties the image; the others are not spelled
+        # out, however many points DIMENSIONS gives them.
+        vertices = np.empty((0, 3), dtype=np.float64)
 
     # A STRUCTURED_POINTS file is its header: without origin and spacing the
     # expanded points cannot be written back as the image they came from.
@@ -5256,8 +5258,8 @@ def _read_structured_points(path: Source, *, is_binary: bool) -> PolyData:
 
     n_cells = len(cells)
     npc = cells.shape[1]
-    connectivity = cells.ravel().astype(np.int32)
-    offsets_arr = np.arange(0, (n_cells + 1) * npc, npc, dtype=np.int32)
+    connectivity = cells.ravel()
+    offsets_arr = structured_offsets(n_cells, npc)
     element_types_arr = np.full(n_cells, ELEMENT_TYPES[etype_name], dtype=np.uint8)
 
     return PolyData(

@@ -23,6 +23,7 @@ from polyxios.codecs._vtk_xml import (
     structured_cell_shape,
     structured_cells,
     structured_cells_fit,
+    structured_offsets,
     structured_spans_from_cells,
     vtk_type_to_np,
     whole_extent,
@@ -148,7 +149,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         vertices = flat.reshape(n_verts, -1)[:, :3].astype(np.float64)
 
     connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    offsets = structured_offsets(n_cells, n_per_cell)
     element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
 
     point_data: dict[str, np.ndarray] = {}

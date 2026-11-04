@@ -1030,6 +1030,100 @@ def vertices_match_axes(vertices: np.ndarray, axes: Sequence[np.ndarray]) -> boo
     )
 
 
+def lattice_vertices(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    *,
+    direction: np.ndarray | None = None,
+) -> np.ndarray:
+    """Expand three axes into the points of the lattice they span.
+
+    The inverse of :func:`vertices_match_axes`: x runs fastest and z slowest,
+    the order VTK numbers the points of an ImageData or a RectilinearGrid.
+    Each axis is broadcast straight into its column of the result, so the
+    only array the size of the mesh is the mesh. A ``meshgrid`` followed by a
+    ``column_stack`` held three full copies of every coordinate on the way
+    there, and the extent of a file a few bytes long is all it takes to ask
+    for a grid where that difference is gigabytes. A rotated lattice is
+    built the same way, a column at a time from the three short axes, rather
+    than as a product of the unrotated one that would hold the mesh twice.
+
+    Parameters
+    ----------
+    x, y, z
+        The coordinates along each axis, in the order the file spells them.
+    direction
+        A ``(3, 3)`` matrix whose columns are the directions the three axes
+        run along, as a VTKHDF ImageData's ``Direction`` gives them; ``None``
+        is the identity.
+
+    Returns
+    -------
+    numpy.ndarray
+        The ``(len(x) * len(y) * len(z), 3)`` float64 vertices.
+
+    Examples
+    --------
+    >>> lattice_vertices(np.array([0, 1]), np.array([5]), np.array([0, 2]))
+    array([[0., 5., 0.],
+           [1., 5., 0.],
+           [0., 5., 2.],
+           [1., 5., 2.]])
+    >>> swap_xy = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+    >>> lattice_vertices(np.array([0, 1]), np.array([5]), np.array([2]),
+    ...                  direction=swap_xy)
+    array([[5., 0., 2.],
+           [5., 1., 2.]])
+    """
+    x, y, z = (np.ravel(u).astype(np.float64, copy=False) for u in (x, y, z))
+    out = np.empty((len(z), len(y), len(x), 3), dtype=np.float64)
+    if direction is None:
+        out[..., 0] = x
+        out[..., 1] = y[:, None]
+        out[..., 2] = z[:, None, None]
+        return out.reshape(-1, 3)
+
+    matrix = np.asarray(direction, dtype=np.float64).reshape(3, 3)
+    for c in range(3):
+        column = out[..., c]
+        column[...] = x * matrix[c, 0]
+        column += (y * matrix[c, 1])[:, None]
+        column += (z * matrix[c, 2])[:, None, None]
+    return out.reshape(-1, 3)
+
+
+def structured_offsets(n_cells: int, per_cell: int) -> np.ndarray:
+    """Build the offsets of a structured grid's cells, all of one width.
+
+    The last offset is the length of the connectivity, which outgrows an
+    int32 well before the point count does: a hexahedral grid of 300 million
+    points holds 2.4 billion corners. Built in int32 regardless, the offsets
+    past that wrapped negative and every cell after them named the wrong
+    corners.
+
+    Parameters
+    ----------
+    n_cells
+        Cells the grid holds.
+    per_cell
+        Points each cell names.
+
+    Returns
+    -------
+    numpy.ndarray
+        The ``n_cells + 1`` offsets, int32 while the connectivity length
+        fits one and int64 past it.
+
+    Examples
+    --------
+    >>> structured_offsets(3, 4)
+    array([ 0,  4,  8, 12], dtype=int32)
+    """
+    dtype = np.int32 if n_cells * per_cell <= _INT32_MAX else np.int64
+    return np.arange(n_cells + 1, dtype=dtype) * per_cell
+
+
 def require_grid_order(
     vertices: np.ndarray, axes: Sequence[np.ndarray], *, fmt: str
 ) -> None:

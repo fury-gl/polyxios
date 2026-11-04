@@ -93,7 +93,6 @@ _HEX_CORNERS: Final[np.ndarray] = np.array(
 _GRID_EXTENT_KEYS: Final[tuple[str, ...]] = ("vti_extent", "vtr_extents", "vts_extent")
 # The points along x, y and z a legacy .vtk grid is read with.
 _LEGACY_GRID_KEY: Final[str] = "vtk_dimensions"
-_HEX_CODE: Final[int] = ELEMENT_TYPES["hexahedron"]
 
 _COLOR_ATTR: Final[str] = "colors"
 # PLY spells a colour as three or four scalar properties and a splat as three
@@ -393,32 +392,6 @@ def _among(rings: np.ndarray, *, faces: np.ndarray) -> np.ndarray:
     return found[len(faces) :]
 
 
-def _legacy_grid_fits(poly: PolyData, *, spans: Sequence[int]) -> bool:
-    """Say whether *poly* holds the hexahedra a legacy ``.vtk`` grid expands to.
-
-    The legacy reader numbers points ``x`` fastest, as the XML grids do, but
-    runs its cells ``z`` fastest; checked a corner at a time, so nothing wider
-    than one column of the connectivity is held at once.
-    """
-    cx, cy, cz = spans
-    n_cells = cx * cy * cz
-    types = np.asarray(poly.element_types)
-    connectivity = np.asarray(poly.connectivity)
-    if (
-        len(types) != n_cells
-        or len(connectivity) != 8 * n_cells
-        or not bool(np.all(types == _HEX_CODE))
-    ):
-        return False
-    rows = connectivity.reshape(cx, cy, cz, 8)
-    i, j, k = np.ogrid[:cx, :cy, :cz]
-    origins = i + (cx + 1) * (j + (cy + 1) * k)
-    return all(
-        bool(np.array_equal(rows[..., corner], origins + _corner_step(c, spans=spans)))
-        for corner, c in enumerate(_HEX_CORNERS)
-    )
-
-
 def _corner_step(corner: np.ndarray, *, spans: Sequence[int]) -> int:
     """Return the point-index offset of a hexahedron *corner* in its grid."""
     return int(corner[0] + (spans[0] + 1) * (corner[1] + (spans[1] + 1) * corner[2]))
@@ -455,7 +428,9 @@ def _grid_spans(poly: PolyData) -> list[int] | None:
         and len(spans) == 3
         and min(spans) > 0
         and extent_points(spans) == n_points
-        and _legacy_grid_fits(poly, spans=spans)
+        and structured_cells_fit(
+            np.asarray(poly.connectivity), np.asarray(poly.element_types), spans
+        )
     ):
         return spans
     return None

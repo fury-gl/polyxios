@@ -1,25 +1,30 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import importlib.util
 from pathlib import Path
 import tempfile
+import tracemalloc
 
 import numpy as np
 import pytest
 
 from polyxios import PolyData, make_polydata
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
-from polyxios.codecs import _vtk as vtk_module
+from polyxios.codecs import _vtk as vtk_module, _vtk_xml
 from polyxios.codecs._vtk import _vtk_cell_codes, read, write
 from polyxios.exceptions import (
     CodecError,
     IndexOverflowError,
     LazyReadError,
     UnknownElementTypeError,
+    ValidationError,
 )
 from polyxios.validate import validate
 from tests.codecs._lazy import mapped
+
+validate_module = importlib.import_module("polyxios.validate")
 
 
 def _synthetic_mesh() -> object:
@@ -500,10 +505,10 @@ def test_rectilinear_grid_ascii() -> None:
     from polyxios._element_types import ELEMENT_TYPES
 
     assert all(t == ELEMENT_TYPES["quad"] for t in poly.element_types)
-    # vertex ordering: ij meshgrid → x varies first
     np.testing.assert_allclose(poly.vertices[0], [0.0, 0.0, 0.0])
-    np.testing.assert_allclose(poly.vertices[1], [0.0, 2.0, 0.0])
-    np.testing.assert_allclose(poly.vertices[2], [1.0, 0.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[1], [1.0, 0.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[2], [3.0, 0.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[3], [0.0, 2.0, 0.0])
 
 
 @pytest.mark.parametrize("fname,expected", [("RectGrid2.vtk", (17061, 14720))])
@@ -647,9 +652,157 @@ def test_structured_points_aspect_ratio_keyword() -> None:
     tmp = _write_tmp(content)
     poly = read(tmp)
     assert len(poly.vertices) == 4
-    # ij indexing: (i=0,j=1) → vertex[1]; (i=1,j=0) → vertex[2]
-    np.testing.assert_allclose(poly.vertices[1], [0.0, 3.0, 0.0])
-    np.testing.assert_allclose(poly.vertices[2], [2.0, 0.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[1], [2.0, 0.0, 0.0])
+    np.testing.assert_allclose(poly.vertices[2], [0.0, 3.0, 0.0])
+
+
+_LEGACY_GRID_HEADERS = {
+    "STRUCTURED_POINTS": b"DIMENSIONS 3 3 2\nORIGIN 0 0 0\nSPACING 1 1 1\n",
+    "RECTILINEAR_GRID": (
+        b"DIMENSIONS 3 3 2\nX_COORDINATES 3 float\n0 1 2\n"
+        b"Y_COORDINATES 3 float\n0 1 2\nZ_COORDINATES 2 float\n0 1\n"
+    ),
+    "STRUCTURED_GRID": (
+        b"DIMENSIONS 3 3 2\nPOINTS 18 float\n"
+        + b"\n".join(
+            f"{i} {j} {k}".encode()
+            for k in range(2)
+            for j in range(3)
+            for i in range(3)
+        )
+        + b"\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("dataset", sorted(_LEGACY_GRID_HEADERS))
+def test_a_legacy_grid_numbers_points_and_cells_x_fastest(dataset) -> None:
+    """Points and cells both run x fastest, as VTK numbers the data over them.
+
+    The points of STRUCTURED_POINTS and RECTILINEAR_GRID were expanded z
+    fastest while their cells were strides over an x-fastest layout, so the
+    hexahedra came out twisted and a POINT_DATA value sat on another point.
+    The cells themselves ran x slowest, which put every CELL_DATA value of
+    all three grids on another cell.
+    """
+    content = (
+        b"# vtk DataFile Version 3.0\ng\nASCII\nDATASET "
+        + dataset.encode()
+        + b"\n"
+        + _LEGACY_GRID_HEADERS[dataset]
+        + b"POINT_DATA 18\nSCALARS p float 1\nLOOKUP_TABLE default\n"
+        + b" ".join(str(n).encode() for n in range(18))
+        + b"\nCELL_DATA 4\nSCALARS c float 1\nLOOKUP_TABLE default\n0 1 2 3\n"
+    )
+    poly = read(_write_tmp(content))
+
+    p = np.arange(18)
+    np.testing.assert_array_equal(poly.vertex_attrs["p"], p)
+    np.testing.assert_array_equal(
+        poly.vertices, np.column_stack([p % 3, p // 3 % 3, p // 9])
+    )
+    c = np.arange(4)
+    corners = poly.vertices[poly.connectivity.reshape(-1, 8)]
+    lows = np.column_stack([c % 2, c // 2, np.zeros(4)])
+    np.testing.assert_array_equal(corners.min(axis=1), lows)
+    np.testing.assert_array_equal(corners.max(axis=1), lows + 1)
+    np.testing.assert_array_equal(poly.element_attrs["c"], c)
+    validate(poly)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        b"STRUCTURED_POINTS\nDIMENSIONS 20 20 20\nORIGIN 0 0 0\nSPACING 1 1 1\n",
+        b"RECTILINEAR_GRID\nDIMENSIONS 20 20 20\n"
+        + b"".join(
+            axis
+            + b"_COORDINATES 20 float\n"
+            + b" ".join(b"%d" % n for n in range(20))
+            + b"\n"
+            for axis in (b"X", b"Y", b"Z")
+        ),
+    ],
+    ids=["STRUCTURED_POINTS", "RECTILINEAR_GRID"],
+)
+def test_a_legacy_grid_past_the_implied_cap_is_refused(monkeypatch, dataset) -> None:
+    """A grid the file describes rather than spells is held to the implied cap.
+
+    STRUCTURED_POINTS never asked: ``DIMENSIONS 1000 1000 1000`` in a file
+    of a hundred bytes went straight to a billion points. A RECTILINEAR_GRID
+    is the outer product of three short arrays, so the bytes it spends are
+    no measure of the points it asks for either.
+    """
+    monkeypatch.setattr(validate_module, "MAX_IMPLIED_VERTICES", 1_000)
+    content = b"# vtk DataFile Version 3.0\ng\nASCII\nDATASET " + dataset
+
+    with pytest.raises(ValidationError, match="MAX_IMPLIED_VERTICES"):
+        read(_write_tmp(content))
+
+
+def test_a_legacy_image_empty_along_one_axis_builds_none_of_the_others() -> None:
+    """An axis of no points empties the image before any axis is spelled out."""
+    content = (
+        b"# vtk DataFile Version 3.0\ng\nASCII\nDATASET STRUCTURED_POINTS\n"
+        b"DIMENSIONS 0 1000000000000000 1\nORIGIN 0 0 0\nSPACING 1 1 1\n"
+    )
+
+    poly = read(_write_tmp(content))
+
+    assert poly.vertices.shape == (0, 3)
+    assert len(poly.element_types) == 0
+
+
+def test_a_legacy_image_is_built_without_copies_of_itself() -> None:
+    """A header-only STRUCTURED_POINTS allocates its mesh and little else.
+
+    A ``meshgrid``, a ``column_stack`` and a cell builder that held every
+    corner twice peaked near 200 bytes a point on a hexahedral grid.
+    """
+    n = 60
+    content = (
+        b"# vtk DataFile Version 3.0\ng\nASCII\nDATASET STRUCTURED_POINTS\n"
+        + f"DIMENSIONS {n} {n} {n}\nORIGIN 0 0 0\nSPACING 1 1 1\n".encode()
+    )
+    path = _write_tmp(content)
+
+    tracemalloc.start()
+    try:
+        poly = read(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    assert len(poly.vertices) == n**3
+    # Kept: 24 bytes of vertices, 32 of connectivity, 4 of offsets, 1 of
+    # type; the cell origins (8) are the transient on top.
+    assert peak < 96 * n**3
+
+
+@pytest.mark.parametrize("dataset", sorted(_LEGACY_GRID_HEADERS))
+def test_a_legacy_grid_keeps_the_width_its_indices_need(monkeypatch, dataset) -> None:
+    """A grid past the int32 limit keeps int64 indices rather than wrapping.
+
+    The cells are built int64 once the points outgrow an int32, and the
+    reader cast them back to int32, which wraps the high indices into
+    negative ones; its offsets were int32 whatever the connectivity length.
+    The limit is lowered so a grid of 18 points crosses it.
+    """
+    monkeypatch.setattr(_vtk_xml, "_INT32_MAX", 17)
+    content = (
+        b"# vtk DataFile Version 3.0\ng\nASCII\nDATASET "
+        + dataset.encode()
+        + b"\n"
+        + _LEGACY_GRID_HEADERS[dataset]
+    )
+
+    poly = read(_write_tmp(content))
+
+    assert poly.connectivity.dtype == np.int64
+    assert poly.offsets.dtype == np.int64
+    np.testing.assert_array_equal(poly.offsets, np.arange(5) * 8)
+    assert int(poly.connectivity.max()) == 17
+    validate(poly)
 
 
 @pytest.mark.parametrize(

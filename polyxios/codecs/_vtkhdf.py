@@ -50,9 +50,11 @@ from polyxios.codecs._hdf5 import (
 )
 from polyxios.codecs._vtk_xml import (
     extent_points,
+    lattice_vertices,
     polygon_types,
     structured_cell_shape,
     structured_cells,
+    structured_offsets,
     vtk_code_types,
 )
 from polyxios.exceptions import CodecError, UnsupportedFormatError
@@ -693,13 +695,12 @@ def _read_image(root: Any, index: int | None, *, name: str, size: int) -> PolyDa
     axes = [
         np.arange(extent[2 * a], extent[2 * a + 1] + 1) * spacing[a] for a in range(3)
     ]
-    zz, yy, xx = np.meshgrid(axes[2], axes[1], axes[0], indexing="ij")
-    local = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
     matrix = np.asarray(direction, dtype=np.float64).reshape(3, 3)
     rotated = not np.array_equal(matrix.ravel(), _IDENTITY)
-    vertices = (local @ matrix.T if rotated else local) + np.asarray(origin)
+    vertices = lattice_vertices(*axes, direction=matrix if rotated else None)
+    vertices += np.asarray(origin, dtype=np.float64)
     connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    offsets = structured_offsets(n_cells, n_per_cell)
     element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
     point_shape = (nz + 1, ny + 1, nx + 1)
     cell_shape = (max(nz, 1), max(ny, 1), max(nx, 1))

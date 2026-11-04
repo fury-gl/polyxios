@@ -14,6 +14,7 @@ from polyxios.codecs._vtk_xml import (
     format_attr_da,
     format_field_data,
     grid_axes,
+    lattice_vertices,
     parse_xml,
     read_field_data,
     require_grid_order,
@@ -24,6 +25,7 @@ from polyxios.codecs._vtk_xml import (
     structured_cell_shape,
     structured_cells,
     structured_cells_fit,
+    structured_offsets,
     structured_spans_from_cells,
     whole_extent,
     xml_extent,
@@ -179,11 +181,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
                 f"holds {len(coords)} values."
             )
 
-    zz, yy, xx = np.meshgrid(z_arr, y_arr, x_arr, indexing="ij")
-    vertices = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
+    vertices = lattice_vertices(x_arr, y_arr, z_arr)
 
     connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = np.arange(n_cells + 1, dtype=np.int32) * n_per_cell
+    offsets = structured_offsets(n_cells, n_per_cell)
     element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
 
     point_data: dict[str, np.ndarray] = {}

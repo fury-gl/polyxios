@@ -73,9 +73,40 @@ New features
   compresses with zstd, which Python ships from 3.14; before that it needs
   ``pip install "polyxios[zstd]"``.
 
+Behaviour changes
+~~~~~~~~~~~~~~~~~
+
+- A legacy ``.vtk`` ``STRUCTURED_POINTS`` or ``RECTILINEAR_GRID`` numbers
+  its points ``x`` fastest, as VTK does. They came out ``z`` fastest under
+  cells built for ``x`` fastest, so every hexahedron was twisted and each
+  ``POINT_DATA`` value sat on another point. The cells of all three legacy
+  grids, ``STRUCTURED_GRID`` included, now run ``x`` fastest too, so a
+  ``CELL_DATA`` value lands on the cell it was written for. The vertex and
+  cell indices of these files change: code that picks a point or a cell of
+  one by position gets a different one than before.
+
 Bug fixes
 ~~~~~~~~~
 
+- Reading a ``.vti`` or ``.vtr`` builds the grid's vertices in place rather
+  than through a ``meshgrid`` and a ``column_stack``, which held three
+  extra copies of every coordinate: a header-only ImageData of 67 million
+  points peaked at 5.4 GB and now peaks at 3.9 GB. A VTKHDF ImageData is
+  built the same way.
+- A legacy ``.vtk`` ``STRUCTURED_POINTS`` or ``RECTILINEAR_GRID`` is held
+  to ``MAX_IMPLIED_VERTICES``, as the XML grids are: ``DIMENSIONS 1000 1000
+  1000`` in a file of a hundred bytes asked for a billion points. An image
+  empty along one axis no longer spells out the other two, and a
+  ``DIMENSIONS 300 300 300`` image peaks at 2.1 GB rather than 5.0 GB.
+- A structured grid (``.vti``, ``.vtr``, ``.vts``, VTKHDF ImageData, legacy
+  ``.vtk``) whose connectivity outgrows an int32 - a hexahedral grid of more
+  than about 270 million cells - gets int64 offsets. They were built in
+  int32 whatever the size, so past that point they wrapped negative and
+  every later cell named the wrong corners. The legacy readers also keep
+  the int64 connectivity of a grid with more than ``2**31`` points rather than
+  casting it to int32.
+- A VTKHDF ImageData with a ``Direction`` is rotated as its vertices are
+  built, rather than by a matrix product that held a second copy of them.
 - A ``.3mf`` package whose model part or ``_rels/.rels`` is encrypted, or
   stored with a compression method Python's ``zipfile`` lacks, now raises
   ``CodecError`` rather than ``RuntimeError`` or ``NotImplementedError``,

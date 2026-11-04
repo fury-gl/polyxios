@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import tempfile
+import tracemalloc
 import warnings
 
 import numpy as np
@@ -9,8 +10,13 @@ import pytest
 
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
+from polyxios.codecs import _vtk_xml
 from polyxios.codecs._vti import read, write
-from polyxios.codecs._vtk_xml import structured_cells
+from polyxios.codecs._vtk_xml import (
+    lattice_vertices,
+    structured_cells,
+    structured_offsets,
+)
 from polyxios.exceptions import CodecError, LazyReadError, ValidationError
 from polyxios.transforms import remove_orphan_vertices
 from polyxios.validate import validate
@@ -663,6 +669,104 @@ def test_an_image_of_a_size_worth_reading_is_still_read(tmp_path) -> None:
     poly = read(path)
 
     assert len(poly.vertices) == 64**3
+    validate(poly)
+
+
+def test_an_implied_grid_is_built_without_copies_of_itself(tmp_path) -> None:
+    """A header-only grid allocates its mesh and little else.
+
+    The vertices went through a ``meshgrid`` and a ``column_stack``: three
+    full copies of every coordinate on the way to the one kept, about 80
+    bytes a point for a run of lines. Under the cap, a 162-byte file asked
+    for 67 million points and peaked at 5.4 GB.
+    """
+    n = 250_000
+    path = tmp_path / "line.vti"
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData Origin="0 0 0" Spacing="1 1 1">\n'
+        f'    <Piece Extent="0 0 0 {n - 1} 0 0"/>\n'
+        "  </ImageData>\n"
+        "</VTKFile>\n"
+    )
+
+    tracemalloc.start()
+    try:
+        poly = read(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    assert len(poly.vertices) == n
+    # Kept: 24 bytes of vertices, 8 of connectivity, 4 of offsets, 1 of
+    # type; the int64 cell origins (8) are the transient on top.
+    assert peak < 56 * n
+
+
+def test_an_implied_grid_runs_x_fastest() -> None:
+    """The lattice comes out in the order a meshgrid expansion gave it."""
+    x = np.array([0.0, 1.0, 3.0])
+    y = np.array([-2.0, 5.0], dtype=np.float32)
+    z = np.array([7.0, 8.0, 9.0, 10.0])
+    zz, yy, xx = np.meshgrid(z, y, x, indexing="ij")
+    expected = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()]).astype(np.float64)
+
+    out = lattice_vertices(x, y, z)
+
+    assert out.dtype == np.float64
+    np.testing.assert_array_equal(out, expected)
+
+
+def test_a_rotated_lattice_is_the_rotation_of_the_lattice() -> None:
+    """Built a column at a time, it agrees with the matrix product it replaces."""
+    x = np.array([0.0, 0.5, 2.0])
+    y = np.array([-1.0, 4.0], dtype=np.float32)
+    z = np.array([3.0, 3.5, 9.0, 10.0])
+    theta = 0.3
+    direction = np.array(
+        [
+            [np.cos(theta), -np.sin(theta), 0.0],
+            [np.sin(theta), np.cos(theta), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+
+    out = lattice_vertices(x, y, z, direction=direction)
+
+    assert out.dtype == np.float64
+    np.testing.assert_allclose(
+        out, lattice_vertices(x, y, z) @ direction.T, rtol=0, atol=1e-12
+    )
+
+
+def test_structured_offsets_widen_once_the_connectivity_outgrows_an_int32(
+    monkeypatch,
+) -> None:
+    """The last offset is the connectivity length, which wraps an int32 first.
+
+    Lowered so a grid of a few cells crosses it: 300 million points of
+    hexahedra hold 2.4 billion corners, and int32 offsets wrapped negative.
+    """
+    assert structured_offsets(3, 8).dtype == np.int32
+    monkeypatch.setattr(_vtk_xml, "_INT32_MAX", 23)
+
+    offsets = structured_offsets(3, 8)
+
+    assert offsets.dtype == np.int64
+    np.testing.assert_array_equal(offsets, [0, 8, 16, 24])
+
+
+def test_a_vti_past_the_int32_offsets_reads_them_wide(monkeypatch, tmp_path) -> None:
+    """The reader takes the offsets' width from the connectivity length."""
+    monkeypatch.setattr(_vtk_xml, "_INT32_MAX", 20)
+    path = tmp_path / "wide.vti"
+    path.write_text(_vti_text(extent="0 3 0 1 0 1"))
+
+    poly = read(path)
+
+    assert poly.offsets.dtype == np.int64
+    np.testing.assert_array_equal(poly.offsets, np.arange(4) * 8)
     validate(poly)
 
 
