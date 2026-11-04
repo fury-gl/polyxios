@@ -87,3 +87,30 @@ def compact_vertex_indices(connectivity: np.ndarray, n_verts: int) -> np.ndarray
             remap[old] = new_idx
             new_idx += 1
     return remap
+
+
+def merge_rows(rows: np.ndarray, *, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Group equal rows in first-occurrence order.
+
+    Parameters
+    ----------
+    rows
+        A float32 or float64 array, one row per item.
+    seed
+        Unused: the grouping here is a sort, which no file can steer. Kept
+        so the signature matches the compiled one.
+
+    Returns
+    -------
+    first : numpy.ndarray
+        The index of each distinct row's first occurrence, in that order.
+    inverse : numpy.ndarray
+        For each row, the position of its group in ``first``; int32 when
+        every position fits one, int64 past that.
+    """
+    _, first, inverse = np.unique(rows, axis=0, return_index=True, return_inverse=True)
+    order = np.argsort(first)
+    rank = np.empty_like(order)
+    rank[order] = np.arange(len(order))
+    wide = len(rows) > np.iinfo(np.int32).max
+    return first[order], rank[inverse.ravel()].astype(np.int64 if wide else np.int32)

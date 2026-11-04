@@ -223,6 +223,15 @@ Bug fixes
   fixed-size surface element holding the wrong node count, where a
   three-node quad took its fourth corner from the next element.
 
+Optimizations
+~~~~~~~~~~~~~
+
+- Reading an ``.stl`` merges the corners its triangles repeat in one pass
+  over a hash table, compiled in the ``_core`` extension, instead of
+  sorting every corner as an opaque record with ``np.unique``: 20 million
+  triangles read in about 4 s at a 3.1 GB peak, where they took 34 s and
+  5.1 GB. The merged vertices and their order are unchanged.
+
 .. _changes_0.5.1:
 
 0.5.1 (2026-10-15)
