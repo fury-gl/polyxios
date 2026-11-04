@@ -666,8 +666,8 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
         # An element this codec has no place for costs its own records and
         # nothing else, since each of them is one line.
 
-    types_list = _face_types(offsets_list)
-    n_faces = len(types_list)
+    types = _face_types(np.diff(np.asarray(offsets_list, dtype=np.int64)))
+    n_faces = len(types)
     element_attrs = _padded_columns(
         {k: np.array(v, dtype=np.float64) for k, v in extra_face_props.items()},
         n_faces,
@@ -678,7 +678,9 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
         base = offsets_list[-1]
         conn_list.extend(edge_conn)
         offsets_list.extend(range(base + 2, base + 2 * n_edges + 1, 2))
-        types_list.extend([ELEMENT_TYPES["line"]] * n_edges)
+        types = np.concatenate(
+            [types, np.full(n_edges, ELEMENT_TYPES["line"], dtype=np.uint8)]
+        )
         element_attrs = _combined_element_attrs(
             element_attrs,
             _padded_columns(
@@ -693,7 +695,7 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
         vertices=vertices,
         connectivity=_checked_connectivity(conn_list, n_verts),
         offsets=np.array(offsets_list, dtype=np.int32),
-        element_types=np.array(types_list, dtype=np.uint8),
+        element_types=types,
         vertex_attrs={k: np.array(v) for k, v in extra_vert_props.items()},
         element_attrs=element_attrs,
     )
@@ -895,16 +897,65 @@ def _read_ascii_edges(
         edge_conn.extend(ends)
 
 
-def _face_types(offsets_list: list[int]) -> list[int]:
-    """Return the element type each face's vertex count names."""
-    tri_code = ELEMENT_TYPES["triangle"]
-    quad_code = ELEMENT_TYPES["quad"]
-    poly_code = ELEMENT_TYPES["polygon"]
-    types: list[int] = []
-    for i in range(len(offsets_list) - 1):
-        n = offsets_list[i + 1] - offsets_list[i]
-        types.append(tri_code if n == 3 else quad_code if n == 4 else poly_code)
+def _face_types(sizes: np.ndarray) -> np.ndarray:
+    """Return the element type each face's vertex count names.
+
+    Parameters
+    ----------
+    sizes
+        How many vertices each face lists.
+
+    Returns
+    -------
+    numpy.ndarray
+        One uint8 type code per face: a triangle for three, a quad for four,
+        a polygon for any other count.
+    """
+    sizes = np.asarray(sizes)
+    types = np.full(sizes.shape[0], ELEMENT_TYPES["polygon"], dtype=np.uint8)
+    types[sizes == 3] = ELEMENT_TYPES["triangle"]
+    types[sizes == 4] = ELEMENT_TYPES["quad"]
     return types
+
+
+def _joined(parts: list[np.ndarray], *, dtype: Any) -> np.ndarray:
+    """Return the blocks as one array, without a copy when there is one block.
+
+    Parameters
+    ----------
+    parts
+        What each block of an element left behind.
+    dtype
+        The dtype of an empty result.
+
+    Returns
+    -------
+    numpy.ndarray
+        The blocks end to end.
+    """
+    if not parts:
+        return np.zeros(0, dtype=dtype)
+    return parts[0] if len(parts) == 1 else np.concatenate(parts)
+
+
+def _offsets_from_sizes(sizes: np.ndarray) -> np.ndarray:
+    """Return the offsets of elements of these sizes, int32 while they fit.
+
+    Parameters
+    ----------
+    sizes
+        How many vertices each element lists.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``len(sizes) + 1`` offsets starting at zero.
+    """
+    offsets = np.zeros(sizes.shape[0] + 1, dtype=np.int64)
+    np.cumsum(sizes, out=offsets[1:])
+    if offsets[-1] <= np.iinfo(np.int32).max:
+        return offsets.astype(np.int32)
+    return offsets
 
 
 def _edge_end_slots(props: list[tuple[str, Any]]) -> tuple[int, int]:
@@ -1019,11 +1070,11 @@ def _decode_binary_faces(
     count: int,
     props: list[tuple[str, Any]],
     endian: str,
-    conn_list: list[int],
-    offsets_list: list[int],
+    conn_parts: list[np.ndarray],
+    size_parts: list[np.ndarray],
     extra_out: dict[str, np.ndarray],
 ) -> int:
-    """Walk a binary ``face`` block, appending its indices and scalar columns.
+    """Read a binary ``face`` block, appending its indices and scalar columns.
 
     Parameters
     ----------
@@ -1037,8 +1088,9 @@ def _decode_binary_faces(
         The element's ``(name, type)`` properties, in declared order.
     endian
         ``<`` or ``>``.
-    conn_list, offsets_list
-        The connectivity being built and its running offsets.
+    conn_parts, size_parts
+        The indices of each block read so far, and how many each of its faces
+        lists; this block's are appended as one array each.
     extra_out
         Where the scalar properties are left, one column per name.
 
@@ -1061,18 +1113,23 @@ def _decode_binary_faces(
     uses ``struct`` on the mapping directly: a numpy call per field copies a
     bytes object and builds an array to read one number out of it, which on a
     mesh of a million faces is millions of both.
+
+    A block of one face width - nearly every file - is read as one structured
+    array and its indices copied out in one cast, never as Python integers:
+    on twenty million triangles those cost seconds and gigabytes.
     """
     # How many faces the earlier blocks left behind, which is where this
     # block's property values belong in their columns.
-    n_before = len(offsets_list) - 1
+    n_before = sum(len(sizes) for sizes in size_parts)
     uniform = _fixed_face_records(mv, pos, count, props, endian)
     if uniform is not None:
         records, list_at, n_nodes, end = uniform
-        conn_list.extend(records[f"f{list_at}"].ravel().tolist())
-        base = offsets_list[-1]
-        offsets_list.extend(
-            (base + np.arange(1, count + 1, dtype=np.int64) * n_nodes).tolist()
-        )
+        indices = records[f"f{list_at}"]
+        # An index type an int32 holds every value of is cast straight to
+        # the connectivity's own width; a wider one is checked at int64.
+        width = np.int32 if np.can_cast(indices.dtype, np.int32) else np.int64
+        conn_parts.append(indices.astype(width).ravel())
+        size_parts.append(np.full(count, n_nodes, dtype=np.int64))
         for i, (pname, _) in enumerate(props):
             if i != list_at:
                 _append_column(
@@ -1113,7 +1170,8 @@ def _decode_binary_faces(
         raise CodecError(f".ply: the file ends inside its {count} face record(s).")
     if not least:
         return pos
-    running = offsets_list[-1]
+    conn_list: list[int] = []
+    sizes: list[int] = []
     unpack_from = struct.unpack_from
     try:
         for _ in range(count):
@@ -1130,12 +1188,13 @@ def _decode_binary_faces(
                     )
                 conn_list.extend(unpack_from(f"{endian}{n_nodes}{idx_char}", mv, pos))
                 pos += n_nodes * idx_size
-                running += n_nodes
-                offsets_list.append(running)
+                sizes.append(n_nodes)
     except struct.error as exc:
         raise CodecError(
             f".ply: the file ends inside its {count} face record(s)."
         ) from exc
+    conn_parts.append(np.array(conn_list, dtype=np.int64))
+    size_parts.append(np.array(sizes, dtype=np.int64))
 
     for pname, values in columns.items():
         _append_column(extra_out, pname, np.array(values, dtype=np.float64), n_before)
@@ -1321,10 +1380,31 @@ def _fixed_face_records(
     return records, list_at, n_nodes, end
 
 
-def _checked_connectivity(conn_list: list[int], n_verts: int) -> np.ndarray:
-    """Return the connectivity, refusing an index no vertex answers to."""
+def _checked_connectivity(conn: list[int] | np.ndarray, n_verts: int) -> np.ndarray:
+    """Return the connectivity, refusing an index no vertex answers to.
+
+    Parameters
+    ----------
+    conn
+        The indices: a list, as the ASCII reader collects them, or an integer
+        array, which is checked as it is and cast once.
+    n_verts
+        How many vertices the mesh holds.
+
+    Returns
+    -------
+    numpy.ndarray
+        The indices as int32.
+
+    Raises
+    ------
+    CodecError
+        On an index past int64 or outside the vertices.
+    """
     try:
-        connectivity = np.array(conn_list, dtype=np.int64)
+        connectivity = (
+            conn if isinstance(conn, np.ndarray) else np.array(conn, dtype=np.int64)
+        )
     except OverflowError as exc:
         # An ASCII index past int64: no vertex answers to it either.
         raise CodecError(
@@ -1337,7 +1417,7 @@ def _checked_connectivity(conn_list: list[int], n_verts: int) -> np.ndarray:
             raise CodecError(
                 f".ply: an element references vertex {low}..{high}, outside {held}."
             )
-    return connectivity.astype(np.int32)
+    return connectivity.astype(np.int32, copy=False)
 
 
 def _read_binary(
@@ -1427,13 +1507,13 @@ def _decode_binary(
 
     vertices = np.zeros((0, 3), dtype=np.float64)
     vertex_attrs: dict[str, np.ndarray] = {}
-    conn_list: list[int] = []
-    offsets_list: list[int] = [0]
+    conn_parts: list[np.ndarray] = []
+    size_parts: list[np.ndarray] = []
     element_attrs: dict[str, np.ndarray] = {}
     # Edges are held back and appended after the faces, so a per-face
     # attribute keeps lining up with the faces it describes whatever order
     # the header declares the two elements in.
-    edge_conn: list[int] = []
+    edge_parts: list[np.ndarray] = []
     edge_extra: dict[str, np.ndarray] = {}
 
     for elem in header["elements"]:
@@ -1475,7 +1555,7 @@ def _decode_binary(
 
         elif ename == "face":
             pos = _decode_binary_faces(
-                mv, pos, count, props, endian, conn_list, offsets_list, element_attrs
+                mv, pos, count, props, endian, conn_parts, size_parts, element_attrs
             )
 
         elif ename == "edge":
@@ -1500,10 +1580,10 @@ def _decode_binary(
                     ends[props[second][0]].astype(np.int64),
                 ]
             )
-            # Extended, not assigned: a header declaring the element twice
+            # Appended, not assigned: a header declaring the element twice
             # would otherwise keep only its last block.
-            edge_base = len(edge_conn) // 2
-            edge_conn.extend(pairs.ravel().tolist())
+            edge_base = sum(len(part) for part in edge_parts) // 2
+            edge_parts.append(pairs.ravel())
             # Whatever else the record carries describes the line the way a
             # face property describes its face, so it travels with it.
             for pi, (pname, ptype) in enumerate(props):
@@ -1520,24 +1600,28 @@ def _decode_binary(
             # Skip unknown elements: compute size by summing property sizes
             pos = _skip_binary_element(mv, pos, count, props, endian)
 
-    types_list = _face_types(offsets_list)
-    element_attrs = _padded_columns(element_attrs, len(types_list))
-    if edge_conn:
-        n_faces = len(types_list)
-        n_edges = len(edge_conn) // 2
-        base = offsets_list[-1]
-        conn_list.extend(edge_conn)
-        offsets_list.extend(range(base + 2, base + 2 * n_edges + 1, 2))
-        types_list.extend([ELEMENT_TYPES["line"]] * n_edges)
+    sizes = _joined(size_parts, dtype=np.int64)
+    types = _face_types(sizes)
+    n_faces = len(types)
+    element_attrs = _padded_columns(element_attrs, n_faces)
+    edges = _joined(edge_parts, dtype=np.int64)
+    if edges.size:
+        n_edges = edges.size // 2
+        conn_parts.append(edges)
+        sizes = np.concatenate([sizes, np.full(n_edges, 2, dtype=np.int64)])
+        types = np.concatenate(
+            [types, np.full(n_edges, ELEMENT_TYPES["line"], dtype=np.uint8)]
+        )
         element_attrs = _combined_element_attrs(
             element_attrs, _padded_columns(edge_extra, n_edges), n_faces, n_edges
         )
-
     return PolyData(
         vertices=vertices,
-        connectivity=_checked_connectivity(conn_list, vertices.shape[0]),
-        offsets=np.array(offsets_list, dtype=np.int32),
-        element_types=np.array(types_list, dtype=np.uint8),
+        connectivity=_checked_connectivity(
+            _joined(conn_parts, dtype=np.int64), vertices.shape[0]
+        ),
+        offsets=_offsets_from_sizes(sizes),
+        element_types=types,
         vertex_attrs=vertex_attrs,
         element_attrs=element_attrs,
     )
