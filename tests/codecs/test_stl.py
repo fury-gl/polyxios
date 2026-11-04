@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import struct
+import tracemalloc
 import warnings
 
 import numpy as np
 import pytest
 
 import polyxios
-from polyxios import make_polydata
+from polyxios import _backend, make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.codecs._stl import _BINARY_FACET_SIZE, _HEADER_SIZE, read, write
@@ -91,6 +93,63 @@ def test_merge_vertices_default(tmp_path: Path) -> None:
     poly2 = read(tmp, merge_vertices=True)
     # tetrahedron has 4 unique vertices
     assert poly2.vertices.shape[0] == 4
+
+
+def test_corners_merge_by_value_in_first_occurrence_order(tmp_path: Path) -> None:
+    """``-0.0`` is the corner ``0.0`` is; a NaN corner is no other corner.
+
+    The grouping ``np.unique(axis=0)`` gave, kept by the hash table that
+    replaces it.
+    """
+    nan = float("nan")
+    facets = [
+        [(5, 5, 5), (0.0, 1, 0), (nan, 0, 0)],
+        [(-0.0, 1, 0), (5, 5, 5), (nan, 0, 0)],
+    ]
+    body = b"".join(
+        struct.pack("<3f", 0, 0, 1)
+        + b"".join(struct.pack("<3f", *corner) for corner in facet)
+        + b"\0\0"
+        for facet in facets
+    )
+    path = tmp_path / "zeros.stl"
+    path.write_bytes(b"\0" * _HEADER_SIZE + struct.pack("<I", len(facets)) + body)
+
+    poly = read(path)
+
+    assert poly.connectivity.tolist() == [0, 1, 2, 1, 0, 3]
+    np.testing.assert_array_equal(poly.vertices[:2], [[5, 5, 5], [0, 1, 0]])
+    assert np.isnan(poly.vertices[2:, 0]).all()
+
+
+@pytest.mark.skipif(
+    not _backend.HAS_CYTHON,
+    reason="the compiled _core is not loaded; its fallback is the np.unique sort",
+)
+def test_corners_merge_without_sorting_every_one_as_a_record(tmp_path: Path) -> None:
+    """A binary read holds about 150 bytes a triangle at its peak.
+
+    ``np.unique(axis=0)`` took 257, and 31 of the 34 seconds a 20-million-
+    triangle file spent reading went into its sort.
+    """
+    n = 120
+    y, x = np.divmod(np.arange(n * n, dtype=np.float64), n)
+    a = (np.arange(n - 1)[:, None] * n + np.arange(n - 1)[None, :]).ravel()
+    tris = np.concatenate(
+        [np.column_stack([a, a + 1, a + n + 1]), np.column_stack([a, a + n + 1, a + n])]
+    )
+    path = tmp_path / "grid.stl"
+    write(make_polydata(np.column_stack([x, y, 0 * x]), [("triangle", tris)]), path)
+
+    tracemalloc.start()
+    try:
+        poly = read(path)
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    assert len(poly.vertices) == n * n
+    assert peak < 200 * len(tris)
 
 
 def test_no_merge_vertices(tmp_path: Path) -> None:
