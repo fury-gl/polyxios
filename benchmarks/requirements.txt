@@ -1,0 +1,7 @@
+# The readers compare.py measures besides polyxios. Not a dependency of
+# polyxios: install them in a separate environment for a benchmark run.
+laspy
+meshio
+open3d
+pyvista
+trimesh
