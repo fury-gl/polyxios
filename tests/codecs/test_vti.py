@@ -9,9 +9,10 @@ import numpy as np
 import pytest
 
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._image import ImageData
 from polyxios._types import PolyData
 from polyxios.codecs import _vtk_xml
-from polyxios.codecs._vti import read, write
+from polyxios.codecs._vti import read, read_image, write, write_image
 from polyxios.codecs._vtk_xml import (
     lattice_vertices,
     structured_cells,
@@ -825,3 +826,67 @@ def test_bytes_that_are_not_utf8_do_not_escape_the_xml_parse(tmp_path) -> None:
     path.write_bytes(text.encode("latin-1"))
     with pytest.warns(UserWarning, match="read as Latin-1"):
         assert read(path).vertices.shape == (8, 3)
+
+
+def _offset_image() -> ImageData:
+    """A grid that starts away from zero, with every kind of array."""
+    return ImageData(
+        extent=(1, 3, 2, 3, 0, 1),
+        origin=(10.0, 20.0, 30.0),
+        spacing=(0.5, 2.0, 4.0),
+        point_attrs={
+            "p": np.arange(12, dtype=np.float32).reshape(2, 2, 3),
+            "v": np.arange(36, dtype=np.int16).reshape(2, 2, 3, 3),
+        },
+        cell_attrs={"c": np.arange(2, dtype=np.int32).reshape(1, 1, 2) + 5},
+        global_attrs={"title": "grid", "gnum": np.array([42.0])},
+    )
+
+
+def test_read_image_is_the_grid_read_expands(tmp_path) -> None:
+    path = tmp_path / "g.vti"
+    write_image(_offset_image(), path)
+    image = read_image(path)
+    full = read(path)
+    expanded = image.to_polydata()
+    np.testing.assert_array_equal(expanded.vertices, full.vertices)
+    np.testing.assert_array_equal(expanded.connectivity, full.connectivity)
+    np.testing.assert_array_equal(expanded.element_types, full.element_types)
+    assert expanded.vertex_attrs.keys() == full.vertex_attrs.keys()
+    for name, values in full.vertex_attrs.items():
+        np.testing.assert_array_equal(expanded.vertex_attrs[name], values)
+    for name, values in full.element_attrs.items():
+        np.testing.assert_array_equal(expanded.element_attrs[name], values)
+    expanded.global_attrs.update(
+        vti_origin=[10.0, 20.0, 30.0],
+        vti_spacing=[0.5, 2.0, 4.0],
+        vti_extent=[1, 3, 2, 3, 0, 1],
+    )
+    assert expanded.global_attrs.keys() == {
+        k for k in full.global_attrs if k != "vti_whole_extent"
+    }
+
+
+def test_write_image_keeps_extent_origin_spacing_and_arrays(tmp_path) -> None:
+    path = tmp_path / "g.vti"
+    image = _offset_image()
+    write_image(image, path, binary=False)
+    back = read_image(path)
+    assert back.extent == image.extent
+    assert back.origin == image.origin
+    assert back.spacing == image.spacing
+    assert back.direction is None
+    for name, values in image.point_attrs.items():
+        np.testing.assert_array_equal(back.point_attrs[name], values)
+    np.testing.assert_array_equal(back.cell_attrs["c"], image.cell_attrs["c"])
+    assert back.global_attrs["title"] == "grid"
+
+
+def test_write_image_refuses_a_rotation_it_cannot_spell(tmp_path) -> None:
+    rotated = ImageData(extent=(0, 1, 0, 1, 0, 0), direction=np.eye(3)[::-1])
+    with pytest.raises(CodecError, match="spells no Direction"):
+        write_image(rotated, tmp_path / "r.vti")
+    # The identity is no rotation.
+    write_image(
+        ImageData(extent=(0, 1, 0, 1, 0, 0), direction=np.eye(3)), tmp_path / "e.vti"
+    )

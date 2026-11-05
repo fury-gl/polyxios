@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections.abc import Iterable
 import logging
 from pathlib import Path
@@ -9,6 +7,10 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 import polyxios
+from polyxios._image import (
+    array_to_image as array_to_image,
+    image_to_array as image_to_array,
+)
 from polyxios.codecs import _pvd, _vtkhdf, _xdmf
 from polyxios.exceptions import UnsupportedFormatError
 from polyxios.fetcher import fetch
