@@ -368,3 +368,29 @@ def test_an_image_crosses_between_formats(tmp_path) -> None:
     polyxios.write_image(polyxios.read_image(vti), hdf)
     back = polyxios.read_image(hdf)
     np.testing.assert_array_equal(helper.image_to_array(back), pixels)
+
+
+def test_read_image_of_a_png_is_quiet_and_read_points_at_it(tmp_path) -> None:
+    pixels = _gradient(4, 6, 3)
+    path = tmp_path / "x.png"
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    image = polyxios.read_image(path)  # a warning here fails the suite
+    with pytest.warns(UserWarning, match="read_image"):
+        poly = polyxios.read(path)
+    np.testing.assert_array_equal(
+        helper.image_to_array(poly), helper.image_to_array(image)
+    )
+    np.testing.assert_array_equal(helper.image_to_array(image), pixels)
+
+
+def test_a_png_crosses_to_a_grid_and_back(tmp_path) -> None:
+    pixels = _gradient(4, 6, 3)
+    png = tmp_path / "x.png"
+    polyxios.write_image(helper.array_to_image(pixels), png)
+    vti = tmp_path / "x.vti"
+    polyxios.write_image(polyxios.read_image(png), vti)
+    again = tmp_path / "y.png"
+    polyxios.write_image(polyxios.read_image(vti), again)
+    np.testing.assert_array_equal(
+        helper.image_to_array(polyxios.read_image(again)), pixels
+    )
