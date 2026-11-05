@@ -791,3 +791,16 @@ def test_cli_convert_between_a_png_and_an_image_grid(
     np.testing.assert_array_equal(
         helper.image_to_array(polyxios.read_image(back)), pixels
     )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_a_png_to_a_jpeg_stays_compact(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.png"
+    target = temp_polyxios_home / "b.jpg"
+    _picture(source)
+    code, warnings_shown = _convert(monkeypatch, capsys, source, target)
+    assert code == 0
+    assert warnings_shown == []
+    assert helper.image_to_array(polyxios.read_image(target)).shape == (4, 6, 3)

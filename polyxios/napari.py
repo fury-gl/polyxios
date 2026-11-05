@@ -44,7 +44,7 @@ from polyxios._io import GZIP_SUFFIXES, format_suffix, open_read, source_suffix
 from polyxios._registry import Codec, sniff_head
 from polyxios._types import PolyData, make_polydata, surface_triangles
 from polyxios._warn import warn_caller
-from polyxios.codecs import _exodus, _gltf, _png, _tecplot, _vti, _vtr, _vts
+from polyxios.codecs import _exodus, _gltf, _jpeg, _png, _tecplot, _vti, _vtr, _vts
 from polyxios.codecs._vtk_xml import (
     extent_points,
     extent_spans,
@@ -144,7 +144,7 @@ _NOT_READ: Final[frozenset[str]] = frozenset({".svg"})
 # by helper.read_multiblock rather than by a codec, as plain XML only.
 _PLAIN_ONLY: Final[frozenset[str]] = META_SUFFIXES
 # Pictures, which open as Image layers rather than as a lattice of quads.
-_RASTER_SUFFIXES: Final[frozenset[str]] = frozenset({_png.EXTENSION})
+_RASTER_SUFFIXES: Final[frozenset[str]] = frozenset({_png.EXTENSION, *_jpeg.EXTENSIONS})
 _VTP: Final[str] = ".vtp"
 # How much of a file the content test of a codec owning its extension sees.
 # The registry's own sniff window is too short for an HDF5 signature behind a

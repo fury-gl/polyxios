@@ -1030,6 +1030,15 @@ def test_a_gray_picture_is_a_plain_image_layer(tmp_path):
     np.testing.assert_array_equal(data, pixels)
 
 
+def test_a_jpeg_picture_opens_as_one_image_layer(tmp_path):
+    for name in ("a.jpg", "b.jpeg", "c.jfif"):
+        path, pixels = _picture(tmp_path, name, (8, 8, 3))
+        [(data, kwargs, layer_type)] = get_reader(path=str(path))(str(path))
+        assert layer_type == "image"
+        assert kwargs["rgb"] is True
+        assert data.shape == pixels.shape
+
+
 def test_a_gzipped_picture_is_still_a_picture(tmp_path):
     path, pixels = _picture(tmp_path, "a.png", (4, 4, 4))
     zipped = tmp_path / "z.png.gz"
