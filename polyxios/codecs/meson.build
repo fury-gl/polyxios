@@ -22,6 +22,7 @@ py.install_sources(
     '_hmf.py',
     '_las.py',
     '_lzf_fallback.py',
+    '_jpeg.py',
     '_png.py',
     '_raster_kernels_fallback.py',
     '_mdpa.py',

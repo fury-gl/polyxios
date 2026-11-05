@@ -806,11 +806,33 @@ CAPABILITIES: dict[str, Cap] = {
         note="read() expands the image into a lattice and warns to point at "
         "read_image().",
     ),
+    ".jpg": Cap(
+        "image",
+        vertex_attrs=("colors",),
+        attr_values=False,
+        warns=(r"image format.*read_image",),
+        note="JPEG is lossy by default: colors come back close to, not equal "
+        "to, what was written; read() warns to point at read_image().",
+    ),
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
 _ALIASES: frozenset[str] = frozenset(
-    {".nas", ".fem", ".node", ".post", ".glb", ".xmf", ".exo", ".ex2", ".pts", ".ptx"}
+    {
+        ".nas",
+        ".fem",
+        ".node",
+        ".post",
+        ".glb",
+        ".xmf",
+        ".exo",
+        ".ex2",
+        ".pts",
+        ".ptx",
+        ".jpeg",
+        ".jpe",
+        ".jfif",
+    }
 )
 
 # Registered so the error names the format, never to be written. Each is

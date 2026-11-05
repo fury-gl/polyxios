@@ -159,6 +159,7 @@ OPTIONS: dict[str, tuple[dict, ...]] = {
     "glb": ({"binary": True},),
     "gltf": ({"binary": False},),
     "amf": ({"compress": True},),
+    "jpeg": ({"lossless": True}, {"subsampling": "4:4:4"}),
 }
 
 

@@ -407,6 +407,13 @@ def test_header_declaring_enormous_image_is_refused_before_allocation(tmp_path):
         px.read_image(path)
 
 
+def test_png_named_jpg_is_refused(tmp_path):
+    data = _good_gray(tmp_path).read_bytes()
+    path = _write(tmp_path, "x.jpg", data)
+    with pytest.raises(CodecError, match="holds image/png data"):
+        px.read_image(path)
+
+
 def test_jpeg_bytes_named_png_are_refused(tmp_path):
     path = _write(tmp_path, "x.png", b"\xff\xd8\xff\xe0" + b"\x00" * 16)
     with pytest.raises(CodecError, match="holds image/jpeg data"):

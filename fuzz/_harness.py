@@ -59,6 +59,7 @@ TARGETS: dict[str, str] = {
     "glb": ".glb",
     "gltf": ".gltf",
     "inp": ".inp",
+    "jpeg": ".jpg",
     "las": ".las",
     "laz": ".laz",
     "mdpa": ".mdpa",

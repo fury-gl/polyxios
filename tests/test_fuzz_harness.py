@@ -49,6 +49,9 @@ _ALIASES = {
     ".nas": ".bdf",
     ".ele": ".node",
     ".plt": ".tec",
+    ".jpeg": ".jpg",
+    ".jpe": ".jpg",
+    ".jfif": ".jpg",
 }
 
 
