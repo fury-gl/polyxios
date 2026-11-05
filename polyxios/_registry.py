@@ -42,6 +42,14 @@ class Codec(NamedTuple):
         Optional scene writer, invoked as
         ``write_scene(scene=..., path=..., **opts)``.  ``None`` for formats
         that cannot represent a full scene graph.
+    read_image
+        Optional image reader, invoked as ``read_image(path=..., **opts)``
+        and returning an ``ImageData``.  ``None`` for formats that hold no
+        uniform grid of samples.
+    write_image
+        Optional image writer, invoked as
+        ``write_image(image=..., path=..., **opts)``.  ``None`` for formats
+        that cannot write an ``ImageData`` directly.
     entries
         The ``(label, codec)`` pairs behind ``candidates``, in the same
         order, on a dispatcher only. They are what its ``read`` tries, each
@@ -61,6 +69,8 @@ class Codec(NamedTuple):
     write_scene: Callable | None = None
     entries: tuple[tuple[str, "Codec"], ...] = ()
     owner: "Codec | None" = None
+    read_image: Callable | None = None
+    write_image: Callable | None = None
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
@@ -397,12 +407,22 @@ def build_default_registry() -> dict[str, Codec]:
             if not callable(write_scene_fn):
                 write_scene_fn = None
 
+            read_image_fn = getattr(mod, "read_image", None)
+            if not callable(read_image_fn):
+                read_image_fn = None
+
+            write_image_fn = getattr(mod, "write_image", None)
+            if not callable(write_image_fn):
+                write_image_fn = None
+
             codec = Codec(
                 read_fn,
                 write_fn,
                 sniff_fn,
                 read_scene=read_scene_fn,
                 write_scene=write_scene_fn,
+                read_image=read_image_fn,
+                write_image=write_image_fn,
             )
             # EXTENSION leads, so a module whose EXTENSIONS forgets its own
             # canonical spelling still answers to it; dict.fromkeys drops the

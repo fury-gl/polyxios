@@ -4,10 +4,10 @@ import warnings
 
 import numpy as np
 
-from polyxios._element_types import ELEMENT_TYPES
 from polyxios._globals import globals_for_write, text_for_write
+from polyxios._image import ImageData
 from polyxios._io import Source, write_text
-from polyxios._tags import tags_from_masks, with_tag_masks
+from polyxios._tags import with_tag_masks
 from polyxios._types import PolyData
 from polyxios.codecs._vtk_xml import (
     decode_da,
@@ -16,7 +16,6 @@ from polyxios.codecs._vtk_xml import (
     format_attr_da,
     format_field_data,
     grid_axes,
-    lattice_vertices,
     parse_xml,
     read_field_data,
     require_grid_order,
@@ -25,10 +24,9 @@ from polyxios.codecs._vtk_xml import (
     sized_attrs,
     spellable_arrays,
     structured_cell_shape,
-    structured_cells,
     structured_cells_fit,
-    structured_offsets,
     structured_spans_from_cells,
+    uniform_steps,
     vertices_match_axes,
     whole_extent,
     xml_extent,
@@ -45,7 +43,9 @@ RESERVED_GLOBALS: frozenset[str] = frozenset(
 )
 
 
-def _triple(values: Any, *, default: float, what: str) -> list[float]:
+def _triple(
+    values: Any, *, default: float, what: str, stacklevel: int = 3
+) -> list[float]:
     """Coerce a stored origin or spacing into exactly three floats.
 
     Parameters
@@ -109,7 +109,7 @@ def _triple(values: Any, *, default: float, what: str) -> list[float]:
             f"{EXTENSION}: {what} holds {values!r}, which is not a number or "
             "a run of them; the default is used instead.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=stacklevel,
         )
         return [default] * 3
     if n_values > 3:
@@ -117,7 +117,7 @@ def _triple(values: Any, *, default: float, what: str) -> list[float]:
             f"{EXTENSION}: {what} spells {n_values} numbers where three "
             "belong; the rest name no axis and are dropped.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=stacklevel,
         )
     elif n_values < 3:
         warnings.warn(
@@ -125,7 +125,7 @@ def _triple(values: Any, *, default: float, what: str) -> list[float]:
             f"belong; the axes it leaves out are given {default}, which the "
             "file never said.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=stacklevel,
         )
     out.extend([default] * (3 - len(out)))
     return out
@@ -193,119 +193,16 @@ def _spell(value: float) -> str:
     return text[:-2] if text.endswith(".0") else text
 
 
-def _evenly_spaced(u: np.ndarray, step: float) -> bool:
-    """Say whether one step reproduces every plane on an axis.
-
-    The slack is measured against the step and against what a double holds at
-    this magnitude - never as a fraction of the coordinate. A relative
-    tolerance is a fraction of where the axis sits rather than of how far
-    apart its planes are, so an axis at ``x = 1e6`` was allowed half a
-    millimetre of drift per plane: a visibly uneven lattice passed, and came
-    back regularised with every plane past the second moved. The two bounds
-    answer the two ways a plane can miss: by a fraction of the step, and by
-    the last few bits of a coordinate that has no room to hold it.
-
-    Parameters
-    ----------
-    u
-        The axis's coordinates, at least two of them.
-    step
-        The single step being proposed for it.
+def _read_grid(path: Source) -> tuple[ImageData, dict[str, Any]]:
+    """Parse a .vti into its ImageData and the keys that spell the grid.
 
     Returns
     -------
-    bool
-        True when ``u[0] + i * step`` is every plane the axis holds.
-
-    Examples
-    --------
-    >>> _evenly_spaced(np.array([0.0, 1.0, 2.0]), 1.0)
-    True
-    >>> _evenly_spaced(np.array([1e6, 1e6 + 1.0, 1e6 + 2.001]), 1.0005)
-    False
+    tuple[ImageData, dict]
+        The image, and ``vti_origin`` / ``vti_spacing`` / ``vti_extent``
+        (plus ``vti_whole_extent`` when the file names one) as the mesh
+        reader carries them in ``global_attrs``.
     """
-    rebuilt = float(u[0]) + np.arange(len(u)) * step
-    # The axis is monotone in the step, so its widest value is an endpoint and
-    # the bound costs two lookups rather than a pass over the whole axis.
-    magnitude = max(abs(float(rebuilt[0])), abs(float(rebuilt[-1])))
-    atol = max(abs(step) * 1e-9, 8.0 * float(np.spacing(magnitude)))
-    return bool(np.allclose(u, rebuilt, rtol=0.0, atol=atol))
-
-
-def _uniform_steps(
-    axes: Sequence[np.ndarray], spacing: list[float], *, fmt: str
-) -> list[float]:
-    """Measure the one step each axis of an ImageData is allowed.
-
-    An ImageData holds no coordinates: it holds a step, and every plane on an
-    axis is that step from the last. A lattice whose planes are not evenly
-    spaced is a RectilinearGrid, and writing its first step as though it were
-    the only one moves every point after the second - silently, since the
-    file that comes back is a well-formed grid of the right size.
-
-    Parameters
-    ----------
-    axes
-        The x, y and z coordinates, as :func:`grid_axes` gives them.
-    spacing
-        The step to keep on an axis with no second plane to measure against.
-    fmt
-        Extension the message names.
-
-    Returns
-    -------
-    list of float
-        The step on each axis.
-
-    Raises
-    ------
-    CodecError
-        If an axis is not evenly spaced.
-    """
-    steps: list[float] = []
-    for axis, (u, fallback) in enumerate(zip(axes, spacing, strict=True)):
-        if len(u) < 2:
-            # One plane, or none: there is no step to measure, and VTK reads
-            # the same grid back whatever is written. Keep what came with the
-            # mesh rather than inventing a number for it.
-            steps.append(float(fallback))
-            continue
-        step = (float(u[-1]) - float(u[0])) / (len(u) - 1)
-        if len(u) > 2 and not _evenly_spaced(u, step):
-            raise CodecError(
-                f"{fmt}: the planes on the {'xyz'[axis]} axis are not evenly "
-                "spaced, and an ImageData holds one step per axis rather than "
-                "a coordinate for each plane. Every plane past the second "
-                "would move - write a .vtr instead, which spells its "
-                "coordinates out."
-            )
-        steps.append(step)
-    return steps
-
-
-def read(path: Source, *, lazy: bool = False) -> PolyData:
-    """Parse a VTK ImageData XML file (.vti) and return a PolyData.
-
-    Parameters
-    ----------
-    path
-        Path to the .vti file.
-    lazy
-        Deferred decoding is not supported; raises LazyReadError when True.
-
-    Returns
-    -------
-    PolyData
-        Uniform hex grid expanded from the ImageData metadata.
-
-    Raises
-    ------
-    LazyReadError
-        If lazy=True.
-    """
-    if lazy:
-        raise LazyReadError("VTI lazy reads are not supported with frozen PolyData.")
-
     # The size comes back from the read itself: measuring the source
     # separately costs a whole decompression pass over a compressed one,
     # and a stream that cannot seek cannot be measured at all.
@@ -340,8 +237,8 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # A file spelling two numbers where three belong is malformed, but it
     # costs the reader nothing to take what is there and default the rest -
     # indexing off the end raised a bare IndexError from inside the parse.
-    origin = _triple(origin_str.split(), default=0.0, what="Origin")
-    spacing = _triple(spacing_str.split(), default=1.0, what="Spacing")
+    origin = _triple(origin_str.split(), default=0.0, what="Origin", stacklevel=4)
+    spacing = _triple(spacing_str.split(), default=1.0, what="Spacing", stacklevel=4)
 
     piece = img.find("Piece")
     if piece is None:
@@ -370,17 +267,6 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         spells_connectivity=False,
     )
 
-    if n_verts:
-        vertices = lattice_vertices(*_metadata_axes(origin, spacing, pe))
-    else:
-        # An axis ending before it starts empties the grid; the other axes'
-        # coordinates are not built, however long the extent spells them.
-        vertices = np.empty((0, 3), dtype=np.float64)
-
-    connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = structured_offsets(n_cells, n_per_cell)
-    element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
-
     point_data: dict[str, np.ndarray] = {}
     cell_data: dict[str, np.ndarray] = {}
 
@@ -398,8 +284,10 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
             if arr.size > 0:
                 cell_data[da.get("Name", "unknown")] = shaped_da(da, arr)
 
-    vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point")
-    element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell")
+    # Two frames deeper than the reader's own: the warning is blamed on the
+    # code that asked for the file.
+    vertex_attrs = sized_attrs(point_data, expected=n_verts, kind="point", stacklevel=5)
+    element_attrs = sized_attrs(cell_data, expected=n_cells, kind="cell", stacklevel=5)
 
     # Whole-mesh metadata, under the grid the reader rebuilt: a file naming
     # one of the reader's own keys in its field data is describing the same
@@ -408,7 +296,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     # spelled on both levels means what the dataset says it means.
     global_attrs: dict[str, Any] = read_field_data(piece, _decode)
     global_attrs |= read_field_data(img, _decode)
-    global_attrs |= {
+    grid: dict[str, Any] = {
         "vti_origin": origin,
         "vti_spacing": spacing,
         "vti_extent": pe,
@@ -418,26 +306,108 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         # The grid the piece belongs to, kept the way .vtr and .vts keep
         # theirs: dropped here, a piece of a .pvti went back out declaring
         # itself the whole domain.
-        global_attrs["vti_whole_extent"] = xml_extent(
-            whole, fmt=EXTENSION, where="WholeExtent"
-        )
+        grid["vti_whole_extent"] = xml_extent(whole, fmt=EXTENSION, where="WholeExtent")
 
-    # A column named for a tag group is that group's membership rather than an
-    # attribute over the entities; the name is the only thing that says so.
-    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
-    element_attrs, element_tags = tags_from_masks(element_attrs)
-
-    return PolyData(
-        vertices=vertices,
-        connectivity=connectivity,
-        offsets=offsets,
-        element_types=element_types,
-        vertex_attrs=vertex_attrs,
-        element_attrs=element_attrs,
-        vertex_tags=vertex_tags,
-        element_tags=element_tags,
+    # The arrays arrive one row per point or cell; the image holds them laid
+    # out along the grid, z slowest.
+    point_lead = (nz + 1, ny + 1, nx + 1)
+    cell_lead = (max(nz, 1), max(ny, 1), max(nx, 1))
+    image = ImageData(
+        extent=tuple(pe),  # type: ignore[arg-type]
+        origin=tuple(origin),  # type: ignore[arg-type]
+        spacing=tuple(spacing),  # type: ignore[arg-type]
+        point_attrs={
+            k: v.reshape(point_lead + v.shape[1:]) for k, v in vertex_attrs.items()
+        }
+        if n_verts > 0
+        else {},
+        cell_attrs={
+            k: v.reshape(cell_lead + v.shape[1:]) for k, v in element_attrs.items()
+        }
+        if n_cells > 0
+        else {},
         global_attrs=global_attrs,
     )
+    return image, grid
+
+
+def read(path: Source, *, lazy: bool = False) -> PolyData:
+    """Parse a VTK ImageData XML file (.vti) and return a PolyData.
+
+    Parameters
+    ----------
+    path
+        Path to the .vti file.
+    lazy
+        Deferred decoding is not supported; raises LazyReadError when True.
+
+    Returns
+    -------
+    PolyData
+        Uniform hex grid expanded from the ImageData metadata.
+
+    Raises
+    ------
+    LazyReadError
+        If lazy=True.
+    """
+    if lazy:
+        raise LazyReadError("VTI lazy reads are not supported with frozen PolyData.")
+    image, grid = _read_grid(path)
+    poly = image.to_polydata()
+    poly.global_attrs.update(grid)
+    return poly
+
+
+def read_image(path: Source, **opts: Any) -> ImageData:
+    """Parse a VTK ImageData XML file (.vti) and return an ImageData.
+
+    Parameters
+    ----------
+    path
+        Path to the .vti file.
+
+    Returns
+    -------
+    ImageData
+        The grid as the file spells it: extent, origin, spacing and the
+        arrays laid out along it. ``global_attrs`` holds the file's field
+        data; the grid itself is the other fields.
+    """
+    return _read_grid(path)[0]
+
+
+def write_image(image: ImageData, path: Source, **opts: Any) -> None:
+    """Serialise an ImageData to a VTK ImageData XML file (.vti).
+
+    Parameters
+    ----------
+    image
+        The grid to write; its extent, origin and spacing are written as
+        they stand.
+    path
+        Output file path.
+    binary
+        If True (default), encode data as base64 binary.
+
+    Raises
+    ------
+    CodecError
+        If the image is rotated: this writer spells no ``Direction``.
+    """
+    if image.direction is not None and not np.array_equal(image.direction, np.eye(3)):
+        raise CodecError(
+            ".vti: this writer spells no Direction, and the ImageData is rotated."
+        )
+    poly = image.to_polydata()
+    poly.global_attrs.update(
+        {
+            "vti_origin": list(image.origin),
+            "vti_spacing": list(image.spacing),
+            "vti_extent": list(image.extent),
+        }
+    )
+    write(poly, path, **opts)
 
 
 def write(poly: PolyData, path: Source, **opts: Any) -> None:
@@ -503,7 +473,7 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         )
         axes = grid_axes(poly.vertices, spans)
         require_grid_order(poly.vertices, axes, fmt=EXTENSION)
-        spacing = _uniform_steps(axes, spacing, fmt=EXTENSION)
+        spacing = uniform_steps(axes, spacing, fmt=EXTENSION)
         origin = [
             float(u[0]) if len(u) else o for u, o in zip(axes, origin, strict=True)
         ]
