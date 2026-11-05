@@ -44,6 +44,15 @@ Reading
     mesh = px.read("volume.vti")
     mesh.vertices          # materialised from origin + index * spacing
 
+    image = px.read_image("volume.vti")   # an ImageData: extent, origin, spacing, arrays
+
+:func:`polyxios.read_image` returns the compact :class:`~polyxios.ImageData` -
+the grid as the file spells it, with the arrays laid out ``(nz, ny, nx[, k])``
+and nothing expanded. :func:`polyxios.read` expands it into the mesh above, with
+no warning: a grid already is this format's mesh form. :func:`polyxios.write_image`
+writes an ``ImageData`` back with its extent, origin and spacing as they stand; an
+image rotated by a ``direction`` is refused, since the format spells none.
+
 Writing
 -------
 
