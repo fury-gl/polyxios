@@ -11,6 +11,8 @@ import polyxios
 # that POLYXIOS_HOME and the catalog loader resolve to the live module state
 # (tests and callers only ever have to patch one place).
 from polyxios import fetcher
+from polyxios._registry import resolve
+from polyxios.exceptions import PolyxiosError, UnsupportedFormatError
 from polyxios.helper import read_polydata, resolve_path, visualize_mesh
 
 logger = logging.getLogger("polyxios")
@@ -129,6 +131,31 @@ def cmd_fetch(args) -> int:
         return 1
 
 
+def _both_images(input_file, output_file) -> bool:
+    """Say whether both ends of a conversion carry an ImageData.
+
+    Parameters
+    ----------
+    input_file, output_file : str
+        The paths being converted. Only an input that exists locally is
+        resolved by extension; one to be fetched takes the mesh path.
+
+    Returns
+    -------
+    bool
+        True when the input codec reads and the output codec writes images.
+        An extension no codec claims is False: the mesh path reports it.
+    """
+    if not os.path.exists(input_file):
+        return False
+    try:
+        src = resolve(input_file, None, polyxios._REGISTRY)
+        dst = resolve(output_file, None, polyxios._REGISTRY)
+    except PolyxiosError:
+        return False
+    return src.read_image is not None and dst.write_image is not None
+
+
 def cmd_convert(args) -> int:
     """Convert a model file from one format to another and log performance.
 
@@ -148,15 +175,30 @@ def cmd_convert(args) -> int:
         )
         return 1
     try:
+        # An image stays compact between two image formats: expanded to a
+        # lattice it costs three coordinates and a cell for every pixel.
+        as_image = _both_images(args.input_file, args.output_file)
         logger.info(f"Reading '{args.input_file}'...")
         start_read_time = time.perf_counter()
-        polydata = read_polydata(args.input_file)
+        data = None
+        if as_image:
+            try:
+                data = polyxios.read_image(args.input_file)
+            except UnsupportedFormatError:
+                # A codec that reads images may hold a mesh, as a .vtkhdf
+                # of cells does; the mesh path says what is wrong if not.
+                as_image = False
+        if data is None:
+            data = read_polydata(args.input_file)
         elapsed = time.perf_counter() - start_read_time
         logger.info(f"Read in {elapsed:.4f} seconds")
 
         logger.info(f"Writing to '{args.output_file}'...")
         start_write_time = time.perf_counter()
-        polyxios.write(polydata, args.output_file)
+        if as_image:
+            polyxios.write_image(data, args.output_file)
+        else:
+            polyxios.write(data, args.output_file)
         elapsed = time.perf_counter() - start_write_time
         logger.info(f"Wrote in {elapsed:.4f} seconds")
 
