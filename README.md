@@ -298,6 +298,18 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 | HMF | `.hmf` | ✓ | ✓ | HDF5 (`polyxios[hdf5]`); XDMF's model in one file, typed topologies, node and cell attributes, sets and mesh-wide values |
 | Exodus II | `.e` `.exo` `.ex2` | ✓ | ✓ | netCDF (`polyxios[netcdf]`); blocks, node sets and element sets → tags, side sets → faces with `face_parent`, nodal / element / global variables → attrs, `step=` on read |
 
+### Images
+
+A picture is a grid of samples, so it has a compact form of its own. `px.read_image` and
+`px.write_image` take and give an `ImageData` - one sample per pixel - and `px.read` expands
+it into the lattice of quads (one vertex per pixel) every other format reads as, with a
+warning that says so. `polyxios.helper.image_to_array` and `array_to_image` convert to and
+from NumPy. `.vti` and `.vtkhdf` read and write as `ImageData` too. No Pillow is needed.
+
+| Format | Extension | Read | Write | Notes |
+|--------|-----------|------|-------|-------|
+| PNG | `.png` | ✓ | ✓ | all color types and depths, Adam7, `tRNS` → alpha; `dpi`, `gamma`, `icc_profile`, `exif`, `text` → `global_attrs`; `compress_level=` on write |
+
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
 one, and anything else reports the candidates. Writing to `.dat` needs an explicit `fmt=`.
@@ -320,7 +332,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**48 formats supported** across the 60 extensions in the tables, plus `.plt`, which
+**49 formats supported** across the 61 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---
