@@ -302,7 +302,7 @@ Images
 A uniform grid of samples - a picture, a volume - has a compact form besides the
 mesh. :func:`polyxios.read_image` and :func:`polyxios.write_image` take and give an
 :class:`~polyxios.ImageData`: an extent, an origin, a spacing and arrays laid out
-``(nz, ny, nx[, k])``, with no vertex or cell stored per sample. ``.png``,
+``(nz, ny, nx[, k])``, with no vertex or cell stored per sample. ``.png``, ``.jpg``,
 ``.vti`` and ``.vtkhdf`` read and write that way.
 
 .. code-block:: python
@@ -310,15 +310,15 @@ mesh. :func:`polyxios.read_image` and :func:`polyxios.write_image` take and give
     import polyxios as px
     from polyxios import helper
 
-    image = px.read_image("photo.png")
+    image = px.read_image("photo.jpg")
     pixels = helper.image_to_array(image)        # (H, W, 3) uint8, row 0 on top
-    px.write_image(helper.array_to_image(pixels), "copy.vtkhdf")
+    px.write_image(helper.array_to_image(pixels), "copy.png")
 
-    mesh = px.read("photo.png")                  # the same pixels as a lattice, with a warning
+    mesh = px.read("photo.jpg")                  # the same pixels as a lattice, with a warning
 
 :func:`polyxios.read` always gives a :class:`~polyxios.PolyData`, so it expands the
 grid into one vertex per sample and a cell between neighbors. For a raster file such
-as ``.png`` it also warns that :func:`polyxios.read_image` is the compact form;
+as ``.png`` or ``.jpg`` it also warns that :func:`polyxios.read_image` is the compact form;
 ``.vti`` and ``.vtkhdf`` do not warn, since a grid already is their mesh form.
 
 Where to go next

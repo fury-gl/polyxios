@@ -309,6 +309,7 @@ from NumPy. `.vti` and `.vtkhdf` read and write as `ImageData` too. No Pillow is
 | Format | Extension | Read | Write | Notes |
 |--------|-----------|------|-------|-------|
 | PNG | `.png` | ✓ | ✓ | all color types and depths, Adam7, `tRNS` → alpha; `dpi`, `gamma`, `icc_profile`, `exif`, `text` → `global_attrs`; `compress_level=` on write |
+| JPEG | `.jpg` `.jpeg` `.jpe` `.jfif` | ✓ | ✓ | baseline and progressive (8-bit, fancy chroma upsampling) and lossless `SOF3`; `quality=`, `subsampling=`, `lossless=True` on write; CMYK, arithmetic and 12-bit lossy refused |
 
 \* `.dat` belongs to no single format, so it is resolved by content: a Tecplot header lands
 in the Tecplot codec, a bulk data card in the Nastran one, a `$` keyword record in the PERMAS
@@ -332,7 +333,7 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**49 formats supported** across the 61 extensions in the tables, plus `.plt`, which
+**50 formats supported** across the 65 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

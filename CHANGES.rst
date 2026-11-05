@@ -32,6 +32,15 @@ New features
   pure-Python twin that gives the same results. ``SceneImage.decode()`` turns a
   scene's texture into an ``ImageData``, and napari opens a ``.png`` as an Image
   layer.
+- JPEG (``.jpg``, ``.jpeg``, ``.jpe``, ``.jfif``) is read and written with NumPy and
+  the standard library alone. It reads baseline and progressive files at 8 bits
+  with libjpeg's fancy chroma upsampling, and lossless (``SOF3``) files at 2 to 16
+  bits, with ``dpi``, ``exif``, ``icc_profile`` and ``comment`` in
+  ``global_attrs``. It writes baseline at a chosen ``quality`` and
+  ``subsampling``, or lossless with ``lossless=True``. CMYK, arithmetic-coded,
+  hierarchical and 12-bit lossy files are refused. :func:`polyxios.read` expands
+  the picture into a lattice and warns that :func:`polyxios.read_image` is the
+  compact form, and napari opens a JPEG as an Image layer.
 - polyxios is a napari plugin. Installed next to napari, it opens every
   format polyxios reads: a mesh as a Surface layer (volume meshes as their
   boundary, a measured vertex attribute as its values, else an integer

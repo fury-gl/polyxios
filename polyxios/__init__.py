@@ -236,10 +236,10 @@ def read_image(
     Parameters
     ----------
     path
-        Path to the image file (e.g. ``.vti`` or ``.vtkhdf``), or an
+        Path to the image file (e.g. ``.png``, ``.jpg`` or ``.vti``), or an
         open binary file object.
     fmt
-        Format override (e.g. ``'.vti'``).  Inferred from the file
+        Format override (e.g. ``'.png'``).  Inferred from the file
         extension when ``None``.
     registry
         Custom codec registry.  Uses the built-in registry if ``None``.
@@ -284,13 +284,13 @@ def write_image(
     path
         Output file path.
     fmt
-        Format override (e.g. ``'.vti'``).  Inferred from the file
+        Format override (e.g. ``'.png'``).  Inferred from the file
         extension when ``None``.
     registry
         Custom codec registry.  Uses the built-in registry if ``None``.
     **opts
         Format-specific options passed to the codec's ``write_image``
-        function (e.g. ``compression="gzip"`` for ``.vtkhdf``).
+        function (e.g. ``quality=90`` for ``.jpg``).
 
     Raises
     ------
