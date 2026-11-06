@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 import polyxios
-from polyxios import make_polydata
+from polyxios import helper, make_polydata
 from polyxios.cli import _log_warning, _setup_logging, logger as cli_logger, main
 from polyxios.fetcher import fetch
 from polyxios.helper import visualize_mesh
@@ -696,3 +696,98 @@ def test_cli_convert_missing_input(temp_polyxios_home, monkeypatch, capsys):
         main()
     assert excinfo.value.code == 1
     assert "Failed to convert model" in capsys.readouterr().err
+
+
+def _picture(path, shape=(4, 6, 3)):
+    pixels = (np.arange(int(np.prod(shape))) * 5 % 256).astype(np.uint8)
+    pixels = pixels.reshape(shape)
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    return pixels
+
+
+def _convert(monkeypatch, capsys, source, target):
+    monkeypatch.setattr(sys, "argv", ["pxios", "convert", str(source), str(target)])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    captured = capsys.readouterr()
+    return excinfo.value.code, [
+        ln for ln in captured.err.splitlines() if ln.startswith("WARNING: ")
+    ]
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_between_image_formats_stays_compact(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "a.vti"
+    target = temp_polyxios_home / "b.vtkhdf"
+    pixels = _picture(source)
+    assert _convert(monkeypatch, capsys, source, target) == (0, [])
+    assert polyxios.read_image(target).extent == (0, 5, 0, 3, 0, 0)
+    back = temp_polyxios_home / "c.vti"
+    assert _convert(monkeypatch, capsys, target, back) == (0, [])
+    np.testing.assert_array_equal(
+        helper.image_to_array(polyxios.read_image(back)), pixels
+    )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_to_a_lattice_format_expands_the_image(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.vti"
+    target = temp_polyxios_home / "b.vtk"
+    _picture(source)
+    assert _convert(monkeypatch, capsys, source, target) == (0, [])
+    mesh = polyxios.read(target)
+    assert len(mesh.vertices) == 24
+    assert "colors" in mesh.vertex_attrs
+
+
+def test_cli_convert_takes_a_mesh_vtkhdf_through_the_mesh_path(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A .vtkhdf both reads and writes images, but this one holds cells."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "m.vtkhdf"
+    out = temp_polyxios_home / "n.vtkhdf"
+    mesh = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    polyxios.write(mesh, source)
+    assert _convert(monkeypatch, capsys, source, out)[0] == 0
+    assert polyxios.read(out).vertices.shape == (3, 3)
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_a_png_to_a_lattice_format_points_at_read_image(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.png"
+    target = temp_polyxios_home / "b.vtk"
+    _picture(source)
+    code, warnings_shown = _convert(monkeypatch, capsys, source, target)
+    assert code == 0
+    assert len(warnings_shown) == 1
+    assert "read_image()" in warnings_shown[0]
+    mesh = polyxios.read(target)
+    assert len(mesh.vertices) == 24
+    assert "colors" in mesh.vertex_attrs
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_between_a_png_and_an_image_grid(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.png"
+    grid = temp_polyxios_home / "b.vti"
+    back = temp_polyxios_home / "c.png"
+    pixels = _picture(source)
+    assert _convert(monkeypatch, capsys, source, grid) == (0, [])
+    assert polyxios.read_image(grid).extent == (0, 5, 0, 3, 0, 0)
+    assert _convert(monkeypatch, capsys, grid, back) == (0, [])
+    np.testing.assert_array_equal(
+        helper.image_to_array(polyxios.read_image(back)), pixels
+    )

@@ -12,6 +12,26 @@ Changelog
 New features
 ~~~~~~~~~~~~
 
+- :class:`~polyxios.ImageData`, VTK's uniform grid, is the library's compact type
+  for a grid of samples: an extent, an origin, a spacing, an optional rotation and
+  arrays laid out ``(nz, ny, nx[, k])``. :func:`polyxios.read_image` and
+  :func:`polyxios.write_image` take and give one, and ``.vti`` and ``.vtkhdf``
+  read and write it without expanding it into a mesh (``.vtkhdf`` writes a
+  ``Type=ImageData`` file with ``WholeExtent``, ``Origin``, ``Spacing`` and
+  ``Direction``). :func:`polyxios.read` still returns the expanded
+  :class:`~polyxios.PolyData`. ``polyxios.helper.image_to_array`` and
+  ``array_to_image`` go to and from NumPy, and ``pxios convert`` keeps a grid
+  compact between two image formats. The media-type table and data-URI decoding
+  move out of the COLLADA codec into ``polyxios._media``.
+- PNG (``.png``) is read and written with NumPy and the standard library alone, no
+  Pillow. It reads every color type and depth, Adam7, palettes and ``tRNS``, with
+  ``dpi``, ``gamma``, ``icc_profile``, ``exif`` and ``text`` in ``global_attrs``,
+  and writes the filter that suits each row. :func:`polyxios.read` expands the
+  picture into a lattice and warns that :func:`polyxios.read_image` is the compact
+  form. The decoders and encoders sit on a compiled kernel module with a
+  pure-Python twin that gives the same results. ``SceneImage.decode()`` turns a
+  scene's texture into an ``ImageData``, and napari opens a ``.png`` as an Image
+  layer.
 - polyxios is a napari plugin. Installed next to napari, it opens every
   format polyxios reads: a mesh as a Surface layer (volume meshes as their
   boundary, a measured vertex attribute as its values, else an integer

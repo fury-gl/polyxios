@@ -20,6 +20,7 @@ import pytest
 
 import polyxios
 from polyxios import helper, make_polydata
+from polyxios._image import ImageData
 from polyxios._optpkg import TripWire
 from polyxios.codecs import _hdf5, _vtkhdf
 from polyxios.codecs._vtkhdf import read, read_time_series, write, write_time_series
@@ -1677,7 +1678,200 @@ def test_the_module_lists_its_public_names() -> None:
         "EXTENSION",
         "LABEL",
         "read",
+        "read_image",
         "read_time_series",
         "write",
+        "write_image",
         "write_time_series",
     }
+
+
+def test_read_image_keeps_the_grid_the_mesh_read_expands(tmp_path: Path) -> None:
+    path = tmp_path / "i.vtkhdf"
+    f, root = _image(path, [0, 2, 0, 1, 0, 1], origin=(1, 2, 3), spacing=(0.5, 1, 2))
+    root.create_dataset("PointData/p", data=np.arange(12.0).reshape(2, 2, 3))
+    root.create_dataset("PointData/v", data=np.arange(36.0).reshape(2, 2, 3, 3))
+    root.create_dataset("CellData/c", data=np.arange(2.0).reshape(1, 1, 2))
+    root.create_dataset("FieldData/gnum", data=np.array([42.0]))
+    f.close()
+    image = polyxios.read_image(path)
+    assert image.extent == (0, 2, 0, 1, 0, 1)
+    assert image.origin == (1.0, 2.0, 3.0)
+    assert image.spacing == (0.5, 1.0, 2.0)
+    assert image.direction is None
+    assert image.point_attrs["v"].shape == (2, 2, 3, 3)
+    assert image.cell_attrs["c"].shape == (1, 1, 2)
+    expanded = image.to_polydata()
+    full = read(path)
+    np.testing.assert_array_equal(expanded.vertices, full.vertices)
+    np.testing.assert_array_equal(expanded.connectivity, full.connectivity)
+    for name, values in full.vertex_attrs.items():
+        np.testing.assert_array_equal(expanded.vertex_attrs[name], values)
+    for name, values in full.element_attrs.items():
+        np.testing.assert_array_equal(expanded.element_attrs[name], values)
+    # The mesh reader spells the grid in global_attrs; the image holds it itself.
+    assert set(full.global_attrs) - set(expanded.global_attrs) == {
+        "vti_origin",
+        "vti_spacing",
+        "vti_extent",
+        "vtkhdf_type",
+    }
+    assert expanded.global_attrs["gnum"] == full.global_attrs["gnum"]
+
+
+def test_read_image_keeps_a_rotation(tmp_path: Path) -> None:
+    path = tmp_path / "r.vtkhdf"
+    swap_xy = [[0, 1, 0], [1, 0, 0], [0, 0, 1]]
+    f, _ = _image(path, [0, 1, 0, 1, 0, 0], origin=(1, 2, 3), direction=swap_xy)
+    f.close()
+    image = polyxios.read_image(path)
+    np.testing.assert_array_equal(image.direction, swap_xy)
+    np.testing.assert_array_equal(image.to_polydata().vertices, read(path).vertices)
+
+
+def test_read_image_of_a_mesh_names_the_other_reader(tmp_path: Path) -> None:
+    path = tmp_path / "m.vtkhdf"
+    f, _ = _ug(path)
+    f.close()
+    with pytest.raises(UnsupportedFormatError, match=r"holds no image.*polyxios\.read"):
+        polyxios.read_image(path)
+
+
+def _volume(**changes) -> ImageData:
+    """A 3 x 2 x 2 grid that starts away from zero, with every kind of array."""
+    fields = {
+        "extent": (1, 3, 2, 3, 0, 1),
+        "origin": (10.0, 20.0, 30.0),
+        "spacing": (0.5, 2.0, 4.0),
+        "point_attrs": {
+            "p": np.arange(12, dtype=np.float32).reshape(2, 2, 3),
+            "v": np.arange(36, dtype=np.int16).reshape(2, 2, 3, 3),
+            "mask": (np.arange(12) % 2 == 0).reshape(2, 2, 3),
+        },
+        "cell_attrs": {"c": np.arange(2, dtype=np.int32).reshape(1, 1, 2) + 5},
+        "global_attrs": {"title": "grid", "gnum": np.array([42.0])},
+    }
+    return ImageData(**{**fields, **changes})
+
+
+def test_write_image_round_trips_the_grid_and_its_arrays(tmp_path: Path) -> None:
+    path = tmp_path / "v.vtkhdf"
+    image = _volume()
+    polyxios.write_image(image, path)
+    back = polyxios.read_image(path)
+    assert back.extent == image.extent
+    assert back.origin == image.origin
+    assert back.spacing == image.spacing
+    assert back.direction is None
+    np.testing.assert_array_equal(back.point_attrs["p"], image.point_attrs["p"])
+    np.testing.assert_array_equal(back.point_attrs["v"], image.point_attrs["v"])
+    # A boolean is written as a byte.
+    np.testing.assert_array_equal(back.point_attrs["mask"], image.point_attrs["mask"])
+    assert back.point_attrs["mask"].dtype == np.uint8
+    np.testing.assert_array_equal(back.cell_attrs["c"], image.cell_attrs["c"])
+    assert back.global_attrs["title"] == "grid"
+    assert back.global_attrs["gnum"] == 42.0
+
+
+def test_write_image_lays_arrays_out_the_way_the_format_does(tmp_path: Path) -> None:
+    path = tmp_path / "v.vtkhdf"
+    polyxios.write_image(_volume(), path)
+    with h5py.File(path) as f:
+        root = f["VTKHDF"]
+        assert bytes(root.attrs["Type"]) == b"ImageData"
+        assert root.attrs["WholeExtent"].tolist() == [1, 3, 2, 3, 0, 1]
+        assert root.attrs["Origin"].tolist() == [10.0, 20.0, 30.0]
+        assert root.attrs["Spacing"].tolist() == [0.5, 2.0, 4.0]
+        assert root.attrs["Direction"].tolist() == np.eye(3).ravel().tolist()
+        assert root["PointData/p"].shape == (2, 2, 3)
+        assert root["PointData/v"].shape == (2, 2, 3, 3)
+        assert root["CellData/c"].shape == (1, 1, 2)
+        assert "Steps" not in root
+
+
+def test_write_image_agrees_with_the_mesh_read(tmp_path: Path) -> None:
+    path = tmp_path / "v.vtkhdf"
+    image = _volume()
+    polyxios.write_image(image, path)
+    mesh = read(path)
+    expanded = image.to_polydata()
+    np.testing.assert_array_equal(mesh.vertices, expanded.vertices)
+    np.testing.assert_array_equal(mesh.vertex_attrs["p"], expanded.vertex_attrs["p"])
+    np.testing.assert_array_equal(mesh.element_attrs["c"], [5, 6])
+    assert mesh.global_attrs["vtkhdf_type"] == "ImageData"
+
+
+def test_write_image_keeps_a_rotation(tmp_path: Path) -> None:
+    path = tmp_path / "r.vtkhdf"
+    swap_xy = np.array([[0.0, 1, 0], [1, 0, 0], [0, 0, 1]])
+    image = ImageData(
+        extent=(0, 1, 0, 1, 0, 0), origin=(1.0, 2.0, 3.0), direction=swap_xy
+    )
+    polyxios.write_image(image, path)
+    back = polyxios.read_image(path)
+    np.testing.assert_array_equal(back.direction, swap_xy)
+    np.testing.assert_array_equal(
+        back.to_polydata().vertices, image.to_polydata().vertices
+    )
+
+
+def test_write_image_writes_a_flat_picture(tmp_path: Path) -> None:
+    path = tmp_path / "flat.vtkhdf"
+    pixels = (np.arange(4 * 5 * 3) * 7 % 256).astype(np.uint8).reshape(4, 5, 3)
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    back = polyxios.read_image(path)
+    assert back.extent == (0, 4, 0, 3, 0, 0)
+    np.testing.assert_array_equal(helper.image_to_array(back), pixels)
+    assert read(path).element_types.tolist() == [9] * 12
+
+
+def test_write_image_passes_compression_to_h5py(tmp_path: Path) -> None:
+    path = tmp_path / "z.vtkhdf"
+    image = ImageData(
+        extent=(0, 31, 0, 31, 0, 0),
+        point_attrs={"p": np.zeros((1, 32, 32), np.float32)},
+    )
+    polyxios.write_image(image, path, compression="gzip")
+    with h5py.File(path) as f:
+        assert f["VTKHDF/PointData/p"].compression == "gzip"
+    np.testing.assert_array_equal(
+        polyxios.read_image(path).point_attrs["p"], image.point_attrs["p"]
+    )
+
+
+def test_write_image_refuses_what_no_file_can_hold(tmp_path: Path) -> None:
+    with pytest.raises(CodecError, match="holds no point"):
+        polyxios.write_image(
+            ImageData(extent=(0, -1, 0, 1, 0, 0)), tmp_path / "e.vtkhdf"
+        )
+    with pytest.raises(CodecError, match="direction is not a"):
+        polyxios.write_image(
+            ImageData(extent=(0, 1, 0, 1, 0, 0), direction=np.zeros(4)),
+            tmp_path / "d.vtkhdf",
+        )
+    with pytest.raises(CodecError, match="PointData array 'p'.*lays its arrays out"):
+        polyxios.write_image(
+            ImageData(extent=(0, 2, 0, 1, 0, 0), point_attrs={"p": np.zeros((6,))}),
+            tmp_path / "s.vtkhdf",
+        )
+
+
+def test_write_image_names_what_it_drops(tmp_path: Path) -> None:
+    image = ImageData(
+        extent=(0, 1, 0, 1, 0, 0),
+        point_attrs={
+            "p": np.zeros((1, 2, 2)),
+            "label": np.array([["a", "b"], ["c", "d"]])[None],
+        },
+        cell_attrs={"c": np.zeros((1, 1, 1))},
+        global_attrs={"bad": {"a": 1}, "vti_origin": [1.0, 2.0, 3.0]},
+    )
+    path = tmp_path / "w.vtkhdf"
+    with pytest.warns(UserWarning) as caught:
+        polyxios.write_image(image, path)
+    text = " ".join(str(w.message) for w in caught)
+    assert "PointData array(s) ['label']" in text
+    assert "global_attrs ['bad']" in text
+    back = polyxios.read_image(path)
+    assert sorted(back.point_attrs) == ["p"]
+    assert "vti_origin" not in back.global_attrs

@@ -15,6 +15,9 @@ Complete reference for all public functions, types, and exceptions.
    polyxios.SceneImage
    polyxios.read_scene
    polyxios.write_scene
+   polyxios.ImageData
+   polyxios.read_image
+   polyxios.write_image
    polyxios.transforms
    polyxios.helper
    polyxios.napari

@@ -72,6 +72,7 @@ TARGETS: dict[str, str] = {
     "pcd": ".pcd",
     "permas": ".post",
     "ply": ".ply",
+    "png": ".png",
     "pts": ".pts",
     "ptx": ".ptx",
     "splat": ".splat",
