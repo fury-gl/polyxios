@@ -39,11 +39,12 @@ from polyxios._element_types import (
     SURFACE_ELEMENT_TYPES,
     TOPOLOGICAL_DIMENSION,
 )
+from polyxios._image import image_to_array
 from polyxios._io import GZIP_SUFFIXES, format_suffix, open_read, source_suffix
 from polyxios._registry import Codec, sniff_head
 from polyxios._types import PolyData, make_polydata, surface_triangles
 from polyxios._warn import warn_caller
-from polyxios.codecs import _exodus, _gltf, _tecplot, _vti, _vtr, _vts
+from polyxios.codecs import _exodus, _gltf, _jpeg, _png, _tecplot, _vti, _vtr, _vts
 from polyxios.codecs._vtk_xml import (
     extent_points,
     extent_spans,
@@ -142,6 +143,8 @@ _NOT_READ: Final[frozenset[str]] = frozenset({".svg"})
 # Index files, which name their pieces relative to themselves and are read
 # by helper.read_multiblock rather than by a codec, as plain XML only.
 _PLAIN_ONLY: Final[frozenset[str]] = META_SUFFIXES
+# Pictures, which open as Image layers rather than as a lattice of quads.
+_RASTER_SUFFIXES: Final[frozenset[str]] = frozenset({_png.EXTENSION, *_jpeg.EXTENSIONS})
 _VTP: Final[str] = ".vtp"
 # How much of a file the content test of a codec owning its extension sees.
 # The registry's own sniff window is too short for an HDF5 signature behind a
@@ -935,6 +938,16 @@ def _read(path: str | Sequence[str]) -> list[LayerData]:
     layers: list[LayerData] = []
     for p in paths:
         p = os.fspath(p)
+        if format_suffix(p) in _RASTER_SUFFIXES:
+            # A picture is an Image layer: one value per pixel, not the
+            # vertices and quads a lattice of them would be.
+            image = polyxios.read_image(p)
+            attr = "colors" if "colors" in image.point_attrs else "intensity"
+            pixels = image_to_array(image, name=attr)
+            layers.append(
+                (pixels, {"name": _layer_name(p), "rgb": pixels.ndim == 3}, "image")
+            )
+            continue
         read = read_multiblock if format_suffix(p) in META_SUFFIXES else _read_one
         layers.extend(layer_data(read(p), name=_layer_name(p)))
     return layers

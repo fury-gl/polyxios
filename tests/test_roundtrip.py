@@ -29,6 +29,7 @@ from polyxios import make_polydata
 from polyxios._element_types import ELEMENT_TYPES
 from polyxios._types import PolyData
 from polyxios.exceptions import CodecError, UnsupportedFormatError
+from polyxios.helper import array_to_image
 
 # ---------------------------------------------------------------------------
 # Canonical meshes
@@ -186,12 +187,20 @@ def _points() -> PolyData:
     )
 
 
+def _image() -> PolyData:
+    """A 3 x 4 RGB picture: the lattice of quads an image file expands into."""
+    return array_to_image(
+        np.arange(4 * 3 * 3, dtype=np.uint8).reshape(4, 3, 3)
+    ).to_polydata()
+
+
 CANONICAL = {
     "mixed": _mixed,
     "surface": _surface,
     "volume": _volume,
     "structured": _structured,
     "points": _points,
+    "image": _image,
 }
 
 
@@ -790,11 +799,40 @@ CAPABILITIES: dict[str, Cap] = {
         " and a cloud lacking the splat attributes is written with zeros and"
         " identity rotations, which come back as attributes of their own.",
     ),
+    ".png": Cap(
+        "image",
+        vertex_attrs=("colors",),
+        warns=(r"image format.*read_image",),
+        note="read() expands the image into a lattice and warns to point at "
+        "read_image().",
+    ),
+    ".jpg": Cap(
+        "image",
+        vertex_attrs=("colors",),
+        attr_values=False,
+        warns=(r"image format.*read_image",),
+        note="JPEG is lossy by default: colors come back close to, not equal "
+        "to, what was written; read() warns to point at read_image().",
+    ),
 }
 
 # Same codec under another name; tests/test_registry.py covers the aliasing.
 _ALIASES: frozenset[str] = frozenset(
-    {".nas", ".fem", ".node", ".post", ".glb", ".xmf", ".exo", ".ex2", ".pts", ".ptx"}
+    {
+        ".nas",
+        ".fem",
+        ".node",
+        ".post",
+        ".glb",
+        ".xmf",
+        ".exo",
+        ".ex2",
+        ".pts",
+        ".ptx",
+        ".jpeg",
+        ".jpe",
+        ".jfif",
+    }
 )
 
 # Registered so the error names the format, never to be written. Each is

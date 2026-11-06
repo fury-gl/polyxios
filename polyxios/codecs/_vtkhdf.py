@@ -32,6 +32,7 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV, POLYXIOS_TO_VTK
 from polyxios._globals import globals_for_write, text_for_write
+from polyxios._image import ImageData
 from polyxios._io import Source, source_name, source_size
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
@@ -50,11 +51,8 @@ from polyxios.codecs._hdf5 import (
 )
 from polyxios.codecs._vtk_xml import (
     extent_points,
-    lattice_vertices,
     polygon_types,
     structured_cell_shape,
-    structured_cells,
-    structured_offsets,
     vtk_code_types,
 )
 from polyxios.exceptions import CodecError, UnsupportedFormatError
@@ -160,6 +158,50 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
         root, kind, n_steps = _root(handle, name)
         index = _step_index(step, n_steps, name, absent=_no_step(root))
         return _read_step(root, kind, index, name=name, size=size)
+
+
+def read_image(path: Source, **opts: Any) -> ImageData:
+    """Read the ImageData a VTKHDF file holds, without expanding it.
+
+    Parameters
+    ----------
+    path
+        Path to the ``.vtkhdf`` file, or an open binary file object.
+    **opts
+        ``step`` picks the time step of a temporal file, as for
+        :func:`read`.
+
+    Returns
+    -------
+    ImageData
+        The grid with its ``PointData`` and ``CellData`` laid out along it,
+        its ``Direction`` when the file rotates it, and ``FieldData`` as
+        ``global_attrs``, plus ``time`` for a temporal file's step.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the file's ``Type`` is not ``ImageData``; read it with
+        :func:`polyxios.read`.
+    CodecError
+        As for :func:`read`.
+    """
+    step = opts.pop("step", None)
+    warn_unknown_opts(opts, fmt=EXTENSION, what="read")
+    name = source_name(path)
+    size = source_size(path)
+    with open_hdf5_read(path, fmt=EXTENSION) as handle:
+        root, kind, n_steps = _root(handle, name)
+        index = _step_index(step, n_steps, name, absent=_no_step(root))
+        if kind != _IMAGE:
+            raise UnsupportedFormatError(
+                f"'{name}': VTKHDF type '{kind}' holds no image; "
+                "read it with polyxios.read()."
+            )
+        image, _ = _read_image_grid(root, index, name=name, size=size)
+        if index is not None:
+            image.global_attrs[_TIME_KEY] = float(root["Steps"]["Values"][index])
+        return image
 
 
 def read_time_series(path: Source, **opts: Any) -> list[PolyData]:
@@ -290,7 +332,9 @@ def _read_step(
     root: Any, kind: str, index: int | None, *, name: str, size: int
 ) -> PolyData:
     if kind == _IMAGE:
-        poly = _read_image(root, index, name=name, size=size)
+        image, grid = _read_image_grid(root, index, name=name, size=size)
+        poly = image.to_polydata()
+        poly.global_attrs.update(grid)
     elif kind == _POLYDATA:
         poly = _read_polydata(root, index, name=name, size=size)
     else:
@@ -664,7 +708,10 @@ def _section_types(section: str, ends: np.ndarray) -> np.ndarray:
     return np.full(widths.shape, ELEMENT_TYPES["triangle_strip"], dtype=np.uint8)
 
 
-def _read_image(root: Any, index: int | None, *, name: str, size: int) -> PolyData:
+def _read_image_grid(
+    root: Any, index: int | None, *, name: str, size: int
+) -> tuple[ImageData, dict[str, Any]]:
+    """Read an ImageData's grid, and the keys the mesh reader spells it with."""
     extent = _attr_numbers(root, "WholeExtent", 6, name=name)
     if extent is None:
         raise CodecError(f"'{name}': an ImageData needs a 'WholeExtent' attribute.")
@@ -692,16 +739,8 @@ def _read_image(root: Any, index: int | None, *, name: str, size: int) -> PolyDa
         spells_vertices=False,
         spells_connectivity=False,
     )
-    axes = [
-        np.arange(extent[2 * a], extent[2 * a + 1] + 1) * spacing[a] for a in range(3)
-    ]
     matrix = np.asarray(direction, dtype=np.float64).reshape(3, 3)
     rotated = not np.array_equal(matrix.ravel(), _IDENTITY)
-    vertices = lattice_vertices(*axes, direction=matrix if rotated else None)
-    vertices += np.asarray(origin, dtype=np.float64)
-    connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = structured_offsets(n_cells, n_per_cell)
-    element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
     point_shape = (nz + 1, ny + 1, nx + 1)
     cell_shape = (max(nz, 1), max(ny, 1), max(nx, 1))
     vertex_attrs = _image_arrays(
@@ -710,27 +749,27 @@ def _read_image(root: Any, index: int | None, *, name: str, size: int) -> PolyDa
     element_attrs = _image_arrays(
         root, "CellData", index, cell_shape, n_cells, name=name
     )
-    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
-    element_attrs, element_tags = tags_from_masks(element_attrs)
-    global_attrs = _read_field_data(root, index, name=name)
-    global_attrs |= {
+    image = ImageData(
+        extent=tuple(extent),  # type: ignore[arg-type]
+        origin=tuple(float(v) for v in origin),  # type: ignore[arg-type]
+        spacing=tuple(float(v) for v in spacing),  # type: ignore[arg-type]
+        direction=matrix if rotated else None,
+        point_attrs={
+            k: v.reshape(point_shape + v.shape[1:]) for k, v in vertex_attrs.items()
+        },
+        cell_attrs={
+            k: v.reshape(cell_shape + v.shape[1:]) for k, v in element_attrs.items()
+        },
+        global_attrs=_read_field_data(root, index, name=name),
+    )
+    grid: dict[str, Any] = {
         "vti_origin": [float(v) for v in origin],
         "vti_spacing": [float(v) for v in spacing],
         "vti_extent": extent,
     }
     if rotated:
-        global_attrs[_DIRECTION_KEY] = matrix
-    return PolyData(
-        vertices=vertices,
-        connectivity=connectivity.astype(np.int32),
-        offsets=offsets,
-        element_types=element_types,
-        vertex_attrs=vertex_attrs,
-        element_attrs=element_attrs,
-        vertex_tags=vertex_tags,
-        element_tags=element_tags,
-        global_attrs=global_attrs,
-    )
+        grid[_DIRECTION_KEY] = matrix
+    return image, grid
 
 
 def _attr_numbers(root: Any, key: str, count: int, *, name: str) -> list[float] | None:
@@ -1083,6 +1122,144 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
         record = _write_body(store, poly, kind, arrays, geometry=True, stacklevel=3)
         if time is not None:
             _write_steps(root, kind, [time], [record])
+
+
+def write_image(image: ImageData, path: Source, **opts: Any) -> None:
+    """Write an ImageData as a VTKHDF ``ImageData`` file.
+
+    The grid is written as it stands: ``WholeExtent``, ``Origin``,
+    ``Spacing`` and ``Direction`` attributes, with the point and cell arrays
+    laid out along it as ``(nz, ny, nx[, k])``, so a volume costs its samples
+    and no coordinates or cells. A flat image is one plane along z.
+
+    Parameters
+    ----------
+    image
+        The grid to write.
+    path
+        Output file path, or an open binary file object.
+    **opts
+        ``compression`` and ``compression_opts`` go to h5py for every
+        dataset.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If h5py is not installed.
+    CodecError
+        If an axis holds no point, ``direction`` is not a ``(3, 3)`` matrix, or
+        an attribute is not laid out along the extent.
+
+    Warns
+    -----
+    UserWarning
+        For an array that is not numeric, a ``global_attrs`` value that is
+        neither a number nor text, and a cell array of an extent that spans no
+        cell: each is dropped by name.
+
+    Notes
+    -----
+    One step is written, with no ``Steps`` group: a ``global_attrs["time"]``
+    is field data like any other. The ``vti_*`` and ``vtkhdf_*`` keys a mesh
+    read spells the grid with are never written as field data.
+    """
+    require_h5py(fmt=EXTENSION, name=source_name(path), verb="writing")
+    dataset_kw = dataset_options(opts, fmt=EXTENSION)
+    warn_unknown_opts(opts, fmt=EXTENSION, what="write")
+    name = source_name(path)
+    nx, ny, nz = image.dimensions
+    if min(nx, ny, nz) == 0:
+        raise CodecError(
+            f"{EXTENSION} write: the extent {tuple(image.extent)} holds no point,"
+            " and an ImageData file cannot hold an empty grid."
+        )
+    try:
+        direction = (
+            np.eye(3)
+            if image.direction is None
+            else np.asarray(image.direction, dtype=np.float64).reshape(3, 3)
+        )
+    except ValueError as exc:
+        raise CodecError(
+            f"'{name}': the ImageData's direction is not a (3, 3) matrix ({exc})."
+        ) from exc
+    spans = image.spans
+    n_cells = structured_cell_shape(*spans)[0]
+    point = _image_data_arrays(
+        image.point_attrs, (nz, ny, nx), nx * ny * nz, group="PointData", stacklevel=3
+    )
+    cell = _image_data_arrays(
+        image.cell_attrs,
+        tuple(max(s, 1) for s in (spans[2], spans[1], spans[0])),
+        n_cells,
+        group="CellData",
+        stacklevel=3,
+    )
+    # Only the field data is wanted from this: the grid's own keys are
+    # reserved and no time is written, so the arrays it gathers for the
+    # stand-in mesh are empty.
+    stand_in = PolyData(
+        vertices=np.empty((0, 3)),
+        connectivity=np.empty(0, dtype=np.int32),
+        offsets=np.zeros(1, dtype=np.int32),
+        element_types=np.empty(0, dtype=np.uint8),
+        global_attrs=dict(image.global_attrs),
+    )
+    held = _step_arrays(stand_in, timed=False, stacklevel=3)
+    with open_hdf5_write(path, fmt=EXTENSION) as handle:
+        root = _new_root(handle, _IMAGE)
+        root.attrs["WholeExtent"] = np.array(image.extent, dtype=np.int64)
+        root.attrs["Origin"] = np.array(image.origin, dtype=np.float64)
+        root.attrs["Spacing"] = np.array(image.spacing, dtype=np.float64)
+        root.attrs["Direction"] = direction.ravel()
+        store = _Store(root, dataset_kw, growing=False)
+        for key, arr in point.items():
+            store.put(f"PointData/{key}", arr)
+        for key, arr in cell.items():
+            store.put(f"CellData/{key}", arr)
+        for key, arr in held["field"].items():
+            store.put(f"FieldData/{key}", arr)
+        for key, lines in held["text"].items():
+            store.put_text(f"FieldData/{key}", lines)
+
+
+def _image_data_arrays(
+    arrays: dict[str, np.ndarray],
+    lead: tuple[int, ...],
+    n_rows: int,
+    *,
+    group: str,
+    stacklevel: int,
+) -> dict[str, np.ndarray]:
+    """The arrays an ImageData group can hold, each laid out along the grid.
+
+    ``lead`` is the leading shape every array must have, ``(nz, ny, nx)``
+    for points. Booleans are written as bytes; an array that is not numeric,
+    or that sits over an extent with no ``n_rows`` to hold it, is dropped by
+    name; one that is not laid out along the extent is an error, since no
+    reader could place it.
+    """
+    out: dict[str, np.ndarray] = {}
+    dropped: list[str] = []
+    for key, arr in arrays.items():
+        arr = np.asarray(arr)
+        if arr.dtype.kind not in "biuf" or n_rows == 0:
+            dropped.append(str(key))
+            continue
+        if arr.shape[:3] != lead:
+            raise CodecError(
+                f"{EXTENSION} write: {group} array '{key}' is shaped"
+                f" {arr.shape}, and the extent lays its arrays out {lead}."
+            )
+        out[str(key)] = arr.astype(np.uint8) if arr.dtype.kind == "b" else arr
+    if dropped:
+        warnings.warn(
+            f"{EXTENSION} write: {group} array(s) {dropped} are not numeric, or"
+            " the extent spans nothing to hold them; dropped.",
+            UserWarning,
+            stacklevel=stacklevel + 1,
+        )
+    return _linked(out, group=group, stacklevel=stacklevel + 1)
 
 
 def write_time_series(
@@ -1720,7 +1897,9 @@ __all__ = [
     "EXTENSION",
     "LABEL",
     "read",
+    "read_image",
     "read_time_series",
     "write",
+    "write_image",
     "write_time_series",
 ]

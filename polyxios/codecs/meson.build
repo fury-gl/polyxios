@@ -22,6 +22,9 @@ py.install_sources(
     '_hmf.py',
     '_las.py',
     '_lzf_fallback.py',
+    '_jpeg.py',
+    '_png.py',
+    '_raster_kernels_fallback.py',
     '_mdpa.py',
     '_med.py',
     '_medit.py',
@@ -75,6 +78,15 @@ py.extension_module(
 py.extension_module(
   '_lzf',
   '_lzf.pyx',
+  dependencies: py_dep,
+  install: true,
+  subdir: 'polyxios/codecs',
+)
+
+py.extension_module(
+  '_raster_kernels',
+  '_raster_kernels.pyx',
+  include_directories: inc_np,
   dependencies: py_dep,
   install: true,
   subdir: 'polyxios/codecs',

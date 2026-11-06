@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 import polyxios
-from polyxios import make_polydata
+from polyxios import helper, make_polydata
 from polyxios._io import GZIP_SUFFIXES
 from polyxios._registry import (
     Codec,
@@ -1003,6 +1003,57 @@ def test_reader_refuses_foreign_extensions():
     assert get_reader(path="image.tif") is None
     assert get_reader(path=["mesh.ply", "image.tif"]) is None
     assert get_reader(path=[]) is None
+
+
+def _picture(tmp_path, name, shape):
+    pixels = (np.arange(int(np.prod(shape))) * 11 % 256).astype(np.uint8)
+    pixels = pixels.reshape(shape)
+    path = tmp_path / name
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    return path, pixels
+
+
+def test_a_picture_opens_as_one_image_layer(tmp_path):
+    path, pixels = _picture(tmp_path, "a.png", (5, 7, 3))
+    reader = get_reader(path=str(path))
+    [(data, kwargs, layer_type)] = reader(str(path))
+    assert layer_type == "image"
+    assert kwargs == {"name": "a", "rgb": True}
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_gray_picture_is_a_plain_image_layer(tmp_path):
+    path, pixels = _picture(tmp_path, "g.png", (5, 7))
+    [(data, kwargs, layer_type)] = get_reader(path=str(path))(str(path))
+    assert layer_type == "image"
+    assert kwargs["rgb"] is False
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_jpeg_picture_opens_as_one_image_layer(tmp_path):
+    for name in ("a.jpg", "b.jpeg", "c.jfif"):
+        path, pixels = _picture(tmp_path, name, (8, 8, 3))
+        [(data, kwargs, layer_type)] = get_reader(path=str(path))(str(path))
+        assert layer_type == "image"
+        assert kwargs["rgb"] is True
+        assert data.shape == pixels.shape
+
+
+def test_a_gzipped_picture_is_still_a_picture(tmp_path):
+    path, pixels = _picture(tmp_path, "a.png", (4, 4, 4))
+    zipped = tmp_path / "z.png.gz"
+    zipped.write_bytes(gzip.compress(path.read_bytes()))
+    [(data, kwargs, layer_type)] = get_reader(path=str(zipped))(str(zipped))
+    assert (layer_type, kwargs["name"]) == ("image", "z")
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_picture_and_a_mesh_open_side_by_side(tmp_path):
+    path, _ = _picture(tmp_path, "a.png", (3, 3, 3))
+    grid = tmp_path / "g.vti"
+    polyxios.write(_hex_grid(2), grid)
+    layers = get_reader(path=[str(path), str(grid)])([str(path), str(grid)])
+    assert [kind for _, _, kind in layers] == ["image", "surface"]
 
 
 _FOREIGN: dict[str, bytes] = {

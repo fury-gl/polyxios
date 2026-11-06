@@ -1157,6 +1157,96 @@ def require_grid_order(
     )
 
 
+def _evenly_spaced(u: np.ndarray, step: float) -> bool:
+    """Say whether one step reproduces every plane on an axis.
+
+    The slack is measured against the step and against what a double holds at
+    this magnitude - never as a fraction of the coordinate. A relative
+    tolerance is a fraction of where the axis sits rather than of how far
+    apart its planes are, so an axis at ``x = 1e6`` was allowed half a
+    millimetre of drift per plane: a visibly uneven lattice passed, and came
+    back regularised with every plane past the second moved. The two bounds
+    answer the two ways a plane can miss: by a fraction of the step, and by
+    the last few bits of a coordinate that has no room to hold it.
+
+    Parameters
+    ----------
+    u
+        The axis's coordinates, at least two of them.
+    step
+        The single step being proposed for it.
+
+    Returns
+    -------
+    bool
+        True when ``u[0] + i * step`` is every plane the axis holds.
+
+    Examples
+    --------
+    >>> _evenly_spaced(np.array([0.0, 1.0, 2.0]), 1.0)
+    True
+    >>> _evenly_spaced(np.array([1e6, 1e6 + 1.0, 1e6 + 2.001]), 1.0005)
+    False
+    """
+    rebuilt = float(u[0]) + np.arange(len(u)) * step
+    # The axis is monotone in the step, so its widest value is an endpoint and
+    # the bound costs two lookups rather than a pass over the whole axis.
+    magnitude = max(abs(float(rebuilt[0])), abs(float(rebuilt[-1])))
+    atol = max(abs(step) * 1e-9, 8.0 * float(np.spacing(magnitude)))
+    return bool(np.allclose(u, rebuilt, rtol=0.0, atol=atol))
+
+
+def uniform_steps(
+    axes: Sequence[np.ndarray], spacing: list[float], *, fmt: str
+) -> list[float]:
+    """Measure the one step each axis of an ImageData is allowed.
+
+    An ImageData holds no coordinates: it holds a step, and every plane on an
+    axis is that step from the last. A lattice whose planes are not evenly
+    spaced is a RectilinearGrid, and writing its first step as though it were
+    the only one moves every point after the second - silently, since the
+    file that comes back is a well-formed grid of the right size.
+
+    Parameters
+    ----------
+    axes
+        The x, y and z coordinates, as :func:`grid_axes` gives them.
+    spacing
+        The step to keep on an axis with no second plane to measure against.
+    fmt
+        Extension the message names.
+
+    Returns
+    -------
+    list of float
+        The step on each axis.
+
+    Raises
+    ------
+    CodecError
+        If an axis is not evenly spaced.
+    """
+    steps: list[float] = []
+    for axis, (u, fallback) in enumerate(zip(axes, spacing, strict=True)):
+        if len(u) < 2:
+            # One plane, or none: there is no step to measure, and VTK reads
+            # the same grid back whatever is written. Keep what came with the
+            # mesh rather than inventing a number for it.
+            steps.append(float(fallback))
+            continue
+        step = (float(u[-1]) - float(u[0])) / (len(u) - 1)
+        if len(u) > 2 and not _evenly_spaced(u, step):
+            raise CodecError(
+                f"{fmt}: the planes on the {'xyz'[axis]} axis are not evenly "
+                "spaced, and an ImageData holds one step per axis rather than "
+                "a coordinate for each plane. Every plane past the second "
+                "would move - write a .vtr instead, which spells its "
+                "coordinates out."
+            )
+        steps.append(step)
+    return steps
+
+
 def extent_spans(extent: Sequence[int]) -> list[int] | None:
     """Reduce an extent to the cells it spans along each axis, or None.
 
