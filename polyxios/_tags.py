@@ -330,6 +330,7 @@ def mask_arrays(
     fmt: str,
     kind: str,
     stacklevel: int = 3,
+    verb: str = "write",
 ) -> dict[str, np.ndarray]:
     """Return one membership column per tag group, named for it.
 
@@ -347,6 +348,9 @@ def mask_arrays(
         How far above this frame the warnings should point. The default
         answers a codec's ``write``, which is where this is called from; a
         wrapper adds its own frame to it.
+    verb
+        The word the warnings name the operation by, ``write`` unless the
+        caller reads the mesh rather than writing it.
 
     Returns
     -------
@@ -412,14 +416,14 @@ def mask_arrays(
         columns[f"{MASK_PREFIX}{name}"] = column
     if unnamed:
         warnings.warn(
-            f"{fmt} write: {kind} tag group(s) {sorted(unnamed, key=repr)} have"
+            f"{fmt} {verb}: {kind} tag group(s) {sorted(unnamed, key=repr)} have"
             " no name a data array can carry; dropped.",
             UserWarning,
             stacklevel=stacklevel,
         )
     if unreachable:
         warnings.warn(
-            f"{fmt} write: {kind} tag group(s) {sorted(unreachable)} name"
+            f"{fmt} {verb}: {kind} tag group(s) {sorted(unreachable)} name"
             f" members that index no {kind} of this mesh; those members were"
             " dropped.",
             UserWarning,
@@ -435,6 +439,7 @@ def with_tag_masks(
     *,
     fmt: str,
     kind: str,
+    verb: str = "write",
 ) -> dict[str, np.ndarray]:
     """Return the arrays a data section writes: the attributes and the groups.
 
@@ -450,6 +455,8 @@ def with_tag_masks(
         The format's extension, for the warnings naming what was dropped.
     kind
         ``point`` or ``cell``, named in the same warnings.
+    verb
+        The word the warnings name the operation by, as for :func:`mask_arrays`.
 
     Returns
     -------
@@ -477,15 +484,16 @@ def with_tag_masks(
     >>> sorted(with_tag_masks(attrs, {"a": np.array([0])}, 3, fmt=".vtu", kind="cell"))
     ['polyxios_tag_a', 's']
     """
-    masks = mask_arrays(tags, n_items, fmt=fmt, kind=kind, stacklevel=4)
+    masks = mask_arrays(tags, n_items, fmt=fmt, kind=kind, stacklevel=4, verb=verb)
     if not masks:
         return dict(attrs)
     shadowed = masks.keys() & attrs.keys()
     if shadowed:
         warnings.warn(
-            f"{fmt} write: {kind} attribute(s) {sorted(shadowed)} are named"
-            f" what a tag group's column is named; the group is written and"
-            " the attribute is dropped.",
+            f"{fmt} {verb}: {kind} attribute(s) {sorted(shadowed)} are named"
+            " what a tag group's column is named; the group is"
+            f" {'written' if verb == 'write' else 'kept'} and the attribute is"
+            " dropped.",
             UserWarning,
             stacklevel=3,
         )

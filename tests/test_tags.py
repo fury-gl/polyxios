@@ -11,6 +11,7 @@ from polyxios._tags import (
     member_values,
     members_array,
     values_from_tags,
+    with_tag_masks,
 )
 
 
@@ -164,3 +165,22 @@ def test_member_values_keeps_the_order_and_the_members_out_of_range() -> None:
     no entity has to see those members rather than have them filtered away."""
     np.testing.assert_array_equal(member_values([5, 0, -1]), [5, 0, -1])
     np.testing.assert_array_equal(member_indices([5, 0, -1], 3), [0])
+
+
+def test_a_shadowed_attribute_says_the_group_is_written_or_kept() -> None:
+    """A write keeps its wording; a read says the group is kept, since nothing is
+    written, and the other words of the warning stay as they were."""
+    attrs = {"polyxios_tag_g": np.zeros(2)}
+    tags = {"g": np.array([0])}
+    with pytest.warns(UserWarning) as caught:
+        with_tag_masks(attrs, tags, 2, fmt=".vtu", kind="cell")
+    assert str(caught[0].message) == (
+        ".vtu write: cell attribute(s) ['polyxios_tag_g'] are named what a tag "
+        "group's column is named; the group is written and the attribute is dropped."
+    )
+    with pytest.warns(UserWarning) as caught:
+        with_tag_masks(attrs, tags, 2, fmt=".vtu", kind="cell", verb="read")
+    assert str(caught[0].message) == (
+        ".vtu read: cell attribute(s) ['polyxios_tag_g'] are named what a tag "
+        "group's column is named; the group is kept and the attribute is dropped."
+    )
