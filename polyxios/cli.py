@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+from typing import Any
 import warnings
 
 import polyxios
@@ -12,7 +13,7 @@ import polyxios
 # (tests and callers only ever have to patch one place).
 from polyxios import fetcher
 from polyxios._registry import resolve
-from polyxios.exceptions import PolyxiosError, UnsupportedFormatError
+from polyxios.exceptions import CodecError, PolyxiosError, UnsupportedFormatError
 from polyxios.helper import read_polydata, resolve_path, visualize_mesh
 
 logger = logging.getLogger("polyxios")
@@ -131,7 +132,7 @@ def cmd_fetch(args) -> int:
         return 1
 
 
-def _both_images(input_file, output_file) -> bool:
+def _both_images(input_file: str, output_file: str) -> bool:
     """Say whether both ends of a conversion carry an ImageData.
 
     Parameters
@@ -154,6 +155,45 @@ def _both_images(input_file, output_file) -> bool:
     except PolyxiosError:
         return False
     return src.read_image is not None and dst.write_image is not None
+
+
+def _read_image_for_convert(path: str) -> tuple[Any, list[warnings.WarningMessage]]:
+    """Read an image for convert, holding back the warnings the read raises.
+
+    Returns the image, or None for a grid the image reader refuses, with the warnings
+    the read raised. Another error is raised after those warnings are said, so a
+    failed read still reports what it found on the way.
+    """
+    error = None
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        try:
+            image = polyxios.read_image(path)
+        except (CodecError, UnsupportedFormatError):
+            image = None
+        except Exception as exc:
+            error = exc
+    if error is not None:
+        _replay_warnings(recorded)
+        raise error
+    return image, recorded
+
+
+def _replay_warnings(recorded: list[warnings.WarningMessage]) -> None:
+    """Say recorded warnings again, through the filters and the hook in force now.
+
+    One registry is shared by the whole replay, so a warning the filters show once
+    per location is shown once, as it would be had it not been recorded.
+    """
+    registry: dict = {}
+    for caught in recorded:
+        warnings.warn_explicit(
+            caught.message,
+            caught.category,
+            caught.filename,
+            caught.lineno,
+            registry=registry,
+        )
 
 
 def cmd_convert(args) -> int:
@@ -182,11 +222,17 @@ def cmd_convert(args) -> int:
         start_read_time = time.perf_counter()
         data = None
         if as_image:
-            try:
-                data = polyxios.read_image(args.input_file)
-            except UnsupportedFormatError:
-                # A codec that reads images may hold a mesh, as a .vtkhdf
-                # of cells does; the mesh path says what is wrong if not.
+            image, recorded = _read_image_for_convert(args.input_file)
+            # A grid the image reader refuses - a codec that reads images may hold a
+            # mesh, as a .vtkhdf of cells does, and an extent past int64 is a mesh
+            # that earlier releases read - goes the mesh way, which reports whatever
+            # is wrong with the file itself. An empty grid has no image form the
+            # writers take, and the mesh path has always carried it. Either way the
+            # mesh path says its own warnings, so the image's are dropped.
+            if image is not None and min(image.dimensions) > 0:
+                data = image
+                _replay_warnings(recorded)
+            else:
                 as_image = False
         if data is None:
             data = read_polydata(args.input_file)
