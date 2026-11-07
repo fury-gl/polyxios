@@ -271,9 +271,9 @@ Volumetric meshes, structured grids, and FEM/CFD simulation formats.
 |--------|-----------|------|-------|-------|
 | VTK RectilinearGrid | `.vtr` | ✓ | ✓ | per-axis coordinate arrays, appended or inline base64 |
 | VTK StructuredGrid | `.vts` | ✓ | ✓ | curvilinear grid, cells implied by the extent (hexahedra, or quads when flat) |
-| VTK ImageData | `.vti` | ✓ | ✓ | origin/spacing/extent only, no coordinate array |
+| VTK ImageData | `.vti` | ✓ | ✓ | origin/spacing/extent only, no coordinate array; `read_image` / `write_image` keep it an `ImageData` |
 | VTK UnstructuredGrid | `.vtu` | ✓ | ✓ | arbitrary cell-type mix |
-| VTKHDF | `.vtkhdf` | ✓ | ✓ | VTK's HDF5 layout (`polyxios[hdf5]`); UnstructuredGrid, PolyData and ImageData read, partitions merged and tagged, time series via `helper.read_time_series` / `write_time_series`, `step=` on read; writes UnstructuredGrid or `polydata=True` |
+| VTKHDF | `.vtkhdf` | ✓ | ✓ | VTK's HDF5 layout (`polyxios[hdf5]`); UnstructuredGrid, PolyData and ImageData read, partitions merged and tagged, time series via `helper.read_time_series` / `write_time_series`, `step=` on read; writes UnstructuredGrid or `polydata=True`, and an `ImageData` through `write_image` |
 | PVD (ParaView collection) | `.pvd` | ✓ | ✓ | XML index of VTK datasets over time; datasets at one step merged and tagged by group, `step=` on read, `helper.read_time_series` / `write_time_series`; writes one `.vtu` (`format=`) per step beside the index |
 | MFEM mesh | `.mesh`* | ✓ | ✓ | geometry type codes; INLINE is materialised, NURBS reads back control points |
 | Netgen | `.vol` | ✓ | ✓ | ASCII, points/edges/faces/cells incl. quadratic, `bcnr`/`matnr` + names → element tags |

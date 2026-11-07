@@ -577,6 +577,7 @@ def format_field_data(
     indent: int,
     fmt: str,
     header_type: str = "UInt32",
+    stacklevel: int = 4,
 ) -> list[str]:
     """Render a ``<FieldData>`` block, or nothing when there is none.
 
@@ -601,6 +602,11 @@ def format_field_data(
         Width of every binary block's byte count, as for ``format_da``. The
         block stays inline whatever the rest of the file does, but its
         header is the width the root element declares all the same.
+    stacklevel
+        How far above this frame the warnings about a name no XML attribute
+        can hold point. The default is right for a codec's ``write`` calling
+        this directly; a writer that reaches it through a helper of its own
+        adds one frame per helper.
 
     Returns
     -------
@@ -615,8 +621,10 @@ def format_field_data(
     a point attribute is read, so an ``(n, 3)`` array comes back the shape it
     went out as.
     """
-    spelled = spellable_arrays(spelled, fmt=fmt, kind="field", stacklevel=4)
-    text = spellable_arrays(text or {}, fmt=fmt, kind="field text", stacklevel=4)
+    spelled = spellable_arrays(spelled, fmt=fmt, kind="field", stacklevel=stacklevel)
+    text = spellable_arrays(
+        text or {}, fmt=fmt, kind="field text", stacklevel=stacklevel
+    )
     if not spelled and not text:
         return []
     pad = " " * indent
@@ -650,6 +658,7 @@ def read_field_data(
     decode: Callable[[ET.Element], np.ndarray],
     *,
     stacklevel: int = 3,
+    shaped_stacklevel: int | None = None,
 ) -> dict[str, Any]:
     """Read every ``<FieldData>`` array under an element.
 
@@ -664,6 +673,12 @@ def read_field_data(
         How far above this frame the warnings should point. The default
         answers a codec's ``read``; :func:`piece_field_data` adds its own
         frame to it.
+    shaped_stacklevel
+        How far above this frame the warning about a declared component count
+        points. None takes one frame more than ``stacklevel``, which is where
+        a codec's own reader stands; :func:`piece_field_data` names its own
+        value, because its one-frame-deeper call was blamed on a frame it
+        never had.
 
     Returns
     -------
@@ -707,7 +722,13 @@ def read_field_data(
             arr = decode(da)
             if arr.size == 0 and undecodable_type(da) is not None:
                 continue
-            shaped = shaped_da(da, arr)
+            shaped = shaped_da(
+                da,
+                arr,
+                stacklevel=(
+                    stacklevel + 1 if shaped_stacklevel is None else shaped_stacklevel
+                ),
+            )
             if not _tuples_agree(da, shaped):
                 miscounted.append(name)
             found[name] = shaped
@@ -773,7 +794,9 @@ def piece_field_data(
     found: dict[str, Any] = {}
     clashed: list[str] = []
     for piece in pieces:
-        for name, arr in read_field_data(piece, decode, stacklevel=4).items():
+        for name, arr in read_field_data(
+            piece, decode, stacklevel=4, shaped_stacklevel=4
+        ).items():
             if name in found:
                 clashed.append(name)
             else:
@@ -2040,7 +2063,7 @@ def _read_raw_block(
     return np.frombuffer(data, dtype=dt, count=count).copy()
 
 
-def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
+def shaped_da(elem: ET.Element, arr: np.ndarray, *, stacklevel: int = 4) -> np.ndarray:
     """Fold a decoded DataArray into one row per tuple.
 
     A DataArray is written flat whatever its width, and ``NumberOfComponents``
@@ -2053,6 +2076,8 @@ def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
         The ``DataArray`` element the values came from.
     arr
         Its decoded values, one dimensional.
+    stacklevel
+        How far above this frame a warning about the declared count points.
 
     Returns
     -------
@@ -2074,7 +2099,7 @@ def shaped_da(elem: ET.Element, arr: np.ndarray) -> np.ndarray:
             f" NumberOfComponents='{elem.get('NumberOfComponents')}', which"
             " is not a count; read flat.",
             UserWarning,
-            stacklevel=4,
+            stacklevel=stacklevel,
         )
         return arr
     if n_comp > 1 and arr.size and arr.size % n_comp == 0:
@@ -2112,6 +2137,7 @@ def decode_da(
     compressed: bool,
     is_base64: bool = False,
     copy: bool = True,
+    stacklevel: int = 5,
 ) -> np.ndarray:
     """Decode a VTK ``<DataArray>`` element to a 1-D numpy array.
 
@@ -2134,6 +2160,9 @@ def decode_da(
         Copy a raw appended block out of the section. A lazy read passes
         False and gets an array viewing the file's mapping instead, in the
         dtype and byte order the file holds.
+    stacklevel
+        How far above this frame the warnings point: five for a reader's
+        caller, one more for each frame between it and this function.
 
     Returns
     -------
@@ -2159,7 +2188,7 @@ def decode_da(
             f"VTK XML: DataArray '{name}' has type '{vtk_type}', which holds"
             " no numbers; skipped.",
             UserWarning,
-            stacklevel=5,
+            stacklevel=stacklevel,
         )
         return np.array([], dtype=np.float64)
     endian = ">" if big_endian else "<"
@@ -2194,7 +2223,7 @@ def decode_da(
     text = (elem.text or "").strip()
 
     if fmt == "ascii":
-        return parse_ascii_values(text, dtype_str, name=name)
+        return parse_ascii_values(text, dtype_str, name=name, stacklevel=stacklevel + 1)
 
     # inline binary / base64
     try:
@@ -2252,7 +2281,7 @@ def _da_offset(elem: ET.Element, *, name: str) -> int:
 
 
 def parse_ascii_values(
-    text: str, dtype_str: str, *, name: str = "unnamed"
+    text: str, dtype_str: str, *, name: str = "unnamed", stacklevel: int
 ) -> np.ndarray:
     """Read the ASCII body of a ``DataArray`` into the type it declares.
 
@@ -2293,10 +2322,12 @@ def parse_ascii_values(
         # hold. Neither is worth refusing a whole file over, so the tokens
         # are read as doubles and narrowed the way a C reader would narrow
         # them - which is what the file's own writer did to produce them.
-        return _narrow_ascii_values(tokens, dtype_str, name)
+        return _narrow_ascii_values(tokens, dtype_str, name, stacklevel=stacklevel + 1)
 
 
-def _narrow_ascii_values(tokens: list[str], dtype_str: str, name: str) -> np.ndarray:
+def _narrow_ascii_values(
+    tokens: list[str], dtype_str: str, name: str, *, stacklevel: int
+) -> np.ndarray:
     """Read tokens as doubles and narrow them to the declared type.
 
     Parameters
@@ -2307,6 +2338,8 @@ def _narrow_ascii_values(tokens: list[str], dtype_str: str, name: str) -> np.nda
         The numpy dtype character the declared VTK type maps to.
     name
         Array name, for the messages.
+    stacklevel
+        How far above this frame the wrap warning points.
 
     Returns
     -------
@@ -2336,7 +2369,7 @@ def _narrow_ascii_values(tokens: list[str], dtype_str: str, name: str) -> np.nda
             f" '{narrow.dtype.name}' cannot hold; they wrap, as they do for"
             " any reader of this file.",
             UserWarning,
-            stacklevel=7,
+            stacklevel=stacklevel,
         )
     return narrow
 

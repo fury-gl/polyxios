@@ -9,8 +9,18 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 import polyxios
+from polyxios._image import (
+    _MODES,
+    ALPHA,
+    COLORS,
+    DIRECTION_KEY,
+    INTENSITY,
+    ImageData,
+    check_mesh_rows,
+    stored_rotation,
+)
 from polyxios.codecs import _pvd, _vtkhdf, _xdmf
-from polyxios.exceptions import UnsupportedFormatError
+from polyxios.exceptions import CodecError, UnsupportedFormatError
 from polyxios.fetcher import fetch
 import polyxios.transforms as transforms
 
@@ -699,3 +709,170 @@ def write_time_series(
     """
     codec = _series_codec(path, "write")
     codec.write_time_series(steps, path, **opts)
+
+
+def image_to_array(
+    image: ImageData | polyxios.PolyData,
+    *,
+    name: str | None = None,
+    origin: str = "upper",
+) -> np.ndarray:
+    """Return the pixel array an image holds.
+
+    Parameters
+    ----------
+    image
+        An :class:`~polyxios.ImageData`, or a lattice :class:`~polyxios.PolyData`
+        such as ``read()`` gives for a raster file.
+    name
+        Point attribute to return. By default ``'colors'``, else
+        ``'intensity'`` (with ``'alpha'`` stacked on a last axis when there
+        is one), else the only point attribute.
+    origin
+        ``'upper'`` puts row 0 at the top of the picture, the way image
+        files and arrays order them; ``'lower'`` keeps VTK's order, with y
+        up. ``'upper'`` flips only a grid whose y step is not negative: one
+        that runs y downwards is already top row first.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``(H, W[, C])`` for a flat image, ``(D, H, W[, C])`` for a volume. A
+        copy, C-contiguous: writing into it leaves the image unchanged.
+
+    Raises
+    ------
+    TypeError
+        If ``image`` is neither an :class:`~polyxios.ImageData` nor a
+        :class:`~polyxios.PolyData`.
+    ValueError
+        If ``name`` or ``origin`` is not usable, the choice of attribute is
+        ambiguous, or the attribute is not laid out along the extent.
+    CodecError
+        If a mesh given is not a uniform grid, or it is a rotated VTKHDF image.
+        A mesh holds no rotation to give back, so such an image is read with
+        :func:`polyxios.read_image`, which keeps the ``direction``.
+    """
+    if origin not in ("upper", "lower"):
+        raise ValueError(
+            f"image_to_array: origin is 'upper' or 'lower', not {origin!r}."
+        )
+    if isinstance(image, polyxios.PolyData):
+        rotation = (image.global_attrs or {}).get(DIRECTION_KEY)
+        if stored_rotation(rotation, fmt="image_to_array") is not None:
+            raise CodecError(
+                "image_to_array: a rotated VTKHDF image is not a grid of pixels a "
+                "mesh gives back; read the file with polyxios.read_image() instead."
+            )
+        check_mesh_rows(image, fmt="image_to_array")
+        try:
+            image = ImageData.from_polydata(image)
+        except CodecError as exc:
+            raise CodecError(
+                "image_to_array: the mesh is not a uniform grid of pixels."
+            ) from exc
+    if not isinstance(image, ImageData):
+        raise TypeError(
+            "image_to_array() takes an ImageData or a PolyData, got "
+            f"{type(image).__name__}."
+        )
+    attrs = image.point_attrs
+    if name is not None:
+        if name not in attrs:
+            raise ValueError(
+                f"image_to_array: no point attribute {name!r}; "
+                f"the image holds {sorted(attrs)}."
+            )
+        picked = [name]
+    elif COLORS in attrs:
+        picked = [COLORS]
+    elif INTENSITY in attrs:
+        picked = [INTENSITY, ALPHA] if ALPHA in attrs else [INTENSITY]
+    elif len(attrs) == 1:
+        picked = list(attrs)
+    elif attrs:
+        raise ValueError(f"image_to_array: name one of {sorted(attrs)}.")
+    else:
+        raise ValueError("image_to_array: the image holds no point attributes.")
+    lead = image.dimensions[::-1]
+    arrays = []
+    for key in picked:
+        arr = np.asarray(attrs[key])
+        if arr.shape[:3] != lead:
+            raise ValueError(
+                f"image_to_array: point attribute {key!r} is shaped {arr.shape}, but "
+                f"the extent lays its arrays out (nz, ny, nx) = {lead}."
+            )
+        arrays.append(arr)
+    if len(arrays) == 2:
+        # Gray with alpha: the two channels stacked on a last axis.
+        arr = np.concatenate([a.reshape(a.shape[:3] + (-1,)) for a in arrays], axis=-1)
+    else:
+        arr = arrays[0]
+    if origin == "upper" and image.spacing[1] >= 0:
+        arr = arr[:, ::-1]
+    if arr.shape[0] == 1:
+        arr = arr[0]
+    return np.array(arr, order="C")
+
+
+def array_to_image(
+    pixels: np.ndarray,
+    *,
+    origin: str = "upper",
+    global_attrs: dict | None = None,
+) -> ImageData:
+    """Wrap a pixel array as a flat :class:`~polyxios.ImageData`.
+
+    Parameters
+    ----------
+    pixels
+        ``(H, W)`` or ``(H, W, C)`` with ``C`` in 1-4. One channel or two
+        dimensions become ``'intensity'``, two channels ``'intensity'`` and
+        ``'alpha'``, three or four ``'colors'``.
+    origin
+        ``'upper'`` if row 0 is the top of the picture, as in an image file;
+        ``'lower'`` if it is the lowest y, VTK's order.
+    global_attrs
+        Whole-image metadata to carry.
+
+    Returns
+    -------
+    ImageData
+        One z plane, ``extent = (0, W-1, 0, H-1, 0, 0)``. The dtype is kept
+        and the data copied.
+
+    Raises
+    ------
+    ValueError
+        If the array has another shape, or ``origin`` is not recognised.
+    """
+    if origin not in ("upper", "lower"):
+        raise ValueError(
+            f"array_to_image: origin is 'upper' or 'lower', not {origin!r}."
+        )
+    try:
+        arr = np.asarray(pixels)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"array_to_image: pixels is not an array ({exc}).") from exc
+    if arr.ndim not in (2, 3) or (arr.ndim == 3 and arr.shape[2] not in _MODES):
+        raise ValueError(
+            "array_to_image: expects (H, W) or (H, W, C) with C in 1-4, "
+            f"got shape {arr.shape}."
+        )
+    height, width = arr.shape[:2]
+    if origin == "upper":
+        arr = arr[::-1]
+    arr = arr[np.newaxis]
+    channels = 1 if arr.ndim == 3 else arr.shape[3]
+    if channels == 1:
+        attrs = {INTENSITY: arr.reshape(arr.shape[:3]).copy()}
+    elif channels == 2:
+        attrs = {INTENSITY: arr[..., 0].copy(), ALPHA: arr[..., 1].copy()}
+    else:
+        attrs = {COLORS: arr.copy()}
+    return ImageData(
+        extent=(0, width - 1, 0, height - 1, 0, 0),
+        point_attrs=attrs,
+        global_attrs=global_attrs,
+    )

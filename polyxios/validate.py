@@ -99,6 +99,7 @@ def validate_header(
     compressed: bool = False,
     spells_vertices: bool = True,
     spells_connectivity: bool = True,
+    builds_vertices: bool = True,
 ) -> None:
     """Validate header counts against file size before any array allocation.
 
@@ -125,6 +126,10 @@ def validate_header(
         Whether the file holds the indices it declares. False for the
         structured formats, whose cells are implied by the extent and
         written nowhere.
+    builds_vertices
+        Whether the declared points are expanded into that many vertices. False
+        for a read that keeps the grid compact, which allocates nothing per point,
+        so the cap on expanded vertices does not apply to it.
 
     Raises
     ------
@@ -139,8 +144,9 @@ def validate_header(
     ``4 x 4 x 4`` ImageData declares 64 points in a 231-byte file and is not
     corrupt, it is the format working as intended.
 
-    A file that spells no points is held to the tighter
-    :data:`MAX_IMPLIED_VERTICES` in place of the heuristic it is excused from.
+    A file that spells no points is held, where its points are expanded into a
+    mesh, to the tighter :data:`MAX_IMPLIED_VERTICES` in place of the heuristic it
+    is excused from. A compact read builds no vertex and is not held to it.
     The heuristic is what makes the loose cap safe elsewhere: a format that
     writes its points has to spend bytes on each one, so a header can only ask
     for as much memory as the file it sits in is long. A header that describes
@@ -152,7 +158,11 @@ def validate_header(
             f"declared_n_verts={declared_n_verts} exceeds MAX_SAFE_VERTICES="
             f"{MAX_SAFE_VERTICES}. Possible corrupt or malicious file."
         )
-    if not spells_vertices and declared_n_verts > MAX_IMPLIED_VERTICES:
+    if (
+        not spells_vertices
+        and builds_vertices
+        and declared_n_verts > MAX_IMPLIED_VERTICES
+    ):
         raise ValidationError(
             f"declared_n_verts={declared_n_verts} exceeds "
             f"MAX_IMPLIED_VERTICES={MAX_IMPLIED_VERTICES}, the cap on a "

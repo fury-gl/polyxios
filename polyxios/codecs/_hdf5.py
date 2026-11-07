@@ -135,7 +135,9 @@ def refuse_lazy(lazy: bool, *, fmt: str, name: str) -> None:
         )
 
 
-def warn_unknown_opts(opts: dict[str, Any], *, fmt: str, what: str) -> None:
+def warn_unknown_opts(
+    opts: dict[str, Any], *, fmt: str, what: str, stacklevel: int = 3
+) -> None:
     """Warn once about the options a reader or writer did not consume.
 
     Parameters
@@ -146,12 +148,15 @@ def warn_unknown_opts(opts: dict[str, Any], *, fmt: str, what: str) -> None:
         The format's own extension, for the message.
     what
         ``"read"`` or ``"write"``, for the message.
+    stacklevel
+        How far above this frame the warning points. The default blames the
+        caller of the codec's own reader or writer.
     """
     if opts:
         warnings.warn(
             f"{fmt} {what}: unrecognized options {set(opts)}; ignored.",
             UserWarning,
-            stacklevel=3,
+            stacklevel=stacklevel,
         )
 
 

@@ -31,10 +31,23 @@ import warnings
 import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV, POLYXIOS_TO_VTK
-from polyxios._globals import globals_for_write, text_for_write
+from polyxios._globals import spell_globals, spell_text
+from polyxios._image import (
+    DIRECTION_KEY as _DIRECTION_KEY,
+    IMAGE_RESERVED_GLOBALS,
+    TYPE_KEY as _TYPE_KEY,
+    ImageData,
+    build_image,
+    check_readable,
+    grid_rows,
+    is_identity,
+    lattice_mesh,
+    vtk_lattice,
+)
 from polyxios._io import Source, source_name, source_size
 from polyxios._tags import tags_from_masks, with_tag_masks
 from polyxios._types import PolyData
+from polyxios._warn import warn_caller
 from polyxios.codecs._hdf5 import (
     _h5py,
     as_array,
@@ -50,11 +63,8 @@ from polyxios.codecs._hdf5 import (
 )
 from polyxios.codecs._vtk_xml import (
     extent_points,
-    lattice_vertices,
     polygon_types,
     structured_cell_shape,
-    structured_cells,
-    structured_offsets,
     vtk_code_types,
 )
 from polyxios.exceptions import CodecError, UnsupportedFormatError
@@ -87,13 +97,10 @@ _SECTION_OF: dict[int, str] = {
     ELEMENT_TYPES["triangle_strip"]: "Strips",
 }
 
-_TYPE_KEY: str = "vtkhdf_type"
 _TIME_KEY: str = "time"
-_DIRECTION_KEY: str = "vtkhdf_direction"
 _RESERVED_GLOBALS: frozenset[str] = frozenset(
     {_TYPE_KEY, _TIME_KEY, _DIRECTION_KEY, "vti_origin", "vti_spacing", "vti_extent"}
 )
-
 _IDENTITY: np.ndarray = np.eye(3).ravel()
 
 
@@ -160,6 +167,52 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
         root, kind, n_steps = _root(handle, name)
         index = _step_index(step, n_steps, name, absent=_no_step(root))
         return _read_step(root, kind, index, name=name, size=size)
+
+
+def read_image(path: Source, **opts: Any) -> ImageData:
+    """Read the ImageData a VTKHDF file holds, without expanding it.
+
+    Parameters
+    ----------
+    path
+        Path to the ``.vtkhdf`` file, or an open binary file object.
+    **opts
+        ``step`` picks the time step of a temporal file, as for
+        :func:`read`.
+
+    Returns
+    -------
+    ImageData
+        The grid with its ``PointData`` and ``CellData`` laid out along it,
+        its ``Direction`` when the file rotates it, and ``FieldData`` as
+        ``global_attrs``, plus ``time`` for a temporal file's step.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the file's ``Type`` is not ``ImageData``; read it with
+        :func:`polyxios.read`.
+    CodecError
+        As for :func:`read`.
+    """
+    step = opts.pop("step", None)
+    warn_unknown_opts(opts, fmt=EXTENSION, what="read", stacklevel=4)
+    name = source_name(path)
+    size = source_size(path)
+    with open_hdf5_read(path, fmt=EXTENSION) as handle:
+        root, kind, n_steps = _root(handle, name)
+        index = _step_index(step, n_steps, name, absent=_no_step(root))
+        if kind != _IMAGE:
+            raise UnsupportedFormatError(
+                f"'{name}': VTKHDF type '{kind}' holds no image; "
+                "read it with polyxios.read()."
+            )
+        parts, _ = _read_image_grid(
+            root, index, name=name, size=size, builds_vertices=False
+        )
+        if index is not None:
+            parts["global_attrs"][_TIME_KEY] = float(root["Steps"]["Values"][index])
+        return build_image(name, **parts)
 
 
 def read_time_series(path: Source, **opts: Any) -> list[PolyData]:
@@ -290,7 +343,11 @@ def _read_step(
     root: Any, kind: str, index: int | None, *, name: str, size: int
 ) -> PolyData:
     if kind == _IMAGE:
-        poly = _read_image(root, index, name=name, size=size)
+        parts, grid = _read_image_grid(
+            root, index, name=name, size=size, builds_vertices=True
+        )
+        poly = lattice_mesh(**parts)
+        poly.global_attrs.update(grid)
     elif kind == _POLYDATA:
         poly = _read_polydata(root, index, name=name, size=size)
     else:
@@ -664,8 +721,20 @@ def _section_types(section: str, ends: np.ndarray) -> np.ndarray:
     return np.full(widths.shape, ELEMENT_TYPES["triangle_strip"], dtype=np.uint8)
 
 
-def _read_image(root: Any, index: int | None, *, name: str, size: int) -> PolyData:
-    extent = _attr_numbers(root, "WholeExtent", 6, name=name)
+def _read_image_grid(
+    root: Any,
+    index: int | None,
+    *,
+    name: str,
+    size: int,
+    builds_vertices: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read an ImageData's parts, and the keys the mesh reader spells it with."""
+    extent = (
+        _attr_numbers(root, "WholeExtent", 6, name=name)
+        if builds_vertices
+        else _attr_integers(root, "WholeExtent", 6, name=name)
+    )
     if extent is None:
         raise CodecError(f"'{name}': an ImageData needs a 'WholeExtent' attribute.")
     if not all(math.isfinite(v) and v == int(v) for v in extent):
@@ -691,46 +760,51 @@ def _read_image(root: Any, index: int | None, *, name: str, size: int) -> PolyDa
         compressed=True,
         spells_vertices=False,
         spells_connectivity=False,
+        builds_vertices=builds_vertices,
     )
-    axes = [
-        np.arange(extent[2 * a], extent[2 * a + 1] + 1) * spacing[a] for a in range(3)
-    ]
     matrix = np.asarray(direction, dtype=np.float64).reshape(3, 3)
-    rotated = not np.array_equal(matrix.ravel(), _IDENTITY)
-    vertices = lattice_vertices(*axes, direction=matrix if rotated else None)
-    vertices += np.asarray(origin, dtype=np.float64)
-    connectivity, _, _ = structured_cells(nx, ny, nz)
-    offsets = structured_offsets(n_cells, n_per_cell)
-    element_types = np.full(n_cells, ELEMENT_TYPES[cell_kind], dtype=np.uint8)
+    rotated = not is_identity(matrix)
     point_shape = (nz + 1, ny + 1, nx + 1)
     cell_shape = (max(nz, 1), max(ny, 1), max(nx, 1))
     vertex_attrs = _image_arrays(
-        root, "PointData", index, point_shape, n_verts, name=name
+        root, "PointData", index, point_shape, point_shape, n_verts, name=name
     )
     element_attrs = _image_arrays(
-        root, "CellData", index, cell_shape, n_cells, name=name
+        root, "CellData", index, cell_shape, point_shape, n_cells, name=name
     )
-    vertex_attrs, vertex_tags = tags_from_masks(vertex_attrs)
-    element_attrs, element_tags = tags_from_masks(element_attrs)
-    global_attrs = _read_field_data(root, index, name=name)
-    global_attrs |= {
+    parts: dict[str, Any] = {
+        "extent": tuple(extent),
+        "origin": tuple(float(v) for v in origin),
+        "spacing": tuple(float(v) for v in spacing),
+        "direction": matrix if rotated else None,
+        "point_attrs": {
+            k: v.reshape(point_shape + v.shape[1:]) for k, v in vertex_attrs.items()
+        },
+        "cell_attrs": {
+            k: v.reshape(cell_shape + v.shape[1:]) for k, v in element_attrs.items()
+        },
+        "global_attrs": _read_field_data(root, index, name=name),
+    }
+    grid: dict[str, Any] = {
         "vti_origin": [float(v) for v in origin],
         "vti_spacing": [float(v) for v in spacing],
         "vti_extent": extent,
     }
     if rotated:
-        global_attrs[_DIRECTION_KEY] = matrix
-    return PolyData(
-        vertices=vertices,
-        connectivity=connectivity.astype(np.int32),
-        offsets=offsets,
-        element_types=element_types,
-        vertex_attrs=vertex_attrs,
-        element_attrs=element_attrs,
-        vertex_tags=vertex_tags,
-        element_tags=element_tags,
-        global_attrs=global_attrs,
-    )
+        grid[_DIRECTION_KEY] = matrix
+    return parts, grid
+
+
+def _attr_integers(root: Any, key: str, count: int, *, name: str) -> list[float] | None:
+    """An attribute that holds integers, as the integers it holds; anything else goes
+    through :func:`_attr_numbers`, which takes or refuses it. An int64 is kept exact,
+    where a float would round a value past 2**53."""
+    if key not in root.attrs:
+        return None
+    values = np.atleast_1d(np.asarray(root.attrs[key])).ravel()
+    if values.dtype.kind not in "iu" or values.size != count:
+        return _attr_numbers(root, key, count, name=name)
+    return [int(v) for v in values]
 
 
 def _attr_numbers(root: Any, key: str, count: int, *, name: str) -> list[float] | None:
@@ -750,38 +824,51 @@ def _image_arrays(
     group_name: str,
     index: int | None,
     shape: tuple[int, int, int],
+    points: tuple[int, int, int],
     n_rows: int,
     *,
     name: str,
 ) -> dict[str, np.ndarray]:
     """The arrays of an ImageData's PointData or CellData, one row per entity.
 
-    The file stores each array in the lattice's own shape, slowest axis
-    first, so ``(nz, ny, nx)`` or ``(nz, ny, nx, k)``, and an axis of one
-    point or cell may be left out - VTK's reader wants it so, its writer
-    keeps it - so a flat image's arrays are ``(ny, nx[, k])`` as well as
-    ``(1, ny, nx[, k])``. In a temporal file an array with an entry under
-    ``Steps/<group>Offsets`` adds a leading step axis the offset counts
-    along; one with no entry is kept once, in the lattice's shape, and every
-    step reads it whole.
+    The file may spell each array's lattice three ways: in full, ``shape``, slowest
+    axis first; in VTK's own layout, which leaves out each axis that holds one point
+    (``points`` is the points' lattice, see :func:`~polyxios._image.vtk_lattice`);
+    or with every axis of one left out, the form earlier releases read. All three are
+    read. A single point spans no cell, so its cell arrays are looked for in the first
+    and last spellings only, the two earlier releases read. In a temporal file an array
+    with an entry under ``Steps/<group>Offsets`` adds a leading step axis the offset
+    counts along; one with no entry is kept once, and every step reads it whole.
     """
     if group_name not in root:
         return {}
     group = root[group_name]
     offsets = _offsets_group(root, index, group_name)
+    squeezed = tuple(d for d in shape if d > 1)
+    forms = (
+        (shape, squeezed)
+        if n_rows == 0
+        else (shape, vtk_lattice(shape, points), squeezed)
+    )
     out: dict[str, np.ndarray] = {}
     for key in group:
         node = group[key]
         if not hasattr(node, "shape"):
             continue
         if node.dtype.kind not in "biuf":
-            _warn_not_numeric(key, node.dtype, group_name, stacklevel=5)
+            _warn_not_numeric(key, node.dtype, group_name)
             continue
         where = f"/VTKHDF/{group_name}/{key}"
         stepped = offsets is not None and key in offsets
         held = tuple(node.shape[1:]) if stepped else tuple(node.shape)
-        if (stepped and node.ndim == 0) or not _spells_lattice(held, shape):
-            _warn_shape(key, node.shape, shape, group_name, stepped=stepped)
+        if (stepped and node.ndim == 0) or not _spells_lattice(held, forms):
+            _warn_shape(
+                key,
+                node.shape,
+                shape,
+                group_name,
+                stepped=stepped,
+            )
             continue
         if n_rows == 0:
             # An extent of one point spans no cell, and a (1, 1, 1) array
@@ -799,13 +886,10 @@ def _image_arrays(
     return out
 
 
-def _spells_lattice(held: tuple[int, ...], shape: tuple[int, int, int]) -> bool:
-    """Whether a dataset's axes are the lattice's, with one component axis or none.
-
-    The lattice is ``shape`` with every axis kept, or with its axes of size
-    one left out; either way one trailing axis may follow, the components.
-    """
-    for wanted in (shape, tuple(d for d in shape if d > 1)):
+def _spells_lattice(held: tuple[int, ...], forms: tuple[tuple[int, ...], ...]) -> bool:
+    """Whether a dataset's axes are one of the lattice's ``forms``, with one component
+    axis or none."""
+    for wanted in forms:
         n = len(wanted)
         if held[:n] == wanted and len(held) - n <= 1:
             return True
@@ -813,23 +897,24 @@ def _spells_lattice(held: tuple[int, ...], shape: tuple[int, int, int]) -> bool:
 
 
 def _warn_shape(
-    key: str, held: tuple, wanted: tuple, group_name: str, *, stepped: bool
+    key: str,
+    held: tuple,
+    wanted: tuple,
+    group_name: str,
+    *,
+    stepped: bool,
 ) -> None:
     asked = f"a step axis before {wanted}" if stepped else f"{wanted}"
-    warnings.warn(
+    warn_caller(
         f"{EXTENSION}: {group_name} array '{key}' is shaped {tuple(held)} where"
-        f" the extent asks for {asked}; dropped.",
-        UserWarning,
-        stacklevel=5,
+        f" the extent asks for {asked}; dropped."
     )
 
 
 def _warn_no_rows(key: str, held: tuple, group_name: str) -> None:
-    warnings.warn(
+    warn_caller(
         f"{EXTENSION}: {group_name} array '{key}' is shaped {tuple(held)} and the"
-        " extent spans no entity to hold it; dropped.",
-        UserWarning,
-        stacklevel=5,
+        " extent spans no entity to hold it; dropped."
     )
 
 
@@ -843,14 +928,21 @@ def _warn_scalar(key: str, group_name: str, *, stacklevel: int) -> None:
 
 
 def _warn_not_numeric(
-    key: str, dtype: Any, group_name: str, *, stacklevel: int
+    key: str, dtype: Any, group_name: str, *, stacklevel: int | None = None
 ) -> None:
-    warnings.warn(
+    """Name an array that holds a non-numeric type.
+
+    ``stacklevel`` is None on the image path, which blames the caller of the
+    reader; the mesh reader passes the frame it always has.
+    """
+    message = (
         f"{EXTENSION}: {group_name} array '{key}' holds {dtype}, which is not"
-        " numeric; dropped.",
-        UserWarning,
-        stacklevel=stacklevel,
+        " numeric; dropped."
     )
+    if stacklevel is None:
+        warn_caller(message)
+    else:
+        warnings.warn(message, UserWarning, stacklevel=stacklevel)
 
 
 def _offsets_group(root: Any, index: int | None, group_name: str) -> Any | None:
@@ -1074,15 +1166,144 @@ def write(poly: PolyData, path: Source, **opts: Any) -> None:
     name = source_name(path)
     kind = _write_kind(poly, polydata, name=name)
     time = _held_time(poly) if time is None else _time_value(time, name=name, index=0)
-    arrays = _step_arrays(poly, timed=time is not None, stacklevel=3)
+    arrays = _step_arrays(poly, timed=time is not None, stacklevel=4)
     with open_hdf5_write(path, fmt=EXTENSION) as handle:
         root = _new_root(handle, kind)
         # One step appends nothing, so its datasets are laid out whole; the
         # Steps group records row 0 of each.
         store = _Store(root, dataset_kw, growing=False)
-        record = _write_body(store, poly, kind, arrays, geometry=True, stacklevel=3)
+        record = _write_body(store, poly, kind, arrays, geometry=True)
         if time is not None:
             _write_steps(root, kind, [time], [record])
+
+
+def write_image(image: ImageData, path: Source, **opts: Any) -> None:
+    """Write an ImageData as a VTKHDF ``ImageData`` file.
+
+    The grid is written as it stands: ``WholeExtent``, ``Origin``,
+    ``Spacing`` and ``Direction`` attributes, with the point and cell arrays
+    laid out along it in VTK's own layout: ``(nz, ny, nx[, k])`` with each axis that
+    holds one point left out, so a flat image's points are ``(ny, nx[, k])`` and a
+    single point's ``(1[, k])``. A volume costs its samples and no coordinates or
+    cells.
+
+    Parameters
+    ----------
+    image
+        The grid to write.
+    path
+        Output file path, or an open binary file object.
+    **opts
+        ``compression`` and ``compression_opts`` go to h5py for every
+        dataset. No other option is taken; any other is warned about and
+        ignored.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If h5py is not installed.
+    CodecError
+        If an axis holds no point, or an attribute is not laid out along the
+        extent; a grid past the caps a reader holds a compact image to is a
+        :class:`~polyxios.exceptions.ValidationError`, so no file is written that
+        cannot be read back.
+
+    Warns
+    -----
+    UserWarning
+        For an array that is not numeric, a ``global_attrs`` value that is
+        neither a number nor text, and a cell array of an extent that spans no
+        cell: each is dropped by name. A ``vti_whole_extent`` is dropped too,
+        with a warning, as a VTKHDF ImageData has no whole extent to spell.
+
+    Notes
+    -----
+    One step is written, with no ``Steps`` group: a ``global_attrs["time"]``
+    is field data like any other. The ``vti_*`` and ``vtkhdf_*`` keys a mesh
+    read spells the grid with are never written as field data.
+    """
+    name = source_name(path)
+    require_h5py(fmt=EXTENSION, name=name, verb="writing")
+    dataset_kw = dataset_options(opts, fmt=EXTENSION)
+    warn_unknown_opts(opts, fmt=EXTENSION, what="write", stacklevel=4)
+    nx, ny, nz = image.dimensions
+    if min(nx, ny, nz) == 0:
+        raise CodecError(
+            f"{EXTENSION} write: the extent {tuple(image.extent)} holds no point,"
+            " and an ImageData file cannot hold an empty grid."
+        )
+    check_readable(image)
+    if "vti_whole_extent" in image.global_attrs:
+        warn_caller(
+            f"{EXTENSION} write: global 'vti_whole_extent' is dropped; a VTKHDF"
+            " ImageData has no whole extent of its own, only the WholeExtent of"
+            " its extent."
+        )
+    direction = np.eye(3) if image.direction is None else image.direction
+    spans = image.spans
+    n_cells = structured_cell_shape(*spans)[0]
+    point = _image_data_arrays(
+        image.point_attrs,
+        (nz, ny, nx),
+        nx * ny * nz,
+        point_lead=(nz, ny, nx),
+        group="PointData",
+    )
+    cell = _image_data_arrays(
+        image.cell_attrs,
+        tuple(max(s, 1) for s in (spans[2], spans[1], spans[0])),
+        n_cells,
+        point_lead=(nz, ny, nx),
+        group="CellData",
+    )
+    held = _field_arrays(
+        image.global_attrs, reserved=IMAGE_RESERVED_GLOBALS, stacklevel=4
+    )
+    with open_hdf5_write(path, fmt=EXTENSION) as handle:
+        root = _new_root(handle, _IMAGE)
+        root.attrs["WholeExtent"] = np.array(image.extent, dtype=np.int64)
+        root.attrs["Origin"] = np.array(image.origin, dtype=np.float64)
+        root.attrs["Spacing"] = np.array(image.spacing, dtype=np.float64)
+        root.attrs["Direction"] = direction.ravel()
+        store = _Store(root, dataset_kw, growing=False)
+        for key, arr in point.items():
+            store.put(f"PointData/{key}", arr)
+        for key, arr in cell.items():
+            store.put(f"CellData/{key}", arr)
+        for key, arr in held["field"].items():
+            store.put(f"FieldData/{key}", arr)
+        for key, lines in held["text"].items():
+            store.put_text(f"FieldData/{key}", lines)
+
+
+def _image_data_arrays(
+    arrays: dict[str, np.ndarray],
+    lead: tuple[int, ...],
+    n_rows: int,
+    *,
+    point_lead: tuple[int, ...],
+    group: str,
+) -> dict[str, np.ndarray]:
+    """The arrays an ImageData group can hold, each laid out along the grid.
+
+    ``lead`` is the leading shape every array must have in memory, ``(nz, ny, nx)``
+    for points; which arrays are kept, and the errors for the rest, are
+    :func:`grid_rows`'s. The file holds each one in VTK's own shape, with the axes
+    that hold one point left out (see :func:`~polyxios._image.vtk_lattice`), since
+    VTK's reader cannot open a file that keeps them. Booleans are written as bytes,
+    and the components past the lattice are one axis, as VTKHDF holds them.
+    """
+    rows = grid_rows(arrays, lead, n_rows, fmt=EXTENSION, group=group)
+    out: dict[str, np.ndarray] = {}
+    for key, arr in rows.items():
+        if arr.dtype.kind == "b":
+            arr = arr.astype(np.uint8)
+        if arr.ndim > 2:
+            # VTKHDF holds one component axis after the lattice, as .vti spells
+            # a tensor: its nine components are one axis of nine, not two.
+            arr = arr.reshape(n_rows, -1)
+        out[key] = arr.reshape(vtk_lattice(lead, point_lead) + arr.shape[1:])
+    return _linked(out, group=group)
 
 
 def write_time_series(
@@ -1130,14 +1351,12 @@ def write_time_series(
     first_time, first = head
     name = source_name(path)
     kind = _write_kind(first, polydata, name=name)
-    first_arrays = _step_arrays(first, timed=True, stacklevel=3)
+    first_arrays = _step_arrays(first, timed=True, stacklevel=4)
     with open_hdf5_write(path, fmt=EXTENSION) as handle:
         root = _new_root(handle, kind)
         store = _Store(root, dataset_kw, growing=True)
         times = [_time_value(first_time, name=name, index=0)]
-        records = [
-            _write_body(store, first, kind, first_arrays, geometry=True, stacklevel=3)
-        ]
+        records = [_write_body(store, first, kind, first_arrays, geometry=True)]
         # Copies, not the mesh's own arrays: a generator that moves one mesh
         # in place would otherwise be compared with itself.
         cells = _cells_of(first)
@@ -1145,7 +1364,7 @@ def write_time_series(
         for index, (time, poly) in enumerate(remaining, start=1):
             time = _time_value(time, name=name, index=index)
             _require_same_elements(cells, len(written), poly, index=index, name=name)
-            arrays = _step_arrays(poly, timed=True, stacklevel=3)
+            arrays = _step_arrays(poly, timed=True, stacklevel=4)
             _require_same_arrays(first_arrays, arrays, index=index, name=name)
             moved = not np.array_equal(written, poly.vertices, equal_nan=True)
             record = _write_body(
@@ -1154,7 +1373,6 @@ def write_time_series(
                 kind,
                 arrays,
                 geometry=moved,
-                stacklevel=3,
                 previous=records[-1],
             )
             if moved:
@@ -1297,34 +1515,18 @@ def _step_arrays(
     """
     n_verts = poly.vertices.shape[0]
     n_elems = len(poly.element_types)
-    reserved = _RESERVED_GLOBALS if timed else _RESERVED_GLOBALS - {_TIME_KEY}
     if timed and _TIME_KEY in (poly.global_attrs or {}) and _held_time(poly) is None:
         warnings.warn(
             f"{EXTENSION} write: global '{_TIME_KEY}' holds"
             f" {poly.global_attrs[_TIME_KEY]!r}, and the step's time is written"
             " to Steps, which reads back over it; dropped.",
             UserWarning,
-            stacklevel=stacklevel + 1,
+            stacklevel=stacklevel,
         )
-    numeric = globals_for_write(
-        poly, reserved=reserved, fmt=EXTENSION, text=True, stacklevel=stacklevel + 1
+    reserved = _RESERVED_GLOBALS if timed else _RESERVED_GLOBALS - {_TIME_KEY}
+    held = _field_arrays(
+        poly.global_attrs, reserved=reserved, stacklevel=stacklevel + 1
     )
-    field: dict[str, np.ndarray] = {}
-    for key, arr in numeric.items():
-        arr = arr.reshape(arr.shape[0], -1) if arr.ndim > 2 else arr
-        field[key] = arr.astype(np.uint8) if arr.dtype.kind == "b" else arr
-    text = text_for_write(poly, reserved=reserved)
-    for key, lines in text.items():
-        if any("\x00" in line for line in lines):
-            # A variable-length HDF5 string is a C string, ended by its NUL.
-            warnings.warn(
-                f"{EXTENSION} write: text global '{key}' holds a NUL, which a"
-                " VTKHDF string cannot; written without it.",
-                UserWarning,
-                stacklevel=stacklevel + 1,
-            )
-            text[key] = tuple(line.replace("\x00", "") for line in lines)
-    linked = _linked({**field, **text}, group="FieldData", stacklevel=stacklevel + 1)
     return {
         "point": _linked(
             _numeric_arrays(
@@ -1337,10 +1539,8 @@ def _step_arrays(
                 ),
                 n_verts,
                 kind="point",
-                stacklevel=stacklevel + 1,
             ),
             group="PointData",
-            stacklevel=stacklevel + 1,
         ),
         "cell": _linked(
             _numeric_arrays(
@@ -1353,17 +1553,69 @@ def _step_arrays(
                 ),
                 n_elems,
                 kind="cell",
-                stacklevel=stacklevel + 1,
             ),
             group="CellData",
-            stacklevel=stacklevel + 1,
         ),
+        "field": held["field"],
+        "text": held["text"],
+    }
+
+
+def _field_arrays(
+    global_attrs: dict[str, Any] | None,
+    *,
+    reserved: frozenset[str] | set[str],
+    stacklevel: int,
+) -> dict[str, dict[str, Any]]:
+    """The FieldData one step or one image writes, numbers and text by name.
+
+    Parameters
+    ----------
+    global_attrs
+        The whole-mesh or whole-image metadata.
+    reserved
+        The keys the writer spells itself, which are not field data: the grid
+        keys, and for a step whose time is written, ``time`` (see
+        :func:`_step_arrays`).
+    stacklevel
+        Where the warnings point.
+
+    Returns
+    -------
+    dict
+        ``field``: name to numeric array, one row per tuple; ``text``: name
+        to the lines of a text value.
+    """
+    numeric = spell_globals(
+        global_attrs,
+        reserved=reserved,
+        fmt=EXTENSION,
+        text=True,
+        stacklevel=stacklevel + 1,
+    )
+    field: dict[str, np.ndarray] = {}
+    for key, arr in numeric.items():
+        arr = arr.reshape(arr.shape[0], -1) if arr.ndim > 2 else arr
+        field[key] = arr.astype(np.uint8) if arr.dtype.kind == "b" else arr
+    text = spell_text(global_attrs, reserved=reserved)
+    for key, lines in text.items():
+        if any("\x00" in line for line in lines):
+            # A variable-length HDF5 string is a C string, ended by its NUL.
+            warnings.warn(
+                f"{EXTENSION} write: text global '{key}' holds a NUL, which a"
+                " VTKHDF string cannot; written without it.",
+                UserWarning,
+                stacklevel=stacklevel,
+            )
+            text[key] = tuple(line.replace("\x00", "") for line in lines)
+    linked = _linked({**field, **text}, group="FieldData")
+    return {
         "field": {k: v for k, v in linked.items() if isinstance(v, np.ndarray)},
         "text": {k: v for k, v in linked.items() if not isinstance(v, np.ndarray)},
     }
 
 
-def _linked(arrays: dict[str, Any], *, group: str, stacklevel: int) -> dict[str, Any]:
+def _linked(arrays: dict[str, Any], *, group: str) -> dict[str, Any]:
     """The arrays under names an HDF5 link can carry, one dataset each.
 
     A ``/`` in a name would nest the dataset in a subgroup the reader
@@ -1387,12 +1639,10 @@ def _linked(arrays: dict[str, Any], *, group: str, stacklevel: int) -> dict[str,
             renamed[key] = link
         out[link] = arr
     if renamed:
-        warnings.warn(
+        warn_caller(
             f"{EXTENSION} write: {group} array(s) {renamed} are named as no"
             " HDF5 dataset can be - a '/' in the name, or none - and are"
-            " written under the names shown.",
-            UserWarning,
-            stacklevel=stacklevel,
+            " written under the names shown."
         )
     return out
 
@@ -1404,7 +1654,6 @@ def _write_body(
     arrays: dict[str, dict[str, Any]],
     *,
     geometry: bool,
-    stacklevel: int,
     previous: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write one step's geometry and arrays, and say where each began.
@@ -1422,8 +1671,6 @@ def _write_body(
     geometry
         Whether the points are written; the cells are written only when
         the store holds none yet.
-    stacklevel
-        Where the warnings point.
     previous
         The step before's record, when this is a later one: the cells are
         shared with every step, and the points with it unless ``geometry``
@@ -1450,7 +1697,7 @@ def _write_body(
             record["cells"], record["ids"], kept = _write_polydata_cells(store, poly)
         else:
             record["cells"], record["ids"], kept = _write_unstructured_cells(
-                store, poly, stacklevel=stacklevel + 1
+                store, poly
             )
         store.put("NumberOfPoints", np.array([n_verts], dtype=np.int64))
         record["kept"] = kept
@@ -1480,7 +1727,7 @@ def _write_body(
 
 
 def _write_unstructured_cells(
-    store: _Store, poly: PolyData, *, stacklevel: int
+    store: _Store, poly: PolyData
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
     codes = np.asarray(poly.element_types)
     vtk_types = np.array(
@@ -1489,13 +1736,11 @@ def _write_unstructured_cells(
     )
     unknown = vtk_types < 0
     if unknown.any():
-        warnings.warn(
+        warn_caller(
             f"{EXTENSION} write: element type(s)"
             f" {sorted({ELEMENT_TYPES_INV.get(int(c), f'type_{int(c)}') for c in codes[unknown]})}"
             " have no VTK cell type; those elements and the values and tags on"
-            " them are not written.",
-            UserWarning,
-            stacklevel=stacklevel,
+            " them are not written."
         )
     kept = None if not unknown.any() else np.flatnonzero(~unknown)
     offsets = np.asarray(poly.offsets, dtype=np.int64)
@@ -1560,7 +1805,7 @@ def _write_polydata_cells(
 
 
 def _numeric_arrays(
-    arrays: dict[str, np.ndarray], n_rows: int, *, kind: str, stacklevel: int
+    arrays: dict[str, np.ndarray], n_rows: int, *, kind: str
 ) -> dict[str, np.ndarray]:
     """The arrays a data group can hold: numeric, one row per entity."""
     out: dict[str, np.ndarray] = {}
@@ -1576,11 +1821,9 @@ def _numeric_arrays(
             arr = arr.reshape(n_rows, -1)
         out[str(key)] = arr
     if dropped:
-        warnings.warn(
+        warn_caller(
             f"{EXTENSION} write: {kind} array(s) {dropped} are not numeric or not"
-            f" one row per {kind}; dropped.",
-            UserWarning,
-            stacklevel=stacklevel,
+            f" one row per {kind}; dropped."
         )
     return out
 
@@ -1720,7 +1963,9 @@ __all__ = [
     "EXTENSION",
     "LABEL",
     "read",
+    "read_image",
     "read_time_series",
     "write",
+    "write_image",
     "write_time_series",
 ]

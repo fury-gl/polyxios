@@ -56,6 +56,7 @@ Dropping the other codec's keys instead would be a silent loss, which is the
 one thing this module does not do.
 """
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 import warnings
 
@@ -139,8 +140,35 @@ def text_for_write(
     function was told to leave alone, so the two together still name
     everything that does not travel.
     """
+    return spell_text(poly.global_attrs, reserved=reserved)
+
+
+def spell_text(
+    global_attrs: Mapping[Any, Any] | None,
+    *,
+    reserved: frozenset[str] | set[str] | tuple[str, ...] = (),
+) -> dict[str, tuple[str, ...]]:
+    """The entries of a ``global_attrs`` mapping a writer can spell as text.
+
+    Parameters
+    ----------
+    global_attrs
+        The whole-mesh or whole-image metadata being written.
+    reserved
+        Keys the codec writes itself, skipped here.
+
+    Returns
+    -------
+    dict of str to tuple of str
+        One entry per text key, in the order the mapping holds them.
+
+    Notes
+    -----
+    :func:`text_for_write` is this for a mesh. An ImageData carries the same
+    metadata without a mesh, so the codecs that write one call this form.
+    """
     kept: dict[str, tuple[str, ...]] = {}
-    for name, value in (poly.global_attrs or {}).items():
+    for name, value in (global_attrs or {}).items():
         if name in reserved or not isinstance(name, str) or not name:
             continue
         text = as_text(value)
@@ -242,10 +270,34 @@ def globals_for_write(
         the array's own handle, and one that is blank leaves the array
         unfindable where it does not make the file unreadable outright.
     """
+    return spell_globals(
+        poly.global_attrs,
+        reserved=reserved,
+        fmt=fmt,
+        stacklevel=stacklevel + 1,
+        text=text,
+    )
+
+
+def spell_globals(
+    global_attrs: Mapping[Any, Any] | None,
+    *,
+    reserved: frozenset[str] | set[str] | tuple[str, ...] = (),
+    fmt: str,
+    stacklevel: int = 3,
+    text: bool = False,
+) -> dict[str, np.ndarray]:
+    """The entries of a ``global_attrs`` mapping a writer can spell as numbers.
+
+    The mapping form of :func:`globals_for_write`, for an ImageData, which
+    carries the same metadata with no mesh around it. Parameters are as
+    there, with ``global_attrs`` in place of the mesh; ``stacklevel`` counts
+    from this function's own caller.
+    """
     spelled: dict[str, np.ndarray] = {}
     unspellable: list[str] = []
     unnamed: list[str] = []
-    for name, value in (poly.global_attrs or {}).items():
+    for name, value in (global_attrs or {}).items():
         if name in reserved:
             continue
         if not isinstance(name, str) or not name:

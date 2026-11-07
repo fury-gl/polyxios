@@ -1,4 +1,5 @@
 from polyxios import transforms
+from polyxios._image import ImageData
 from polyxios._io import Source, open_target
 from polyxios._registry import Codec, build_default_registry, resolve
 from polyxios._scene import (
@@ -223,8 +224,104 @@ def write_scene(
         codec.write_scene(scene=scene, path=target, **opts)
 
 
+def read_image(
+    path: Source,
+    *,
+    fmt: str | None = None,
+    registry: dict | None = None,
+    **opts: object,
+) -> ImageData:
+    """Read an image file and return an ImageData.
+
+    Parameters
+    ----------
+    path
+        Path to the image file (e.g. ``.vti`` or ``.vtkhdf``), or an
+        open binary file object.
+    fmt
+        Format override (e.g. ``'.vti'``).  Inferred from the file
+        extension when ``None``.
+    registry
+        Custom codec registry.  Uses the built-in registry if ``None``.
+    **opts
+        Format-specific options passed to the codec's ``read_image``
+        function. A codec that takes none warns about, and ignores, any given.
+
+    Returns
+    -------
+    ImageData
+        The compact uniform grid: one sample per pixel rather than the
+        vertices and cells :func:`read` expands it into. A ``.vti`` or
+        ``.vtkhdf`` array whose trailing axis is one comes back without it,
+        ``(nz, ny, nx)`` for ``(nz, ny, nx, 1)``.
+
+    Raises
+    ------
+    UnsupportedFormatError
+        If the format does not carry image data.  Use :func:`read` for
+        mesh formats.
+    """
+    codec = resolve(path, fmt, registry or _REGISTRY)
+    if codec.read_image is None:
+        raise UnsupportedFormatError(
+            "Format does not carry image data; use polyxios.read()."
+        )
+    return codec.read_image(path=path, **opts)
+
+
+def write_image(
+    image: ImageData,
+    path: Source,
+    *,
+    fmt: str | None = None,
+    registry: dict | None = None,
+    **opts: object,
+) -> None:
+    """Write an ImageData to an image file.
+
+    Parameters
+    ----------
+    image
+        ImageData to serialize.
+    path
+        Output file path.
+    fmt
+        Format override (e.g. ``'.vti'``).  Inferred from the file
+        extension when ``None``.
+    registry
+        Custom codec registry.  Uses the built-in registry if ``None``.
+    **opts
+        Format-specific options passed to the codec's ``write_image``
+        function: ``compression`` and ``compression_opts`` for ``.vtkhdf``,
+        ``binary`` for ``.vti``. A codec warns about, and ignores, any other.
+
+    Raises
+    ------
+    TypeError
+        If ``image`` is not an ImageData.
+    UnsupportedFormatError
+        If the format does not support image writing.  Use :func:`write`
+        to write a PolyData instead.
+    CodecError
+        If the codec cannot lay the image out in the file: an empty grid, or
+        an array that is not laid out along the extent.
+    """
+    if not isinstance(image, ImageData):
+        raise TypeError(
+            f"write_image() takes an ImageData, got {type(image).__name__}."
+        )
+    codec = resolve(path, fmt, registry or _REGISTRY)
+    if codec.write_image is None:
+        raise UnsupportedFormatError(
+            "Format does not support image writing; use polyxios.write()."
+        )
+    with open_target(path, fmt=fmt) as target:
+        codec.write_image(image=image, path=target, **opts)
+
+
 __all__ = [
     "Codec",
+    "ImageData",
     "PolyData",
     "SceneData",
     "SceneImage",
@@ -236,6 +333,7 @@ __all__ = [
     "fetch",
     "make_polydata",
     "read",
+    "read_image",
     "read_polydata",
     "read_scene",
     "supported_extensions",
@@ -243,5 +341,6 @@ __all__ = [
     "validate",
     "visualize_mesh",
     "write",
+    "write_image",
     "write_scene",
 ]

@@ -13,8 +13,9 @@ import numpy as np
 import pytest
 
 import polyxios
-from polyxios import make_polydata
+from polyxios import helper, make_polydata
 from polyxios.cli import _log_warning, _setup_logging, logger as cli_logger, main
+from polyxios.exceptions import CodecError, UnsupportedFormatError
 from polyxios.fetcher import fetch
 from polyxios.helper import visualize_mesh
 
@@ -696,3 +697,366 @@ def test_cli_convert_missing_input(temp_polyxios_home, monkeypatch, capsys):
         main()
     assert excinfo.value.code == 1
     assert "Failed to convert model" in capsys.readouterr().err
+
+
+def _picture(path, shape=(4, 6, 3)):
+    pixels = (np.arange(int(np.prod(shape))) * 5 % 256).astype(np.uint8)
+    pixels = pixels.reshape(shape)
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    return pixels
+
+
+def _convert(monkeypatch, capsys, source, target):
+    monkeypatch.setattr(sys, "argv", ["pxios", "convert", str(source), str(target)])
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    captured = capsys.readouterr()
+    return excinfo.value.code, [
+        ln for ln in captured.err.splitlines() if ln.startswith("WARNING: ")
+    ]
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_between_image_formats_stays_compact(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "a.vti"
+    target = temp_polyxios_home / "b.vtkhdf"
+    pixels = _picture(source)
+    assert _convert(monkeypatch, capsys, source, target) == (0, [])
+    assert polyxios.read_image(target).extent == (0, 5, 0, 3, 0, 0)
+    back = temp_polyxios_home / "c.vti"
+    assert _convert(monkeypatch, capsys, target, back) == (0, [])
+    np.testing.assert_array_equal(
+        helper.image_to_array(polyxios.read_image(back)), pixels
+    )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_keeps_a_bare_grid_past_the_mesh_cap_compact(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A bare grid of more points than a mesh may hold is still a grid: converted
+    between the two image formats it is read and written compact, not expanded."""
+    pytest.importorskip("h5py")
+    n = 465
+    source = temp_polyxios_home / "big.vti"
+    polyxios.write_image(
+        polyxios.ImageData(extent=(0, n - 1, 0, n - 1, 0, n - 1)), source
+    )
+    target = temp_polyxios_home / "big.vtkhdf"
+    assert _convert(monkeypatch, capsys, source, target) == (0, [])
+    assert polyxios.read_image(target).dimensions == (n, n, n)
+    back = temp_polyxios_home / "again.vti"
+    assert _convert(monkeypatch, capsys, target, back) == (0, [])
+    assert polyxios.read_image(back).dimensions == (n, n, n)
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_to_a_lattice_format_expands_the_image(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.vti"
+    target = temp_polyxios_home / "b.vtk"
+    _picture(source)
+    assert _convert(monkeypatch, capsys, source, target) == (0, [])
+    mesh = polyxios.read(target)
+    assert len(mesh.vertices) == 24
+    assert "colors" in mesh.vertex_attrs
+
+
+def test_cli_convert_takes_a_mesh_vtkhdf_through_the_mesh_path(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A .vtkhdf both reads and writes images, but this one holds cells: the
+    image reader refuses it, and the conversion goes on through the mesh path."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "m.vtkhdf"
+    out = temp_polyxios_home / "n.vtkhdf"
+    mesh = make_polydata(
+        np.array([[0.0, 0, 0], [1, 0, 0], [0, 1, 0]]),
+        [("triangle", np.array([[0, 1, 2]]))],
+    )
+    polyxios.write(mesh, source)
+    refused = []
+    read_as_image = polyxios.read_image
+
+    def _spy(path, **opts):
+        try:
+            return read_as_image(path, **opts)
+        except UnsupportedFormatError as exc:
+            refused.append(exc)
+            raise
+
+    monkeypatch.setattr(polyxios, "read_image", _spy)
+    assert _convert(monkeypatch, capsys, source, out) == (0, [])
+    assert len(refused) == 1
+    assert polyxios.read(out).vertices.shape == (3, 3)
+
+
+def test_cli_convert_an_empty_vti_takes_the_mesh_path(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """An empty grid has no image form a writer takes; the mesh path carries it."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "empty.vti"
+    source.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        '  <ImageData WholeExtent="0 -1 0 1 0 0" Origin="0 0 0" Spacing="1 1 1">\n'
+        '    <Piece Extent="0 -1 0 1 0 0">\n'
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n",
+        encoding="utf-8",
+    )
+    out = temp_polyxios_home / "empty.vtkhdf"
+    assert _convert(monkeypatch, capsys, source, out) == (0, [])
+    assert polyxios.read(out).vertices.shape == (0, 3)
+
+
+def test_cli_convert_between_vti_files_keeps_the_whole_extent(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A piece of a larger grid goes back out declaring the grid it belongs to."""
+    source = temp_polyxios_home / "piece.vti"
+    source.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        '  <ImageData WholeExtent="0 9 0 4 0 0" Origin="0 0 0" Spacing="1 1 1">\n'
+        '    <Piece Extent="1 3 2 3 0 0">\n'
+        '      <PointData Scalars="p">\n'
+        '        <DataArray type="Float64" Name="p" NumberOfComponents="1" format="ascii">\n'
+        "          0 1 2 3 4 5\n"
+        "        </DataArray>\n"
+        "      </PointData>\n"
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n",
+        encoding="utf-8",
+    )
+    out = temp_polyxios_home / "again.vti"
+    assert _convert(monkeypatch, capsys, source, out) == (0, [])
+    assert 'WholeExtent="0 9 0 4 0 0"' in out.read_text(encoding="utf-8")
+    assert polyxios.read_image(out).global_attrs["vti_whole_extent"] == [
+        0,
+        9,
+        0,
+        4,
+        0,
+        0,
+    ]
+
+
+def test_cli_convert_keeps_the_grid_a_field_entry_named_like_a_key_does_not_move(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """The file's own WholeExtent is the grid; a FieldData entry called
+    vti_whole_extent does not replace it, either in .vti or in a .vtkhdf written from
+    it, which has no whole extent to drop and so says nothing."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "grid.vti"
+    source.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        '  <ImageData WholeExtent="0 1 0 1 0 0" Origin="0 0 0" Spacing="1 1 1">\n'
+        '    <FieldData><DataArray type="Float64" Name="vti_whole_extent" '
+        'NumberOfComponents="1" format="ascii">0 5 0 5 0 0</DataArray></FieldData>\n'
+        '    <Piece Extent="0 1 0 1 0 0">\n'
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n",
+        encoding="utf-8",
+    )
+    out = temp_polyxios_home / "again.vti"
+    assert _convert(monkeypatch, capsys, source, out) == (0, [])
+    assert 'WholeExtent="0 1 0 1 0 0"' in out.read_text(encoding="utf-8")
+    assert polyxios.read_image(out).extent == (0, 1, 0, 1, 0, 0)
+
+    hdf = temp_polyxios_home / "grid.vtkhdf"
+    assert _convert(monkeypatch, capsys, source, hdf) == (0, [])
+
+
+def _vti_text(extent: str) -> str:
+    return (
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData WholeExtent="{extent}" Origin="0 0 0" Spacing="1 1 1">\n'
+        f'    <Piece Extent="{extent}">\n'
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n"
+    )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_takes_an_extent_past_int64_by_the_mesh_path(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """An extent a 64-bit integer cannot hold is a grid the image path refuses; convert
+    takes such a file the way it always has, as a mesh, to either target."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "huge.vti"
+    source.write_text(_vti_text("9223372036854775808 9223372036854775808 0 0 0 0"))
+    assert _convert(monkeypatch, capsys, source, temp_polyxios_home / "o.vti") == (
+        0,
+        [],
+    )
+    assert _convert(monkeypatch, capsys, source, temp_polyxios_home / "o.vtkhdf") == (
+        0,
+        [],
+    )
+
+
+def test_cli_convert_reports_a_corrupt_file_as_the_mesh_path_does(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A file the image path refuses for being malformed is read by the mesh path, which
+    reports the error it would report on its own."""
+    source = temp_polyxios_home / "corrupt.vti"
+    source.write_text(_vti_text("0 1 0 1 0 x"))
+    with pytest.raises(CodecError) as direct:
+        polyxios.read(source)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["pxios", "convert", str(source), str(temp_polyxios_home / "o.vti")],
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+    assert str(direct.value) in capsys.readouterr().err
+
+
+def _vti_grid(extent: str, *, origin: str = "0 0 0", point_values=None) -> str:
+    """A .vti piece with an optional ``p`` point array over its ``extent``."""
+    piece = ""
+    if point_values is not None:
+        values = " ".join(str(v) for v in point_values)
+        piece = (
+            '      <PointData Scalars="p">\n'
+            '        <DataArray type="Float64" Name="p" NumberOfComponents="1" '
+            f'format="ascii">\n          {values}\n        </DataArray>\n'
+            "      </PointData>\n"
+        )
+    return (
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData WholeExtent="{extent}" Origin="{origin}" Spacing="1 1 1">\n'
+        f'    <Piece Extent="{extent}">\n'
+        f"{piece}"
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n"
+    )
+
+
+def _count(warns, text: str) -> int:
+    return sum(text in line for line in warns)
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_says_an_empty_grids_warning_once(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """An empty grid is read by the image path, which falls back to the mesh path; the
+    warning its array raised is said once, by the mesh path."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "empty.vti"
+    source.write_text(_vti_grid("0 -1 0 2 0 2", point_values=list(range(27))))
+    code, warns = _convert(
+        monkeypatch, capsys, source, temp_polyxios_home / "out.vtkhdf"
+    )
+    assert code == 0
+    assert _count(warns, "point array 'p'") == 1
+    assert len(warns) == len(set(warns))
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_says_an_origin_warning_once_past_int64(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A grid past int64 falls back to the mesh path, which reads the file's origin
+    and says its warning once."""
+    pytest.importorskip("h5py")
+    huge = "9223372036854775808 9223372036854775808 0 0 0 0"
+    source = temp_polyxios_home / "huge.vti"
+    source.write_text(_vti_grid(huge, origin="1 2"))
+    code, warns = _convert(monkeypatch, capsys, source, temp_polyxios_home / "out.vti")
+    assert code == 0
+    assert _count(warns, "Origin spells 2 numbers") == 1
+    assert len(warns) == len(set(warns))
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_says_a_kept_images_warning_once(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """An image the image path keeps says its warning once, replayed from the read."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "short.vti"
+    source.write_text(_vti_grid("0 2 0 2 0 0", point_values=list(range(8))))
+    code, warns = _convert(
+        monkeypatch, capsys, source, temp_polyxios_home / "out.vtkhdf"
+    )
+    assert code == 0
+    assert _count(warns, "point array 'p'") == 1
+    assert polyxios.read_image(temp_polyxios_home / "out.vtkhdf").extent == (
+        0,
+        2,
+        0,
+        2,
+        0,
+        0,
+    )
+
+
+def _vti_with_strings(extent: str) -> str:
+    """A .vti whose PointData holds two String arrays named ``label``, and a short
+    ``p`` array: two different warnings, the first of them raised twice."""
+    return (
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData WholeExtent="{extent}" Origin="0 0 0" Spacing="1 1 1">\n'
+        f'    <Piece Extent="{extent}">\n'
+        "      <PointData>\n"
+        '        <DataArray type="String" Name="label" format="ascii">a</DataArray>\n'
+        '        <DataArray type="String" Name="label" format="ascii">b</DataArray>\n'
+        '        <DataArray type="Float64" Name="p" NumberOfComponents="1" '
+        'format="ascii">0 1 2 3 4 5 6 7</DataArray>\n'
+        "      </PointData>\n"
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n"
+    )
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_says_a_replayed_warning_once(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """A warning the image read raised twice is replayed once, as the filters show a
+    warning once per place; a different warning from the same read still shows."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "dup.vti"
+    source.write_text(_vti_with_strings("0 2 0 2 0 0"))
+    code, warns = _convert(monkeypatch, capsys, source, temp_polyxios_home / "o.vti")
+    assert code == 0
+    assert _count(warns, "has type 'String'") == 1
+    assert _count(warns, "point array 'p'") == 1
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_under_an_error_filter_still_raises_the_replayed_warning(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    """Under an error filter the replayed warning is an exception, as it is for any
+    other warning the read raises; convert reports the failure."""
+    pytest.importorskip("h5py")
+    source = temp_polyxios_home / "dup.vti"
+    source.write_text(_vti_with_strings("0 2 0 2 0 0"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        code, _ = _convert(monkeypatch, capsys, source, temp_polyxios_home / "o.vti")
+    assert code == 1
