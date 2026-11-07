@@ -245,13 +245,15 @@ def read_image(
         Custom codec registry.  Uses the built-in registry if ``None``.
     **opts
         Format-specific options passed to the codec's ``read_image``
-        function.
+        function. A codec that takes none warns about, and ignores, any given.
 
     Returns
     -------
     ImageData
         The compact uniform grid: one sample per pixel rather than the
-        vertices and cells :func:`read` expands it into.
+        vertices and cells :func:`read` expands it into. A ``.vti`` or
+        ``.vtkhdf`` array whose trailing axis is one comes back without it,
+        ``(nz, ny, nx)`` for ``(nz, ny, nx, 1)``.
 
     Raises
     ------
@@ -290,7 +292,8 @@ def write_image(
         Custom codec registry.  Uses the built-in registry if ``None``.
     **opts
         Format-specific options passed to the codec's ``write_image``
-        function (e.g. ``compression="gzip"`` for ``.vtkhdf``).
+        function: ``compression`` and ``compression_opts`` for ``.vtkhdf``,
+        ``binary`` for ``.vti``. A codec warns about, and ignores, any other.
 
     Raises
     ------
@@ -299,6 +302,9 @@ def write_image(
     UnsupportedFormatError
         If the format does not support image writing.  Use :func:`write`
         to write a PolyData instead.
+    CodecError
+        If the codec cannot lay the image out in the file: an empty grid, or
+        an array that is not laid out along the extent.
     """
     if not isinstance(image, ImageData):
         raise TypeError(
