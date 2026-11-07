@@ -603,3 +603,33 @@ def test_a_dispatcher_falling_back_to_the_owner_keeps_the_option(tmp_path) -> No
     path.write_text("anything\n")
     dispatcher.read(path, flavour="salt")
     assert seen == {"flavour": "salt"}
+
+
+def test_a_dispatcher_hands_an_image_on(tmp_path) -> None:
+    """The image pair goes through a contested extension's wrapper, as the scene
+    pair does, and the options with it."""
+    seen: dict[str, object] = {}
+
+    def _read_image(*, path, **opts):
+        seen["read"] = opts
+        return "grid"
+
+    def _write_image(*, image, path, **opts):
+        seen["write"] = (image, opts)
+
+    codec = Codec(
+        read=lambda *a, **k: None,
+        write=lambda *a, **k: None,
+        sniff=lambda head: True,
+        read_image=_read_image,
+        write_image=_write_image,
+    )
+    dispatcher = _make_dispatcher(".dat", [("spy", codec)], ("spy", codec))
+    path = tmp_path / "any.dat"
+    path.write_text("anything\n")
+    assert dispatcher.read_image(path, flavour="salt") == "grid"
+    dispatcher.write_image("grid", path, flavour="pepper")
+    assert seen == {
+        "read": {"flavour": "salt"},
+        "write": ("grid", {"flavour": "pepper"}),
+    }
