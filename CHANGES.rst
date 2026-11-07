@@ -16,13 +16,29 @@ New features
   for a grid of samples: an extent, an origin, a spacing, an optional rotation and
   arrays laid out ``(nz, ny, nx[, k])``. :func:`polyxios.read_image` and
   :func:`polyxios.write_image` take and give one, and ``.vti`` and ``.vtkhdf``
-  read and write it without expanding it into a mesh (``.vtkhdf`` writes a
-  ``Type=ImageData`` file with ``WholeExtent``, ``Origin``, ``Spacing`` and
-  ``Direction``). :func:`polyxios.read` still returns the expanded
-  :class:`~polyxios.PolyData`. ``polyxios.helper.image_to_array`` and
-  ``array_to_image`` go to and from NumPy, and ``pxios convert`` keeps a grid
-  compact between two image formats. The media-type table and data-URI decoding
-  move out of the COLLADA codec into ``polyxios._media``.
+  read and write it without expanding it into a mesh. Both spell ``WholeExtent``,
+  ``Origin``, ``Spacing`` and ``Direction``; a ``.vti`` keeps a ``WholeExtent``
+  wider than its piece, an option an image reader or writer does not take is
+  warned about, and an image writer drops an array the file cannot hold - a text
+  array, a cell array on a single point - by name, the same way in ``.vti`` and
+  ``.vtkhdf``. A ``.vtkhdf`` written from an image also drops a ``vti_whole_extent``
+  with a warning, as a VTKHDF ImageData has no whole extent to keep. A
+  ``.vtkhdf`` stores each array in VTK's own layout, leaving out each axis of one
+  point, so VTK opens what polyxios writes for a flat image, a line, a plane or a
+  single point; the layout VTK writes and the full lattice earlier releases read
+  are both read. ``read_image`` holds a grid to the hard caps only, since it builds no
+  vertex, so a 465-cube of samples reads back; ``read()`` and ``to_polydata`` keep
+  the cap on expanded vertices. A writer refuses a grid its reader would refuse,
+  rather than writing a file that cannot be read back. An extent a 64-bit integer
+  cannot hold is refused by ``read_image`` as a
+  :class:`~polyxios.exceptions.CodecError`, while ``read()`` still gives the mesh
+  it always did.
+  :func:`polyxios.read` still returns the expanded
+  :class:`~polyxios.PolyData`, laid axis-aligned as it always was.
+  ``polyxios.helper.image_to_array`` and ``array_to_image`` go to and from NumPy,
+  and ``pxios convert`` keeps a grid compact between two image formats. The
+  media-type table and data-URI decoding move out of the COLLADA codec into a
+  shared helper module.
 - polyxios is a napari plugin. Installed next to napari, it opens every
   format polyxios reads: a mesh as a Surface layer (volume meshes as their
   boundary, a measured vertex attribute as its values, else an integer
@@ -140,6 +156,12 @@ Bug fixes
   used to be labelled millimetres unscaled. A ``.amf`` is written the same
   way. The warnings the 3MF reader and writer raise now point at the
   caller's line rather than inside polyxios.
+- The warnings a ``.vti`` read raises for a malformed ``Origin``, ``Spacing``
+  or ``FieldData`` array, a ``.vtkhdf`` image read raises for a malformed
+  array, and a mesh written to ``.vtkhdf`` raises for a global or
+  ``FieldData`` name it cannot hold, used to point inside polyxios; they now
+  point at the caller's line. A ``.vti`` or ``.vtu`` mesh write still points
+  inside polyxios for the warnings it raises about dropped globals.
 - Readers fuzzed with Atheris (``fuzz/``, one target per format read from
   bytes, nightly in CI) now answer a malformed file with ``CodecError``
   where they raised ``ValueError``, ``KeyError``, ``IndexError``,
@@ -233,6 +255,10 @@ Bug fixes
   facet or 3DFACE. The 3MF and AMF writers raise ``CodecError`` on a
   fixed-size surface element holding the wrong node count, where a
   three-node quad took its fourth corner from the next element.
+- :func:`polyxios.read` of a VTK-written ``.vtkhdf`` ImageData keeps the arrays
+  VTK lays out with an axis of one point left out, which the old reader dropped
+  with a warning: a single point's vector, and the cells of a grid one cell thick
+  along an axis - a plane's or a line's. No other ``read()`` output changes.
 
 .. _changes_0.5.1:
 

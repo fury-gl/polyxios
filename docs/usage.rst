@@ -310,9 +310,13 @@ mesh. :func:`polyxios.read_image` and :func:`polyxios.write_image` take and give
     import polyxios as px
     from polyxios import helper
 
-    image = px.read_image("volume.vti")
-    pixels = helper.image_to_array(image)        # (D, H, W[, C]), or (H, W[, C]) when flat
-    px.write_image(helper.array_to_image(pixels2d), "slice.vtkhdf")
+    image = px.read_image("volume.vti")          # a volume: arrays (D, H, W[, C])
+    # origin="lower" keeps VTK's order, with y rising from row 0; the default
+    # "upper" puts the top of the picture first, which is not what j=0 is.
+    pixels = helper.image_to_array(image, origin="lower")  # (D, H, W[, C])
+    slice2d = pixels[0]                          # its first plane, (H, W[, C])
+    # Both ends use origin="lower", VTK's order, so the slice keeps its rows.
+    px.write_image(helper.array_to_image(slice2d, origin="lower"), "slice.vtkhdf")
 
     mesh = px.read("volume.vti")                 # the same grid as a lattice of cells
 
