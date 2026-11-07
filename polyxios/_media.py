@@ -1,7 +1,7 @@
 """Media types of embedded images: names, extensions, magic bytes, data URIs.
 
-Shared by the COLLADA reader and :meth:`polyxios.SceneImage.decode`, which
-both meet images as a file name, a data URI or a run of bytes.
+Shared by the codecs, which meet images as a file name, a data URI or a run
+of bytes.
 """
 
 import base64
@@ -20,11 +20,6 @@ MEDIA_TYPES: dict[str, str] = {
     "ktx": "image/ktx",
     "ktx2": "image/ktx2",
     "dds": "image/vnd-ms.dds",
-}
-EXTENSION_OF_MEDIA: dict[str, str] = {
-    "image/png": ".png",
-    "image/jpeg": ".jpg",
-    "image/gif": ".gif",
 }
 MAGIC: tuple[tuple[bytes, str], ...] = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
@@ -52,13 +47,19 @@ def sniff_media(data: bytes) -> str:
 def decode_data_uri(uri: str) -> tuple[str | None, bytes]:
     """Return ``(media type or None, bytes)`` of a ``data:`` URI.
 
+    ``uri`` must begin with ``data:``, in any case, and that is checked: a
+    string without it is refused rather than sliced.
+
     Raises
     ------
     ValueError
-        When the URI has no comma (``"without a comma."``) or its base64
-        payload does not decode (``"that does not decode: ..."``). The
-        messages complete a sentence the caller starts.
+        When the URI does not begin with ``data:`` (``"that does not begin with
+        'data:'."``), has no comma (``"without a comma."``), or its base64
+        payload does not decode (``"that does not decode: ..."``). The messages
+        complete a sentence the caller starts.
     """
+    if uri[:5].lower() != "data:":
+        raise ValueError("that does not begin with 'data:'.")
     header, sep, payload = uri[5:].partition(",")
     if not sep:
         raise ValueError("without a comma.")
