@@ -7,12 +7,21 @@ type; `SceneData` sits alongside it, never replaces it.
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any
+import io
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote, urlsplit
 
 import numpy as np
 
 from polyxios import transforms
+from polyxios._media import EXTENSION_OF_MEDIA, decode_data_uri, sniff_media
 from polyxios._types import PolyData
+from polyxios.exceptions import CodecError, UnsupportedFormatError
+
+if TYPE_CHECKING:
+    from polyxios._image import ImageData
 
 
 def _same_value(a: Any, b: Any) -> bool:
@@ -155,6 +164,73 @@ class SceneImage:
     data: bytes | None = None
     media_type: str | None = None
     name: str = ""
+
+    def decode(self, *, base: str | os.PathLike[str] | None = None) -> "ImageData":
+        """Decode the image into an :class:`~polyxios.ImageData`.
+
+        Parameters
+        ----------
+        base
+            Directory a relative ``uri`` is read from. The file it names must
+            stay inside it. Without ``base`` a relative ``uri`` is read from
+            the working directory.
+
+        Returns
+        -------
+        ImageData
+            The pixels, as ``polyxios.read_image`` gives them.
+
+        Raises
+        ------
+        UnsupportedFormatError
+            If the media type has no image reader here (WebP, Basis, ...), or
+            the ``uri`` names something other than a local file.
+        CodecError
+            If the image holds neither bytes nor a ``uri``, the ``data:`` URI
+            is malformed, a ``uri`` leaves ``base``, or the bytes do not
+            decode.
+        """
+        import polyxios
+
+        data = self.data
+        media = self.media_type
+        uri = self.uri
+        if data is None and uri is not None and uri[:5].lower() == "data:":
+            try:
+                declared, data = decode_data_uri(uri)
+            except ValueError as exc:
+                raise CodecError(f"SceneImage {self.name!r}: data URI {exc}") from exc
+            media = declared or media
+        if data is not None:
+            media = sniff_media(data) or media
+            ext = EXTENSION_OF_MEDIA.get(media or "")
+            if ext is None:
+                raise UnsupportedFormatError(
+                    f"SceneImage {self.name!r}: {media or 'unknown'} data has no "
+                    "image reader in polyxios."
+                )
+            return polyxios.read_image(io.BytesIO(data), fmt=ext)
+        if uri is None:
+            raise CodecError(
+                "SceneImage holds neither data nor a uri; there is nothing to decode."
+            )
+        parts = urlsplit(uri)
+        scheme = parts.scheme
+        if len(scheme) > 1 and scheme != "file":
+            raise UnsupportedFormatError(
+                f"SceneImage.decode() reads local files only; {uri!r} is a "
+                f"{scheme}: URI."
+            )
+        rel = unquote(parts.path if scheme == "file" else uri)
+        if base is None:
+            return polyxios.read_image(Path(rel))
+        root = Path(base).resolve()
+        path = (Path(base) / rel).resolve()
+        if not path.is_relative_to(root):
+            raise CodecError(
+                f"SceneImage uri {uri!r} resolves outside {os.fspath(base)!r}; refused."
+            )
+        return polyxios.read_image(path)
 
 
 @dataclass(frozen=True, slots=True)

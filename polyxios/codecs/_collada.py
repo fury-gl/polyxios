@@ -36,7 +36,6 @@ import dataclasses
 from datetime import datetime
 import re
 from typing import Any
-from urllib.parse import unquote_to_bytes
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -44,6 +43,7 @@ import numpy as np
 
 from polyxios._element_types import ELEMENT_TYPES, ELEMENT_TYPES_INV
 from polyxios._io import Source, is_buffer, read_bytes, source_name, write_text
+from polyxios._media import MEDIA_TYPES, decode_data_uri, media_type_of, sniff_media
 from polyxios._scene import (
     SceneData,
     SceneImage,
@@ -213,29 +213,6 @@ _FILTER_TO_GL = {
     "LINEAR_MIPMAP_LINEAR": 9987,
 }
 _GL_TO_FILTER = {v: k for k, v in _FILTER_TO_GL.items()}
-
-_MEDIA_TYPES = {
-    "png": "image/png",
-    "jpg": "image/jpeg",
-    "jpeg": "image/jpeg",
-    "gif": "image/gif",
-    "bmp": "image/bmp",
-    "tga": "image/x-tga",
-    "tif": "image/tiff",
-    "tiff": "image/tiff",
-    "webp": "image/webp",
-    "ktx": "image/ktx",
-    "ktx2": "image/ktx2",
-    "dds": "image/vnd-ms.dds",
-}
-_EXT_OF_MEDIA = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif"}
-_MAGIC = (
-    (b"\x89PNG\r\n\x1a\n", "image/png"),
-    (b"\xff\xd8\xff", "image/jpeg"),
-    (b"GIF87a", "image/gif"),
-    (b"GIF89a", "image/gif"),
-    (b"BM", "image/bmp"),
-)
 
 _PATH_OF_KIND = {
     "matrix": "matrix",
@@ -888,11 +865,6 @@ def _read_asset(doc: _Doc) -> dict[str, Any]:
     return out
 
 
-def _media_type(uri: str) -> str | None:
-    ext = uri.rsplit(".", 1)[-1].lower() if "." in uri else ""
-    return _MEDIA_TYPES.get(ext)
-
-
 def _read_images(doc: _Doc) -> tuple[tuple[SceneImage, ...], list[str]]:
     images: list[SceneImage] = []
     ids: list[str] = []
@@ -911,7 +883,7 @@ def _read_images(doc: _Doc) -> tuple[tuple[SceneImage, ...], list[str]]:
         if init is None and inline is not None:
             data = _hex_bytes(doc, inline, img.get("id", "?"), "data")
             image = SceneImage(
-                data=data, media_type=_sniff_media(data) or None, name=name
+                data=data, media_type=sniff_media(data) or None, name=name
             )
         elif init is None:
             made = [
@@ -931,7 +903,7 @@ def _read_images(doc: _Doc) -> tuple[tuple[SceneImage, ...], list[str]]:
                 data = _hex_bytes(doc, hexed, img.get("id", "?"), "hex")
                 fmt = hexed.get("format", "").lower()
                 image = SceneImage(
-                    data=data, media_type=_MEDIA_TYPES.get(fmt), name=name
+                    data=data, media_type=MEDIA_TYPES.get(fmt), name=name
                 )
             else:
                 uri = ((ref.text if ref is not None else init.text) or "").strip()
@@ -954,24 +926,14 @@ def _hex_bytes(doc: _Doc, elem: ET.Element, img_id: str, tag: str) -> bytes:
 
 def _image_of_uri(doc: _Doc, uri: str, name: str, img_id: str) -> SceneImage:
     if uri[:5].lower() == "data:":
-        header, sep, payload = uri[5:].partition(",")
-        if not sep:
+        try:
+            media, data = decode_data_uri(uri)
+        except ValueError as exc:
             raise CodecError(
-                f"{doc.name!r}: image '{img_id}' has a data URI without a comma."
-            )
-        media, *params = header.split(";")
-        if "base64" in (p.strip().lower() for p in params):
-            try:
-                data = base64.b64decode("".join(payload.split()), validate=True)
-            except ValueError as exc:
-                raise CodecError(
-                    f"{doc.name!r}: image '{img_id}' has a data URI that does not "
-                    f"decode: {exc}"
-                ) from exc
-        else:
-            data = unquote_to_bytes(payload)
-        return SceneImage(data=data, media_type=media or None, name=name)
-    return SceneImage(uri=uri, media_type=_media_type(uri), name=name)
+                f"{doc.name!r}: image '{img_id}' has a data URI {exc}"
+            ) from exc
+        return SceneImage(data=data, media_type=media, name=name)
+    return SceneImage(uri=uri, media_type=media_type_of(uri), name=name)
 
 
 def _color_of(elem: ET.Element | None, what: str) -> tuple[float, ...] | None:
@@ -3758,14 +3720,6 @@ def _name_source_xml(
     )
 
 
-def _sniff_media(data: bytes) -> str:
-    """Return the media type the magic bytes of ``data`` spell, or an empty string."""
-    for magic, media in _MAGIC:
-        if data.startswith(magic):
-            return media
-    return "image/webp" if data[:4] == b"RIFF" and data[8:12] == b"WEBP" else ""
-
-
 def _image_xml(iid: str, img: SceneImage) -> str:
     """Return one ``<image>``.
 
@@ -3774,7 +3728,7 @@ def _image_xml(iid: str, img: SceneImage) -> str:
     requires one, and reads back as neither.
     """
     if img.data is not None:
-        media = img.media_type or _sniff_media(img.data)
+        media = img.media_type or sniff_media(img.data)
         uri = f"data:{media};base64,{base64.b64encode(img.data).decode('ascii')}"
     elif img.uri is not None:
         uri = img.uri

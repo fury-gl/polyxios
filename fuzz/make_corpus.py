@@ -28,6 +28,7 @@ import polyxios
 from polyxios import make_polydata
 from polyxios._types import PolyData
 from polyxios.exceptions import PolyxiosError
+from polyxios.helper import array_to_image
 
 
 def _surface() -> PolyData:
@@ -127,7 +128,14 @@ def _grid() -> PolyData:
     )
 
 
-MESHES = (_surface, _volume, _points, _lines, _grid)
+def _image() -> PolyData:
+    """A 4 x 3 RGB picture as the lattice of quads an image file expands into."""
+    return array_to_image(
+        np.arange(4 * 3 * 3, dtype=np.uint8).reshape(4, 3, 3)
+    ).to_polydata()
+
+
+MESHES = (_surface, _volume, _points, _lines, _grid, _image)
 
 # Writer options worth a seed of their own; every target also gets the
 # writer's defaults.
@@ -151,6 +159,7 @@ OPTIONS: dict[str, tuple[dict, ...]] = {
     "glb": ({"binary": True},),
     "gltf": ({"binary": False},),
     "amf": ({"compress": True},),
+    "jpeg": ({"lossless": True}, {"subsampling": "4:4:4"}),
 }
 
 

@@ -42,6 +42,12 @@ What each file becomes
   see it as an image, open it with an image reader instead. A structured
   grid finds that skin from its extent, at the cost of its surface rather
   than of every cell.
+- A picture - ``.png``, ``.jpg``, ``.jpeg``, ``.jpe`` or ``.jfif``, gzipped or
+  not - opens as one **Image** layer, not as the lattice of quads
+  :func:`polyxios.read` would expand it into: the pixels as an ``(H, W, 3)``
+  RGB array (or ``(H, W, 4)``), or ``(H, W)`` for gray, with row 0 at the top,
+  the way napari draws an image. Alpha in a gray picture is dropped from the
+  layer. There is no image writer.
 - Polyhedra, Lagrange, Bézier and other higher-order cells, quadratic
   polygons and quadratic-linear quads are not drawn. A file holding only
   those opens as a **Points** layer, with a warning, and keeps its cells for

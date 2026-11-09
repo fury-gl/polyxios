@@ -324,6 +324,10 @@ _NO_DECLARED_COUNT: frozenset[str] = frozenset(
         ".spz",
         # Every array is an HDF5 dataset of its own size; nothing declares one.
         ".hmf",
+        # Width and height are 31/16 bits, short of BIG; the codec tests refuse
+        # the widest header they can spell.
+        ".png",
+        ".jpg",
     }
 )
 
@@ -365,6 +369,9 @@ def test_the_matrix_covers_every_format_that_declares_a_count() -> None:
         ".exo": ".e",
         ".ex2": ".e",
         ".laz": ".las",
+        ".jpeg": ".jpg",
+        ".jpe": ".jpg",
+        ".jfif": ".jpg",
     }
     outstanding = {
         ext
