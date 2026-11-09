@@ -223,6 +223,15 @@ Bug fixes
   fixed-size surface element holding the wrong node count, where a
   three-node quad took its fourth corner from the next element.
 
+Optimizations
+~~~~~~~~~~~~~
+
+- An eager ``.las`` / ``.laz`` read scales each axis straight into the one
+  coordinate array it returns, and cuts the bit fields from one
+  contiguous copy of each packed byte: 10 million points read in 0.15 s at
+  a 650 MB peak, where they took 0.43 s and 1.2 GB. The coordinates and
+  colours are the same values to the bit.
+
 .. _changes_0.5.1:
 
 0.5.1 (2026-10-15)

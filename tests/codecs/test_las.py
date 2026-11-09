@@ -165,6 +165,50 @@ def test_the_records_are_written_from_the_array_without_a_copy(tmp_path) -> None
     assert (tmp_path / "c.las").stat().st_size == _HEADER_1_2 + record_bytes
 
 
+def test_the_coordinates_are_scaled_into_the_one_array_kept(tmp_path) -> None:
+    """An eager read allocates the cloud it returns and little more.
+
+    The coordinates went through a ``column_stack``, an ``astype`` and two
+    whole-array operations, which held them three more times: about 72
+    bytes a point on format 0. Kept now: 24 bytes of coordinates, 6 of
+    intensity, scan angle, user data and point source, 8 of bit fields;
+    the packed bytes they are cut from are the transient on top.
+    """
+    n = 200_000
+    path = tmp_path / "c.las"
+    rng = np.random.default_rng(0)
+    polyxios.write(make_polydata(rng.uniform(0, 100, (n, 3)), []), path)
+
+    tracemalloc.start()
+    try:
+        poly = polyxios.read(path)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert poly.vertices.shape == (n, 3)
+    assert peak < 52 * n
+
+
+def test_scaled_coordinates_and_colours_match_the_formula() -> None:
+    """Each axis is its integers times its own scale plus its own offset."""
+    poly = _cloud(6)
+    data = _write(poly, point_format=3, scale=(0.001, 0.01, 0.1), offset=(5, -7, 2))
+    back = _read(data)
+    records = np.frombuffer(
+        data, dtype=_las._RECORD_DTYPES[3], count=6, offset=_u32(data, 96)
+    )
+    for axis, (field, scale, offset) in enumerate(
+        zip("XYZ", (0.001, 0.01, 0.1), (5, -7, 2), strict=True)
+    ):
+        expected = records[field].astype(np.float64) * scale + offset
+        np.testing.assert_array_equal(back.vertices[:, axis], expected)
+    rgb = np.column_stack([records[c] for c in ("red", "green", "blue")])
+    np.testing.assert_array_equal(
+        back.vertex_attrs["colors"], rgb.astype(np.float64) / 65535.0
+    )
+
+
 def test_the_bounding_box_is_the_written_coordinates() -> None:
     poly = _cloud()
     data = _write(poly, scale=0.001)
