@@ -8,10 +8,12 @@ import warnings
 import numpy as np
 import pytest
 
+import polyxios
 from polyxios._element_types import ELEMENT_TYPES
+from polyxios._image import ImageData
 from polyxios._types import PolyData
 from polyxios.codecs import _vtk_xml
-from polyxios.codecs._vti import read, write
+from polyxios.codecs._vti import read, read_image, write, write_image
 from polyxios.codecs._vtk_xml import (
     lattice_vertices,
     structured_cells,
@@ -825,3 +827,477 @@ def test_bytes_that_are_not_utf8_do_not_escape_the_xml_parse(tmp_path) -> None:
     path.write_bytes(text.encode("latin-1"))
     with pytest.warns(UserWarning, match="read as Latin-1"):
         assert read(path).vertices.shape == (8, 3)
+
+
+def _offset_image() -> ImageData:
+    """A grid that starts away from zero, with every kind of array."""
+    return ImageData(
+        extent=(1, 3, 2, 3, 0, 1),
+        origin=(10.0, 20.0, 30.0),
+        spacing=(0.5, 2.0, 4.0),
+        point_attrs={
+            "p": np.arange(12, dtype=np.float32).reshape(2, 2, 3),
+            "v": np.arange(36, dtype=np.int16).reshape(2, 2, 3, 3),
+        },
+        cell_attrs={"c": np.arange(2, dtype=np.int32).reshape(1, 1, 2) + 5},
+        global_attrs={
+            "title": "grid",
+            "gnum": np.array([42.0]),
+            "vti_whole_extent": [0, 9, 0, 4, 0, 1],
+        },
+    )
+
+
+def test_read_image_is_the_grid_read_expands(tmp_path) -> None:
+    path = tmp_path / "g.vti"
+    write_image(_offset_image(), path)
+    image = read_image(path)
+    full = read(path)
+    expanded = image.to_polydata()
+    np.testing.assert_array_equal(expanded.vertices, full.vertices)
+    np.testing.assert_array_equal(expanded.connectivity, full.connectivity)
+    np.testing.assert_array_equal(expanded.element_types, full.element_types)
+    assert expanded.vertex_attrs.keys() == full.vertex_attrs.keys()
+    for name, values in full.vertex_attrs.items():
+        np.testing.assert_array_equal(expanded.vertex_attrs[name], values)
+    for name, values in full.element_attrs.items():
+        np.testing.assert_array_equal(expanded.element_attrs[name], values)
+    expanded.global_attrs.update(
+        vti_origin=[10.0, 20.0, 30.0],
+        vti_spacing=[0.5, 2.0, 4.0],
+        vti_extent=[1, 3, 2, 3, 0, 1],
+    )
+    assert expanded.global_attrs.keys() == full.global_attrs.keys()
+
+
+def test_write_image_keeps_extent_origin_spacing_and_arrays(tmp_path) -> None:
+    path = tmp_path / "g.vti"
+    image = _offset_image()
+    write_image(image, path, binary=False)
+    back = read_image(path)
+    assert back.extent == image.extent
+    assert back.origin == image.origin
+    assert back.spacing == image.spacing
+    assert back.direction is None
+    for name, values in image.point_attrs.items():
+        np.testing.assert_array_equal(back.point_attrs[name], values)
+    np.testing.assert_array_equal(back.cell_attrs["c"], image.cell_attrs["c"])
+    assert back.global_attrs["title"] == "grid"
+
+
+def test_a_wider_whole_extent_survives_the_image_path(tmp_path) -> None:
+    """WholeExtent names the grid a piece belongs to; read_image then
+    write_image must not narrow it to the piece."""
+    path = tmp_path / "piece.vti"
+    _write_piece(path, whole="0 9 0 4 0 1", extent="1 3 2 3 0 1")
+    image = read_image(path)
+    assert image.global_attrs["vti_whole_extent"] == [0, 9, 0, 4, 0, 1]
+    again = tmp_path / "again.vti"
+    write_image(image, again)
+    assert 'WholeExtent="0 9 0 4 0 1"' in again.read_text(encoding="utf-8")
+    assert read_image(again) == image
+    assert read(again).global_attrs["vti_whole_extent"] == [0, 9, 0, 4, 0, 1]
+
+
+def test_a_whole_extent_equal_to_the_piece_is_not_kept_on_the_image(tmp_path) -> None:
+    path = tmp_path / "solo.vti"
+    write_image(replace(_offset_image(), global_attrs={"title": "grid"}), path)
+    assert 'WholeExtent="1 3 2 3 0 1"' in path.read_text(encoding="utf-8")
+    assert "vti_whole_extent" not in read_image(path).global_attrs
+
+
+def test_write_image_never_builds_the_mesh(tmp_path, monkeypatch) -> None:
+    """A volume's mesh is 3 coordinates and a cell per sample; the file needs
+    neither, and building one only to take it apart is how it was done."""
+    image = _offset_image()
+    path = tmp_path / "g.vti"
+    expected = tmp_path / "mesh.vti"
+    mesh = image.to_polydata()
+    mesh.global_attrs.update(
+        vti_origin=list(image.origin),
+        vti_spacing=list(image.spacing),
+        vti_extent=list(image.extent),
+    )
+    write(mesh, expected, binary=False)
+
+    def _no_mesh(self):
+        raise AssertionError("write_image built the mesh")
+
+    monkeypatch.setattr(ImageData, "to_polydata", _no_mesh)
+    write_image(image, path, binary=False)
+    assert path.read_bytes() == expected.read_bytes()
+
+
+def test_a_grid_of_no_points_is_refused_by_name(tmp_path) -> None:
+    image = ImageData(extent=(0, -1, 0, 1, 0, 0))
+    with pytest.raises(CodecError, match="holds no point, and an ImageData file"):
+        write_image(image, tmp_path / "empty.vti")
+    assert not (tmp_path / "empty.vti").exists()
+
+
+def test_an_array_not_laid_out_along_the_extent_is_a_codec_error(tmp_path) -> None:
+    image = ImageData(extent=(0, 2, 0, 1, 0, 0), point_attrs={"p": np.zeros((1, 3, 2))})
+    with pytest.raises(CodecError, match="PointData array 'p'") as caught:
+        write_image(image, tmp_path / "bad.vti")
+    assert "ImageData:" not in str(caught.value)
+
+
+def test_a_rotation_is_spelled_as_direction_and_read_back(tmp_path) -> None:
+    swap = np.array([[0.0, 0, 1], [0, 1, 0], [1, 0, 0]])
+    image = ImageData(extent=(0, 1, 0, 1, 0, 0), direction=swap)
+    path = tmp_path / "rot.vti"
+    write_image(image, path, binary=False)
+    assert 'Direction="0 0 1 0 1 0 1 0 0"' in path.read_text(encoding="utf-8")
+    assert read_image(path) == image
+
+
+def test_an_identity_direction_is_not_spelled(tmp_path) -> None:
+    path = tmp_path / "id.vti"
+    write_image(
+        ImageData(extent=(0, 1, 0, 1, 0, 0), direction=np.eye(3)), path, binary=False
+    )
+    assert "Direction" not in path.read_text(encoding="utf-8")
+    assert read_image(path).direction is None
+
+
+def test_a_flat_nine_number_direction_is_accepted(tmp_path) -> None:
+    swap = np.array([[0.0, 0, 1], [0, 1, 0], [1, 0, 0]])
+    path = tmp_path / "flat.vti"
+    write_image(ImageData(extent=(0, 1, 0, 1, 0, 0), direction=swap.ravel()), path)
+    assert read_image(path).direction.tolist() == swap.tolist()
+    identity = tmp_path / "ident.vti"
+    write_image(
+        ImageData(extent=(0, 1, 0, 1, 0, 0), direction=np.eye(3).ravel()), identity
+    )
+    assert read_image(identity).direction is None
+
+
+def test_a_direction_that_is_no_matrix_is_refused_at_construction() -> None:
+    with pytest.raises(ValueError, match="holds 4 numbers"):
+        ImageData(extent=(0, 1, 0, 1, 0, 0), direction=np.zeros(4))
+
+
+def test_read_keeps_the_mesh_axis_aligned_whatever_direction_says(tmp_path) -> None:
+    """read() has never applied Direction; the rotation is for read_image."""
+    plain = tmp_path / "plain.vti"
+    rotated = tmp_path / "rotated.vti"
+    _write_piece(plain, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1")
+    _write_piece(
+        rotated,
+        whole="0 1 0 1 0 1",
+        extent="0 1 0 1 0 1",
+        direction="0 1 0 1 0 0 0 0 1",
+    )
+    assert read_image(rotated).direction.tolist() == [
+        [0.0, 1.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    assert read(rotated).vertices.tolist() == read(plain).vertices.tolist()
+
+
+def test_a_malformed_direction_warns_and_reads_the_identity(tmp_path) -> None:
+    path = tmp_path / "short.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1", direction="1 0 0")
+    with pytest.warns(
+        UserWarning, match="Direction spells 3 numbers where nine belong"
+    ):
+        assert read_image(path).direction is None
+
+
+_BLAME_CASES = [
+    pytest.param({"origin": "1 2"}, "Origin spells 2 numbers", id="origin"),
+    pytest.param(
+        {
+            "arrays": '<DataArray type="Float64" Name="p" NumberOfComponents="x" format="ascii">0 1 2 3</DataArray>'
+        },
+        "declares NumberOfComponents='x'",
+        id="components",
+    ),
+    pytest.param(
+        {"arrays": '<DataArray type="String" Name="s" format="ascii">a b</DataArray>'},
+        "has type 'String'",
+        id="string",
+    ),
+    pytest.param(
+        {
+            "arrays": '<DataArray type="Int32" Name="i" format="ascii">0 1.5 2 3</DataArray>'
+        },
+        "cannot hold",
+        id="wrap",
+    ),
+    pytest.param(
+        {
+            "fields": '<FieldData><DataArray type="Float64" Name="f" NumberOfComponents="x" NumberOfTuples="1" format="ascii">1 2</DataArray></FieldData>'
+        },
+        "declares NumberOfComponents='x'",
+        id="field-components",
+    ),
+]
+
+
+@pytest.mark.parametrize("entry", [polyxios.read_image, polyxios.read])
+@pytest.mark.parametrize(("spelling", "match"), _BLAME_CASES)
+def test_a_warning_from_the_reader_is_blamed_on_the_caller(
+    tmp_path, entry, spelling, match
+) -> None:
+    """The public readers are what a caller reaches; the file is theirs."""
+    path = tmp_path / "bad.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1", **spelling)
+    with pytest.warns(UserWarning) as caught:
+        entry(path)
+    blamed = [w for w in caught if match in str(w.message)]
+    assert blamed and all(w.filename == __file__ for w in blamed)
+
+
+def test_read_image_refuses_options_it_does_not_take(tmp_path) -> None:
+    path = tmp_path / "g.vti"
+    write_image(_offset_image(), path)
+    with pytest.warns(UserWarning, match=r"vti read: unrecognized options \{'bogus'\}"):
+        read_image(path, bogus=1)
+
+
+def test_write_image_refuses_options_it_does_not_take(tmp_path) -> None:
+    with pytest.warns(
+        UserWarning, match=r"vti write: unrecognized options \{'bogus'\}"
+    ):
+        write_image(_offset_image(), tmp_path / "g.vti", bogus=1)
+
+
+def test_binary_is_a_keyword_of_write_image(tmp_path) -> None:
+    path = tmp_path / "ascii.vti"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        write_image(_offset_image(), path, binary=False)
+    assert "<DataArray" in path.read_text(encoding="utf-8")
+    assert 'format="ascii"' in path.read_text(encoding="utf-8")
+
+
+def _write_piece(
+    path,
+    *,
+    whole: str,
+    extent: str,
+    origin: str = "0 0 0",
+    direction: str | None = None,
+    arrays: str = "",
+    fields: str = "",
+) -> None:
+    """A one-piece .vti with the given WholeExtent, Extent, optional rotation and
+    point arrays, each spelled as its ``<DataArray>`` element."""
+    spelled = f' Direction="{direction}"' if direction is not None else ""
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">\n'
+        f'  <ImageData WholeExtent="{whole}" Origin="{origin}" Spacing="1 1 1"'
+        f"{spelled}>\n"
+        f"{fields}"
+        f'    <Piece Extent="{extent}">\n'
+        f"      <PointData>{arrays}</PointData>\n"
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "</VTKFile>\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    "direction", ["1 0 0", "a b c d e f g h i"], ids=["short", "text"]
+)
+def test_read_ignores_a_malformed_direction_silently(tmp_path, direction) -> None:
+    """The mesh never uses Direction, so read() does not parse it and does not warn
+    about it; read_image, which keeps it, does."""
+    path = tmp_path / "bad.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1", direction=direction)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert read(path).vertices.shape == (8, 3)
+    with pytest.warns(UserWarning, match="Direction"):
+        assert read_image(path).direction is None
+
+
+def test_a_tensor_array_is_written_with_its_components_flat(tmp_path) -> None:
+    """The .vti counterpart of the .vtkhdf test: (nz, ny, nx, 3, 3) reads back with
+    its nine components as one axis, as the lattice's components always do."""
+    tensor = np.arange(2 * 2 * 3 * 9, dtype=np.float64).reshape(2, 2, 3, 3, 3)
+    path = tmp_path / "t.vti"
+    write_image(ImageData(extent=(0, 2, 0, 1, 0, 1), point_attrs={"t": tensor}), path)
+    back = read_image(path).point_attrs["t"]
+    assert back.shape == (2, 2, 3, 9)
+    np.testing.assert_array_equal(back, tensor.reshape(2, 2, 3, 9))
+
+
+def test_read_keeps_the_field_data_order_with_a_grid_key_in_it(tmp_path) -> None:
+    """A FieldData entry spelled like a grid key keeps its place; the grid keys the
+    mesh reader adds follow the field data, as they always have."""
+    path = tmp_path / "order.vti"
+    _write_piece(
+        path,
+        whole="0 9 0 1 0 1",
+        extent="0 1 0 1 0 1",
+        fields=(
+            "<FieldData>"
+            '<DataArray type="Float64" Name="title" NumberOfComponents="1" format="ascii">3</DataArray>'
+            '<DataArray type="Float64" Name="vti_origin" NumberOfComponents="1" format="ascii">7 8 9</DataArray>'
+            '<DataArray type="Float64" Name="zz" NumberOfComponents="1" format="ascii">4</DataArray>'
+            "</FieldData>"
+        ),
+    )
+    assert list(read(path).global_attrs) == [
+        "title",
+        "vti_origin",
+        "zz",
+        "vti_spacing",
+        "vti_extent",
+        "vti_whole_extent",
+    ]
+
+
+def test_a_bare_direction_is_refused_not_broadcast(tmp_path) -> None:
+    """Direction="2" is one number where nine belong: the identity, with a warning,
+    rather than the same number in all nine entries."""
+    path = tmp_path / "bare.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1", direction="2")
+    with pytest.warns(
+        UserWarning, match="Direction spells 1 numbers where nine belong"
+    ):
+        assert read_image(path).direction is None
+
+
+def test_a_short_origin_keeps_the_axis_wording_the_mesh_reader_always_had(
+    tmp_path,
+) -> None:
+    """The mesh reader's text for a short Origin is unchanged from the release that
+    first shipped it: it names the axes, not the entries."""
+    path = tmp_path / "short.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1", origin="1 2")
+    with pytest.warns(UserWarning) as caught:
+        read(path)
+    assert [str(w.message) for w in caught] == [
+        ".vti: Origin spells 2 numbers where three belong; the axes it leaves out "
+        "are given 0.0, which the file never said."
+    ]
+
+
+def test_a_field_name_xml_cannot_hold_is_blamed_on_the_entry_point(tmp_path) -> None:
+    """A mesh written by polyxios.write is blamed on polyxios' own entry point, as it
+    always was; an image written by polyxios.write_image is blamed on the caller."""
+    path = tmp_path / "solo.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1")
+    mesh = read(path)
+    mesh.global_attrs["g\x01"] = np.array([1.0])
+    with pytest.warns(UserWarning, match="field array name") as caught:
+        polyxios.write(mesh, tmp_path / "mesh.vti")
+    assert {w.filename for w in caught} == {polyxios.__file__}
+
+    image = read_image(path)
+    image.global_attrs["g\x01"] = np.array([1.0])
+    with pytest.warns(UserWarning, match="field array name") as caught:
+        polyxios.write_image(image, tmp_path / "image.vti")
+    assert {w.filename for w in caught} == {__file__}
+
+
+def test_mesh_and_image_writes_warn_in_the_order_the_metadata_is_read(tmp_path) -> None:
+    """The dropped globals come first, then the field names XML cannot hold, then the
+    point names: the order a mesh has always been written in, and the one an image
+    now shares."""
+    kinds = ("global_attrs", "field array name", "point array name")
+    path = tmp_path / "solo.vti"
+    _write_piece(path, whole="0 1 0 1 0 1", extent="0 1 0 1 0 1")
+
+    mesh = read(path)
+    mesh.vertex_attrs['a<b"c\x01'] = np.zeros(len(mesh.vertices))
+    mesh.global_attrs["obj"] = object()
+    mesh.global_attrs['g"\x01'] = np.array([1.0])
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        polyxios.write(mesh, tmp_path / "mesh.vti")
+    assert [k for w in caught for k in kinds if k in str(w.message)] == list(kinds)
+
+    image = read_image(path)
+    image.point_attrs['a<b"c\x01'] = np.zeros(image.dimensions[::-1])
+    image.global_attrs["obj"] = object()
+    image.global_attrs['g"\x01'] = np.array([1.0])
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        polyxios.write_image(image, tmp_path / "image.vti")
+    assert [k for w in caught for k in kinds if k in str(w.message)] == list(kinds)
+    assert {w.filename for w in caught} == {__file__}
+
+
+def test_read_image_keeps_the_grid_keys_out_of_its_field_data(tmp_path) -> None:
+    """The mesh path lets the grid keys win over a field entry of the same name; the
+    image must do the same, so its metadata is the other field data plus the whole
+    extent when that is wider than the piece - not a field entry spelled like a grid
+    key."""
+    path = tmp_path / "order.vti"
+    _write_piece(
+        path,
+        whole="0 9 0 1 0 1",
+        extent="0 1 0 1 0 1",
+        fields=(
+            "<FieldData>"
+            '<DataArray type="Float64" Name="title" NumberOfComponents="1" format="ascii">3</DataArray>'
+            '<DataArray type="Float64" Name="vti_origin" NumberOfComponents="1" format="ascii">7 8 9</DataArray>'
+            '<DataArray type="Float64" Name="zz" NumberOfComponents="1" format="ascii">4</DataArray>'
+            '<DataArray type="Float64" Name="vti_whole_extent" NumberOfComponents="1" format="ascii">0 5 0 5 0 1</DataArray>'
+            "</FieldData>"
+        ),
+    )
+    image = read_image(path)
+    assert set(image.global_attrs) == {"title", "zz", "vti_whole_extent"}
+    assert image.global_attrs["vti_whole_extent"] == [0, 9, 0, 1, 0, 1]
+    mesh = read(path)
+    assert mesh.global_attrs["vti_origin"] == [0.0, 0.0, 0.0]
+
+
+def test_a_vti_extent_past_int64_reads_as_a_mesh_and_refuses_as_an_image(
+    tmp_path,
+) -> None:
+    """A mesh of one vertex read from such an extent is what read() always gave; an
+    ImageData cannot hold the extent, so read_image refuses it as a CodecError."""
+    path = tmp_path / "huge.vti"
+    huge = "9223372036854775808 9223372036854775808 0 0 0 0"
+    _write_piece(path, whole=huge, extent=huge)
+    assert read(path).vertices.tolist() == [[9223372036854775808.0, 0.0, 0.0]]
+    with pytest.raises(CodecError, match="outside the 64-bit"):
+        read_image(path)
+
+
+def test_a_bare_grid_past_the_mesh_cap_reads_compact(tmp_path) -> None:
+    """A bare grid of more points than a mesh may hold builds no vertex, so read_image
+    reads it; read() still refuses it as the mesh cap always has, and so does
+    to_polydata."""
+    n = 465
+    image = ImageData(extent=(0, n - 1, 0, n - 1, 0, n - 1))
+    path = tmp_path / "bare.vti"
+    polyxios.write_image(image, path)
+    assert read_image(path).dimensions == (n, n, n)
+    with pytest.raises(ValidationError, match="MAX_IMPLIED_VERTICES"):
+        read(path)
+    with pytest.raises(ValidationError, match="MAX_IMPLIED_VERTICES"):
+        image.to_polydata()
+
+
+def test_a_grid_past_the_point_cap_is_refused_before_it_is_written(tmp_path) -> None:
+    """A reader refuses a compact image past MAX_SAFE_VERTICES, so the writer refuses it
+    first and leaves no file that cannot be read back."""
+    path = tmp_path / "huge.vti"
+    with pytest.raises(ValidationError, match="MAX_SAFE_VERTICES"):
+        polyxios.write_image(ImageData(extent=(0, 999, 0, 999, 0, 999)), path)
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("first", [2**53, 2**63 - 2])
+def test_a_wide_extent_round_trips_exactly(tmp_path, first) -> None:
+    """A WholeExtent past 2**53 is written and read back as the integers it is, so the
+    two-point grid there comes back as the two points it was."""
+    image = ImageData(
+        extent=(first, first + 1, 0, 0, 0, 0),
+        point_attrs={"a": np.array([[[1.0, 2.0]]])},
+    )
+    path = tmp_path / "wide.vti"
+    polyxios.write_image(image, path)
+    back = read_image(path)
+    assert back == image
+    assert back.extent == (first, first + 1, 0, 0, 0, 0)

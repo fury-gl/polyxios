@@ -26,7 +26,7 @@ Specification at a glance
    * - PolyData
      - ``NumberOfPoints``, ``Points``; ``Vertices`` ``Lines`` ``Polygons`` ``Strips`` groups, each with its counts, ``Connectivity`` and ``Offsets``
    * - ImageData
-     - ``WholeExtent`` ``Origin`` ``Spacing`` ``Direction`` attributes; arrays shaped ``(nz, ny, nx[, k])``, an axis of size one kept or left out
+     - ``WholeExtent`` ``Origin`` ``Spacing`` ``Direction`` attributes; arrays shaped ``(nz, ny, nx[, k])`` with each axis of one point left out, as VTK writes them
    * - arrays
      - ``PointData/<name>`` ``CellData/<name>`` ``FieldData/<name>``
    * - time series
@@ -78,9 +78,10 @@ Quirks worth knowing
 
 .. rst-class:: px-quirks
 
-- An ``ImageData`` is read and never written: a lattice goes out as the ``UnstructuredGrid`` its cells are. Read one and write it as a :doc:`vti` to keep it a lattice.
+- An ``ImageData`` read through :func:`polyxios.read` is expanded into the lattice its extent spans, and :func:`polyxios.write` writes a lattice as the ``UnstructuredGrid`` its cells are. :func:`polyxios.read_image` and :func:`polyxios.write_image` keep it a grid instead: ``read_image`` returns an :class:`~polyxios.ImageData` - its ``Direction`` included - without expanding it and refuses a file of any other ``Type``; ``write_image`` writes ``WholeExtent``, ``Origin``, ``Spacing`` and ``Direction`` with the arrays laid out as VTK's own writer lays them out - ``(nz, ny, nx[, k])`` with each axis that holds one point left out, so a flat image's points are ``(ny, nx[, k])``, a single point's ``(1[, k])``, and a plane's cells ``(c_a, c_b)`` along its two axes, the flat one left out - one step and no ``Steps`` group, an empty grid refused and an array that is not numeric dropped with a warning. ``read_image`` and :func:`polyxios.read` take that layout, the full ``(nz, ny, nx[, k])`` that earlier releases read, and the form with every axis of one left out, which earlier releases read too. ``read_image`` holds a grid to the hard caps only, since it builds no vertex; :func:`polyxios.read` and ``to_polydata`` keep the cap on expanded vertices, and a writer refuses a grid its reader would refuse. Boolean arrays are written as bytes.
 - A ``Type`` polyxios does not read - ``OverlappingAMR``, ``MultiBlockDataSet``, ``PartitionedDataSetCollection``, ``HyperTreeGrid`` - raises :class:`~polyxios.exceptions.UnsupportedFormatError` naming it, and a ``Version`` past 2 :class:`~polyxios.exceptions.CodecError`. A ``Version`` of 1 reads as leniently as 2: the layouts 2.0 defined - ``PolyData``, several parts, ``Steps`` - are taken as written when a 1.x file holds them.
 - A ``PointData`` or ``CellData`` array that is not numeric, or holds fewer rows than the step needs, is dropped with a warning naming it, the answer the VTK XML readers give an array of the wrong length. An array with no entry under ``PointDataOffsets`` in a temporal file is read from row zero, which is where an array the file keeps once for every step sits.
+- A ``vti_whole_extent`` in an image's ``global_attrs`` - the whole grid a ``.vti`` piece belongs to - is not written: a VTKHDF ``ImageData`` has no whole extent of its own, only the ``WholeExtent`` of the grid it holds. :func:`polyxios.write_image` drops it with a warning naming it, and a read of the file gives back no such key.
 - A temporal ``ImageData`` keeps its steps along a leading axis of each array - ``(steps, nz, ny, nx[, k])`` - and its offsets count along it, which is what VTK's reader asks for; an ``UnstructuredGrid`` or ``PolyData`` lays the steps end to end along the row axis.
 - Every element type VTK has a code for is written; an element of a type VTK has no code for is dropped with a warning, and the values and tags over it cut to match. On read, a VTK code polyxios has no name for is kept as an ``empty_cell``.
 - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`: the arrays live in HDF5 datasets that h5py decodes whole.

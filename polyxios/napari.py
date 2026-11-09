@@ -39,11 +39,12 @@ from polyxios._element_types import (
     SURFACE_ELEMENT_TYPES,
     TOPOLOGICAL_DIMENSION,
 )
+from polyxios._image import DIRECTION_KEY, GRID_GLOBALS, TYPE_KEY
 from polyxios._io import GZIP_SUFFIXES, format_suffix, open_read, source_suffix
 from polyxios._registry import Codec, sniff_head
 from polyxios._types import PolyData, make_polydata, surface_triangles
 from polyxios._warn import warn_caller
-from polyxios.codecs import _exodus, _gltf, _tecplot, _vti, _vtr, _vts
+from polyxios.codecs import _exodus, _gltf, _tecplot, _vtr, _vts
 from polyxios.codecs._vtk_xml import (
     extent_points,
     extent_spans,
@@ -171,14 +172,14 @@ _CODEC_PACKAGE: Final[str] = "polyxios.codecs."
 # longer describes a Surface, whose cells are triangles, nor a Points layer
 # whose cells could not be kept.
 _GRID_GLOBALS: Final[frozenset[str]] = (
-    _vti.RESERVED_GLOBALS
+    GRID_GLOBALS
     | _vtr.RESERVED_GLOBALS
     | _vts.RESERVED_GLOBALS
-    | {"vtk_dimensions", "vtk_origin", "vtk_spacing", "vtkhdf_direction"}
+    | {"vtk_dimensions", "vtk_origin", "vtk_spacing", DIRECTION_KEY}
 )
 # A VTKHDF file names its dataset type; only an image is a structured grid,
 # and the type of a PolyData or an UnstructuredGrid still fits triangles.
-_VTKHDF_TYPE: Final[str] = "vtkhdf_type"
+_VTKHDF_TYPE: Final[str] = TYPE_KEY
 _VTKHDF_GRID: Final[str] = "ImageData"
 # Global attributes that lay the vertices out in rows - an organised PCD
 # grid, the scans of a PTX file - and so describe the file's rows, not the

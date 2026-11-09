@@ -51,6 +51,14 @@ class Codec(NamedTuple):
         On a dispatcher only, the codec owning the extension it shares,
         which reads a file none of ``entries`` recognises; None when the
         extension belongs to nobody.
+    read_image
+        Optional image reader, invoked as ``read_image(path=..., **opts)``
+        and returning an ``ImageData``.  ``None`` for formats that hold no
+        uniform grid of samples.
+    write_image
+        Optional image writer, invoked as
+        ``write_image(image=..., path=..., **opts)``.  ``None`` for formats
+        that cannot write an ``ImageData`` directly.
     """
 
     read: Callable
@@ -61,6 +69,8 @@ class Codec(NamedTuple):
     write_scene: Callable | None = None
     entries: tuple[tuple[str, "Codec"], ...] = ()
     owner: "Codec | None" = None
+    read_image: Callable | None = None
+    write_image: Callable | None = None
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
@@ -272,6 +282,36 @@ def _make_dispatcher(
     if default_writer is not None and default_writer[1].write_scene is not None:
         dispatcher_write_scene = _dispatcher_write_scene
 
+    image_entries = [
+        (label, codec) for label, codec in entries if codec.read_image is not None
+    ]
+
+    def _dispatcher_read_image(path: Source, **opts: object) -> object:
+        """Delegate read_image to the first sniffer-matched image codec."""
+        head = _sniff_head(path, shared)
+        broken, label, codec = _run_sniffers(head, path, entries)
+        if codec is not None:
+            if codec.read_image is None:
+                raise UnsupportedFormatError(
+                    f"{label!r} does not carry image data; use read() instead."
+                )
+            return codec.read_image(path=path, **opts)
+        if default_writer is not None and default_writer[1].read_image is not None:
+            return default_writer[1].read_image(path=path, **opts)
+        _sniff_no_match_error(path, broken, entries, shared, no_match)
+
+    def _dispatcher_write_image(image: object, path: Source, **opts: object) -> None:
+        """Delegate write_image to the default-writer image codec.
+
+        Only installed when that codec writes images, so it is always there.
+        """
+        default_writer[1].write_image(image=image, path=path, **opts)
+
+    dispatcher_read_image = _dispatcher_read_image if image_entries else None
+    dispatcher_write_image: Callable | None = None
+    if default_writer is not None and default_writer[1].write_image is not None:
+        dispatcher_write_image = _dispatcher_write_image
+
     return Codec(
         read,
         write,
@@ -281,6 +321,8 @@ def _make_dispatcher(
         dispatcher_write_scene,
         tuple(entries),
         default_writer[1] if default_writer is not None else None,
+        dispatcher_read_image,
+        dispatcher_write_image,
     )
 
 
@@ -397,12 +439,22 @@ def build_default_registry() -> dict[str, Codec]:
             if not callable(write_scene_fn):
                 write_scene_fn = None
 
+            read_image_fn = getattr(mod, "read_image", None)
+            if not callable(read_image_fn):
+                read_image_fn = None
+
+            write_image_fn = getattr(mod, "write_image", None)
+            if not callable(write_image_fn):
+                write_image_fn = None
+
             codec = Codec(
                 read_fn,
                 write_fn,
                 sniff_fn,
                 read_scene=read_scene_fn,
                 write_scene=write_scene_fn,
+                read_image=read_image_fn,
+                write_image=write_image_fn,
             )
             # EXTENSION leads, so a module whose EXTENSIONS forgets its own
             # canonical spelling still answers to it; dict.fromkeys drops the

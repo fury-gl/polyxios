@@ -25,6 +25,8 @@ Specification at a glance
      - WholeExtent="i0 i1 j0 j1 k0 k1"
    * - geometry
      - Origin + Spacing; no coordinate array
+   * - rotation
+     - ``Direction="…"``: nine numbers, row-major; optional, the identity when absent
    * - connectivity
      - implicit; cells follow from the extent
    * - encodings
@@ -43,6 +45,17 @@ Reading
 
     mesh = px.read("volume.vti")
     mesh.vertices          # materialised from origin + index * spacing
+
+    image = px.read_image("volume.vti")   # an ImageData: extent, origin, spacing, arrays
+
+:func:`polyxios.read_image` returns the compact :class:`~polyxios.ImageData` -
+the grid as the file spells it, with the arrays laid out ``(nz, ny, nx[, k])``
+and nothing expanded. Its ``Direction`` is the image's ``direction``, and a
+``WholeExtent`` wider than the piece is kept as ``vti_whole_extent``.
+:func:`polyxios.read` expands it into the mesh above, with no warning: a grid
+already is this format's mesh form. The mesh is laid axis-aligned whatever the
+``Direction`` says, as it always has been. :func:`polyxios.write_image` writes an
+``ImageData`` back with its extent, origin, spacing and rotation as they stand.
 
 Writing
 -------
@@ -71,6 +84,12 @@ Quirks worth knowing
 - ``<FieldData>`` is the mesh's own metadata rather than any point's or cell's: it is read from the dataset element and from a ``<Piece>`` alike, and written back from ``global_attrs``. A key both levels spell is the dataset's, which is the file's own answer for the mesh where a piece's is one piece's. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.
 - ``<FieldData>`` holds a ``String`` array beside its numeric ones, so a ``global_attrs`` value that is text - a name, a title, a solver's own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
 - The ``vti_*`` grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other ``global_attrs`` entry does.
+- A ``Direction`` that is not the identity is written as nine numbers, row-major, and read back into the image's ``direction``. A file with none reads as the identity.
+- ``write_image`` refuses an empty grid - an axis holding no point - with :class:`~polyxios.exceptions.CodecError`, the same refusal as the ``.vtkhdf`` writer. ``read`` still reads such a file as an empty mesh.
+- ``write_image`` drops, with a warning naming them, an array that is not numeric and a cell array on a grid with no cell - a single point, say - exactly as the ``.vtkhdf`` writer does, so the same image writes the same arrays to either. An array that is numeric but not laid out along the extent is a :class:`~polyxios.exceptions.CodecError` in both.
+- An array whose trailing axis is one reads back without it: ``(nz, ny, nx, 1)`` comes back ``(nz, ny, nx)``.
+- ``read_image`` and ``write_image`` warn about, and ignore, any option they do not take; ``binary`` is the one ``write_image`` takes.
+- A ``WholeExtent`` wider than the piece's ``Extent`` (one that contains it) survives ``read_image`` and ``write_image`` as ``vti_whole_extent``; a ``.vtkhdf`` written from the image spells it nowhere.
 - Multi-component attributes are cut into tuples with ``NumberOfComponents``, so an ``(n, 3)`` vector reads back with its shape rather than as ``3n`` rows.
 - Both the coordinates and the connectivity are materialised on read. A file of a few hundred bytes can expand to a large in-memory mesh, because the extent is all it takes to describe one.
 - ``Origin`` defaults to ``0 0 0`` and ``Spacing`` to ``1 1 1`` when the attributes are absent.

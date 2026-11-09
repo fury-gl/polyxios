@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+from typing import Any
 import warnings
 
 import polyxios
@@ -11,6 +12,8 @@ import polyxios
 # that POLYXIOS_HOME and the catalog loader resolve to the live module state
 # (tests and callers only ever have to patch one place).
 from polyxios import fetcher
+from polyxios._registry import resolve
+from polyxios.exceptions import CodecError, PolyxiosError, UnsupportedFormatError
 from polyxios.helper import read_polydata, resolve_path, visualize_mesh
 
 logger = logging.getLogger("polyxios")
@@ -129,6 +132,70 @@ def cmd_fetch(args) -> int:
         return 1
 
 
+def _both_images(input_file: str, output_file: str) -> bool:
+    """Say whether both ends of a conversion carry an ImageData.
+
+    Parameters
+    ----------
+    input_file, output_file : str
+        The paths being converted. Only an input that exists locally is
+        resolved by extension; one to be fetched takes the mesh path.
+
+    Returns
+    -------
+    bool
+        True when the input codec reads and the output codec writes images.
+        An extension no codec claims is False: the mesh path reports it.
+    """
+    if not os.path.exists(input_file):
+        return False
+    try:
+        src = resolve(input_file, None, polyxios._REGISTRY)
+        dst = resolve(output_file, None, polyxios._REGISTRY)
+    except PolyxiosError:
+        return False
+    return src.read_image is not None and dst.write_image is not None
+
+
+def _read_image_for_convert(path: str) -> tuple[Any, list[warnings.WarningMessage]]:
+    """Read an image for convert, holding back the warnings the read raises.
+
+    Returns the image, or None for a grid the image reader refuses, with the warnings
+    the read raised. Another error is raised after those warnings are said, so a
+    failed read still reports what it found on the way.
+    """
+    error = None
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        try:
+            image = polyxios.read_image(path)
+        except (CodecError, UnsupportedFormatError):
+            image = None
+        except Exception as exc:
+            error = exc
+    if error is not None:
+        _replay_warnings(recorded)
+        raise error
+    return image, recorded
+
+
+def _replay_warnings(recorded: list[warnings.WarningMessage]) -> None:
+    """Say recorded warnings again, through the filters and the hook in force now.
+
+    One registry is shared by the whole replay, so a warning the filters show once
+    per location is shown once, as it would be had it not been recorded.
+    """
+    registry: dict = {}
+    for caught in recorded:
+        warnings.warn_explicit(
+            caught.message,
+            caught.category,
+            caught.filename,
+            caught.lineno,
+            registry=registry,
+        )
+
+
 def cmd_convert(args) -> int:
     """Convert a model file from one format to another and log performance.
 
@@ -148,15 +215,36 @@ def cmd_convert(args) -> int:
         )
         return 1
     try:
+        # An image stays compact between two image formats: expanded to a
+        # lattice it costs three coordinates and a cell for every pixel.
+        as_image = _both_images(args.input_file, args.output_file)
         logger.info(f"Reading '{args.input_file}'...")
         start_read_time = time.perf_counter()
-        polydata = read_polydata(args.input_file)
+        data = None
+        if as_image:
+            image, recorded = _read_image_for_convert(args.input_file)
+            # A grid the image reader refuses - a codec that reads images may hold a
+            # mesh, as a .vtkhdf of cells does, and an extent past int64 is a mesh
+            # that earlier releases read - goes the mesh way, which reports whatever
+            # is wrong with the file itself. An empty grid has no image form the
+            # writers take, and the mesh path has always carried it. Either way the
+            # mesh path says its own warnings, so the image's are dropped.
+            if image is not None and min(image.dimensions) > 0:
+                data = image
+                _replay_warnings(recorded)
+            else:
+                as_image = False
+        if data is None:
+            data = read_polydata(args.input_file)
         elapsed = time.perf_counter() - start_read_time
         logger.info(f"Read in {elapsed:.4f} seconds")
 
         logger.info(f"Writing to '{args.output_file}'...")
         start_write_time = time.perf_counter()
-        polyxios.write(polydata, args.output_file)
+        if as_image:
+            polyxios.write_image(data, args.output_file)
+        else:
+            polyxios.write(data, args.output_file)
         elapsed = time.perf_counter() - start_write_time
         logger.info(f"Wrote in {elapsed:.4f} seconds")
 
