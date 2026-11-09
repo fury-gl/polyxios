@@ -4,6 +4,7 @@ import io
 from pathlib import Path
 import struct
 import tempfile
+import tracemalloc
 import warnings
 
 import numpy as np
@@ -16,7 +17,7 @@ from polyxios._element_types import (
     NODES_PER_ELEMENT,
 )
 from polyxios._types import PolyData
-from polyxios.codecs._ply import read, write
+from polyxios.codecs._ply import _offsets_from_sizes, read, write
 from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.fetcher import fetch
 from tests.codecs._lazy import mapped
@@ -607,6 +608,63 @@ def test_a_binary_face_block_of_mixed_widths_falls_back_to_the_walk(tmp_path) ->
         ELEMENT_TYPES["quad"],
     ]
     np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 0, 1, 3, 2])
+
+
+def test_a_binary_face_block_holds_no_python_integer_per_index() -> None:
+    """A block of one width is cast out of the file, not listed index by index.
+
+    Its indices went through a Python list and back - about 200 bytes a face
+    on a triangle mesh, five gigabytes and five seconds for twenty million
+    triangles. Kept now: 12 bytes of connectivity, 4 of offsets and 1 of type
+    a face, with the sizes and the int64 offsets as the transient on top.
+    """
+    n = 120
+    y, x = np.divmod(np.arange(n * n, dtype=np.float64), n)
+    a = (np.arange(n - 1)[:, None] * n + np.arange(n - 1)[None, :]).ravel()
+    tris = np.concatenate(
+        [np.column_stack([a, a + 1, a + n + 1]), np.column_stack([a, a + n + 1, a + n])]
+    )
+    buf = io.BytesIO()
+    write(make_polydata(np.column_stack([x, y, 0 * x]), [("triangle", tris)]), buf)
+    data = buf.getvalue()
+
+    tracemalloc.start()
+    try:
+        poly = read(io.BytesIO(data))
+        peak = tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+    np.testing.assert_array_equal(poly.connectivity, tris.ravel())
+    assert peak < 24 * n * n + 64 * len(tris)
+
+
+def test_face_blocks_of_two_index_widths_meet_in_one_connectivity(tmp_path) -> None:
+    """An int block and a uint block are cast apart and joined at the wider."""
+    path = tmp_path / "widths.ply"
+    path.write_bytes(
+        _binary_ply(
+            "element vertex 4\nproperty float x\nproperty float y\n"
+            "property float z\n"
+            "element face 1\nproperty list uchar int vertex_indices\n"
+            "element face 1\nproperty list uchar uint vertex_indices\n",
+            struct.pack("<12f", 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0)
+            + struct.pack("<B3i", 3, 0, 1, 2)
+            + struct.pack("<B3I", 3, 1, 3, 2),
+        )
+    )
+    poly = read(path)
+    assert poly.connectivity.dtype == np.int32
+    np.testing.assert_array_equal(poly.connectivity, [0, 1, 2, 1, 3, 2])
+    np.testing.assert_array_equal(poly.offsets, [0, 3, 6])
+
+
+def test_offsets_past_an_int32_are_kept_wide() -> None:
+    """The running total of face sizes is not wrapped into a negative offset."""
+    assert _offsets_from_sizes(np.array([3, 3])).dtype == np.int32
+    wide = _offsets_from_sizes(np.array([2**31 - 1, 3]))
+    assert wide.dtype == np.int64
+    assert int(wide[-1]) == 2**31 + 2
 
 
 def test_a_file_ending_inside_its_faces_names_the_format(tmp_path) -> None:
