@@ -54,5 +54,19 @@ Out of scope:
 - issues that require the attacker to already control the Python
   environment, `POLYXIOS_HOME` or the `POLYXIOS_MODELS_URL` setting.
 
+## Verifying a release
+
+Every release is built and published by GitHub Actions from its tag, with
+no token stored in the repository:
+
+- the files on PyPI carry a provenance attestation, shown on each file's
+  page under *Provenance*, that ties them to the `release.yml` run that
+  built them;
+- the GitHub Release attaches a CycloneDX SBOM,
+  `polyxios-<version>.cdx.json`, listing polyxios and the dependency
+  versions a `pip install` resolved on the day of the release;
+- the repository's [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/fury-gl/polyxios)
+  is recomputed weekly.
+
 Ordinary bugs, including wrong output on a valid file, belong in the
 [issue tracker](https://github.com/fury-gl/polyxios/issues).
