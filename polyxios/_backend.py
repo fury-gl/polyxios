@@ -10,6 +10,7 @@ try:
         build_csr,
         compact_vertex_indices,
         has_orphan_vertices,
+        merge_rows,
     )
 
     HAS_CYTHON = True
@@ -18,6 +19,7 @@ except ImportError:
         build_csr,
         compact_vertex_indices,
         has_orphan_vertices,
+        merge_rows,
     )
 
     HAS_CYTHON = False
@@ -27,4 +29,5 @@ __all__ = [
     "build_csr",
     "compact_vertex_indices",
     "has_orphan_vertices",
+    "merge_rows",
 ]
