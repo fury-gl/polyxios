@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=56ff5558"></script>
+    <script src="../_static/documentation_options.js?v=36295489"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -498,6 +498,9 @@
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/polyxios.ImageData.html">polyxios.ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/polyxios.read_image.html">polyxios.read_image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="generated/polyxios.write_image.html">polyxios.write_image</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.helper.html">polyxios.helper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="generated/polyxios.napari.html">polyxios.napari</a></li>
@@ -596,22 +599,31 @@
 <tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.write_scene.html#polyxios.write_scene" title="polyxios.write_scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.write_scene</span></code></a>(scene, path, *[, fmt, ...])</p></td>
 <td><p>Write a SceneData to a scene-graph file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.transforms.html#module-polyxios.transforms" title="polyxios.transforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.transforms</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.ImageData.html#polyxios.ImageData" title="polyxios.ImageData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.ImageData</span></code></a>(extent, int, int, int, ...)</p></td>
+<td><p>A uniform grid of points and cells carrying arrays.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.read_image.html#polyxios.read_image" title="polyxios.read_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.read_image</span></code></a>(path, *[, fmt, registry])</p></td>
+<td><p>Read an image file and return an ImageData.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.write_image.html#polyxios.write_image" title="polyxios.write_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.write_image</span></code></a>(image, path, *[, fmt, ...])</p></td>
+<td><p>Write an ImageData to an image file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.transforms.html#module-polyxios.transforms" title="polyxios.transforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.transforms</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.helper.html#module-polyxios.helper" title="polyxios.helper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.helper</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.helper.html#module-polyxios.helper" title="polyxios.helper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.helper</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.napari.html#module-polyxios.napari" title="polyxios.napari"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.napari</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.napari.html#module-polyxios.napari" title="polyxios.napari"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.napari</span></code></a></p></td>
 <td><p>napari reader and writers, registered through <code class="docutils literal notranslate"><span class="pre">polyxios/napari.yaml</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.fetcher.html#module-polyxios.fetcher" title="polyxios.fetcher"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.fetcher</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.fetcher.html#module-polyxios.fetcher" title="polyxios.fetcher"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.fetcher</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.validate.html#polyxios.validate" title="polyxios.validate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.validate</span></code></a>(poly)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.validate.html#polyxios.validate" title="polyxios.validate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.validate</span></code></a>(poly)</p></td>
 <td><p>Check structural integrity of a PolyData.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="generated/polyxios.exceptions.html#module-polyxios.exceptions" title="polyxios.exceptions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.exceptions</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/polyxios.exceptions.html#module-polyxios.exceptions" title="polyxios.exceptions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">polyxios.exceptions</span></code></a></p></td>
 <td><p></p></td>
 </tr>
 </tbody>

@@ -1,0 +1,6 @@
+﻿polyxios.write\_image
+=====================
+
+.. currentmodule:: polyxios
+
+.. autofunction:: write_image

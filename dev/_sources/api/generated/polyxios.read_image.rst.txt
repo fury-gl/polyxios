@@ -1,0 +1,6 @@
+﻿polyxios.read\_image
+====================
+
+.. currentmodule:: polyxios
+
+.. autofunction:: read_image

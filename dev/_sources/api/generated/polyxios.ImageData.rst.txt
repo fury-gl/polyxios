@@ -1,0 +1,38 @@
+﻿polyxios.ImageData
+==================
+
+.. currentmodule:: polyxios
+
+.. autoclass:: ImageData
+
+   
+   .. automethod:: __init__
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~ImageData.__init__
+      ~ImageData.from_polydata
+      ~ImageData.to_polydata
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~ImageData.extent
+      ~ImageData.origin
+      ~ImageData.spacing
+      ~ImageData.direction
+      ~ImageData.point_attrs
+      ~ImageData.cell_attrs
+      ~ImageData.global_attrs
+      ~ImageData.dimensions
+      ~ImageData.spans
+   
+   

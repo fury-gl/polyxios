@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=56ff5558"></script>
+    <script src="_static/documentation_options.js?v=36295489"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -498,6 +498,9 @@
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.ImageData.html">polyxios.ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.read_image.html">polyxios.read_image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.write_image.html">polyxios.write_image</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.helper.html">polyxios.helper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/generated/polyxios.napari.html">polyxios.napari</a></li>
@@ -824,6 +827,30 @@ needs <code class="docutils literal notranslate"><span class="pre">pip</span> <s
 <code class="docutils literal notranslate"><span class="pre">data_format=&quot;xml&quot;</span></code> keeps them inline and needs nothing, and a <code class="docutils literal notranslate"><span class="pre">.pvd</span></code>
 writes one VTK XML file per step beside the index.</p>
 </section>
+<section id="images">
+<h2>Images<a class="headerlink" href="#images" title="Link to this heading">#</a></h2>
+<p>A uniform grid of samples - a picture, a volume - has a compact form besides the
+mesh. <a class="reference internal" href="api/generated/polyxios.read_image.html#polyxios.read_image" title="polyxios.read_image"><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read_image()</span></code></a> and <a class="reference internal" href="api/generated/polyxios.write_image.html#polyxios.write_image" title="polyxios.write_image"><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.write_image()</span></code></a> take and give an
+<a class="reference internal" href="api/generated/polyxios.ImageData.html#polyxios.ImageData" title="polyxios.ImageData"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageData</span></code></a>: an extent, an origin, a spacing and arrays laid out
+<code class="docutils literal notranslate"><span class="pre">(nz,</span> <span class="pre">ny,</span> <span class="pre">nx[,</span> <span class="pre">k])</span></code>, with no vertex or cell stored per sample. <code class="docutils literal notranslate"><span class="pre">.vti</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code> read and write that way.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">px</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">helper</span>
+
+<span class="n">image</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read_image</span><span class="p">(</span><span class="s2">"volume.vti"</span><span class="p">)</span>          <span class="c1"># a volume: arrays (D, H, W[, C])</span>
+<span class="c1"># origin="lower" keeps VTK's order, with y rising from row 0; the default</span>
+<span class="c1"># "upper" puts the top of the picture first, which is not what j=0 is.</span>
+<span class="n">pixels</span> <span class="o">=</span> <span class="n">helper</span><span class="o">.</span><span class="n">image_to_array</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">)</span>  <span class="c1"># (D, H, W[, C])</span>
+<span class="n">slice2d</span> <span class="o">=</span> <span class="n">pixels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>                          <span class="c1"># its first plane, (H, W[, C])</span>
+<span class="c1"># Both ends use origin="lower", VTK's order, so the slice keeps its rows.</span>
+<span class="n">px</span><span class="o">.</span><span class="n">write_image</span><span class="p">(</span><span class="n">helper</span><span class="o">.</span><span class="n">array_to_image</span><span class="p">(</span><span class="n">slice2d</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s2">"lower"</span><span class="p">),</span> <span class="s2">"slice.vtkhdf"</span><span class="p">)</span>
+
+<span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"volume.vti"</span><span class="p">)</span>                 <span class="c1"># the same grid as a lattice of cells</span>
+</pre></div>
+</div>
+<p><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> always gives a <code class="xref py py-class docutils literal notranslate"><span class="pre">PolyData</span></code>, so it expands the
+grid into one vertex per sample and a cell between neighbors.</p>
+</section>
 <section id="where-to-go-next">
 <h2>Where to go next<a class="headerlink" href="#where-to-go-next" title="Link to this heading">#</a></h2>
 <ul class="simple">
@@ -890,6 +917,7 @@ writes one VTK XML file per step beside the index.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#entity-numbering">Entity numbering</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-dimensional-meshes">Two-dimensional meshes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#several-meshes-in-one-file">Several meshes in one file</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#images">Images</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#where-to-go-next">Where to go next</a></li>
 </ul>
   </nav></div>

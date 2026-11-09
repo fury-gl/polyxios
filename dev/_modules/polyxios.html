@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=56ff5558"></script>
+    <script src="../_static/documentation_options.js?v=36295489"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -448,6 +448,7 @@
                   
   <h1>Source code for polyxios</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span><span class="w"> </span><span class="nn">polyxios</span><span class="w"> </span><span class="kn">import</span> <span class="n">transforms</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._image</span><span class="w"> </span><span class="kn">import</span> <span class="n">ImageData</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._io</span><span class="w"> </span><span class="kn">import</span> <span class="n">Source</span><span class="p">,</span> <span class="n">open_target</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Codec</span><span class="p">,</span> <span class="n">build_default_registry</span><span class="p">,</span> <span class="n">resolve</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._scene</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -678,8 +679,110 @@
 
 
 
+<div class="viewcode-block" id="read_image">
+<a class="viewcode-back" href="../api/generated/polyxios.read_image.html#polyxios.read_image">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_image</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Source</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">registry</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">opts</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImageData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Read an image file and return an ImageData.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path</span>
+<span class="sd">        Path to the image file (e.g. ``.vti`` or ``.vtkhdf``), or an</span>
+<span class="sd">        open binary file object.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        Format override (e.g. ``'.vti'``).  Inferred from the file</span>
+<span class="sd">        extension when ``None``.</span>
+<span class="sd">    registry</span>
+<span class="sd">        Custom codec registry.  Uses the built-in registry if ``None``.</span>
+<span class="sd">    **opts</span>
+<span class="sd">        Format-specific options passed to the codec's ``read_image``</span>
+<span class="sd">        function. A codec that takes none warns about, and ignores, any given.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ImageData</span>
+<span class="sd">        The compact uniform grid: one sample per pixel rather than the</span>
+<span class="sd">        vertices and cells :func:`read` expands it into. A ``.vti`` or</span>
+<span class="sd">        ``.vtkhdf`` array whose trailing axis is one comes back without it,</span>
+<span class="sd">        ``(nz, ny, nx)`` for ``(nz, ny, nx, 1)``.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    UnsupportedFormatError</span>
+<span class="sd">        If the format does not carry image data.  Use :func:`read` for</span>
+<span class="sd">        mesh formats.</span>
+<span class="sd">    """</span>
+    <span class="n">codec</span> <span class="o">=</span> <span class="n">resolve</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">registry</span> <span class="ow">or</span> <span class="n">_REGISTRY</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">codec</span><span class="o">.</span><span class="n">read_image</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">UnsupportedFormatError</span><span class="p">(</span>
+            <span class="s2">"Format does not carry image data; use polyxios.read()."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">codec</span><span class="o">.</span><span class="n">read_image</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="write_image">
+<a class="viewcode-back" href="../api/generated/polyxios.write_image.html#polyxios.write_image">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_image</span><span class="p">(</span>
+    <span class="n">image</span><span class="p">:</span> <span class="n">ImageData</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Source</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">registry</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">opts</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Write an ImageData to an image file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image</span>
+<span class="sd">        ImageData to serialize.</span>
+<span class="sd">    path</span>
+<span class="sd">        Output file path.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        Format override (e.g. ``'.vti'``).  Inferred from the file</span>
+<span class="sd">        extension when ``None``.</span>
+<span class="sd">    registry</span>
+<span class="sd">        Custom codec registry.  Uses the built-in registry if ``None``.</span>
+<span class="sd">    **opts</span>
+<span class="sd">        Format-specific options passed to the codec's ``write_image``</span>
+<span class="sd">        function: ``compression`` and ``compression_opts`` for ``.vtkhdf``,</span>
+<span class="sd">        ``binary`` for ``.vti``. A codec warns about, and ignores, any other.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If ``image`` is not an ImageData.</span>
+<span class="sd">    UnsupportedFormatError</span>
+<span class="sd">        If the format does not support image writing.  Use :func:`write`</span>
+<span class="sd">        to write a PolyData instead.</span>
+<span class="sd">    CodecError</span>
+<span class="sd">        If the codec cannot lay the image out in the file: an empty grid, or</span>
+<span class="sd">        an array that is not laid out along the extent.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">ImageData</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"write_image() takes an ImageData, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">image</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">."</span>
+        <span class="p">)</span>
+    <span class="n">codec</span> <span class="o">=</span> <span class="n">resolve</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">registry</span> <span class="ow">or</span> <span class="n">_REGISTRY</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">codec</span><span class="o">.</span><span class="n">write_image</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">UnsupportedFormatError</span><span class="p">(</span>
+            <span class="s2">"Format does not support image writing; use polyxios.write()."</span>
+        <span class="p">)</span>
+    <span class="k">with</span> <span class="n">open_target</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span> <span class="k">as</span> <span class="n">target</span><span class="p">:</span>
+        <span class="n">codec</span><span class="o">.</span><span class="n">write_image</span><span class="p">(</span><span class="n">image</span><span class="o">=</span><span class="n">image</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span></div>
+
+
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s2">"Codec"</span><span class="p">,</span>
+    <span class="s2">"ImageData"</span><span class="p">,</span>
     <span class="s2">"PolyData"</span><span class="p">,</span>
     <span class="s2">"SceneData"</span><span class="p">,</span>
     <span class="s2">"SceneImage"</span><span class="p">,</span>
@@ -691,6 +794,7 @@
     <span class="s2">"fetch"</span><span class="p">,</span>
     <span class="s2">"make_polydata"</span><span class="p">,</span>
     <span class="s2">"read"</span><span class="p">,</span>
+    <span class="s2">"read_image"</span><span class="p">,</span>
     <span class="s2">"read_polydata"</span><span class="p">,</span>
     <span class="s2">"read_scene"</span><span class="p">,</span>
     <span class="s2">"supported_extensions"</span><span class="p">,</span>
@@ -698,6 +802,7 @@
     <span class="s2">"validate"</span><span class="p">,</span>
     <span class="s2">"visualize_mesh"</span><span class="p">,</span>
     <span class="s2">"write"</span><span class="p">,</span>
+    <span class="s2">"write_image"</span><span class="p">,</span>
     <span class="s2">"write_scene"</span><span class="p">,</span>
 <span class="p">]</span>
 </pre></div>

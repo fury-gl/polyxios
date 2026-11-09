@@ -9,9 +9,11 @@
    .. autosummary::
    
       read
+      read_image
       read_scene
       supported_extensions
       write
+      write_image
       write_scene
    
 .. rubric:: Modules

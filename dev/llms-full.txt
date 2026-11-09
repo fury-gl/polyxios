@@ -594,6 +594,30 @@ needs pip install "polyxios[hdf5]", as does a .vtkhdf;
 data_format="xml" keeps them inline and needs nothing, and a .pvd
 writes one VTK XML file per step beside the index.
 
+Images
+
+A uniform grid of samples - a picture, a volume - has a compact form besides the
+mesh. polyxios.read_image() and polyxios.write_image() take and give an
+ImageData: an extent, an origin, a spacing and arrays laid out
+(nz, ny, nx[, k]), with no vertex or cell stored per sample. .vti and
+.vtkhdf read and write that way.
+
+import polyxios as px
+from polyxios import helper
+
+image = px.read_image("volume.vti")          # a volume: arrays (D, H, W[, C])
+# origin="lower" keeps VTK's order, with y rising from row 0; the default
+# "upper" puts the top of the picture first, which is not what j=0 is.
+pixels = helper.image_to_array(image, origin="lower")  # (D, H, W[, C])
+slice2d = pixels[0]                          # its first plane, (H, W[, C])
+# Both ends use origin="lower", VTK's order, so the slice keeps its rows.
+px.write_image(helper.array_to_image(slice2d, origin="lower"), "slice.vtkhdf")
+
+mesh = px.read("volume.vti")                 # the same grid as a lattice of cells
+
+polyxios.read() always gives a PolyData, so it expands the
+grid into one vertex per sample and a cell between neighbors.
+
 Where to go next
 
 formats/index - the forty-eight supported formats, one page each
@@ -3818,6 +3842,10 @@ geometry
 
 Origin + Spacing; no coordinate array
 
+rotation
+
+Direction="…": nine numbers, row-major; optional, the identity when absent
+
 connectivity
 
 implicit; cells follow from the extent
@@ -3834,6 +3862,17 @@ import polyxios as px
 
 mesh = px.read("volume.vti")
 mesh.vertices          # materialised from origin + index * spacing
+
+image = px.read_image("volume.vti")   # an ImageData: extent, origin, spacing, arrays
+
+polyxios.read_image() returns the compact ImageData -
+the grid as the file spells it, with the arrays laid out (nz, ny, nx[, k])
+and nothing expanded. Its Direction is the image’s direction, and a
+WholeExtent wider than the piece is kept as vti_whole_extent.
+polyxios.read() expands it into the mesh above, with no warning: a grid
+already is this format’s mesh form. The mesh is laid axis-aligned whatever the
+Direction says, as it always has been. polyxios.write_image() writes an
+ImageData back with its extent, origin, spacing and rotation as they stand.
 
 Writing
 
@@ -3861,6 +3900,18 @@ A tag group has no set of its own in this format, so it travels as one PointData
 <FieldData> holds a String array beside its numeric ones, so a global_attrs value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.
 
 The vti_* grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other global_attrs entry does.
+
+A Direction that is not the identity is written as nine numbers, row-major, and read back into the image’s direction. A file with none reads as the identity.
+
+write_image refuses an empty grid - an axis holding no point - with CodecError, the same refusal as the .vtkhdf writer. read still reads such a file as an empty mesh.
+
+write_image drops, with a warning naming them, an array that is not numeric and a cell array on a grid with no cell - a single point, say - exactly as the .vtkhdf writer does, so the same image writes the same arrays to either. An array that is numeric but not laid out along the extent is a CodecError in both.
+
+An array whose trailing axis is one reads back without it: (nz, ny, nx, 1) comes back (nz, ny, nx).
+
+read_image and write_image warn about, and ignore, any option they do not take; binary is the one write_image takes.
+
+A WholeExtent wider than the piece’s Extent (one that contains it) survives read_image and write_image as vti_whole_extent; a .vtkhdf written from the image spells it nowhere.
 
 Multi-component attributes are cut into tuples with NumberOfComponents, so an (n, 3) vector reads back with its shape rather than as 3n rows.
 
@@ -3921,7 +3972,7 @@ NumberOfPoints, Points; Vertices Lines Polygons Strips groups, each with its cou
 
 ImageData
 
-WholeExtent Origin Spacing Direction attributes; arrays shaped (nz, ny, nx[, k]), an axis of size one kept or left out
+WholeExtent Origin Spacing Direction attributes; arrays shaped (nz, ny, nx[, k]) with each axis of one point left out, as VTK writes them
 
 arrays
 
@@ -3966,11 +4017,13 @@ polyxios.helper.write_time_series() takes (time, mesh) pairs from any iterable, 
 
 Quirks worth knowing
 
-An ImageData is read and never written: a lattice goes out as the UnstructuredGrid its cells are. Read one and write it as a vti to keep it a lattice.
+An ImageData read through polyxios.read() is expanded into the lattice its extent spans, and polyxios.write() writes a lattice as the UnstructuredGrid its cells are. polyxios.read_image() and polyxios.write_image() keep it a grid instead: read_image returns an ImageData - its Direction included - without expanding it and refuses a file of any other Type; write_image writes WholeExtent, Origin, Spacing and Direction with the arrays laid out as VTK’s own writer lays them out - (nz, ny, nx[, k]) with each axis that holds one point left out, so a flat image’s points are (ny, nx[, k]), a single point’s (1[, k]), and a plane’s cells (c_a, c_b) along its two axes, the flat one left out - one step and no Steps group, an empty grid refused and an array that is not numeric dropped with a warning. read_image and polyxios.read() take that layout, the full (nz, ny, nx[, k]) that earlier releases read, and the form with every axis of one left out, which earlier releases read too. read_image holds a grid to the hard caps only, since it builds no vertex; polyxios.read() and to_polydata keep the cap on expanded vertices, and a writer refuses a grid its reader would refuse. Boolean arrays are written as bytes.
 
 A Type polyxios does not read - OverlappingAMR, MultiBlockDataSet, PartitionedDataSetCollection, HyperTreeGrid - raises UnsupportedFormatError naming it, and a Version past 2 CodecError. A Version of 1 reads as leniently as 2: the layouts 2.0 defined - PolyData, several parts, Steps - are taken as written when a 1.x file holds them.
 
 A PointData or CellData array that is not numeric, or holds fewer rows than the step needs, is dropped with a warning naming it, the answer the VTK XML readers give an array of the wrong length. An array with no entry under PointDataOffsets in a temporal file is read from row zero, which is where an array the file keeps once for every step sits.
+
+A vti_whole_extent in an image’s global_attrs - the whole grid a .vti piece belongs to - is not written: a VTKHDF ImageData has no whole extent of its own, only the WholeExtent of the grid it holds. polyxios.write_image() drops it with a warning naming it, and a read of the file gives back no such key.
 
 A temporal ImageData keeps its steps along a leading axis of each array - (steps, nz, ny, nx[, k]) - and its offsets count along it, which is what VTK’s reader asks for; an UnstructuredGrid or PolyData lays the steps end to end along the row axis.
 
@@ -6021,6 +6074,10 @@ file (e.g., stanford-bunny.obj) or every model catalogued for an extension
 pxios convert <input_file> <output_file>: Converts a model file from
 one format to another directly in a single process.
 
+Between two image formats (.vti, .vtkhdf) the grid stays compact: it is
+read and written as an ImageData rather than expanded into a
+mesh. A .vtkhdf holding a mesh takes the mesh path.
+
 --force / -f: Overwrite an existing output file.
 
 pxios viz <filename>: Visualizes a local or cached model file using the
@@ -6348,6 +6405,18 @@ polyxios.write_scene(scene, path, *[, fmt, ...])
 
 Write a SceneData to a scene-graph file.
 
+polyxios.ImageData(extent, int, int, int, ...)
+
+A uniform grid of points and cells carrying arrays.
+
+polyxios.read_image(path, *[, fmt, registry])
+
+Read an image file and return an ImageData.
+
+polyxios.write_image(image, path, *[, fmt, ...])
+
+Write an ImageData to an image file.
+
 polyxios.transforms
 
 
@@ -6392,6 +6461,10 @@ read(path, *[, fmt, lazy, registry])
 
 Read a mesh file and return a PolyData.
 
+read_image(path, *[, fmt, registry])
+
+Read an image file and return an ImageData.
+
 read_scene(path, *[, fmt, registry])
 
 Read a scene-graph file and return a SceneData.
@@ -6403,6 +6476,10 @@ List the file extensions the registry resolves.
 write(poly, path, *[, fmt, registry])
 
 Write a PolyData to a mesh file.
+
+write_image(image, path, *[, fmt, registry])
+
+Write an ImageData to an image file.
 
 write_scene(scene, path, *[, fmt, registry])
 
@@ -6712,6 +6789,14 @@ Functions
 
 
 
+
+array_to_image(pixels, *[, origin, global_attrs])
+
+Wrap a pixel array as a flat ImageData.
+
+image_to_array(image, *[, name, origin])
+
+Return the pixel array an image holds.
 
 read_blocks(path)
 
@@ -7428,6 +7513,238 @@ to write a flat PolyData instead.
 
 !! processed by numpydoc !!
 
+## polyxios.ImageData
+
+Source: https://polyxios.org/stable/api/generated/polyxios.ImageData.html
+
+polyxios.ImageData
+
+
+
+class polyxios.ImageData(extent: tuple[int, int, int, int, int, int], origin: tuple[float, float, float] = (0.0, 0.0, 0.0), spacing: tuple[float, float, float] = (1.0, 1.0, 1.0), direction: ~numpy.ndarray | None = None, point_attrs: dict[str, ~numpy.ndarray] = <factory>, cell_attrs: dict[str, ~numpy.ndarray] = <factory>, global_attrs: dict[str, ~typing.Any] = <factory>)
+
+A uniform grid of points and cells carrying arrays.
+
+Parameters
+
+extent
+
+VTK’s (i0, i1, j0, j1, k0, k1): the first and last point index
+along each axis, inclusive. An axis whose end is before its start
+holds no points. Six whole numbers; a float holding one is taken as
+that integer, and any other is refused.
+
+origin
+
+Position of point (0, 0, 0): three numbers.
+
+spacing
+
+Step between points along each axis, three numbers; may be negative.
+
+direction
+
+(3, 3) matrix whose columns are the directions the axes run
+along, or None for the identity. A flat run of nine numbers is the
+same matrix, row-major, and is stored as (3, 3).
+
+point_attrs
+
+Arrays over the points, shaped (nz, ny, nx, *components): z
+slowest, x fastest, as in VTKHDF. A trailing axis of size one is not
+kept: an array shaped (nz, ny, nx, 1) reads back as
+(nz, ny, nx), in .vti and .vtkhdf alike.
+
+cell_attrs
+
+Arrays over the cells, shaped (max(cz, 1), max(cy, 1),
+max(cx, 1), *components) where cx, cy, cz are the spans
+i1 - i0 and so on. An extent that spans no cell holds no cell
+array. As for point_attrs, a trailing axis of size one reads back
+collapsed.
+
+global_attrs
+
+Whole-image metadata.
+
+!! processed by numpydoc !!
+
+
+
+__init__(extent: tuple[int, int, int, int, int, int], origin: tuple[float, float, float] = (0.0, 0.0, 0.0), spacing: tuple[float, float, float] = (1.0, 1.0, 1.0), direction: ~numpy.ndarray | None = None, point_attrs: dict[str, ~numpy.ndarray] = <factory>, cell_attrs: dict[str, ~numpy.ndarray] = <factory>, global_attrs: dict[str, ~typing.Any] = <factory>) -> None
+
+!! processed by numpydoc !!
+
+Methods
+
+
+
+
+
+
+
+__init__(extent, int, int, int, int, int], ...)
+
+
+
+from_polydata(poly, *[, fmt])
+
+Recover the grid a lattice mesh is the expansion of.
+
+to_polydata()
+
+Expand the grid into a PolyData lattice.
+
+Attributes
+
+
+
+
+
+
+
+extent
+
+
+
+origin
+
+
+
+spacing
+
+
+
+direction
+
+
+
+point_attrs
+
+
+
+cell_attrs
+
+
+
+global_attrs
+
+
+
+dimensions
+
+Points along (x, y, z).
+
+spans
+
+Cells along (x, y, z): i1 - i0, which is negative on an empty axis.
+
+## polyxios.read_image
+
+Source: https://polyxios.org/stable/api/generated/polyxios.read_image.html
+
+polyxios.read_image
+
+
+
+polyxios.read_image(path: str | PathLike[str] | IO[Any], *, fmt: str | None = None, registry: dict | None = None, **opts: object) -> ImageData
+
+Read an image file and return an ImageData.
+
+Parameters
+
+path
+
+Path to the image file (e.g. .vti or .vtkhdf), or an
+open binary file object.
+
+fmt
+
+Format override (e.g. '.vti').  Inferred from the file
+extension when None.
+
+registry
+
+Custom codec registry.  Uses the built-in registry if None.
+
+**opts
+
+Format-specific options passed to the codec’s read_image
+function. A codec that takes none warns about, and ignores, any given.
+
+Returns
+
+ImageData
+
+The compact uniform grid: one sample per pixel rather than the
+vertices and cells read() expands it into. A .vti or
+.vtkhdf array whose trailing axis is one comes back without it,
+(nz, ny, nx) for (nz, ny, nx, 1).
+
+Raises
+
+UnsupportedFormatError
+
+If the format does not carry image data.  Use read() for
+mesh formats.
+
+!! processed by numpydoc !!
+
+## polyxios.write_image
+
+Source: https://polyxios.org/stable/api/generated/polyxios.write_image.html
+
+polyxios.write_image
+
+
+
+polyxios.write_image(image: ImageData, path: str | PathLike[str] | IO[Any], *, fmt: str | None = None, registry: dict | None = None, **opts: object) -> None
+
+Write an ImageData to an image file.
+
+Parameters
+
+image
+
+ImageData to serialize.
+
+path
+
+Output file path.
+
+fmt
+
+Format override (e.g. '.vti').  Inferred from the file
+extension when None.
+
+registry
+
+Custom codec registry.  Uses the built-in registry if None.
+
+**opts
+
+Format-specific options passed to the codec’s write_image
+function: compression and compression_opts for .vtkhdf,
+binary for .vti. A codec warns about, and ignores, any other.
+
+Raises
+
+TypeError
+
+If image is not an ImageData.
+
+UnsupportedFormatError
+
+If the format does not support image writing.  Use write()
+to write a PolyData instead.
+
+CodecError
+
+If the codec cannot lay the image out in the file: an empty grid, or
+an array that is not laid out along the extent.
+
+!! processed by numpydoc !!
+
 ## Contributing
 
 Source: https://polyxios.org/stable/contributing.html
@@ -7803,6 +8120,34 @@ Changelog
 
 New features
 
+ImageData, VTK’s uniform grid, is the library’s compact type
+for a grid of samples: an extent, an origin, a spacing, an optional rotation and
+arrays laid out (nz, ny, nx[, k]). polyxios.read_image() and
+polyxios.write_image() take and give one, and .vti and .vtkhdf
+read and write it without expanding it into a mesh. Both spell WholeExtent,
+Origin, Spacing and Direction; a .vti keeps a WholeExtent
+wider than its piece, an option an image reader or writer does not take is
+warned about, and an image writer drops an array the file cannot hold - a text
+array, a cell array on a single point - by name, the same way in .vti and
+.vtkhdf. A .vtkhdf written from an image also drops a vti_whole_extent
+with a warning, as a VTKHDF ImageData has no whole extent to keep. A
+.vtkhdf stores each array in VTK’s own layout, leaving out each axis of one
+point, so VTK opens what polyxios writes for a flat image, a line, a plane or a
+single point; the layout VTK writes and the full lattice earlier releases read
+are both read. read_image holds a grid to the hard caps only, since it builds no
+vertex, so a 465-cube of samples reads back; read() and to_polydata keep
+the cap on expanded vertices. A writer refuses a grid its reader would refuse,
+rather than writing a file that cannot be read back. An extent a 64-bit integer
+cannot hold is refused by read_image as a
+CodecError, while read() still gives the mesh
+it always did.
+polyxios.read() still returns the expanded
+PolyData, laid axis-aligned as it always was.
+polyxios.helper.image_to_array and array_to_image go to and from NumPy,
+and pxios convert keeps a grid compact between two image formats. The
+media-type table and data-URI decoding move out of the COLLADA codec into a
+shared helper module.
+
 polyxios is a napari plugin. Installed next to napari, it opens every
 format polyxios reads: a mesh as a Surface layer (volume meshes as their
 boundary, a measured vertex attribute as its values, else an integer
@@ -7930,6 +8275,13 @@ used to be labelled millimetres unscaled. A .amf is written the same
 way. The warnings the 3MF reader and writer raise now point at the
 caller’s line rather than inside polyxios.
 
+The warnings a .vti read raises for a malformed Origin, Spacing
+or FieldData array, a .vtkhdf image read raises for a malformed
+array, and a mesh written to .vtkhdf raises for a global or
+FieldData name it cannot hold, used to point inside polyxios; they now
+point at the caller’s line. A .vti or .vtu mesh write still points
+inside polyxios for the warnings it raises about dropped globals.
+
 Readers fuzzed with Atheris (fuzz/, one target per format read from
 bytes, nightly in CI) now answer a malformed file with CodecError
 where they raised ValueError, KeyError, IndexError,
@@ -8042,13 +8394,18 @@ facet or 3DFACE. The 3MF and AMF writers raise CodecError on a
 fixed-size surface element holding the wrong node count, where a
 three-node quad took its fourth corner from the next element.
 
+polyxios.read() of a VTK-written .vtkhdf ImageData keeps the arrays
+VTK lays out with an axis of one point left out, which the old reader dropped
+with a warning: a single point’s vector, and the cells of a grid one cell thick
+along an axis - a plane’s or a line’s. No other read() output changes.
+
 
 
 0.5.1 (2026-10-15)
 
 Bug fixes
 
-../CHANGES.rst:232: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:269: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A binary legacy .vtk POLYDATA file whose cell sections carry no
 OFFSETS block no longer reads with an empty first cell ahead of its
@@ -8087,7 +8444,7 @@ Issues (0):
 
 New features
 
-../CHANGES.rst:273: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:310: (INFO/1) Duplicate implicit target name: “new features”.
 
 PCD (.pcd), the Point Cloud Library’s format that PCL, ROS and
 Open3D exchange clouds in, is read and written in all three of its
@@ -8480,7 +8837,7 @@ Nastran’s.
 
 Behaviour changes
 
-../CHANGES.rst:643: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:680: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Python 3.12 is the lowest version supported. 3.11 is dropped from the test
 matrix, from the wheels a release builds, and from requires-python, so
@@ -8496,7 +8853,7 @@ way out. A suite that runs with warnings as errors sees the skip now.
 
 Bug fixes
 
-../CHANGES.rst:657: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:694: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Two SceneData (or SceneNode, or SceneMaterial) compared with
 == no longer raise when their global_attrs or extras hold
@@ -8641,7 +8998,7 @@ so the HDF5 and LAZ tests skip there.
 
 Packaging
 
-../CHANGES.rst:794: (INFO/1) Duplicate implicit target name: “packaging”.
+../CHANGES.rst:831: (INFO/1) Duplicate implicit target name: “packaging”.
 
 Python 3.15 wheels are built for a release, for Linux, macOS and
 Windows, and the distribution declares 3.15 among its classifiers.
@@ -8790,7 +9147,7 @@ released the way a release is meant to run.
 
 Bug fixes
 
-../CHANGES.rst:892: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:929: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 The step that creates the GitHub Release no longer interpolates the
 changelog into the shell script it runs. The notes are reStructuredText and
@@ -8861,7 +9218,7 @@ extension shared by several formats resolved by what the file holds.
 
 New features
 
-../CHANGES.rst:956: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:993: (INFO/1) Duplicate implicit target name: “new features”.
 
 read() and write() now take an open binary file object wherever
 they take a path, so a mesh round-trips through io.BytesIO, a socket
@@ -9099,7 +9456,7 @@ warning about the values it drops now names the option that keeps them.
 
 Behaviour changes
 
-../CHANGES.rst:1180: (INFO/1) Duplicate implicit target name: “behaviour changes”.
+../CHANGES.rst:1217: (INFO/1) Duplicate implicit target name: “behaviour changes”.
 
 Medit .mesh records a two-dimensional file in
 global_attrs["was_2d"] rather than keeping the file’s own number in
@@ -9137,7 +9494,7 @@ receives are the same ones. Every reader already accepted either ending.
 
 Bug fixes
 
-../CHANGES.rst:1216: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:1253: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 A legacy .vtk SCALARS header names between one and four components
 and no more. The writer spelled every tuple it had no VECTORS or
@@ -10102,7 +10459,7 @@ of a formatted write per point, which was a syscall per line.
 
 Tests
 
-../CHANGES.rst:2076: (INFO/1) Duplicate implicit target name: “tests”.
+../CHANGES.rst:2113: (INFO/1) Duplicate implicit target name: “tests”.
 
 Regression tests for the dtype a .vtr header declares against the
 bytes under it, the component count of a tensor attribute in every XML
@@ -10186,7 +10543,7 @@ documentation site.
 
 New features
 
-../CHANGES.rst:2144: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:2181: (INFO/1) Duplicate implicit target name: “new features”.
 
 Fifteen new codecs, taking the registry from 16 to 34 recognised
 extensions:
@@ -10234,7 +10591,7 @@ a credits page generated from the git history, and a page per format.
 
 Changes
 
-../CHANGES.rst:2175: (INFO/1) Duplicate implicit target name: “changes”.
+../CHANGES.rst:2212: (INFO/1) Duplicate implicit target name: “changes”.
 
 The fetcher now resolves assets through a remote models.json catalog and
 downloads files individually, instead of pinned per-format release zips.
@@ -10249,7 +10606,7 @@ as errors.
 
 Bug fixes
 
-../CHANGES.rst:2187: (INFO/1) Duplicate implicit target name: “bug fixes”.
+../CHANGES.rst:2224: (INFO/1) Duplicate implicit target name: “bug fixes”.
 
 Fetcher: rejected zip-slip paths, non-HTTPS URLs and stale cache entries,
 added timeouts, retried dropped transfers, and stopped example --list
@@ -10355,7 +10712,7 @@ First public release of polyxios.
 
 New features
 
-../CHANGES.rst:2260: (INFO/1) Duplicate implicit target name: “new features”.
+../CHANGES.rst:2297: (INFO/1) Duplicate implicit target name: “new features”.
 
 Plugin-based codec registry via Python entry points - third-party packages
 can register mesh formats without patching polyxios.

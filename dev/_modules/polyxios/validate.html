@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=56ff5558"></script>
+    <script src="../../_static/documentation_options.js?v=36295489"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -554,6 +554,7 @@
     <span class="n">compressed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">spells_vertices</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">spells_connectivity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">builds_vertices</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Validate header counts against file size before any array allocation.</span>
 
@@ -580,6 +581,10 @@
 <span class="sd">        Whether the file holds the indices it declares. False for the</span>
 <span class="sd">        structured formats, whose cells are implied by the extent and</span>
 <span class="sd">        written nowhere.</span>
+<span class="sd">    builds_vertices</span>
+<span class="sd">        Whether the declared points are expanded into that many vertices. False</span>
+<span class="sd">        for a read that keeps the grid compact, which allocates nothing per point,</span>
+<span class="sd">        so the cap on expanded vertices does not apply to it.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
@@ -594,8 +599,9 @@
 <span class="sd">    ``4 x 4 x 4`` ImageData declares 64 points in a 231-byte file and is not</span>
 <span class="sd">    corrupt, it is the format working as intended.</span>
 
-<span class="sd">    A file that spells no points is held to the tighter</span>
-<span class="sd">    :data:`MAX_IMPLIED_VERTICES` in place of the heuristic it is excused from.</span>
+<span class="sd">    A file that spells no points is held, where its points are expanded into a</span>
+<span class="sd">    mesh, to the tighter :data:`MAX_IMPLIED_VERTICES` in place of the heuristic it</span>
+<span class="sd">    is excused from. A compact read builds no vertex and is not held to it.</span>
 <span class="sd">    The heuristic is what makes the loose cap safe elsewhere: a format that</span>
 <span class="sd">    writes its points has to spend bytes on each one, so a header can only ask</span>
 <span class="sd">    for as much memory as the file it sits in is long. A header that describes</span>
@@ -607,7 +613,11 @@
             <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> exceeds MAX_SAFE_VERTICES="</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_SAFE_VERTICES</span><span class="si">}</span><span class="s2">. Possible corrupt or malicious file."</span>
         <span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">spells_vertices</span> <span class="ow">and</span> <span class="n">declared_n_verts</span> <span class="o">&gt;</span> <span class="n">MAX_IMPLIED_VERTICES</span><span class="p">:</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="ow">not</span> <span class="n">spells_vertices</span>
+        <span class="ow">and</span> <span class="n">builds_vertices</span>
+        <span class="ow">and</span> <span class="n">declared_n_verts</span> <span class="o">&gt;</span> <span class="n">MAX_IMPLIED_VERTICES</span>
+    <span class="p">):</span>
         <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"declared_n_verts=</span><span class="si">{</span><span class="n">declared_n_verts</span><span class="si">}</span><span class="s2"> exceeds "</span>
             <span class="sa">f</span><span class="s2">"MAX_IMPLIED_VERTICES=</span><span class="si">{</span><span class="n">MAX_IMPLIED_VERTICES</span><span class="si">}</span><span class="s2">, the cap on a "</span>

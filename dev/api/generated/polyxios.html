@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=56ff5558"></script>
+    <script src="../../_static/documentation_options.js?v=36295489"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -498,6 +498,9 @@
 <li class="toctree-l2"><a class="reference internal" href="polyxios.SceneImage.html">polyxios.SceneImage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.read_scene.html">polyxios.read_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.write_scene.html">polyxios.write_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.ImageData.html">polyxios.ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.read_image.html">polyxios.read_image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="polyxios.write_image.html">polyxios.write_image</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.helper.html">polyxios.helper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="polyxios.napari.html">polyxios.napari</a></li>
@@ -578,14 +581,20 @@
 <tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">read</span></code>(path, *[, fmt, lazy, registry])</p></td>
 <td><p>Read a mesh file and return a PolyData.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="polyxios.read_scene.html#polyxios.read_scene" title="polyxios.read_scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_scene</span></code></a>(path, *[, fmt, registry])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="polyxios.read_image.html#polyxios.read_image" title="polyxios.read_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_image</span></code></a>(path, *[, fmt, registry])</p></td>
+<td><p>Read an image file and return an ImageData.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="polyxios.read_scene.html#polyxios.read_scene" title="polyxios.read_scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_scene</span></code></a>(path, *[, fmt, registry])</p></td>
 <td><p>Read a scene-graph file and return a SceneData.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">supported_extensions</span></code>(*[, registry])</p></td>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">supported_extensions</span></code>(*[, registry])</p></td>
 <td><p>List the file extensions the registry resolves.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">write</span></code>(poly, path, *[, fmt, registry])</p></td>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">write</span></code>(poly, path, *[, fmt, registry])</p></td>
 <td><p>Write a PolyData to a mesh file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="polyxios.write_image.html#polyxios.write_image" title="polyxios.write_image"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_image</span></code></a>(image, path, *[, fmt, registry])</p></td>
+<td><p>Write an ImageData to an image file.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="polyxios.write_scene.html#polyxios.write_scene" title="polyxios.write_scene"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_scene</span></code></a>(scene, path, *[, fmt, registry])</p></td>
 <td><p>Write a SceneData to a scene-graph file.</p></td>

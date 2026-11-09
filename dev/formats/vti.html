@@ -52,7 +52,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=56ff5558"></script>
+    <script src="../_static/documentation_options.js?v=36295489"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -498,6 +498,9 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.SceneImage.html">polyxios.SceneImage</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_scene.html">polyxios.read_scene</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_scene.html">polyxios.write_scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.ImageData.html">polyxios.ImageData</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.read_image.html">polyxios.read_image</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.write_image.html">polyxios.write_image</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.transforms.html">polyxios.transforms</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.helper.html">polyxios.helper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/generated/polyxios.napari.html">polyxios.napari</a></li>
@@ -594,10 +597,13 @@
 <tr class="row-odd"><td><p>geometry</p></td>
 <td><p>Origin + Spacing; no coordinate array</p></td>
 </tr>
-<tr class="row-even"><td><p>connectivity</p></td>
+<tr class="row-even"><td><p>rotation</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Direction=&quot;…&quot;</span></code>: nine numbers, row-major; optional, the identity when absent</p></td>
+</tr>
+<tr class="row-odd"><td><p>connectivity</p></td>
 <td><p>implicit; cells follow from the extent</p></td>
 </tr>
-<tr class="row-odd"><td><p>encodings</p></td>
+<tr class="row-even"><td><p>encodings</p></td>
 <td><p>ascii, base64, appended (raw or base64), optionally zlib-compressed</p></td>
 </tr>
 </tbody>
@@ -611,8 +617,18 @@
 
 <span class="n">mesh</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"volume.vti"</span><span class="p">)</span>
 <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span>          <span class="c1"># materialised from origin + index * spacing</span>
+
+<span class="n">image</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">read_image</span><span class="p">(</span><span class="s2">"volume.vti"</span><span class="p">)</span>   <span class="c1"># an ImageData: extent, origin, spacing, arrays</span>
 </pre></div>
 </div>
+<p><a class="reference internal" href="../api/generated/polyxios.read_image.html#polyxios.read_image" title="polyxios.read_image"><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read_image()</span></code></a> returns the compact <a class="reference internal" href="../api/generated/polyxios.ImageData.html#polyxios.ImageData" title="polyxios.ImageData"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImageData</span></code></a> -
+the grid as the file spells it, with the arrays laid out <code class="docutils literal notranslate"><span class="pre">(nz,</span> <span class="pre">ny,</span> <span class="pre">nx[,</span> <span class="pre">k])</span></code>
+and nothing expanded. Its <code class="docutils literal notranslate"><span class="pre">Direction</span></code> is the image’s <code class="docutils literal notranslate"><span class="pre">direction</span></code>, and a
+<code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> wider than the piece is kept as <code class="docutils literal notranslate"><span class="pre">vti_whole_extent</span></code>.
+<code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.read()</span></code> expands it into the mesh above, with no warning: a grid
+already is this format’s mesh form. The mesh is laid axis-aligned whatever the
+<code class="docutils literal notranslate"><span class="pre">Direction</span></code> says, as it always has been. <a class="reference internal" href="../api/generated/polyxios.write_image.html#polyxios.write_image" title="polyxios.write_image"><code class="xref py py-func docutils literal notranslate"><span class="pre">polyxios.write_image()</span></code></a> writes an
+<code class="docutils literal notranslate"><span class="pre">ImageData</span></code> back with its extent, origin, spacing and rotation as they stand.</p>
 </section>
 <section id="writing">
 <h2>Writing<a class="headerlink" href="#writing" title="Link to this heading">#</a></h2>
@@ -645,6 +661,12 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> is the mesh’s own metadata rather than any point’s or cell’s: it is read from the dataset element and from a <code class="docutils literal notranslate"><span class="pre">&lt;Piece&gt;</span></code> alike, and written back from <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code>. A key both levels spell is the dataset’s, which is the file’s own answer for the mesh where a piece’s is one piece’s. The block holds arrays and nothing else, so a scalar written from one comes back as a one-element array, and every axis past the first is a component.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&lt;FieldData&gt;</span></code> holds a <code class="docutils literal notranslate"><span class="pre">String</span></code> array beside its numeric ones, so a <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> value that is text - a name, a title, a solver’s own label - is written as one and comes back the string it was; a list of strings is one array of several tuples. A value that is neither numbers nor text - a mapping, a ragged list - is dropped with a warning naming the key.</p></li>
 <li><p>The <code class="docutils literal notranslate"><span class="pre">vti_*</span></code> grid entries are spelled from the grid itself on the way out, so they never travel as field data; every other <code class="docutils literal notranslate"><span class="pre">global_attrs</span></code> entry does.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">Direction</span></code> that is not the identity is written as nine numbers, row-major, and read back into the image’s <code class="docutils literal notranslate"><span class="pre">direction</span></code>. A file with none reads as the identity.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">write_image</span></code> refuses an empty grid - an axis holding no point - with <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code>, the same refusal as the <code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code> writer. <code class="docutils literal notranslate"><span class="pre">read</span></code> still reads such a file as an empty mesh.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">write_image</span></code> drops, with a warning naming them, an array that is not numeric and a cell array on a grid with no cell - a single point, say - exactly as the <code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code> writer does, so the same image writes the same arrays to either. An array that is numeric but not laid out along the extent is a <code class="xref py py-class docutils literal notranslate"><span class="pre">CodecError</span></code> in both.</p></li>
+<li><p>An array whose trailing axis is one reads back without it: <code class="docutils literal notranslate"><span class="pre">(nz,</span> <span class="pre">ny,</span> <span class="pre">nx,</span> <span class="pre">1)</span></code> comes back <code class="docutils literal notranslate"><span class="pre">(nz,</span> <span class="pre">ny,</span> <span class="pre">nx)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">read_image</span></code> and <code class="docutils literal notranslate"><span class="pre">write_image</span></code> warn about, and ignore, any option they do not take; <code class="docutils literal notranslate"><span class="pre">binary</span></code> is the one <code class="docutils literal notranslate"><span class="pre">write_image</span></code> takes.</p></li>
+<li><p>A <code class="docutils literal notranslate"><span class="pre">WholeExtent</span></code> wider than the piece’s <code class="docutils literal notranslate"><span class="pre">Extent</span></code> (one that contains it) survives <code class="docutils literal notranslate"><span class="pre">read_image</span></code> and <code class="docutils literal notranslate"><span class="pre">write_image</span></code> as <code class="docutils literal notranslate"><span class="pre">vti_whole_extent</span></code>; a <code class="docutils literal notranslate"><span class="pre">.vtkhdf</span></code> written from the image spells it nowhere.</p></li>
 <li><p>Multi-component attributes are cut into tuples with <code class="docutils literal notranslate"><span class="pre">NumberOfComponents</span></code>, so an <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">3)</span></code> vector reads back with its shape rather than as <code class="docutils literal notranslate"><span class="pre">3n</span></code> rows.</p></li>
 <li><p>Both the coordinates and the connectivity are materialised on read. A file of a few hundred bytes can expand to a large in-memory mesh, because the extent is all it takes to describe one.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Origin</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">0</span> <span class="pre">0</span></code> and <code class="docutils literal notranslate"><span class="pre">Spacing</span></code> to <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">1</span> <span class="pre">1</span></code> when the attributes are absent.</p></li>

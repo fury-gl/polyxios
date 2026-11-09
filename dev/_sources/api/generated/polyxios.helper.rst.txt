@@ -8,6 +8,8 @@ polyxios.helper
 
    .. autosummary::
    
+      array_to_image
+      image_to_array
       read_blocks
       read_multiblock
       read_multiblock_vtp

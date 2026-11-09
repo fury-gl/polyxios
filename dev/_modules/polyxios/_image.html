@@ -1,0 +1,1668 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" data-theme="dark">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, follow" />
+    <title>polyxios._image &#8212; polyxios</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "dark";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/retro.css?v=fb81dddc" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=36295489"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=5a050afe"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/polyxios/_image';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.20.0';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = 'https://polyxios.org/switcher.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = 'dev';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            true;
+        </script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../../_static/js/homepage.js?v=0de8ffed"></script>
+    <link rel="canonical" href="https://polyxios.org/stable/_modules/polyxios/_image.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.6" />
+    <meta name="docbuild:last-update" content="2026-11-09"/>
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="dark">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+<aside class="bd-header-announcement" aria-label="Announcement">
+  <div class="bd-header-announcement__content">// fast, clean mesh I/O for Python - one dependency instead of twenty-seven</div>
+</aside>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">&lt;polyxios /&gt;</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../usage.html">docs</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../formats/index.html">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+        <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.12</span></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav class="navbar-nav">
+  <ul class="bd-navbar-elements navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../usage.html">docs</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../formats/index.html">formats</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../cli.html">cli</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link nav-internal" href="../../api/index.html">api</a>
+    </li>
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+        
+          <div class="navbar-item">
+<span class="px-pyversion">py&gt;=3.12</span></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/fury-gl/polyxios" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://pypi.org/project/polyxios/" title="PyPI" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-box fa-lg" aria-hidden="true"></i><span class="visually-hidden">PyPI</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fury.gl" title="FURY" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-cube fa-lg" aria-hidden="true"></i><span class="visually-hidden">FURY</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Module code</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../polyxios.html" class="nav-link">polyxios</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">polyxios._image</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for polyxios._image</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Uniform grids as data: :class:`ImageData`, and the arrays that become one.</span>
+
+<span class="sd">An ImageData is VTK's model of a regular lattice: an extent of point</span>
+<span class="sd">indices, an origin, a spacing, optionally a rotation, and arrays laid over</span>
+<span class="sd">the points and the cells. It is the compact form of everything a raster</span>
+<span class="sd">file or a ``.vti`` holds - ``n`` pixels cost ``n`` samples, where the</span>
+<span class="sd">:class:`~polyxios.PolyData` they expand into costs three coordinates and a</span>
+<span class="sd">cell for each of them. :meth:`ImageData.to_polydata` and</span>
+<span class="sd">:meth:`ImageData.from_polydata` go between the two.</span>
+
+<span class="sd">:func:`raster_pixels` and :func:`warn_left_out` are the shared half of the</span>
+<span class="sd">raster codecs (PNG and JPEG), staged here ahead of them: no codec calls either</span>
+<span class="sd">yet.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numbers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Self</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._element_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ELEMENT_TYPES</span><span class="p">,</span> <span class="n">MAX_IMPLIED_VERTICES</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._scene</span><span class="w"> </span><span class="kn">import</span> <span class="n">_same_value</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._tags</span><span class="w"> </span><span class="kn">import</span> <span class="n">tags_from_masks</span><span class="p">,</span> <span class="n">with_tag_masks</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._types</span><span class="w"> </span><span class="kn">import</span> <span class="n">PolyData</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios._warn</span><span class="w"> </span><span class="kn">import</span> <span class="n">warn_caller</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.codecs._vtk_xml</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">extent_points</span><span class="p">,</span>
+    <span class="n">extent_spans</span><span class="p">,</span>
+    <span class="n">grid_axes</span><span class="p">,</span>
+    <span class="n">lattice_vertices</span><span class="p">,</span>
+    <span class="n">require_grid_order</span><span class="p">,</span>
+    <span class="n">require_structured_cells</span><span class="p">,</span>
+    <span class="n">structured_cell_shape</span><span class="p">,</span>
+    <span class="n">structured_cells</span><span class="p">,</span>
+    <span class="n">structured_cells_fit</span><span class="p">,</span>
+    <span class="n">structured_offsets</span><span class="p">,</span>
+    <span class="n">structured_spans_from_cells</span><span class="p">,</span>
+    <span class="n">vertices_match_axes</span><span class="p">,</span>
+    <span class="n">whole_extent</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">CodecError</span><span class="p">,</span> <span class="n">ValidationError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">polyxios.validate</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_header</span>
+
+<span class="c1"># Names the pixel values travel under, the ones napari, PCD and XYZ use.</span>
+<span class="n">COLORS</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"colors"</span>
+<span class="n">INTENSITY</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"intensity"</span>
+<span class="n">ALPHA</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"alpha"</span>
+
+<span class="n">_MODES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="s2">"L"</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="s2">"LA"</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="s2">"RGB"</span><span class="p">,</span> <span class="mi">4</span><span class="p">:</span> <span class="s2">"RGBA"</span><span class="p">}</span>
+
+<span class="c1"># The two global_attrs keys the VTKHDF codec spells as the file's own structure:</span>
+<span class="c1"># the VTK type a file holds, and the rotation a reader hands back as ``direction``.</span>
+<span class="c1"># Defined here, once, so the codec and every reader that names them agree.</span>
+<span class="n">TYPE_KEY</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"vtkhdf_type"</span>
+<span class="n">DIRECTION_KEY</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"vtkhdf_direction"</span>
+
+<span class="n">_IDENTITY</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rotation_values</span><span class="p">(</span><span class="n">direction</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The nine numbers a direction spells, row-major; the identity's for None."""</span>
+    <span class="k">if</span> <span class="n">direction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_IDENTITY</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">direction</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+
+<span class="n">_INT64</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">iinfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_refuse_complex</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">what</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A value that is a complex number where a real one is meant, refused. NumPy's</span>
+<span class="sd">    complex values are numbers.Complex and not numbers.Real; float() would keep the</span>
+<span class="sd">    real part and drop the rest without a word."""</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Complex</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is complex, not a real number."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_whole_extent_of</span><span class="p">(</span><span class="n">extent</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">extent</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: extent is not a run of six numbers (</span><span class="si">{</span><span class="n">extent</span><span class="si">!r}</span><span class="s2"> is text)."</span>
+        <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">extent</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"ImageData: extent is not a run of six numbers."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">6</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: extent holds </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span><span class="si">}</span><span class="s2"> indices; an extent holds six."</span>
+        <span class="p">)</span>
+    <span class="n">out</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"ImageData: extent </span><span class="si">{</span><span class="n">values</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is text, not a number."</span>
+            <span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">_refuse_complex</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"extent </span><span class="si">{</span><span class="n">values</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Integral</span><span class="p">):</span>
+            <span class="n">whole</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>  <span class="c1"># exact: a float would round one past 2**53</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">number</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"ImageData: extent </span><span class="si">{</span><span class="n">values</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is not a number."</span>
+                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">number</span><span class="o">.</span><span class="n">is_integer</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"ImageData: extent </span><span class="si">{</span><span class="n">values</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is not a whole "</span>
+                    <span class="s2">"number."</span>
+                <span class="p">)</span>
+            <span class="n">whole</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_INT64</span><span class="o">.</span><span class="n">min</span> <span class="o">&lt;=</span> <span class="n">whole</span> <span class="o">&lt;=</span> <span class="n">_INT64</span><span class="o">.</span><span class="n">max</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"ImageData: extent </span><span class="si">{</span><span class="n">values</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is outside the "</span>
+                <span class="s2">"64-bit integers a file spells."</span>
+            <span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">whole</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_as_array</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">attr</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""One attribute as an array; a value NumPy cannot make one of is refused by name,</span>
+<span class="sd">    where it is given, rather than by NumPy's own message."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">attr</span><span class="si">}</span><span class="s2"> '</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">' is not an array (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_as_mapping</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""An ImageData attribute map as a dict: None is no attributes, and anything that</span>
+<span class="sd">    is not a mapping is refused where it is given rather than in a writer."""</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is a </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">, not a mapping."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_of_numbers</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The items of a run of numbers, text refused: a string parses as a number, and</span>
+<span class="sd">    iterates as characters, and neither is a number a grid can mean."""</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not a run of numbers (</span><span class="si">{</span><span class="n">values</span><span class="si">!r}</span><span class="s2"> is text)."</span>
+        <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not a run of numbers (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not a run of numbers (</span><span class="si">{</span><span class="n">item</span><span class="si">!r}</span><span class="s2"> is text)."</span>
+            <span class="p">)</span>
+        <span class="n">_refuse_complex</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">items</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_float_triple</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+    <span class="n">items</span> <span class="o">=</span> <span class="n">_run_of_numbers</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">items</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> is not a run of numbers (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)."</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">out</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="si">}</span><span class="s2"> numbers; it holds three, one per axis."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rotation_matrix</span><span class="p">(</span><span class="n">direction</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The ``(3, 3)`` float matrix a rotation spells, or None for no rotation.</span>
+
+<span class="sd">    Text and complex numbers are refused: a string parses as a number, and a complex</span>
+<span class="sd">    value would be cast to its real part without a word.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">direction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">direction</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: direction is not a run of numbers (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)."</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="s2">"US"</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"ImageData: direction is not a run of numbers (text is not a number)."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"c"</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"ImageData: direction holds complex numbers; a rotation is real."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"O"</span><span class="p">:</span>
+        <span class="c1"># An object array holds whatever it was given. Each item meets the rule</span>
+        <span class="c1"># origin and spacing meet: text and complex are refused, and so is anything</span>
+        <span class="c1"># that is not a real number, such as None; a NaN is a real number, as it is</span>
+        <span class="c1"># for origin and spacing.</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">_run_of_numbers</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="s2">"direction"</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">numbers</span><span class="o">.</span><span class="n">Real</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"ImageData: direction is not a run of numbers (</span><span class="si">{</span><span class="n">item</span><span class="si">!r}</span><span class="s2"> is not a "</span>
+                    <span class="s2">"number)."</span>
+                <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: direction is not a run of numbers (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)."</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="mi">9</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData: direction holds </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2"> numbers; a rotation is a "</span>
+            <span class="s2">"(3, 3) matrix of nine."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">stored_rotation</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The rotation a mesh's stored ``vtkhdf_direction`` spells, or None for none.</span>
+
+<span class="sd">    A stored value that is not a rotation - text, complex, or not nine numbers - is a</span>
+<span class="sd">    :class:`~polyxios.exceptions.CodecError` naming ``fmt``, not NumPy's own message.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">matrix</span> <span class="o">=</span> <span class="n">_rotation_matrix</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: global 'vtkhdf_direction' holds </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">, which is not a "</span>
+            <span class="sa">f</span><span class="s2">"rotation (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)."</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">matrix</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">matrix</span><span class="p">)</span> <span class="k">else</span> <span class="n">matrix</span>
+
+
+<div class="viewcode-block" id="ImageData">
+<a class="viewcode-back" href="../../api/generated/polyxios.ImageData.html#polyxios.ImageData">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">eq</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ImageData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A uniform grid of points and cells carrying arrays.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    extent</span>
+<span class="sd">        VTK's ``(i0, i1, j0, j1, k0, k1)``: the first and last point index</span>
+<span class="sd">        along each axis, inclusive. An axis whose end is before its start</span>
+<span class="sd">        holds no points. Six whole numbers; a float holding one is taken as</span>
+<span class="sd">        that integer, and any other is refused.</span>
+<span class="sd">    origin</span>
+<span class="sd">        Position of point ``(0, 0, 0)``: three numbers.</span>
+<span class="sd">    spacing</span>
+<span class="sd">        Step between points along each axis, three numbers; may be negative.</span>
+<span class="sd">    direction</span>
+<span class="sd">        ``(3, 3)`` matrix whose columns are the directions the axes run</span>
+<span class="sd">        along, or None for the identity. A flat run of nine numbers is the</span>
+<span class="sd">        same matrix, row-major, and is stored as ``(3, 3)``.</span>
+<span class="sd">    point_attrs</span>
+<span class="sd">        Arrays over the points, shaped ``(nz, ny, nx, *components)``: z</span>
+<span class="sd">        slowest, x fastest, as in VTKHDF. A trailing axis of size one is not</span>
+<span class="sd">        kept: an array shaped ``(nz, ny, nx, 1)`` reads back as</span>
+<span class="sd">        ``(nz, ny, nx)``, in ``.vti`` and ``.vtkhdf`` alike.</span>
+<span class="sd">    cell_attrs</span>
+<span class="sd">        Arrays over the cells, shaped ``(max(cz, 1), max(cy, 1),</span>
+<span class="sd">        max(cx, 1), *components)`` where ``cx, cy, cz`` are the spans</span>
+<span class="sd">        ``i1 - i0`` and so on. An extent that spans no cell holds no cell</span>
+<span class="sd">        array. As for ``point_attrs``, a trailing axis of size one reads back</span>
+<span class="sd">        collapsed.</span>
+<span class="sd">    global_attrs</span>
+<span class="sd">        Whole-image metadata.</span>
+<span class="sd">    """</span>
+
+    <span class="n">extent</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
+    <span class="n">origin</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">spacing</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">point_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">cell_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">global_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"extent"</span><span class="p">,</span> <span class="n">_whole_extent_of</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">extent</span><span class="p">))</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"origin"</span><span class="p">,</span> <span class="n">_float_triple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"origin"</span><span class="p">))</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"spacing"</span><span class="p">,</span> <span class="n">_float_triple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"spacing"</span><span class="p">))</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"direction"</span><span class="p">,</span> <span class="n">_rotation_matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">direction</span><span class="p">))</span>
+        <span class="c1"># Equality compares values, so a list and an array of the same numbers</span>
+        <span class="c1"># must be the same array here: ndarrays are kept without a copy.</span>
+        <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"point_attrs"</span><span class="p">,</span> <span class="s2">"cell_attrs"</span><span class="p">):</span>
+            <span class="n">held</span> <span class="o">=</span> <span class="n">_as_mapping</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">),</span> <span class="n">attr</span><span class="p">)</span>
+            <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span>
+                <span class="n">attr</span><span class="p">,</span>
+                <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_as_array</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">held</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="s2">"global_attrs"</span><span class="p">,</span> <span class="n">_as_mapping</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">,</span> <span class="s2">"global_attrs"</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dimensions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Points along ``(x, y, z)``."""</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">extent</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="nb">max</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="nb">max</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">e</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="nb">max</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">-</span> <span class="n">e</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">spans</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Cells along ``(x, y, z)``: ``i1 - i0``, which is negative on an empty axis."""</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">extent</span>
+        <span class="k">return</span> <span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">e</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">e</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">e</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">-</span> <span class="n">e</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">ImageData</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">extent</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">extent</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">origin</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="c1"># An explicit identity and no rotation at all are the same grid.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span>
+            <span class="n">_rotation_values</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">direction</span><span class="p">),</span> <span class="n">_rotation_values</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">direction</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">_same_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">point_attrs</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">point_attrs</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">_same_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cell_attrs</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">cell_attrs</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">_same_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">,</span> <span class="n">other</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_polydata</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PolyData</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Expand the grid into a :class:`~polyxios.PolyData` lattice.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        PolyData</span>
+<span class="sd">            One vertex per point and one cell per grid cell - quads for a</span>
+<span class="sd">            flat image, hexahedra for a volume - with the arrays flattened to</span>
+<span class="sd">            one row per vertex or cell. The arrays are reshapes of this image's</span>
+<span class="sd">            arrays: views wherever NumPy can make one, so writing to a view</span>
+<span class="sd">            writes to the image.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If an attribute's leading shape is not the one the extent needs.</span>
+<span class="sd">        ValidationError</span>
+<span class="sd">            If the grid expands to more points than ``MAX_IMPLIED_VERTICES``, the</span>
+<span class="sd">            cap a mesh is held to; a grid that size is read compact instead.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="n">lattice_mesh</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">extent</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">spacing</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">direction</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">point_attrs</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cell_attrs</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">global_attrs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_polydata</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span> <span class="n">poly</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ImageData.from_polydata"</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Recover the grid a lattice mesh is the expansion of.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        poly</span>
+<span class="sd">            A mesh whose cells are a structured grid and whose vertices are</span>
+<span class="sd">            that grid expanded, x fastest and z slowest. The ``vti_*`` keys a</span>
+<span class="sd">            ``.vti`` read left in ``global_attrs`` say where the grid stood, and</span>
+<span class="sd">            are used as the ``.vti`` writer uses them. A rotation a VTKHDF</span>
+<span class="sd">            image was read with (``vtkhdf_direction``) is not applied to the</span>
+<span class="sd">            grid, so such a mesh is refused: read the file with</span>
+<span class="sd">            :func:`polyxios.read_image` instead.</span>
+<span class="sd">        fmt</span>
+<span class="sd">            Name the error messages carry, such as ``'.png'``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ImageData</span>
+<span class="sd">            The grid. Where the mesh is still the grid its ``vti_extent``</span>
+<span class="sd">            describes, that extent, origin and step are kept; otherwise the</span>
+<span class="sd">            grid is zero-based, with the origin and the step measured off</span>
+<span class="sd">            the vertices and no rotation. ``vti_whole_extent`` is kept only when it</span>
+<span class="sd">            is wider than that extent, and ``vti_origin``, ``vti_spacing`` and</span>
+<span class="sd">            ``vti_extent`` are never field data.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TypeError</span>
+<span class="sd">            If ``poly`` is not a :class:`~polyxios.PolyData`.</span>
+<span class="sd">        CodecError</span>
+<span class="sd">            If the mesh is not a uniform grid, it is a rotated VTKHDF image, or an</span>
+<span class="sd">            attribute does not hold one row per point or cell of the grid.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">PolyData</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2"> takes a PolyData, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">poly</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">."</span><span class="p">)</span>
+        <span class="n">stored</span> <span class="o">=</span> <span class="n">stored_rotation</span><span class="p">((</span><span class="n">poly</span><span class="o">.</span><span class="n">global_attrs</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">DIRECTION_KEY</span><span class="p">),</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stored</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: the mesh is a rotated VTKHDF image, and a mesh holds no "</span>
+                <span class="s2">"rotation to give back; read the file with polyxios.read_image()."</span>
+            <span class="p">)</span>
+        <span class="n">extent</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">kept</span> <span class="o">=</span> <span class="n">grid_of</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+        <span class="n">check_mesh_rows</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+
+        <span class="n">spans</span> <span class="o">=</span> <span class="p">(</span><span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">extent</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">-</span> <span class="n">extent</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+        <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nz</span> <span class="o">=</span> <span class="p">(</span><span class="n">s</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">spans</span><span class="p">)</span>
+        <span class="n">ga</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">global_attrs</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">n_verts</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">)</span>
+        <span class="n">n_cells</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="p">)</span>
+
+        <span class="n">points</span> <span class="o">=</span> <span class="n">with_tag_masks</span><span class="p">(</span>
+            <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">vertex_tags</span><span class="p">,</span>
+            <span class="n">n_verts</span><span class="p">,</span>
+            <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span>
+            <span class="n">kind</span><span class="o">=</span><span class="s2">"point"</span><span class="p">,</span>
+            <span class="n">verb</span><span class="o">=</span><span class="s2">"read"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">point_lead</span> <span class="o">=</span> <span class="p">(</span><span class="n">nz</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">)</span>
+        <span class="n">cell_lead</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">(</span><span class="n">spans</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">spans</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">spans</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">cell_columns</span> <span class="o">=</span> <span class="n">with_tag_masks</span><span class="p">(</span>
+            <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">element_tags</span><span class="p">,</span>
+            <span class="n">n_cells</span><span class="p">,</span>
+            <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span>
+            <span class="n">kind</span><span class="o">=</span><span class="s2">"cell"</span><span class="p">,</span>
+            <span class="n">verb</span><span class="o">=</span><span class="s2">"read"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># With no cell there is nothing to reshape into: the columns are read for</span>
+        <span class="c1"># the warnings their groups raise, and no cell array is kept.</span>
+        <span class="n">cells</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">n_cells</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">cells</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">name</span><span class="p">:</span> <span class="n">arr</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">cell_lead</span> <span class="o">+</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+                <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">cell_columns</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+        <span class="n">spelled</span> <span class="o">=</span> <span class="n">IMAGE_RESERVED_GLOBALS</span>
+        <span class="n">global_attrs</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ga</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">spelled</span><span class="p">}</span>
+        <span class="n">whole</span> <span class="o">=</span> <span class="n">wider_whole_extent</span><span class="p">(</span><span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"vti_whole_extent"</span><span class="p">),</span> <span class="n">extent</span><span class="p">)</span> <span class="k">if</span> <span class="n">kept</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">whole</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">global_attrs</span><span class="p">[</span><span class="s2">"vti_whole_extent"</span><span class="p">]</span> <span class="o">=</span> <span class="n">whole</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+                <span class="n">extent</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>  <span class="c1"># type: ignore[arg-type]</span>
+                <span class="n">origin</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">origin</span><span class="p">),</span>  <span class="c1"># type: ignore[arg-type]</span>
+                <span class="n">spacing</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">spacing</span><span class="p">),</span>  <span class="c1"># type: ignore[arg-type]</span>
+                <span class="n">point_attrs</span><span class="o">=</span><span class="p">{</span>
+                    <span class="n">name</span><span class="p">:</span> <span class="n">arr</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">point_lead</span> <span class="o">+</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+                    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="p">},</span>
+                <span class="n">cell_attrs</span><span class="o">=</span><span class="n">cells</span><span class="p">,</span>
+                <span class="n">global_attrs</span><span class="o">=</span><span class="n">global_attrs</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">lattice_mesh</span><span class="p">(</span>
+    <span class="n">extent</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="n">origin</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+    <span class="n">spacing</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+    <span class="n">direction</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">point_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+    <span class="n">cell_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span>
+    <span class="n">global_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PolyData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Expand a grid's extent, origin, step and rotation into its lattice mesh.</span>
+
+<span class="sd">    :meth:`ImageData.to_polydata` is this on an image's parts. A mesh read from a</span>
+<span class="sd">    file takes this route directly, since an :class:`ImageData` refuses an extent a</span>
+<span class="sd">    64-bit integer cannot hold, which a one-vertex mesh read from the same file has</span>
+<span class="sd">    always had.</span>
+<span class="sd">    """</span>
+    <span class="n">spans</span> <span class="o">=</span> <span class="p">(</span><span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">extent</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span> <span class="o">-</span> <span class="n">extent</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nz</span> <span class="o">=</span> <span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">spans</span><span class="p">)</span>
+    <span class="n">n_verts</span> <span class="o">=</span> <span class="n">nx</span> <span class="o">*</span> <span class="n">ny</span> <span class="o">*</span> <span class="n">nz</span>
+    <span class="k">if</span> <span class="n">n_verts</span> <span class="o">&gt;</span> <span class="n">MAX_IMPLIED_VERTICES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"ImageData expands to </span><span class="si">{</span><span class="n">n_verts</span><span class="si">}</span><span class="s2"> points, over MAX_IMPLIED_VERTICES="</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_IMPLIED_VERTICES</span><span class="si">}</span><span class="s2">; a mesh that size is not built. Read the grid "</span>
+            <span class="s2">"with polyxios.read_image() instead."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_verts</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">direction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">vertices</span> <span class="o">=</span> <span class="n">lattice_vertices</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">[</span>
+                <span class="n">origin</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">extent</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">spacing</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">vertices</span> <span class="o">=</span> <span class="n">lattice_vertices</span><span class="p">(</span>
+            <span class="o">*</span><span class="p">[</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">extent</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">spacing</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+            <span class="p">],</span>
+            <span class="n">direction</span><span class="o">=</span><span class="n">direction</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">vertices</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="n">connectivity</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">structured_cells</span><span class="p">(</span><span class="o">*</span><span class="n">spans</span><span class="p">)</span>
+    <span class="n">n_cells</span><span class="p">,</span> <span class="n">per_cell</span><span class="p">,</span> <span class="n">kind</span> <span class="o">=</span> <span class="n">structured_cell_shape</span><span class="p">(</span><span class="o">*</span><span class="n">spans</span><span class="p">)</span>
+    <span class="n">offsets</span> <span class="o">=</span> <span class="n">structured_offsets</span><span class="p">(</span><span class="n">n_cells</span><span class="p">,</span> <span class="n">per_cell</span><span class="p">)</span>
+    <span class="n">element_types</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_cells</span><span class="p">,</span> <span class="n">ELEMENT_TYPES</span><span class="p">[</span><span class="n">kind</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+
+    <span class="n">point_lead</span> <span class="o">=</span> <span class="p">(</span><span class="n">nz</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">)</span>
+    <span class="n">cell_lead</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">(</span><span class="n">spans</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">spans</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">spans</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">vertex_attrs</span><span class="p">,</span> <span class="n">vertex_tags</span> <span class="o">=</span> <span class="n">tags_from_masks</span><span class="p">(</span>
+        <span class="n">flatten_rows</span><span class="p">(</span><span class="n">point_attrs</span><span class="p">,</span> <span class="n">point_lead</span><span class="p">,</span> <span class="n">n_verts</span><span class="p">,</span> <span class="s2">"point"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">element_attrs</span><span class="p">,</span> <span class="n">element_tags</span> <span class="o">=</span> <span class="n">tags_from_masks</span><span class="p">(</span>
+        <span class="n">flatten_rows</span><span class="p">(</span><span class="n">cell_attrs</span><span class="p">,</span> <span class="n">cell_lead</span><span class="p">,</span> <span class="n">n_cells</span><span class="p">,</span> <span class="s2">"cell"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">PolyData</span><span class="p">(</span>
+        <span class="n">vertices</span><span class="o">=</span><span class="n">vertices</span><span class="p">,</span>
+        <span class="n">connectivity</span><span class="o">=</span><span class="n">connectivity</span><span class="p">,</span>
+        <span class="n">offsets</span><span class="o">=</span><span class="n">offsets</span><span class="p">,</span>
+        <span class="n">element_types</span><span class="o">=</span><span class="n">element_types</span><span class="p">,</span>
+        <span class="n">vertex_attrs</span><span class="o">=</span><span class="n">vertex_attrs</span><span class="p">,</span>
+        <span class="n">element_attrs</span><span class="o">=</span><span class="n">element_attrs</span><span class="p">,</span>
+        <span class="n">vertex_tags</span><span class="o">=</span><span class="n">vertex_tags</span><span class="p">,</span>
+        <span class="n">element_tags</span><span class="o">=</span><span class="n">element_tags</span><span class="p">,</span>
+        <span class="n">global_attrs</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">global_attrs</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">check_readable</span><span class="p">(</span><span class="n">image</span><span class="p">:</span> <span class="n">ImageData</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Refuse an image its readers would refuse, before a writer writes it.</span>
+
+<span class="sd">    A compact read builds no vertex, so only the hard caps on the grid's counts</span>
+<span class="sd">    apply to it; those are the caps checked here, so no file is written that</span>
+<span class="sd">    cannot be read back.</span>
+<span class="sd">    """</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nz</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">dimensions</span>
+    <span class="n">n_cells</span><span class="p">,</span> <span class="n">per_cell</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">structured_cell_shape</span><span class="p">(</span><span class="o">*</span><span class="n">image</span><span class="o">.</span><span class="n">spans</span><span class="p">)</span>
+    <span class="n">validate_header</span><span class="p">(</span>
+        <span class="n">nx</span> <span class="o">*</span> <span class="n">ny</span> <span class="o">*</span> <span class="n">nz</span><span class="p">,</span>
+        <span class="n">n_cells</span><span class="p">,</span>
+        <span class="n">n_cells</span> <span class="o">*</span> <span class="n">per_cell</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">compressed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">spells_vertices</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">spells_connectivity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">builds_vertices</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">build_image</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">parts</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ImageData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Make the ImageData a file's parts describe; one the file cannot be is refused</span>
+<span class="sd">    as a :class:`~polyxios.exceptions.CodecError` naming the file."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ImageData</span><span class="p">(</span><span class="o">**</span><span class="n">parts</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_row_count</span><span class="p">(</span><span class="n">arr</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The rows an attribute holds, or None for one with no axis to count them on."""</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">shape</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">check_mesh_rows</span><span class="p">(</span><span class="n">poly</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Refuse a mesh attribute that does not hold one row per point or cell, naming</span>
+<span class="sd">    it, before any of them is reshaped into a grid. A value with no rows at all - a</span>
+<span class="sd">    scalar, say - is refused the same way."""</span>
+    <span class="n">n_verts</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">vertex_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">_row_count</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rows</span> <span class="o">!=</span> <span class="n">n_verts</span><span class="p">:</span>
+            <span class="n">held</span> <span class="o">=</span> <span class="s2">"no rows"</span> <span class="k">if</span> <span class="n">rows</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2"> rows"</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: point attribute '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">' holds </span><span class="si">{</span><span class="n">held</span><span class="si">}</span><span class="s2">; "</span>
+                <span class="sa">f</span><span class="s2">"the grid has </span><span class="si">{</span><span class="n">n_verts</span><span class="si">}</span><span class="s2"> points."</span>
+            <span class="p">)</span>
+    <span class="n">n_cells</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">_row_count</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rows</span> <span class="o">!=</span> <span class="n">n_cells</span><span class="p">:</span>
+            <span class="n">held</span> <span class="o">=</span> <span class="s2">"no rows"</span> <span class="k">if</span> <span class="n">rows</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2"> rows"</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: cell attribute '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">' holds </span><span class="si">{</span><span class="n">held</span><span class="si">}</span><span class="s2">; "</span>
+                <span class="sa">f</span><span class="s2">"the grid has </span><span class="si">{</span><span class="n">n_cells</span><span class="si">}</span><span class="s2"> cells."</span>
+            <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_laid_out</span><span class="p">(</span>
+    <span class="n">arr</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">lead</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""One array as one row per entity, or a ValueError if it lies off the extent.</span>
+
+<span class="sd">    The one rule both the mesh and the file writers apply to an array laid out</span>
+<span class="sd">    along the grid: its leading axes are ``lead``, and an extent with no entity</span>
+<span class="sd">    holds no array with values.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">!=</span> <span class="n">lead</span> <span class="ow">or</span> <span class="p">(</span><span class="n">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">arr</span><span class="o">.</span><span class="n">size</span><span class="p">):</span>
+        <span class="n">held</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"holds no </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"holds </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">s laid out </span><span class="si">{</span><span class="n">lead</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> has shape </span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">, but this extent </span><span class="si">{</span><span class="n">held</span><span class="si">}</span><span class="s2">."</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">arr</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">n</span><span class="p">,)</span> <span class="o">+</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">:])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">flatten_rows</span><span class="p">(</span>
+    <span class="n">attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">lead</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Fold grid-shaped arrays into one row per point or cell, or refuse them.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    attrs</span>
+<span class="sd">        The arrays as an ImageData holds them, each laid out ``lead`` first.</span>
+<span class="sd">    lead</span>
+<span class="sd">        The leading shape every array must have: ``(nz, ny, nx)`` for points.</span>
+<span class="sd">    n</span>
+<span class="sd">        How many rows the extent holds.</span>
+<span class="sd">    kind</span>
+<span class="sd">        ``'point'`` or ``'cell'``, for the message.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict of str to numpy.ndarray</span>
+<span class="sd">        ``(n, *components)`` views of the arrays, in the order they were held.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If an array is not laid out along the extent.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="n">_laid_out</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="p">),</span> <span class="n">lead</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> attribute '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">'"</span><span class="p">,</span> <span class="n">kind</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">vtk_lattice</span><span class="p">(</span><span class="n">lead</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">points</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The shape VTKHDF stores an ImageData array in, given its own lattice.</span>
+
+<span class="sd">    VTK's writer leaves out each axis that holds one point. So ``lead`` - the</span>
+<span class="sd">    array's ``(nz, ny, nx)``-shaped lattice, the points' for a point array and the</span>
+<span class="sd">    cells' for a cell array - keeps only the axes along which ``points`` counts</span>
+<span class="sd">    more than one. An array over a single point is one row, which VTK spells</span>
+<span class="sd">    ``(1,)``.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">lead</span><span class="p">,</span> <span class="n">points</span><span class="p">)</span> <span class="k">if</span> <span class="n">p</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_rows</span><span class="p">(</span>
+    <span class="n">attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">lead</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">group</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Lay the arrays of one ImageData group out one row per point or cell.</span>
+
+<span class="sd">    The rule the file writers share: an array that is not numeric, has no</span>
+<span class="sd">    component, or sits on an extent with no entity to hold it, is dropped by</span>
+<span class="sd">    name with one warning; a numeric array not laid out along the extent is</span>
+<span class="sd">    refused.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    attrs</span>
+<span class="sd">        The arrays as the ImageData holds them.</span>
+<span class="sd">    lead</span>
+<span class="sd">        The leading shape every array must have: ``(nz, ny, nx)`` for points.</span>
+<span class="sd">    n</span>
+<span class="sd">        How many rows the extent holds.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        The format's extension, for the messages.</span>
+<span class="sd">    group</span>
+<span class="sd">        ``PointData`` or ``CellData``, for the messages.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict of str to numpy.ndarray</span>
+<span class="sd">        The kept arrays as ``(n, *components)``, in the order they were held.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    CodecError</span>
+<span class="sd">        If a numeric array is not laid out along the extent.</span>
+
+<span class="sd">    Warns</span>
+<span class="sd">    -----</span>
+<span class="sd">    UserWarning</span>
+<span class="sd">        Once, naming the arrays dropped, blamed on the caller.</span>
+<span class="sd">    """</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="s2">"point"</span> <span class="k">if</span> <span class="n">group</span> <span class="o">==</span> <span class="s2">"PointData"</span> <span class="k">else</span> <span class="s2">"cell"</span>
+    <span class="n">out</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">dropped</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="s2">"biuf"</span> <span class="ow">or</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="mi">0</span> <span class="ow">in</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">:]:</span>
+            <span class="n">dropped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">out</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)]</span> <span class="o">=</span> <span class="n">_laid_out</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">lead</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">group</span><span class="si">}</span><span class="s2"> array '</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">'"</span><span class="p">,</span> <span class="n">kind</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2"> write: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">if</span> <span class="n">dropped</span><span class="p">:</span>
+        <span class="n">warn_caller</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2"> write: </span><span class="si">{</span><span class="n">group</span><span class="si">}</span><span class="s2"> array(s) </span><span class="si">{</span><span class="n">dropped</span><span class="si">}</span><span class="s2"> are not numeric, hold no"</span>
+            <span class="s2">" component, or the extent spans nothing to hold them; dropped."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_int_range</span><span class="p">(</span><span class="n">arr</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">arr</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">size</span> <span class="k">else</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_samples</span><span class="p">(</span><span class="n">arr</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dtypes</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Convert pixel values to the unsigned integers a file holds."""</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="s2">"uint16"</span> <span class="ow">in</span> <span class="n">dtypes</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span> <span class="ow">or</span> <span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">uint16</span> <span class="ow">and</span> <span class="n">wide</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">arr</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"f"</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">size</span> <span class="ow">and</span> <span class="p">(</span>
+            <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="ow">or</span> <span class="n">arr</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mf">0.0</span> <span class="ow">or</span> <span class="n">arr</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">1.0</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2"> pixels must lie in [0, 1] to be scaled "</span>
+                <span class="sa">f</span><span class="s2">"to 0-255; got </span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">}</span><span class="s2">..</span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">}</span><span class="s2">."</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rint</span><span class="p">(</span><span class="n">arr</span> <span class="o">*</span> <span class="mf">255.0</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="ow">in</span> <span class="s2">"iu"</span><span class="p">:</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="n">_int_range</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lo</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">hi</span> <span class="o">&lt;=</span> <span class="mi">255</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">arr</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">wide</span> <span class="ow">and</span> <span class="n">lo</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">hi</span> <span class="o">&lt;=</span> <span class="mi">65535</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">arr</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="s2">"0-65535"</span> <span class="k">if</span> <span class="n">wide</span> <span class="k">else</span> <span class="s2">"0-255"</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2"> pixels spanning </span><span class="si">{</span><span class="n">lo</span><span class="si">}</span><span class="s2">..</span><span class="si">{</span><span class="n">hi</span><span class="si">}</span><span class="s2"> do not fit "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">limit</span><span class="si">}</span><span class="s2">; convert them to uint8 first."</span>
+        <span class="p">)</span>
+    <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="si">}</span><span class="s2"> pixels cannot be written; use uint8."</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">raster_pixels</span><span class="p">(</span>
+    <span class="n">image</span><span class="p">:</span> <span class="n">ImageData</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dtypes</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the pixels of a flat image as an image file holds them.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image</span>
+<span class="sd">        The image to write.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        Name the messages carry.</span>
+<span class="sd">    dtypes</span>
+<span class="sd">        The sample types the file can hold, from ``{'uint8', 'uint16'}``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple[numpy.ndarray, str]</span>
+<span class="sd">        ``(H, W[, C])`` C-contiguous pixels, top row first, and the mode:</span>
+<span class="sd">        ``'L'``, ``'LA'``, ``'RGB'`` or ``'RGBA'``.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    CodecError</span>
+<span class="sd">        If the image is not one flat unrotated layer, holds no pixel</span>
+<span class="sd">        attribute, a pixel attribute is not laid out along the extent, or</span>
+<span class="sd">        its values do not fit the file's samples.</span>
+
+<span class="sd">    Warns</span>
+<span class="sd">    -----</span>
+<span class="sd">    UserWarning</span>
+<span class="sd">        Once, naming what the image holds that the file has no place for.</span>
+<span class="sd">    """</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nz</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">dimensions</span>
+    <span class="k">if</span> <span class="n">nz</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: an image file holds one flat layer; this ImageData has "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">nz</span><span class="si">}</span><span class="s2"> planes along z."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">direction</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: an image file has no rotation; this ImageData is rotated."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">nx</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">ny</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">nz</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: the image holds no pixels."</span><span class="p">)</span>
+    <span class="n">attrs</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">point_attrs</span>
+    <span class="n">colors</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLORS</span><span class="p">)</span>
+    <span class="n">intensity</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">INTENSITY</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="p">((</span><span class="n">COLORS</span><span class="p">,</span> <span class="n">colors</span><span class="p">),</span> <span class="p">(</span><span class="n">INTENSITY</span><span class="p">,</span> <span class="n">intensity</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">arr</span><span class="p">)[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">!=</span> <span class="p">(</span><span class="n">nz</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: point attribute '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">' is shaped </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span><span class="si">}</span><span class="s2">, and "</span>
+                <span class="sa">f</span><span class="s2">"the extent lays its arrays out </span><span class="si">{</span><span class="p">(</span><span class="n">nz</span><span class="p">,</span><span class="w"> </span><span class="n">ny</span><span class="p">,</span><span class="w"> </span><span class="n">nx</span><span class="p">)</span><span class="si">}</span><span class="s2">."</span>
+            <span class="p">)</span>
+    <span class="n">used</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">colors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">colors</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">4</span> <span class="ow">and</span> <span class="n">colors</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+        <span class="n">plane</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">colors</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">used</span> <span class="o">=</span> <span class="p">{</span><span class="n">COLORS</span><span class="p">}</span>
+    <span class="k">elif</span> <span class="n">intensity</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">intensity</span><span class="o">.</span><span class="n">ndim</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+        <span class="n">plane</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">intensity</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">used</span> <span class="o">=</span> <span class="p">{</span><span class="n">INTENSITY</span><span class="p">}</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ALPHA</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">alpha</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">alpha</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">==</span> <span class="n">intensity</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">3</span><span class="p">]:</span>
+            <span class="n">plane</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">plane</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">alpha</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">ny</span><span class="p">,</span> <span class="n">nx</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="n">used</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">ALPHA</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plane</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: the 'intensity' attribute is </span><span class="si">{</span><span class="n">plane</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2"> wide; "</span>
+                <span class="s2">"a gray image holds one sample per pixel."</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: needs a 'colors' (3 or 4 wide) or 'intensity' point "</span>
+            <span class="sa">f</span><span class="s2">"attribute; it holds </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">attrs</span><span class="p">)</span><span class="si">}</span><span class="s2">."</span>
+        <span class="p">)</span>
+    <span class="n">parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">others</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">attrs</span><span class="p">)</span> <span class="o">-</span> <span class="n">used</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">others</span><span class="p">:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"point attributes </span><span class="si">{</span><span class="n">others</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">cell_attrs</span><span class="p">:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"cell attributes </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">cell_attrs</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span> <span class="o">!=</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">image</span><span class="o">.</span><span class="n">origin</span><span class="p">):</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"origin"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">image</span><span class="o">.</span><span class="n">spacing</span><span class="p">[:</span><span class="mi">2</span><span class="p">]):</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"spacing"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">parts</span><span class="p">:</span>
+        <span class="n">warn_caller</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span><span class="si">}</span><span class="s2"> have no place in the file and are left out."</span>
+        <span class="p">)</span>
+    <span class="n">plane</span> <span class="o">=</span> <span class="n">_samples</span><span class="p">(</span><span class="n">plane</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">dtypes</span><span class="o">=</span><span class="n">dtypes</span><span class="p">)</span>
+    <span class="c1"># Row 0 of the file is the top, which is the highest y unless the y step</span>
+    <span class="c1"># is negative.</span>
+    <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">spacing</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">plane</span> <span class="o">=</span> <span class="n">plane</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">mode</span> <span class="o">=</span> <span class="n">_MODES</span><span class="p">[</span><span class="n">plane</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">"L"</span><span class="p">:</span>
+        <span class="n">plane</span> <span class="o">=</span> <span class="n">plane</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">plane</span><span class="p">),</span> <span class="n">mode</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">warn_left_out</span><span class="p">(</span><span class="n">global_attrs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">written</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Warn about the ``global_attrs`` keys a file has no place for.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    global_attrs</span>
+<span class="sd">        The image's whole-image metadata.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        Name the message carries.</span>
+<span class="sd">    written</span>
+<span class="sd">        The keys the writer spells.</span>
+<span class="sd">    """</span>
+    <span class="n">extra</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">global_attrs</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">written</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">extra</span><span class="p">:</span>
+        <span class="n">warn_caller</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: global_attrs </span><span class="si">{</span><span class="n">extra</span><span class="si">}</span><span class="s2"> have no place in the file and are left out."</span>
+        <span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># The grid a lattice file spells, for the codecs that write one</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<span class="c1"># What the .vti codec spells from the grid itself, so it never travels as field</span>
+<span class="c1"># data: the extent, the origin and step, and the whole grid a piece belongs to.</span>
+<span class="n">GRID_GLOBALS</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"vti_origin"</span><span class="p">,</span> <span class="s2">"vti_spacing"</span><span class="p">,</span> <span class="s2">"vti_extent"</span><span class="p">,</span> <span class="s2">"vti_whole_extent"</span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># What the .vtkhdf codec spells as the file's own structure: the VTK type it</span>
+<span class="c1"># holds, and the rotation a reader hands back as ``direction``.</span>
+<span class="n">STRUCTURE_GLOBALS</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="n">TYPE_KEY</span><span class="p">,</span> <span class="n">DIRECTION_KEY</span><span class="p">})</span>
+
+<span class="c1"># The keys no image writer writes as field data, whichever codec it is.</span>
+<span class="n">IMAGE_RESERVED_GLOBALS</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">GRID_GLOBALS</span> <span class="o">|</span> <span class="n">STRUCTURE_GLOBALS</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">is_identity</span><span class="p">(</span><span class="n">direction</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Say whether a rotation is no rotation: None, or the identity either way.</span>
+
+<span class="sd">    The identity is spelled as a ``(3, 3)`` matrix or as the nine numbers of a</span>
+<span class="sd">    flat one; both mean no rotation.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">_rotation_values</span><span class="p">(</span><span class="n">direction</span><span class="p">),</span> <span class="n">_IDENTITY</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">triple_of</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">what</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Coerce a stored origin or spacing into exactly three floats.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    values</span>
+<span class="sd">        What the file or ``global_attrs`` held, or None when it held nothing.</span>
+<span class="sd">        A bare number is read as the value of every axis, which is what a</span>
+<span class="sd">        caller writing ``vti_spacing=0.5`` means by it.</span>
+<span class="sd">    default</span>
+<span class="sd">        The value each missing axis takes.</span>
+<span class="sd">    what</span>
+<span class="sd">        Name of the thing being read, for the warnings.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        The format the messages name, such as ``'.vti'`` or the call that asked.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list of float</span>
+<span class="sd">        Three floats. A shorter sequence is filled out with ``default`` rather</span>
+<span class="sd">        than left short: an ``Origin`` of two numbers is not an origin, and</span>
+<span class="sd">        zipping against it drops the third axis silently. A longer one keeps its</span>
+<span class="sd">        first three - a mesh has three axes, and a fourth number describes</span>
+<span class="sd">        nothing this codec can write.</span>
+
+<span class="sd">    Warns</span>
+<span class="sd">    -----</span>
+<span class="sd">    UserWarning</span>
+<span class="sd">        If the values are not numbers at all, or if there are any number of</span>
+<span class="sd">        them but three. The default is taken in the first case; the warnings</span>
+<span class="sd">        are blamed on the first frame outside polyxios.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">default</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># A bare number, or the zero-dimensional array one becomes when it</span>
+            <span class="c1"># travels through NumPy: neither can be sliced.</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">values</span><span class="p">)]</span> <span class="o">*</span> <span class="mi">3</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="p">[:</span><span class="mi">3</span><span class="p">]]</span>
+        <span class="n">n_values</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="c1"># Not numbers and not one: a string, a run of names, something with no</span>
+        <span class="c1"># length. Asked in a try rather than in an isinstance ladder because the</span>
+        <span class="c1"># happy path pays nothing for it.</span>
+        <span class="n">warn_caller</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> holds </span><span class="si">{</span><span class="n">values</span><span class="si">!r}</span><span class="s2">, which is not a number or a run of"</span>
+            <span class="s2">" them; the default is used instead."</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">default</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span>
+    <span class="k">if</span> <span class="n">n_values</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">warn_caller</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> spells </span><span class="si">{</span><span class="n">n_values</span><span class="si">}</span><span class="s2"> numbers where three belong; the rest"</span>
+            <span class="s2">" name no axis and are dropped."</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">n_values</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">warn_caller</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">what</span><span class="si">}</span><span class="s2"> spells </span><span class="si">{</span><span class="n">n_values</span><span class="si">}</span><span class="s2"> numbers where three belong; the axes"</span>
+            <span class="sa">f</span><span class="s2">" it leaves out are given </span><span class="si">{</span><span class="n">default</span><span class="si">}</span><span class="s2">, which the file never said."</span>
+        <span class="p">)</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">default</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">3</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">out</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">metadata_axes</span><span class="p">(</span>
+    <span class="n">origin</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">spacing</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">extent</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Expand an origin, a step and an extent into the points they spell.</span>
+
+<span class="sd">    The coordinates are built exactly as the .vti reader builds them, so a file</span>
+<span class="sd">    that has not been touched compares equal to itself.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="p">[</span>
+        <span class="n">origin</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">extent</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">axis</span><span class="p">],</span> <span class="n">extent</span><span class="p">[</span><span class="mi">2</span> <span class="o">*</span> <span class="n">axis</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">spacing</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">wider_whole_extent</span><span class="p">(</span><span class="n">stored</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">extent</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The stored ``WholeExtent`` when it names a grid wider than the piece.</span>
+
+<span class="sd">    An ImageData keeps its whole extent only when that grid contains the piece and</span>
+<span class="sd">    is larger than it: a file whose ``WholeExtent`` is its ``Extent`` - the common</span>
+<span class="sd">    case - carries nothing a grid of its own would not, and an image read from it</span>
+<span class="sd">    should compare equal to the one written. A stored grid that does not contain</span>
+<span class="sd">    the piece is not kept either.</span>
+<span class="sd">    """</span>
+    <span class="n">whole</span> <span class="o">=</span> <span class="n">whole_extent</span><span class="p">(</span><span class="n">stored</span><span class="p">,</span> <span class="n">extent</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">whole</span> <span class="o">==</span> <span class="nb">list</span><span class="p">(</span><span class="n">extent</span><span class="p">)</span> <span class="k">else</span> <span class="n">whole</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">grid_of</span><span class="p">(</span>
+    <span class="n">poly</span><span class="p">:</span> <span class="n">PolyData</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The extent, origin and step a mesh's grid is written with.</span>
+
+<span class="sd">    The extent, origin and step a file was read with travel with the mesh, so</span>
+<span class="sd">    a grid that did not begin at zero - or that runs down an axis - goes back</span>
+<span class="sd">    exactly where it stood. They are checked against the mesh rather than</span>
+<span class="sd">    trusted, the way the entity ids are: a transform since the read leaves them</span>
+<span class="sd">    describing the grid the mesh used to be. Pruning cells leaves the extent</span>
+<span class="sd">    counting points that are not in the file, moving the mesh leaves the origin</span>
+<span class="sd">    behind, scaling it leaves the step behind - and the last two write a</span>
+<span class="sd">    well-formed file holding a grid somewhere else. Cheapest question first: the</span>
+<span class="sd">    point count is three integers, the points are compared against broadcast</span>
+<span class="sd">    views that allocate nothing the size of the mesh, and only a mesh that has</span>
+<span class="sd">    answered both is walked cell by cell.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    poly</span>
+<span class="sd">        The mesh whose grid is wanted.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        The format the messages name.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        ``extent``, ``origin`` and ``spacing``, and whether the stored extent</span>
+<span class="sd">        was kept. Kept means the mesh is still the grid the stored metadata</span>
+<span class="sd">        describes, so the stored origin, step and extent are those returned;</span>
+<span class="sd">        otherwise the grid is re-derived from the cells, zero-based.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    CodecError</span>
+<span class="sd">        If the cells are not a uniform structured grid.</span>
+<span class="sd">    """</span>
+    <span class="n">ga</span> <span class="o">=</span> <span class="n">poly</span><span class="o">.</span><span class="n">global_attrs</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">origin</span> <span class="o">=</span> <span class="n">triple_of</span><span class="p">(</span><span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"vti_origin"</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">what</span><span class="o">=</span><span class="s2">"vti_origin"</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+    <span class="n">spacing</span> <span class="o">=</span> <span class="n">triple_of</span><span class="p">(</span><span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"vti_spacing"</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">what</span><span class="o">=</span><span class="s2">"vti_spacing"</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+    <span class="n">stored</span> <span class="o">=</span> <span class="n">ga</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"vti_extent"</span><span class="p">)</span>
+    <span class="n">spans</span> <span class="o">=</span> <span class="n">extent_spans</span><span class="p">(</span><span class="n">stored</span><span class="p">)</span> <span class="k">if</span> <span class="n">stored</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">stored_extent</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">stored</span><span class="p">]</span> <span class="k">if</span> <span class="n">spans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">stored_extent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">spans</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">extent_points</span><span class="p">(</span><span class="n">spans</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">vertices_match_axes</span><span class="p">(</span>
+            <span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">metadata_axes</span><span class="p">(</span><span class="n">origin</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">stored_extent</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="ow">and</span> <span class="n">structured_cells_fit</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="p">,</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="p">,</span> <span class="n">spans</span><span class="p">)</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">stored_extent</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="kc">True</span>
+    <span class="c1"># What the mesh is now, read off the cells: they are the grid whatever the</span>
+    <span class="c1"># coordinates do, and the extent has to be theirs or the cells the reader</span>
+    <span class="c1"># rebuilds are not the ones written.</span>
+    <span class="n">spans</span> <span class="o">=</span> <span class="n">structured_spans_from_cells</span><span class="p">(</span>
+        <span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="p">,</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span>
+    <span class="p">)</span>
+    <span class="n">require_structured_cells</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">connectivity</span><span class="p">,</span> <span class="n">poly</span><span class="o">.</span><span class="n">element_types</span><span class="p">,</span> <span class="n">spans</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">grid_axes</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">spans</span><span class="p">)</span>
+    <span class="n">require_grid_order</span><span class="p">(</span><span class="n">poly</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">axes</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+    <span class="n">spacing</span> <span class="o">=</span> <span class="n">uniform_steps</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+    <span class="n">origin</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="k">else</span> <span class="n">o</span> <span class="k">for</span> <span class="n">u</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
+    <span class="c1"># An axis with no vertex at all ends at -1, which is how VTK spells an empty</span>
+    <span class="c1"># extent and how the .vts and .vtr writers here spell one; a 0 would declare</span>
+    <span class="c1"># the one point an empty mesh does not hold.</span>
+    <span class="n">extent</span> <span class="o">=</span> <span class="p">[</span><span class="n">bound</span> <span class="k">for</span> <span class="n">span</span> <span class="ow">in</span> <span class="n">spans</span> <span class="k">for</span> <span class="n">bound</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">span</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">extent</span><span class="p">,</span> <span class="n">origin</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_evenly_spaced</span><span class="p">(</span><span class="n">u</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">step</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Say whether one step reproduces every plane on an axis.</span>
+
+<span class="sd">    The slack is measured against the step and against what a double holds at</span>
+<span class="sd">    this magnitude - never as a fraction of the coordinate. A relative</span>
+<span class="sd">    tolerance is a fraction of where the axis sits rather than of how far</span>
+<span class="sd">    apart its planes are, so an axis at ``x = 1e6`` was allowed half a</span>
+<span class="sd">    millimetre of drift per plane: a visibly uneven lattice passed, and came</span>
+<span class="sd">    back regularised with every plane past the second moved. The two bounds</span>
+<span class="sd">    answer the two ways a plane can miss: by a fraction of the step, and by</span>
+<span class="sd">    the last few bits of a coordinate that has no room to hold it.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    u</span>
+<span class="sd">        The axis's coordinates, at least two of them.</span>
+<span class="sd">    step</span>
+<span class="sd">        The single step being proposed for it.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True when ``u[0] + i * step`` is every plane the axis holds.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; _evenly_spaced(np.array([0.0, 1.0, 2.0]), 1.0)</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; _evenly_spaced(np.array([1e6, 1e6 + 1.0, 1e6 + 2.001]), 1.0005)</span>
+<span class="sd">    False</span>
+<span class="sd">    """</span>
+    <span class="n">rebuilt</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">))</span> <span class="o">*</span> <span class="n">step</span>
+    <span class="c1"># The axis is monotone in the step, so its widest value is an endpoint and</span>
+    <span class="c1"># the bound costs two lookups rather than a pass over the whole axis.</span>
+    <span class="n">magnitude</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])))</span>
+    <span class="n">atol</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">step</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e-9</span><span class="p">,</span> <span class="mf">8.0</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">spacing</span><span class="p">(</span><span class="n">magnitude</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">rebuilt</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="n">atol</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">uniform_steps</span><span class="p">(</span>
+    <span class="n">axes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span> <span class="n">spacing</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Measure the one step each axis of an ImageData is allowed.</span>
+
+<span class="sd">    An ImageData holds no coordinates: it holds a step, and every plane on an</span>
+<span class="sd">    axis is that step from the last. A lattice whose planes are not evenly</span>
+<span class="sd">    spaced is a RectilinearGrid, and writing its first step as though it were</span>
+<span class="sd">    the only one moves every point after the second - silently, since the</span>
+<span class="sd">    file that comes back is a well-formed grid of the right size.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    axes</span>
+<span class="sd">        The x, y and z coordinates, as :func:`grid_axes` gives them.</span>
+<span class="sd">    spacing</span>
+<span class="sd">        The step to keep on an axis with no second plane to measure against.</span>
+<span class="sd">    fmt</span>
+<span class="sd">        Extension the message names.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list of float</span>
+<span class="sd">        The step on each axis.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    CodecError</span>
+<span class="sd">        If an axis is not evenly spaced.</span>
+<span class="sd">    """</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">axis</span><span class="p">,</span> <span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">fallback</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="c1"># One plane, or none: there is no step to measure, and VTK reads</span>
+            <span class="c1"># the same grid back whatever is written. Keep what came with the</span>
+            <span class="c1"># mesh rather than inventing a number for it.</span>
+            <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">fallback</span><span class="p">))</span>
+            <span class="k">continue</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">/</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">_evenly_spaced</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">CodecError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">: the planes on the </span><span class="si">{</span><span class="s1">'xyz'</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span><span class="si">}</span><span class="s2"> axis are not evenly "</span>
+                <span class="s2">"spaced, and an ImageData holds one step per axis rather than "</span>
+                <span class="s2">"a coordinate for each plane. Every plane past the second "</span>
+                <span class="s2">"would move - write a .vtr instead, which spells its "</span>
+                <span class="s2">"coordinates out."</span>
+            <span class="p">)</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">steps</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, polyxios contributors.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item"><p class="last-updated">
+  Last updated on 2026-11-09.
+  <br/>
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
