@@ -47,7 +47,7 @@ New features
   form. PNG scanline unfiltering runs in a compiled kernel (``_raster_kernels``)
   with a pure-Python twin that gives the same results.
   :meth:`polyxios.SceneImage.decode` turns a scene's PNG texture into an
-  ``ImageData``.
+  ``ImageData``, and napari opens a ``.png`` as an Image layer.
 - polyxios is a napari plugin. Installed next to napari, it opens every
   format polyxios reads: a mesh as a Surface layer (volume meshes as their
   boundary, a measured vertex attribute as its values, else an integer

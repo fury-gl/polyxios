@@ -173,8 +173,9 @@ pxios viz stanford-bunny.obj
 ## napari plugin
 
 Installed next to [napari](https://napari.org), polyxios opens every format it
-reads as a Surface or Points layer, and saves those layers back. No extra
-package to install, and napari is not a dependency.
+reads as a Surface or Points layer, and a `.png` as an Image layer, and saves
+Surface and Points layers back. No extra package to install, and napari is not
+a dependency.
 
 ```bash
 pip install polyxios "napari[all]"
