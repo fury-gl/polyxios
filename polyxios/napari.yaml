@@ -11,7 +11,7 @@ contributions:
   commands:
     - id: polyxios.get_reader
       python_name: polyxios.napari:get_reader
-      title: Open a mesh or point cloud with polyxios
+      title: Open a mesh, point cloud or image with polyxios
     - id: polyxios.write_surface
       python_name: polyxios.napari:write_surface
       title: Save a surface with polyxios
@@ -39,7 +39,8 @@ contributions:
       "*.msh.gzip", "*.nas", "*.nas.gz", "*.nas.gzip", "*.node", "*.node.gz",
       "*.node.gzip", "*.obj", "*.obj.gz", "*.obj.gzip", "*.off", "*.off.gz",
       "*.off.gzip", "*.pcd", "*.pcd.gz", "*.pcd.gzip", "*.plt", "*.plt.gz",
-      "*.plt.gzip", "*.ply", "*.ply.gz", "*.ply.gzip", "*.post", "*.post.gz",
+      "*.plt.gzip", "*.ply", "*.ply.gz", "*.ply.gzip", "*.png", "*.png.gz",
+      "*.png.gzip", "*.post", "*.post.gz",
       "*.post.gzip", "*.pts", "*.pts.gz", "*.pts.gzip", "*.ptx", "*.ptx.gz",
       "*.ptx.gzip", "*.pvd", "*.pvd.gz", "*.pvd.gzip", "*.pvti", "*.pvtp", "*.pvtr",
       "*.pvts", "*.pvtu", "*.splat", "*.splat.gz", "*.splat.gzip", "*.spz",

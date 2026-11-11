@@ -109,11 +109,12 @@ Which formats
        STL's ``lazy=True`` skips vertex deduplication instead, returning
        three vertices per triangle, and copies what it reads.
    * - ``.vti`` ``.vtr`` ``.vts`` ``.3mf`` ``.gltf`` ``.glb`` ``.dae``
-       ``.obj`` ``.wkt`` ``.xyz`` ``.pts`` ``.ptx``, HDF5 formats, Exodus
+       ``.obj`` ``.wkt`` ``.xyz`` ``.pts`` ``.ptx`` ``.png``, HDF5 formats,
+       Exodus
      - none
      - ``lazy=True`` raises :class:`~polyxios.exceptions.LazyReadError`
-       naming why: implicit points, a ZIP member, a scene, text, or a
-       library that reads the arrays whole.
+       naming why: implicit points, a ZIP member, a scene, text, compressed
+       pixels, or a library that reads the arrays whole.
    * - the text formats
      - none
      - ``lazy=True`` warns and loads eagerly; a number spelled as text has

@@ -1060,3 +1060,35 @@ def test_cli_convert_under_an_error_filter_still_raises_the_replayed_warning(
         warnings.simplefilter("error")
         code, _ = _convert(monkeypatch, capsys, source, temp_polyxios_home / "o.vti")
     assert code == 1
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_a_png_to_a_lattice_format_points_at_read_image(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.png"
+    target = temp_polyxios_home / "b.vtk"
+    _picture(source)
+    code, warnings_shown = _convert(monkeypatch, capsys, source, target)
+    assert code == 0
+    assert len(warnings_shown) == 1
+    assert "read_image()" in warnings_shown[0]
+    mesh = polyxios.read(target)
+    assert len(mesh.vertices) == 24
+    assert "colors" in mesh.vertex_attrs
+
+
+@pytest.mark.filterwarnings("default")
+def test_cli_convert_between_a_png_and_an_image_grid(
+    temp_polyxios_home, monkeypatch, capsys
+):
+    source = temp_polyxios_home / "a.png"
+    grid = temp_polyxios_home / "b.vti"
+    back = temp_polyxios_home / "c.png"
+    pixels = _picture(source)
+    assert _convert(monkeypatch, capsys, source, grid) == (0, [])
+    assert polyxios.read_image(grid).extent == (0, 5, 0, 3, 0, 0)
+    assert _convert(monkeypatch, capsys, grid, back) == (0, [])
+    np.testing.assert_array_equal(
+        helper.image_to_array(polyxios.read_image(back)), pixels
+    )

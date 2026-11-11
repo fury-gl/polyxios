@@ -35,9 +35,9 @@ libFuzzer stops at the first finding and writes the input that caused it to
 `python fuzz/fuzz_stl.py fuzz/crashes/stl-crash-<sha1>`.
 
 Only Python code is instrumented for coverage (`atheris.instrument_all`).
-The Cython modules (`_core`, `_vtk_parse`, `_vtp_base64`, `_lzf`) are
-exercised but give no coverage feedback unless polyxios is built with
-`CFLAGS=-fsanitize=fuzzer-no-link,address`, as OSS-Fuzz builds it.
+The Cython modules (`_core`, `_vtk_parse`, `_vtp_base64`, `_lzf`,
+`_raster_kernels`) are exercised but give no coverage feedback unless polyxios
+is built with `CFLAGS=-fsanitize=fuzzer-no-link,address`, as OSS-Fuzz builds it.
 
 ## Adding a target
 

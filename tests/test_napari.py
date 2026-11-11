@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 import polyxios
-from polyxios import make_polydata
+from polyxios import helper, make_polydata
 from polyxios._io import GZIP_SUFFIXES
 from polyxios._registry import (
     Codec,
@@ -1005,6 +1005,68 @@ def test_reader_refuses_foreign_extensions():
     assert get_reader(path=[]) is None
 
 
+def _picture(tmp_path, name, shape):
+    pixels = (np.arange(int(np.prod(shape))) * 11 % 256).astype(np.uint8)
+    pixels = pixels.reshape(shape)
+    path = tmp_path / name
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    return path, pixels
+
+
+def test_a_picture_opens_as_one_image_layer(tmp_path):
+    path, pixels = _picture(tmp_path, "a.png", (5, 7, 3))
+    reader = get_reader(path=str(path))
+    [(data, kwargs, layer_type)] = reader(str(path))
+    assert layer_type == "image"
+    assert kwargs == {"name": "a", "rgb": True}
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_gray_picture_is_a_plain_image_layer(tmp_path):
+    path, pixels = _picture(tmp_path, "g.png", (5, 7))
+    [(data, kwargs, layer_type)] = get_reader(path=str(path))(str(path))
+    assert layer_type == "image"
+    assert kwargs["rgb"] is False
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_gray_alpha_picture_opens_as_rgba(tmp_path):
+    path, pixels = _picture(tmp_path, "la.png", (5, 7, 2))
+    [(data, kwargs, layer_type)] = get_reader(path=str(path))(str(path))
+    assert layer_type == "image"
+    assert data.shape == (5, 7, 4)
+    assert kwargs["rgb"] is True
+    np.testing.assert_array_equal(data[..., 3], pixels[..., 1])
+    for channel in range(3):
+        np.testing.assert_array_equal(data[..., channel], pixels[..., 0])
+
+
+def test_a_16_bit_picture_keeps_its_depth(tmp_path):
+    pixels = np.arange(60, dtype=np.uint16).reshape(4, 5, 3) * 1000
+    path = tmp_path / "wide.png"
+    polyxios.write_image(helper.array_to_image(pixels), path)
+    [(data, _, _)] = get_reader(path=str(path))(str(path))
+    assert data.dtype == np.uint16
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_gzipped_picture_is_still_a_picture(tmp_path):
+    path, pixels = _picture(tmp_path, "a.png", (4, 4, 4))
+    zipped = tmp_path / "z.png.gz"
+    zipped.write_bytes(gzip.compress(path.read_bytes()))
+    [(data, kwargs, layer_type)] = get_reader(path=str(zipped))(str(zipped))
+    assert (layer_type, kwargs["name"]) == ("image", "z")
+    np.testing.assert_array_equal(data, pixels)
+
+
+def test_a_picture_and_a_mesh_open_side_by_side(tmp_path):
+    path, _ = _picture(tmp_path, "a.png", (3, 3, 3))
+    grid = tmp_path / "g.vti"
+    polyxios.write(_hex_grid(2), grid)
+    layers = get_reader(path=[str(path), str(grid)])([str(path), str(grid)])
+    assert [kind for _, _, kind in layers] == ["image", "surface"]
+
+
 _FOREIGN: dict[str, bytes] = {
     "settings.xml": b'<?xml version="1.0"?>\n<config><item>1</item></config>\n',
     "table.dat": b"1 2 3\n4 5 6\n",
@@ -1023,13 +1085,16 @@ _FOREIGN: dict[str, bytes] = {
         b'<mesh>\n  <sharedgeometry vertexcount="0"/>\n  <submeshes/>\n</mesh>\n'
     ),
     "label.xyz": b"station name\n",
+    "photo.png": b"\xff\xd8\xff\xe0" + bytes(16),
 }
 
 # A gzip header with nothing readable behind it.
 _BROKEN_GZIP: bytes = b"\x1f\x8b\x08\x00garbage"
 
 
-@pytest.mark.parametrize("name", ["b.dat", "b.dat.gz", "b.xml", "b.e", "b.xyz"])
+@pytest.mark.parametrize(
+    "name", ["b.dat", "b.dat.gz", "b.xml", "b.e", "b.xyz", "b.png"]
+)
 def test_reader_declines_a_broken_gzip_stream(tmp_path, name):
     path = tmp_path / name
     path.write_bytes(_BROKEN_GZIP)
@@ -1224,6 +1289,22 @@ def test_a_codec_installed_for_a_shared_extension_takes_its_files(
     [(data, _, layer_type)] = reader(str(path))
     assert layer_type == "points"
     assert len(data) == 4
+
+
+def test_a_codec_installed_for_png_without_image_reading_takes_its_files(
+    tmp_path, monkeypatch
+):
+    # The picture path needs a codec that reads images; one that gives meshes
+    # owns the extension and its files open as the layers it makes.
+    path = tmp_path / "pic.png"
+    path.write_bytes(b"not a picture polyxios reads")
+    monkeypatch.setitem(
+        polyxios._REGISTRY, ".png", Codec(_third_party_read, _third_party_write)
+    )
+    reader = get_reader(path=str(path))
+    assert reader is not None
+    [(data, _, layer_type)] = reader(str(path))
+    assert layer_type == "points"
 
 
 def test_a_sniffer_that_raises_declines_the_file(tmp_path, monkeypatch):

@@ -35,9 +35,12 @@ Subcommands
 *   ``pxios convert <input_file> <output_file>``: Converts a model file from
     one format to another directly in a single process.
 
-    Between two image formats (``.vti``, ``.vtkhdf``) the grid stays compact: it is
-    read and written as an :class:`~polyxios.ImageData` rather than expanded into a
-    mesh. A ``.vtkhdf`` holding a mesh takes the mesh path.
+    Between two image formats (``.png``, ``.vti``, ``.vtkhdf``) the image stays
+    compact: it is read and written as an :class:`~polyxios.ImageData`, one sample
+    per pixel, with the codec's default options. Converting a ``.png`` to a mesh
+    format expands it into a lattice of quads and prints a warning pointing at
+    ``read_image()``; a ``.vti`` or ``.vtkhdf`` grid expands without one. A
+    ``.vtkhdf`` holding a mesh takes the mesh path.
 
     *   ``--force`` / ``-f``: Overwrite an existing output file.
 

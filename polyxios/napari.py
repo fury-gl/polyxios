@@ -7,9 +7,9 @@ given numpy arrays, so polyxios gains no dependency for it.
 
 napari indexes data the way it indexes an image, slowest axis first, so a
 vertex ``(x, y, z)`` is shown as ``(z, y, x)`` by default. That is what lets a
-mesh sit on the volume it was segmented from. Each layer records the order it
-was opened in under ``metadata["polyxios"]``, and the writers undo exactly
-that.
+mesh sit on the volume it was segmented from. Each Surface or Points layer
+records the order it was opened in under ``metadata["polyxios"]``, and the
+writers undo exactly that.
 
 A layer shows less than a file holds: a Surface draws one scalar field and a
 Points layer has no cells. What the layer cannot show - the other vertex
@@ -41,17 +41,23 @@ from polyxios._element_types import (
 )
 from polyxios._image import DIRECTION_KEY, GRID_GLOBALS, TYPE_KEY
 from polyxios._io import GZIP_SUFFIXES, format_suffix, open_read, source_suffix
+from polyxios._media import sniff_media
 from polyxios._registry import Codec, sniff_head
 from polyxios._types import PolyData, make_polydata, surface_triangles
 from polyxios._warn import warn_caller
-from polyxios.codecs import _exodus, _gltf, _tecplot, _vtr, _vts
+from polyxios.codecs import _exodus, _gltf, _png, _tecplot, _vtr, _vts
 from polyxios.codecs._vtk_xml import (
     extent_points,
     extent_spans,
     structured_cells_fit,
 )
 from polyxios.exceptions import CodecError, UnsupportedFormatError
-from polyxios.helper import META_SUFFIXES, read_multiblock, read_multiblock_vtp
+from polyxios.helper import (
+    META_SUFFIXES,
+    image_to_array,
+    read_multiblock,
+    read_multiblock_vtp,
+)
 
 __all__ = [
     "META_KEY",
@@ -143,6 +149,8 @@ _NOT_READ: Final[frozenset[str]] = frozenset({".svg"})
 # Index files, which name their pieces relative to themselves and are read
 # by helper.read_multiblock rather than by a codec, as plain XML only.
 _PLAIN_ONLY: Final[frozenset[str]] = META_SUFFIXES
+# Pictures, which open as Image layers rather than as a lattice of quads.
+_RASTER_SUFFIXES: Final[frozenset[str]] = frozenset({_png.EXTENSION})
 _VTP: Final[str] = ".vtp"
 # How much of a file the content test of a codec owning its extension sees.
 # The registry's own sniff window is too short for an HDF5 signature behind a
@@ -158,12 +166,20 @@ _HEAD_BYTES: Final[int] = 1 << 16
 # checked by content, with the sniffers of the codecs the registry resolves
 # them to, before the reader takes them.
 _SHARED_SUFFIXES: Final[frozenset[str]] = frozenset(
-    {".dat", ".e", ".plt", ".pts", ".vol", ".xml", ".xyz"}
+    {".dat", ".e", ".plt", ".png", ".pts", ".vol", ".xml", ".xyz"}
 )
+
+
+def _is_png(head: bytes) -> bool:
+    """Say whether *head* opens with the PNG signature."""
+    return sniff_media(head) == "image/png"
+
+
 # The content test of a codec whose sniffer takes files its reader refuses
 # (a binary .plt), or that has none, keyed by the codec's reader.
 _READ_TESTS: Final[dict[Callable[..., PolyData], Callable[[bytes], bool]]] = {
     _exodus.read: _exodus.is_netcdf,
+    _png.read: _is_png,
     _tecplot.read: _tecplot.is_ascii,
 }
 _CODEC_PACKAGE: Final[str] = "polyxios.codecs."
@@ -936,7 +952,25 @@ def _read(path: str | Sequence[str]) -> list[LayerData]:
     layers: list[LayerData] = []
     for p in paths:
         p = os.fspath(p)
-        read = read_multiblock if format_suffix(p) in META_SUFFIXES else _read_one
+        suffix = format_suffix(p)
+        codec = polyxios._REGISTRY.get(suffix)
+        if (
+            suffix in _RASTER_SUFFIXES
+            and codec is not None
+            and codec.read_image is not None
+        ):
+            # A picture is an Image layer: one value per pixel, not the
+            # vertices and quads a lattice of them would be.
+            image = polyxios.read_image(p)
+            pixels = image_to_array(image)  # colors, or intensity with alpha stacked
+            if pixels.ndim == 3 and pixels.shape[2] == 2:
+                gray, alpha = pixels[..., :1], pixels[..., 1:]
+                pixels = np.concatenate([gray, gray, gray, alpha], axis=-1)
+            layers.append(
+                (pixels, {"name": _layer_name(p), "rgb": pixels.ndim == 3}, "image")
+            )
+            continue
+        read = read_multiblock if suffix in META_SUFFIXES else _read_one
         layers.extend(layer_data(read(p), name=_layer_name(p)))
     return layers
 
@@ -1069,14 +1103,14 @@ def get_reader(
         A reader taking the same paths positionally - napari calls it that
         way - or None when a path is not one polyxios reads, so napari moves
         on to the next plugin. An extension other software also uses -
-        ``.dat``, ``.e``, ``.plt``, ``.pts``, ``.vol``, ``.xml``, ``.xyz`` -
-        is taken only when the sniffer of a codec reading that extension
-        recognises the file, and not when it is a broken gzip stream. A
-        ``.dat`` goes to the codec :func:`polyxios.read` would hand it to,
-        chosen from the same opening bytes, and is taken when that codec
-        reads it; a deck whose first card sits past those bytes is not. A codec
-        installed for one through the ``polyxios.codecs`` entry point owns
-        it, so its files are taken as :func:`polyxios.read` takes them.
+        ``.dat``, ``.e``, ``.plt``, ``.png``, ``.pts``, ``.vol``, ``.xml``,
+        ``.xyz`` - is taken only when the sniffer of a codec reading that
+        extension recognises the file, and not when it is a broken gzip
+        stream. A ``.dat`` goes to the codec :func:`polyxios.read` would hand
+        it to, chosen from the same opening bytes, and is taken when that
+        codec reads it; a deck whose first card sits past those bytes is not.
+        A codec installed for one through the ``polyxios.codecs`` entry point
+        owns it, so its files are taken as :func:`polyxios.read` takes them.
         ``.svg``, which polyxios writes and never reads, is never taken. A
         ``.vtm``, ``.pvtu``, ``.pvtp``, ``.pvtr``, ``.pvts`` or ``.pvti``
         index opens as its pieces merged into one layer, through
@@ -1084,6 +1118,8 @@ def get_reader(
         ``.vtp`` holding a multi-block set; a gzipped index is not taken,
         and a gzipped multi-block ``.vtp`` fails with the VTP reader's
         error.
+        A ``.png``, gzipped or not, opens as one Image layer when it opens with
+        the PNG signature.
     """
     return _read if _accepts(path) else None
 
