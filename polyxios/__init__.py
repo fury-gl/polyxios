@@ -236,7 +236,7 @@ def read_image(
     Parameters
     ----------
     path
-        Path to the image file (e.g. ``.vti`` or ``.vtkhdf``), or an
+        Path to the image file (e.g. ``.png``, ``.vti`` or ``.vtkhdf``), or an
         open binary file object.
     fmt
         Format override (e.g. ``'.vti'``).  Inferred from the file
@@ -292,8 +292,9 @@ def write_image(
         Custom codec registry.  Uses the built-in registry if ``None``.
     **opts
         Format-specific options passed to the codec's ``write_image``
-        function: ``compression`` and ``compression_opts`` for ``.vtkhdf``,
-        ``binary`` for ``.vti``. A codec warns about, and ignores, any other.
+        function: ``compress_level`` for ``.png``, ``compression`` and
+        ``compression_opts`` for ``.vtkhdf``, ``binary`` for ``.vti``. A codec
+        warns about, and ignores, any other.
 
     Raises
     ------
@@ -303,8 +304,12 @@ def write_image(
         If the format does not support image writing.  Use :func:`write`
         to write a PolyData instead.
     CodecError
-        If the codec cannot lay the image out in the file: an empty grid, or
-        an array that is not laid out along the extent.
+        If the codec cannot lay the image out in the file: an empty grid, an
+        array that is not laid out along the extent, or, for ``.png``, a grid
+        more than one plane deep or rotated, no ``colors`` (3 or 4 wide) or
+        ``intensity`` point attribute, values that do not fit 8 or 16 bits,
+        metadata it cannot spell, or a ``compress_level`` that is not an int
+        in 0-9.
     """
     if not isinstance(image, ImageData):
         raise TypeError(

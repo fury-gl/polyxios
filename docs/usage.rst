@@ -302,8 +302,8 @@ Images
 A uniform grid of samples - a picture, a volume - has a compact form besides the
 mesh. :func:`polyxios.read_image` and :func:`polyxios.write_image` take and give an
 :class:`~polyxios.ImageData`: an extent, an origin, a spacing and arrays laid out
-``(nz, ny, nx[, k])``, with no vertex or cell stored per sample. ``.vti`` and
-``.vtkhdf`` read and write that way.
+``(nz, ny, nx[, k])``, with no vertex or cell stored per sample. ``.png``,
+``.vti`` and ``.vtkhdf`` read and write that way.
 
 .. code-block:: python
 
@@ -318,15 +318,21 @@ mesh. :func:`polyxios.read_image` and :func:`polyxios.write_image` take and give
     # Both ends use origin="lower", VTK's order, so the slice keeps its rows.
     px.write_image(helper.array_to_image(slice2d, origin="lower"), "slice.vtkhdf")
 
-    mesh = px.read("volume.vti")                 # the same grid as a lattice of cells
+    photo = px.read_image("photo.png")
+    rgb = helper.image_to_array(photo)           # (H, W, 3) uint8, row 0 on top
+    px.write_image(helper.array_to_image(rgb), "copy.vtkhdf")
+
+    mesh = px.read("photo.png")                  # the same pixels as a lattice, with a warning
 
 :func:`polyxios.read` always gives a :class:`~polyxios.PolyData`, so it expands the
-grid into one vertex per sample and a cell between neighbors.
+grid into one vertex per sample and a cell between neighbors. For a raster file such
+as ``.png`` it also warns that :func:`polyxios.read_image` is the compact form;
+``.vti`` and ``.vtkhdf`` do not warn, since a grid already is their mesh form.
 
 Where to go next
 ----------------
 
-* :doc:`formats/index` - the forty-eight supported formats, one page each
+* :doc:`formats/index` - the forty-nine supported formats, one page each
 * :doc:`lazy_loading` - reading files larger than RAM
 * :doc:`transforms` - filtering, cleaning and merging meshes
 * :doc:`cli` - the ``pxios`` command line

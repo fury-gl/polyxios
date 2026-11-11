@@ -32,6 +32,8 @@ py.install_sources(
     '_pcd.py',
     '_pointcloud.py',
     '_permas.py',
+    '_png.py',
+    '_raster_kernels_fallback.py',
     '_splat.py',
     '_stl.py',
     '_spz.py',
@@ -75,6 +77,14 @@ py.extension_module(
 py.extension_module(
   '_lzf',
   '_lzf.pyx',
+  dependencies: py_dep,
+  install: true,
+  subdir: 'polyxios/codecs',
+)
+
+py.extension_module(
+  '_raster_kernels',
+  '_raster_kernels.pyx',
   dependencies: py_dep,
   install: true,
   subdir: 'polyxios/codecs',

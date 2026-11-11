@@ -9,8 +9,7 @@ cell for each of them. :meth:`ImageData.to_polydata` and
 :meth:`ImageData.from_polydata` go between the two.
 
 :func:`raster_pixels` and :func:`warn_left_out` are the shared half of the
-raster codecs (PNG and JPEG), staged here ahead of them: no codec calls either
-yet.
+raster codecs; the PNG writer calls both.
 """
 
 from collections.abc import Mapping, Sequence
