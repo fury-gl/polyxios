@@ -46,6 +46,8 @@ New features
   picture into a lattice and warns that :func:`polyxios.read_image` is the compact
   form. PNG scanline unfiltering runs in a compiled kernel (``_raster_kernels``)
   with a pure-Python twin that gives the same results.
+  :meth:`polyxios.SceneImage.decode` turns a scene's PNG texture into an
+  ``ImageData``.
 - polyxios is a napari plugin. Installed next to napari, it opens every
   format polyxios reads: a mesh as a Surface layer (volume meshes as their
   boundary, a measured vertex attribute as its values, else an integer
