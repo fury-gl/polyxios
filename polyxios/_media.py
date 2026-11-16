@@ -1,7 +1,7 @@
 """Media types of embedded images: names, extensions, magic bytes, data URIs.
 
-Shared by the codecs, which meet images as a file name, a data URI or a run
-of bytes.
+Shared by the codecs and :meth:`polyxios.SceneImage.decode`, which meet images as
+a file name, a data URI or a run of bytes.
 """
 
 import base64
@@ -21,6 +21,11 @@ MEDIA_TYPES: dict[str, str] = {
     "ktx2": "image/ktx2",
     "dds": "image/vnd-ms.dds",
 }
+
+# The media types polyxios has an image reader for, and the extension that
+# picks it; SceneImage.decode reads a texture through this.
+EXTENSION_OF_MEDIA: dict[str, str] = {"image/png": ".png"}
+
 MAGIC: tuple[tuple[bytes, str], ...] = (
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),

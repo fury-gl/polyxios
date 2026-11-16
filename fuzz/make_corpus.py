@@ -18,8 +18,10 @@ from __future__ import annotations
 import io
 from pathlib import Path
 import shutil
+import struct
 import sys
 import warnings
+import zlib
 
 from _harness import LAZY_TARGETS, TARGETS
 import numpy as np
@@ -28,6 +30,7 @@ import polyxios
 from polyxios import make_polydata
 from polyxios._types import PolyData
 from polyxios.exceptions import PolyxiosError
+from polyxios.helper import array_to_image
 
 
 def _surface() -> PolyData:
@@ -127,7 +130,14 @@ def _grid() -> PolyData:
     )
 
 
-MESHES = (_surface, _volume, _points, _lines, _grid)
+def _image() -> PolyData:
+    """A 3-wide, 4-tall RGB picture as the lattice of quads an image file expands into."""
+    return array_to_image(
+        np.arange(4 * 3 * 3, dtype=np.uint8).reshape(4, 3, 3)
+    ).to_polydata()
+
+
+MESHES = (_surface, _volume, _points, _lines, _grid, _image)
 
 # Writer options worth a seed of their own; every target also gets the
 # writer's defaults.
@@ -154,10 +164,127 @@ OPTIONS: dict[str, tuple[dict, ...]] = {
 }
 
 
-# Writers that need a path for a sibling file leave their target seedless; a
-# hand-written seed stands in.
+def _png_metadata_seed() -> bytes:
+    """A 16-bit gray PNG carrying every metadata key the writer spells."""
+    image = array_to_image(
+        (np.arange(12, dtype=np.uint16) * 5000).reshape(3, 4),
+        global_attrs={
+            "dpi": (72.0, 72.0),
+            "gamma": 0.45455,
+            "icc_profile": b"icc",
+            "exif": b"II*\x00\x08\x00\x00\x00",
+            "text": {"T": "x", "N": "\u65e5"},
+        },
+    )
+    buf = io.BytesIO()
+    polyxios.write_image(image, buf, fmt=".png")
+    return buf.getvalue()
+
+
+def _png_chunk(kind: bytes, body: bytes) -> bytes:
+    """Frame a PNG chunk with its length and CRC."""
+    return (
+        struct.pack(">I", len(body))
+        + kind
+        + body
+        + struct.pack(">I", zlib.crc32(kind + body))
+    )
+
+
+def _png_row(samples: np.ndarray, depth: int) -> bytes:
+    """One filter-0 scanline of ``samples`` packed at ``depth`` bits."""
+    flat = np.asarray(samples, np.uint32).ravel()
+    if depth == 16:
+        return b"\0" + flat.astype(">u2").tobytes()
+    if depth == 8:
+        return b"\0" + flat.astype(np.uint8).tobytes()
+    per_byte = 8 // depth
+    padded = np.zeros(-(-flat.size // per_byte) * per_byte, np.uint32)
+    padded[: flat.size] = flat
+    shifts = (per_byte - 1 - np.arange(per_byte)) * depth
+    packed = (padded.reshape(-1, per_byte) << shifts).sum(axis=1)
+    return b"\0" + packed.astype(np.uint8).tobytes()
+
+
+def _png_built(
+    samples: np.ndarray,
+    depth: int,
+    color: int,
+    *,
+    interlaced: bool,
+    before_idat: tuple[tuple[bytes, bytes], ...] = (),
+) -> bytes:
+    """A PNG laid out by hand, which the writer cannot make: Adam7, palettes."""
+    height, width = samples.shape[:2]
+    adam7 = (
+        (0, 0, 8, 8),
+        (0, 4, 8, 8),
+        (4, 0, 8, 4),
+        (0, 2, 4, 4),
+        (2, 0, 4, 2),
+        (0, 1, 2, 2),
+        (1, 0, 2, 1),
+    )
+    raw = b""
+    for y0, x0, dy, dx in adam7 if interlaced else ((0, 0, 1, 1),):
+        block = samples[y0::dy, x0::dx]
+        if block.shape[0] and block.shape[1]:
+            raw += b"".join(_png_row(row, depth) for row in block)
+    header = struct.pack(">IIBBBBB", width, height, depth, color, 0, 0, int(interlaced))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", header)
+        + b"".join(_png_chunk(kind, body) for kind, body in before_idat)
+        + _png_chunk(b"IDAT", zlib.compress(raw))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def _png_decoder_seeds() -> tuple[bytes, ...]:
+    """PNGs that reach the decoder's hard paths: Adam7, palettes, sub-byte depths.
+
+    Every chunk carries a CRC, so a mutation of a file that has none of these
+    stops at the CRC check instead of reaching them.
+    """
+    rng = np.random.default_rng(0)
+    palette = rng.integers(0, 256, (10, 3), np.uint8).tobytes()
+    return (
+        _png_built(
+            rng.integers(0, 10, (11, 9, 1)),
+            4,
+            3,
+            interlaced=True,
+            before_idat=((b"PLTE", palette), (b"tRNS", bytes([0, 128, 255]))),
+        ),
+        _png_built(
+            rng.integers(0, 2, (11, 9, 1)),
+            1,
+            0,
+            interlaced=True,
+            before_idat=(
+                (b"tRNS", struct.pack(">H", 1)),
+                (b"zTXt", b"A\0\0" + zlib.compress(b"x")),
+                (b"iTXt", b"B\0\x01\0\0\0" + zlib.compress("\u65e5".encode())),
+            ),
+        ),
+        _png_built(rng.integers(0, 256, (5, 7, 2)), 8, 4, interlaced=True),
+        _png_built(rng.integers(0, 1 << 16, (3, 4, 4)), 16, 6, interlaced=False),
+        _png_built(
+            rng.integers(0, 1 << 16, (3, 4, 3)),
+            16,
+            2,
+            interlaced=False,
+            before_idat=((b"tRNS", struct.pack(">3H", 1, 2, 3)),),
+        ),
+    )
+
+
+# Writers that need a path for a sibling file leave their target seedless, and
+# some targets need a seed the meshes above never write; a hand-built seed
+# stands in.
 HANDWRITTEN: dict[str, tuple[bytes, ...]] = {
     "node": (b"4 3 0 1\n1 0 0 0 1\n2 1 0 0 1\n3 0 1 0 2\n4 0 0 1 2\n",),
+    "png": (_png_metadata_seed(), *_png_decoder_seeds()),
 }
 
 
