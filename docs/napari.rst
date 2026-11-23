@@ -2,7 +2,7 @@ napari plugin
 =============
 
 .. meta::
-   :description: Open and save meshes and point clouds in napari with polyxios - every format polyxios reads, as Surface and Points layers, with no extra package to install.
+   :description: Open and save meshes and point clouds in napari with polyxios - every format polyxios reads, as Surface and Points layers, and a PNG as an Image layer, with no extra package to install.
 
 
 polyxios is a `napari <https://napari.org>`_ plugin as it is installed: no
@@ -15,13 +15,13 @@ separate package, and no napari dependency for anyone who does not use it.
 
 Every extension polyxios reads opens by drag-and-drop, *File > Open* or
 ``viewer.open``, gzipped or not. Extensions other software uses too -
-``.dat``, ``.e``, ``.plt``, ``.pts``, ``.vol``, ``.xml``, ``.xyz`` - are taken
-only when the file opens the way a format polyxios reads does, so a settings
-``.xml``, a binary Tecplot ``.plt``, a molecule ``.xyz`` or a face-landmark
-``.pts`` is left to the next plugin rather than failing here, and so is a
-file that starts like gzip and is not. ``.svg``
-is not offered: polyxios writes SVG pictures but cannot read a mesh back from
-one.
+``.dat``, ``.e``, ``.plt``, ``.png``, ``.pts``, ``.vol``, ``.xml``, ``.xyz`` -
+are taken only when the file opens the way a format polyxios reads does, so a
+settings ``.xml``, a binary Tecplot ``.plt``, a JPEG saved as ``.png``, a
+molecule ``.xyz`` or a face-landmark ``.pts`` is left to the next plugin
+rather than failing here, and so is a file that starts like gzip and is not.
+``.svg`` is not offered: polyxios writes SVG pictures but cannot read a mesh
+back from one.
 
 What each file becomes
 ----------------------
@@ -42,6 +42,11 @@ What each file becomes
   see it as an image, open it with an image reader instead. A structured
   grid finds that skin from its extent, at the cost of its surface rather
   than of every cell.
+- A ``.png``, gzipped or not, opens as one **Image** layer, not as the lattice of
+  quads :func:`polyxios.read` would expand it into: the pixels as an
+  ``(H, W, 3)`` RGB array (or ``(H, W, 4)``), or ``(H, W)`` for gray, with row 0
+  at the top, the way napari draws an image. A gray picture with alpha opens as
+  ``(H, W, 4)`` RGBA. There is no image writer.
 - Polyhedra, Lagrange, Bézier and other higher-order cells, quadratic
   polygons and quadratic-linear quads are not drawn. A file holding only
   those opens as a **Points** layer, with a warning, and keeps its cells for
@@ -72,13 +77,14 @@ Axis order
 
 napari orders coordinates the way it orders image axes, slowest first.
 polyxios reverses each vertex ``(x, y, z)`` into ``(z, y, x)``, which puts a
-mesh on top of the volume it was segmented from. Each layer records the order
-it was opened in, under ``layer.metadata["polyxios"]["axis_order"]``, and
-saving undoes exactly that order. Reversing the columns mirrors the mesh, so
-each triangle's vertex order is reversed with them and the surface still
-faces outward when napari draws it; saving reverses it back. A layer drawn in
-napari is taken as ``(z, y, x)``. Any other value under that key is refused
-on save rather than guessed at.
+mesh on top of the volume it was segmented from. Each Surface or Points layer
+records the order it was opened in, under
+``layer.metadata["polyxios"]["axis_order"]``, and saving undoes exactly that
+order. Reversing the columns mirrors the mesh, so each triangle's vertex
+order is reversed with them and the surface still faces outward when napari
+draws it; saving reverses it back. A layer drawn in napari is taken as
+``(z, y, x)``. Any other value under that key is refused on save rather than
+guessed at.
 
 To keep the columns as stored, build the layer from Python with
 :func:`polyxios.napari.layer_data`:

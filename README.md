@@ -173,8 +173,9 @@ pxios viz stanford-bunny.obj
 ## napari plugin
 
 Installed next to [napari](https://napari.org), polyxios opens every format it
-reads as a Surface or Points layer, and saves those layers back. No extra
-package to install, and napari is not a dependency.
+reads as a Surface or Points layer, and a `.png` as an Image layer, and saves
+Surface and Points layers back. No extra package to install, and napari is not
+a dependency.
 
 ```bash
 pip install polyxios "napari[all]"
@@ -320,7 +321,20 @@ blocks = helper.read_blocks("case.vtm")  # one PolyData per sub-file
 `examples/read_parallel_vtk.py` walks through what they do. Writing an index file is not
 supported.
 
-**48 formats supported** across the 60 extensions in the tables, plus `.plt`, which
+### Images
+
+A picture is a grid of samples, so it has a compact form of its own. `px.read_image` and
+`px.write_image` take and give an `ImageData` - one sample per pixel - and `px.read` expands
+it into the `PolyData` every other format reads as - a lattice of quads, one vertex per
+pixel - with a warning that says so. `polyxios.helper.image_to_array` and `array_to_image`
+convert to and from NumPy. `.vti` and `.vtkhdf` read and write as `ImageData` too. No
+Pillow is needed.
+
+| Format | Extension | Read | Write | Notes |
+|--------|-----------|------|-------|-------|
+| PNG | `.png` | ✓ | ✓ | all color types and depths, Adam7, `tRNS` → alpha; `dpi`, `gamma`, `icc_profile`, `exif`, `text` → `global_attrs`; `compress_level=` on write |
+
+**49 formats supported** across the 61 extensions in the tables, plus `.plt`, which
 is recognised but not read - more coming via the plugin system.
 
 ---

@@ -7,12 +7,27 @@ type; `SceneData` sits alongside it, never replaces it.
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any
+import io
+import os
+from pathlib import Path
+import re
+from typing import TYPE_CHECKING, Any
+from urllib.parse import unquote, urlsplit
 
 import numpy as np
 
 from polyxios import transforms
+from polyxios._media import (
+    EXTENSION_OF_MEDIA,
+    decode_data_uri,
+    media_type_of,
+    sniff_media,
+)
 from polyxios._types import PolyData
+from polyxios.exceptions import CodecError, UnsupportedFormatError
+
+if TYPE_CHECKING:
+    from polyxios._image import ImageData
 
 
 def _same_value(a: Any, b: Any) -> bool:
@@ -135,6 +150,22 @@ def _same_mesh(a: PolyData, b: PolyData) -> bool:
     )
 
 
+_LOCAL_DEVICE_DRIVE = re.compile(r"\\\\[?.]\\[A-Za-z]:")  # \\?\C: names a local drive
+_URL_DRIVE = re.compile(r"/?[A-Za-z][:|]")  # the drive of a file: URL's path
+
+
+def _plain(path: Path) -> Path:
+    """Return ``path`` without the long-path prefix of a local drive, if any."""
+    text = str(path)
+    return Path(text[4:]) if _LOCAL_DEVICE_DRIVE.match(text) else path
+
+
+def _stray_colon(path: str, drive: str) -> bool:
+    """Return whether a Windows ``path`` holds a colon outside its ``drive``."""
+    bad_letter = len(drive) == 2 and not (drive[0].isascii() and drive[0].isalpha())
+    return bad_letter or ":" in path[len(drive) :]
+
+
 @dataclass(frozen=True, slots=True)
 class SceneImage:
     """A texture image: external URI or embedded bytes.
@@ -142,7 +173,9 @@ class SceneImage:
     Parameters
     ----------
     uri
-        File-system path or ``data:`` URI.  Mutually exclusive with *data*.
+        A ``data:`` URI, a ``file:`` URI or a path, read as a URI reference the
+        way glTF and COLLADA spell one: a ``%`` in a path is written ``%25``.
+        Mutually exclusive with *data*.
     data
         Raw image bytes decoded from a glTF buffer view or a ``data:`` URI.
     media_type
@@ -155,6 +188,143 @@ class SceneImage:
     data: bytes | None = None
     media_type: str | None = None
     name: str = ""
+
+    def decode(self, *, base: str | os.PathLike[str] | None = None) -> "ImageData":
+        """Decode the image into an :class:`~polyxios.ImageData`.
+
+        Parameters
+        ----------
+        base
+            Directory a relative ``uri`` is read from. The file it names must
+            stay inside it. Without ``base`` a relative ``uri`` is read from
+            the working directory.
+
+        Returns
+        -------
+        ImageData
+            The pixels, as ``polyxios.read_image`` gives them. The format is
+            the one the bytes spell, else the type a ``data:`` URI declares,
+            else the ``media_type``, else the extension of the ``uri``.
+
+        Raises
+        ------
+        UnsupportedFormatError
+            If the media type has no image reader here (JPEG, WebP, KTX2, ...),
+            or the ``uri`` names something other than a local file.
+        CodecError
+            If the image holds neither bytes nor a ``uri``, the ``data:`` URI
+            or the ``uri`` is malformed, a ``uri`` leaves ``base``, or the
+            bytes do not decode.
+        ValidationError
+            If the image declares more pixels than polyxios will allocate.
+        OSError
+            If the file the ``uri`` names cannot be read.
+        """
+        data = self.data
+        media = self.media_type
+        uri = self.uri
+        if data is None and uri is not None and uri[:5].lower() == "data:":
+            try:
+                declared, data = decode_data_uri(uri)
+            except ValueError as exc:
+                raise CodecError(f"{self._who()}: data URI {exc}") from exc
+            media = declared or media
+        if data is not None:
+            return self._read_bytes(data, media)
+        if not uri:
+            raise CodecError(
+                "SceneImage holds neither data nor a uri; there is nothing to decode."
+            )
+        try:
+            parts = urlsplit(uri)
+        except ValueError as exc:
+            raise CodecError(
+                f"{self._who()}: uri {uri!r} is malformed ({exc})."
+            ) from exc
+        scheme = parts.scheme
+        if len(scheme) > 1 and scheme != "file":
+            raise UnsupportedFormatError(
+                f"SceneImage.decode() reads local files only; {uri!r} is a "
+                f"{scheme}: URI."
+            )
+        if scheme == "file":
+            if parts.netloc.lower() not in ("", "localhost"):
+                raise UnsupportedFormatError(
+                    f"SceneImage.decode() reads local files only; {uri!r} names "
+                    f"host {parts.netloc!r}."
+                )
+            from urllib.request import url2pathname  # not needed at import time
+
+            if os.name == "nt":
+                # url2pathname takes the letter before any colon for a drive.
+                lead = _URL_DRIVE.match(parts.path)
+                if re.search(r"[:|]", parts.path[lead.end() if lead else 0 :]):
+                    raise CodecError(
+                        f"{self._who()}: uri {uri!r} is malformed "
+                        "(a colon that is no drive)."
+                    )
+
+            try:
+                rel = url2pathname(parts.path)
+            except OSError as exc:  # some Pythons refuse a colon that is no drive
+                raise CodecError(
+                    f"{self._who()}: uri {uri!r} is malformed ({exc})."
+                ) from exc
+        else:
+            rel = unquote(uri)
+        if "\0" in rel:
+            raise CodecError(
+                f"{self._who()}: uri {uri!r} is malformed (it holds a NUL)."
+            )
+        drive = Path(rel).drive
+        if drive[:2] in ("\\\\", "//") and not _LOCAL_DEVICE_DRIVE.fullmatch(drive):
+            raise UnsupportedFormatError(
+                f"SceneImage.decode() reads local files only; {uri!r} names a "
+                "network share."
+            )
+        if os.name == "nt" and _stray_colon(rel, drive):
+            raise CodecError(
+                f"{self._who()}: uri {uri!r} is malformed (a colon that is no drive)."
+            )
+        if base is None:
+            path = Path(rel)
+        else:
+            root = _plain(Path(base).resolve())
+            path = _plain((Path(base) / rel).resolve())
+            if not path.is_relative_to(root):
+                raise CodecError(
+                    f"SceneImage uri {uri!r} escapes the base directory "
+                    f"({os.fspath(base)}); rejected for security."
+                )
+        return self._read_bytes(
+            path.read_bytes(), media or media_type_of(rel), os.fspath(path)
+        )
+
+    def _who(self, label: str = "") -> str:
+        """Name this image for an error: its label, else the image's own name."""
+        label = label or self.name
+        return f"SceneImage {Path(label).name!r}" if label else "SceneImage"
+
+    def _read_bytes(
+        self, data: bytes, media: str | None, name: str = ""
+    ) -> "ImageData":
+        """Read ``data`` with the reader its magic bytes, else ``media``, name.
+
+        ``name`` is what an error calls the bytes, else the image's own name.
+        """
+        import polyxios
+
+        media = sniff_media(data) or media
+        label = name or self.name
+        ext = EXTENSION_OF_MEDIA.get((media or "").strip().lower())
+        if ext is None:
+            raise UnsupportedFormatError(
+                f"{self._who(label)}: {media or 'unknown'} data has no image "
+                "reader in polyxios."
+            )
+        buffer = io.BytesIO(data)
+        buffer.name = label  # type: ignore[misc]
+        return polyxios.read_image(buffer, fmt=ext)
 
 
 @dataclass(frozen=True, slots=True)
