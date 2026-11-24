@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 import re
 import struct
-from typing import Any
+from typing import Any, cast
 import urllib.parse
 
 import numpy as np
@@ -148,7 +148,7 @@ def _safe_resolve(base_dir: Path, uri: str) -> Path:
 # =============================================================================
 
 
-def _parse_glb(data: bytes) -> tuple[dict, bytes | None]:
+def _parse_glb(data: bytes) -> tuple[dict[str, Any], bytes | None]:
     """Parse a GLB binary and return (gltf_json_dict, bin_chunk_bytes_or_None)."""
     if len(data) < _GLB_HEADER_SIZE:
         raise CodecError("GLB file is too short to contain a valid header.")
@@ -168,7 +168,7 @@ def _parse_glb(data: bytes) -> tuple[dict, bytes | None]:
         )
 
     pos = _GLB_HEADER_SIZE
-    gltf_json: dict | None = None
+    gltf_json: dict[str, Any] | None = None
     bin_data: bytes | None = None
 
     while pos < len(data):
@@ -197,7 +197,7 @@ def _parse_glb(data: bytes) -> tuple[dict, bytes | None]:
 
 
 def _read_accessor(
-    gltf: dict,
+    gltf: dict[str, Any],
     accessor_index: int,
     buffers: list[bytes],
 ) -> np.ndarray:
@@ -316,7 +316,9 @@ def _read_accessor(
 # =============================================================================
 
 
-def _primitive_attributes(gltf: dict, primitive: Any, where: str) -> dict:
+def _primitive_attributes(
+    gltf: dict[str, Any], primitive: Any, where: str
+) -> dict[str, Any]:
     """Return the validated ``attributes`` object of a primitive.
 
     Parameters
@@ -356,7 +358,9 @@ def _primitive_attributes(gltf: dict, primitive: Any, where: str) -> dict:
     return attrs
 
 
-def _read_vertex_set(gltf: dict, attrs: dict, buffers: list[bytes]) -> PolyData:
+def _read_vertex_set(
+    gltf: dict[str, Any], attrs: dict[str, Any], buffers: list[bytes]
+) -> PolyData:
     """Read the vertices and vertex attributes one ``attributes`` object names.
 
     Parameters
@@ -431,8 +435,8 @@ def _read_vertex_set(gltf: dict, attrs: dict, buffers: list[bytes]) -> PolyData:
 
 
 def _primitive_elements(
-    gltf: dict,
-    primitive: dict,
+    gltf: dict[str, Any],
+    primitive: dict[str, Any],
     buffers: list[bytes],
     *,
     n_verts: int,
@@ -597,7 +601,7 @@ def _stack_elements(
 
 
 def _mesh_to_polydata(
-    gltf: dict,
+    gltf: dict[str, Any],
     mesh_index: int,
     buffers: list[bytes],
     file_size: int,
@@ -634,8 +638,8 @@ def _mesh_to_polydata(
             element_types=np.array([], dtype=np.uint8),
         )
 
-    vertex_sets: dict[tuple, PolyData] = {}
-    set_keys: list[tuple] = []
+    vertex_sets: dict[Any, PolyData] = {}
+    set_keys: list[Any] = []
     for p, prim in enumerate(primitives):
         attrs = _primitive_attributes(gltf, prim, f"mesh {mesh_index} primitive {p}")
         key = tuple(sorted(attrs.items()))
@@ -698,7 +702,7 @@ def _mesh_to_polydata(
 # =============================================================================
 
 
-def _node_local_matrix(node: dict) -> np.ndarray:
+def _node_local_matrix(node: dict[str, Any]) -> np.ndarray:
     """Return the 4×4 local transform matrix for a glTF node dict."""
     if "matrix" in node:
         # glTF stores column-major; numpy is row-major, so transpose.
@@ -757,7 +761,7 @@ def _is_index(value: Any, n: int) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < n
 
 
-def _decode_skins(gltf: dict, skins: Any, buffers: list[bytes]) -> Any:
+def _decode_skins(gltf: dict[str, Any], skins: Any, buffers: list[bytes]) -> Any:
     """Return the skins with their inverse bind matrices decoded.
 
     Parameters
@@ -853,10 +857,10 @@ def _decode_skins(gltf: dict, skins: Any, buffers: list[bytes]) -> Any:
 
 
 def _decode_animations(
-    gltf: dict,
-    animations: list[dict],
+    gltf: dict[str, Any],
+    animations: list[dict[str, Any]],
     buffers: list[bytes],
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Decode glTF animation sampler accessors into numpy arrays.
 
     Replaces raw accessor indices with decoded ``times`` and ``values``
@@ -908,7 +912,7 @@ def _decode_animations(
                 raise CodecError(
                     f"glTF: channel {j} of animation {k} is not an object."
                 )
-        decoded_samplers: list[dict] = []
+        decoded_samplers: list[dict[str, Any]] = []
         for j, s in enumerate(anim.get("samplers", [])):
             if not isinstance(s, dict):
                 raise CodecError(
@@ -949,7 +953,7 @@ def _decode_animations(
     return result
 
 
-def _json_object(raw: bytes) -> dict:
+def _json_object(raw: bytes) -> dict[str, Any]:
     """Decode a glTF JSON document, which has to be one object."""
     try:
         doc = json.loads(raw.decode("utf-8"))
@@ -962,7 +966,7 @@ def _json_object(raw: bytes) -> dict:
     return doc
 
 
-def _objects(*, gltf: dict, key: str) -> list:
+def _objects(*, gltf: dict[str, Any], key: str) -> list[Any]:
     """Return the top-level array ``key``, refusing one not made of objects.
 
     Parameters
@@ -1005,13 +1009,13 @@ def _is_numbers(*, value: Any, n: int) -> bool:
     )
 
 
-def _check_optional(*, entry: dict, key: str, ok: bool, where: str) -> None:
+def _check_optional(*, entry: dict[str, Any], key: str, ok: bool, where: str) -> None:
     """Refuse ``entry[key]`` when present and ``ok`` is False."""
     if key in entry and not ok:
         raise CodecError(f"glTF: {where} {key} is not valid ({entry[key]!r:.80}).")
 
 
-def _check_document(*, gltf: dict) -> None:
+def _check_document(*, gltf: dict[str, Any]) -> None:
     """Refuse a glTF document whose arrays the reader would index blindly.
 
     Every property the reader takes on trust is checked here, once, against
@@ -1436,9 +1440,9 @@ def read_scene(path: Source) -> SceneData:
     )
 
 
-def _sampler_fields(sampler: dict) -> dict:
+def _sampler_fields(sampler: dict[str, Any]) -> dict[str, Any]:
     """Extract SceneTexture kwargs from a glTF sampler dict."""
-    out: dict = {}
+    out: dict[str, Any] = {}
     if "magFilter" in sampler:
         out["mag_filter"] = sampler["magFilter"]
     if "minFilter" in sampler:
@@ -1450,7 +1454,7 @@ def _sampler_fields(sampler: dict) -> dict:
     return out
 
 
-def _build_material(m: dict) -> SceneMaterial:
+def _build_material(m: dict[str, Any]) -> SceneMaterial:
     """Build a SceneMaterial from a glTF material dict."""
     pbr = m.get("pbrMetallicRoughness", {})
 
@@ -1476,7 +1480,9 @@ def _build_material(m: dict) -> SceneMaterial:
     )
 
 
-def _build_image(img: dict, buffers: list[bytes], gltf: dict) -> SceneImage:
+def _build_image(
+    img: dict[str, Any], buffers: list[bytes], gltf: dict[str, Any]
+) -> SceneImage:
     """Build a SceneImage from a glTF image dict."""
     if "bufferView" in img:
         bv = gltf["bufferViews"][img["bufferView"]]
@@ -1586,7 +1592,7 @@ def _pad4(data: bytes, *, pad_byte: bytes = b"\x00") -> bytes:
     return data + pad_byte * (4 - rem) if rem else data
 
 
-def _make_glb(gltf_dict: dict, bin_data: bytes) -> bytes:
+def _make_glb(gltf_dict: dict[str, Any], bin_data: bytes) -> bytes:
     """Assemble a GLB binary from a JSON dict and binary buffer."""
     try:
         json_bytes = _pad4(
@@ -1621,8 +1627,8 @@ class _BinBuilder:
     def __init__(self) -> None:
         self._chunks: list[bytes] = []
         self._offset: int = 0
-        self.buffer_views: list[dict] = []
-        self.accessors: list[dict] = []
+        self.buffer_views: list[dict[str, Any]] = []
+        self.accessors: list[dict[str, Any]] = []
 
     def add(
         self,
@@ -1636,7 +1642,7 @@ class _BinBuilder:
         """Append *data* and register a bufferView + accessor; return accessor index."""
         raw = _pad4(data.tobytes())
         bv_idx = len(self.buffer_views)
-        bv: dict = {
+        bv: dict[str, Any] = {
             "buffer": 0,
             "byteOffset": self._offset,
             "byteLength": len(raw),
@@ -1648,7 +1654,7 @@ class _BinBuilder:
         self._offset += len(raw)
 
         acc_idx = len(self.accessors)
-        entry: dict = {
+        entry: dict[str, Any] = {
             "bufferView": bv_idx,
             "byteOffset": 0,
             "componentType": component_type,
@@ -1696,7 +1702,7 @@ class _BinBuilder:
         """Append raw image bytes and return the bufferView index."""
         raw = _pad4(data)
         bv_idx = len(self.buffer_views)
-        bv: dict = {
+        bv: dict[str, Any] = {
             "buffer": 0,
             "byteOffset": self._offset,
             "byteLength": len(raw),
@@ -1840,7 +1846,7 @@ def _tangents_of_frame(
         has no ``normals`` of 3 columns (glTF has clients ignore a
         ``TANGENT`` without a ``NORMAL``) or a tangent row of zero or
         non-finite length, which no unit vector stands for.
-    keys : tuple of str
+    keys : tuple[Any, ...] of str
         The attributes the tangents stand for, or the frame left out.
     """
     vec = {
@@ -1906,7 +1912,7 @@ def _polydata_to_primitives(
     mat_remap: dict[int, int] | None = None,
     *,
     what: str = "glTF",
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Convert a PolyData into a list of glTF primitive dicts.
 
     Parameters
@@ -2027,7 +2033,7 @@ def _polydata_to_primitives(
 
     # Group elements by (element_type_code, material_index).
     mat_col: np.ndarray | None = poly.element_attrs.get("material")
-    primitives: list[dict] = []
+    primitives: list[dict[str, Any]] = []
 
     # Warn once for each unsupported category.
     has_volume = bool(np.any(np.isin(poly.element_types, list(_VOLUME_CODES))))
@@ -2084,7 +2090,7 @@ def _polydata_to_primitives(
             indices_arr = indices_arr.astype(np.uint16)
         idx_accessor = bb.add_indices(indices_arr)
 
-        prim: dict = {
+        prim: dict[str, Any] = {
             "attributes": {"POSITION": pos_idx, **va_accessors},
             "indices": idx_accessor,
             "mode": mode,
@@ -2258,7 +2264,7 @@ def write(
 
     mat_col = poly.element_attrs.get("material")
     mat_remap: dict[int, int] = {}
-    gltf_materials: list[dict] = []
+    gltf_materials: list[dict[str, Any]] = []
     if mat_col is not None:
         unique_mats = sorted({int(m) for m in mat_col if m >= 0})
         mat_remap = {m: i for i, m in enumerate(unique_mats)}
@@ -2284,12 +2290,15 @@ def write(
             "volume elements.  At least one triangle, line, or point is needed."
         )
 
-    asset_meta: dict = {"version": "2.0", "generator": f"polyxios {__version__}"}
+    asset_meta: dict[str, Any] = {
+        "version": "2.0",
+        "generator": f"polyxios {__version__}",
+    }
     ga = poly.global_attrs.get("asset", {})
     if "copyright" in ga:
         asset_meta["copyright"] = ga["copyright"]
 
-    gltf_dict: dict = {
+    gltf_dict: dict[str, Any] = {
         "asset": asset_meta,
         "scene": 0,
         "scenes": [{"nodes": [0]}],
@@ -2423,7 +2432,7 @@ def write_scene(
     bb = _BinBuilder()
 
     # Meshes.
-    gltf_meshes: list[dict] = []
+    gltf_meshes: list[dict[str, Any]] = []
     for mesh_idx, mesh_poly in enumerate(scene.meshes):
         what = f"glTF: mesh {mesh_idx}"
         prims = _polydata_to_primitives(mesh_poly, bb, what=what)
@@ -2436,13 +2445,15 @@ def write_scene(
     gltf_skins, skin_of = _skins_of_nodes(scene, bb, gltf_meshes)
 
     # Materials.
-    gltf_materials: list[dict] = [_scene_material_to_gltf(m) for m in scene.materials]
+    gltf_materials: list[dict[str, Any]] = [
+        _scene_material_to_gltf(m) for m in scene.materials
+    ]
 
     # Images — embed bufferView data or use URI.
-    gltf_images: list[dict] = []
+    gltf_images: list[dict[str, Any]] = []
     gltf_bvs_for_images: list[int] = []
     for img in scene.images:
-        img_entry: dict = {}
+        img_entry: dict[str, Any] = {}
         if img.name:
             img_entry["name"] = img.name
         if img.data is not None:
@@ -2456,13 +2467,13 @@ def write_scene(
         gltf_images.append(img_entry)
 
     # Textures.
-    gltf_textures: list[dict] = []
-    gltf_samplers: list[dict] = []
+    gltf_textures: list[dict[str, Any]] = []
+    gltf_samplers: list[dict[str, Any]] = []
     for tex in scene.textures:
-        tex_entry: dict = {}
+        tex_entry: dict[str, Any] = {}
         if tex.image >= 0:
             tex_entry["source"] = tex.image
-        sampler: dict = {}
+        sampler: dict[str, Any] = {}
         if tex.mag_filter is not None:
             sampler["magFilter"] = tex.mag_filter
         if tex.min_filter is not None:
@@ -2496,9 +2507,9 @@ def write_scene(
             if node_idx is not None:
                 animated_node_indices.add(int(node_idx))
 
-    gltf_nodes: list[dict] = []
+    gltf_nodes: list[dict[str, Any]] = []
     for node_i, node in enumerate(scene.nodes):
-        n_entry: dict = {}
+        n_entry: dict[str, Any] = {}
         if node.name:
             n_entry["name"] = node.name
         if node.mesh is not None:
@@ -2532,7 +2543,7 @@ def write_scene(
 
     # Scenes.
     if scene.scenes:
-        gltf_scenes = [{"nodes": list(s)} for s in scene.scenes]
+        gltf_scenes = [{"nodes": list[Any](s)} for s in scene.scenes]
     else:
         all_children: set[int] = set()
         for node in scene.nodes:
@@ -2540,7 +2551,10 @@ def write_scene(
         roots = [i for i in range(len(gltf_nodes)) if i not in all_children]
         gltf_scenes = [{"nodes": roots}]
 
-    asset_meta: dict = {"version": "2.0", "generator": f"polyxios {__version__}"}
+    asset_meta: dict[str, Any] = {
+        "version": "2.0",
+        "generator": f"polyxios {__version__}",
+    }
     ga = scene.global_attrs.get("asset", {})
     if "copyright" in ga:
         asset_meta["copyright"] = ga["copyright"]
@@ -2555,7 +2569,7 @@ def write_scene(
         {k: v for k, v in bv.items() if k != "_media_type"} for bv in bb.buffer_views
     ]
 
-    gltf_dict: dict = {
+    gltf_dict: dict[str, Any] = {
         "asset": asset_meta,
         "scene": scene.active_scene,
         "scenes": gltf_scenes,
@@ -2585,12 +2599,12 @@ def write_scene(
 
 
 def _mesh_entry(
-    primitives: list[dict],
+    primitives: list[dict[str, Any]],
     global_attrs: dict[str, Any],
     what: str,
     *,
     keep: frozenset[str] | set[str] = frozenset(),
-) -> dict:
+) -> dict[str, Any]:
     """Return the glTF mesh object of ``primitives``, named by ``mesh_name``.
 
     Parameters
@@ -2610,7 +2624,7 @@ def _mesh_entry(
     dict
         The mesh object.
     """
-    entry: dict = {"primitives": primitives}
+    entry: dict[str, Any] = {"primitives": primitives}
     name = global_attrs.get("mesh_name")
     if isinstance(name, str):
         if name:
@@ -2702,7 +2716,7 @@ def _is_json(value: Any) -> bool:
 
 
 def _skin_matrices(
-    what: str, skin: dict, n_joints: int
+    what: str, skin: dict[str, Any], n_joints: int
 ) -> tuple[bool, np.ndarray | None]:
     """Return the inverse bind matrices skin ``what`` writes, bind shape folded in.
 
@@ -2769,7 +2783,7 @@ def _skin_matrices(
 
 def _encode_skin(
     k: int, skin: Any, bb: _BinBuilder, parent: dict[int, int], n_nodes: int
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Return skin ``k`` as a glTF skin object, None when it cannot be one.
 
     Parameters
@@ -2798,17 +2812,22 @@ def _encode_skin(
     joints = skin.get("joints")
     if isinstance(joints, np.ndarray):
         joints = joints.tolist()
-    nodes = (
+    node_indices: list[int | None] = (
         [_node_index(j, n_nodes) for j in joints]
         if isinstance(joints, (list, tuple))
         else []
     )
-    if not nodes or None in nodes or len(set(nodes)) != len(nodes):
+    if (
+        not node_indices
+        or any(n is None for n in node_indices)
+        or len(set(node_indices)) != len(node_indices)
+    ):
         _warn_caller(
             f"{what} joints {joints!r} are not distinct node indices; it is not "
             "written."
         )
         return None
+    nodes: list[int] = [n for n in node_indices if n is not None]
     if len({_root(j, parent) for j in nodes}) > 1:
         _warn_caller(
             f"{what} joints {nodes} do not share a root node, which glTF "
@@ -2818,7 +2837,7 @@ def _encode_skin(
     ok, matrices = _skin_matrices(what, skin, len(nodes))
     if not ok:
         return None
-    entry: dict = {}
+    entry: dict[str, Any] = {}
     name = skin.get("name")
     if isinstance(name, str):
         entry["name"] = name
@@ -2835,13 +2854,13 @@ def _encode_skin(
         )
     if skin.get("skeleton") is not None:
         top = _node_index(skin["skeleton"], n_nodes)
-        if top is not None and all(_rooted(j, top, parent) for j in nodes):
-            entry["skeleton"] = top
-        else:
+        if top is None or not all(_rooted(j, top, parent) for j in nodes):
             _warn_caller(
                 f"{what} skeleton {skin['skeleton']!r} is not an ancestor of every "
                 "joint; it is dropped."
             )
+        else:
+            entry["skeleton"] = top
     if skin.get("extras") is not None:
         if _is_json(skin["extras"]):
             entry["extras"] = skin["extras"]
@@ -2881,8 +2900,10 @@ def _rooted(node: int, top: int, parent: dict[int, int]) -> bool:
 
 
 def _skins_of_nodes(
-    scene: SceneData, bb: _BinBuilder, gltf_meshes: list[dict]
-) -> tuple[list[dict], dict[int, int]]:
+    scene: SceneData,
+    bb: _BinBuilder,
+    gltf_meshes: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[int, int]]:
     """Return the glTF skins of ``scene`` and the skin each node takes.
 
     Parameters
@@ -2914,7 +2935,7 @@ def _skins_of_nodes(
     for i, node in enumerate(scene.nodes):
         for child in node.children:
             parent.setdefault(child, i)
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     written: dict[int, int] = {}
     for k, skin in enumerate(skins):
         entry = _encode_skin(k, skin, bb, parent, n_nodes)
@@ -2928,19 +2949,23 @@ def _skins_of_nodes(
         ref = node.extras.get("skin")
         if ref is None:
             continue
-        k = _node_index(ref, len(skins))
-        mesh = _node_index(node.mesh, len(gltf_meshes))
-        if k is None:
+        skin_i = _node_index(ref, len(skins))
+        mesh_i = _node_index(node.mesh, len(gltf_meshes))
+        why: str | None
+        if skin_i is None:
             why = "name a skin global_attrs['skins'] lacks"
-        elif k not in written:
+        elif skin_i not in written:
             continue
-        elif mesh is None:
+        elif mesh_i is None:
             why = "name a skin but no mesh for it to deform"
         else:
-            why = _misfit(scene.meshes[mesh], gltf_meshes[mesh], out[written[k]])
+            why = _misfit(
+                scene.meshes[mesh_i], gltf_meshes[mesh_i], out[written[skin_i]]
+            )
             if why is None:
-                skin_of[i] = written[k]
+                skin_of[i] = written[skin_i]
                 continue
+        assert why is not None
         unskinned.setdefault(why, []).append(i)
     for why, nodes in unskinned.items():
         _warn_caller(f"glTF: node(s) {_few(nodes)} {why}; they are written unskinned.")
@@ -2954,7 +2979,7 @@ def _few(indices: list[int], *, limit: int = 10) -> str:
     return f"{indices[:limit]} and {len(indices) - limit} more"
 
 
-def _misfit(poly: PolyData, mesh: dict, skin: dict) -> str | None:
+def _misfit(poly: PolyData, mesh: dict[str, Any], skin: dict[str, Any]) -> str | None:
     """Return why ``mesh`` cannot wear ``skin``, None when it can.
 
     Every primitive of a skinned mesh needs ``JOINTS_0`` and ``WEIGHTS_0``,
@@ -3009,7 +3034,7 @@ _WIDTH_ACCESSOR: dict[int, str] = {
 _FLOAT32_MAX = float(np.finfo(np.float32).max)
 
 
-def _animation_objects(animations: Any) -> list[dict]:
+def _animation_objects(animations: Any) -> list[dict[str, Any]]:
     """Return the animations that are objects holding channels and samplers.
 
     Parameters
@@ -3345,7 +3370,7 @@ def _member_columns(*, kind: str, member: Any) -> tuple[int, ...] | None:
 
 
 def _bezier_tangents(
-    *, sampler: dict, times: np.ndarray, width: int
+    *, sampler: dict[str, Any], times: np.ndarray, width: int
 ) -> tuple[np.ndarray, np.ndarray] | str:
     """Return a BEZIER sampler's control points as time and value pairs.
 
@@ -3421,7 +3446,7 @@ def _transform_track(
     ch: Any,
     samplers: Any,
     nodes: tuple[SceneNode, ...],
-    elements_of: dict[int, list | None | str],
+    elements_of: dict[int, list[Any] | str | None],
 ) -> _Track | str | None:
     """Return a channel bound to the COLLADA transform element it animates.
 
@@ -3476,6 +3501,7 @@ def _transform_track(
     if isinstance(elements, str):
         return elements
     kind = _ELEMENT_OF_PATH[path]
+    element: int | None = None
     if elements is None:
         if kind != "matrix":
             return f"its node {node} spells no transform element of sid {sid!r}"
@@ -3527,11 +3553,12 @@ def _transform_track(
         return "its sampler holds a value float32, the width glTF stores, cannot"
     if not (np.diff(times) > 0).all():
         return "its sampler times are not strictly increasing"
-    tangents = None
+    tangents: tuple[np.ndarray, np.ndarray] | None = None
     if interp == "BEZIER":
-        tangents = _bezier_tangents(sampler=sampler, times=times, width=width)
-        if isinstance(tangents, str):
-            return tangents
+        bezier = _bezier_tangents(sampler=sampler, times=times, width=width)
+        if isinstance(bezier, str):
+            return bezier
+        tangents = bezier
     values = values.reshape(len(times), width)
     trs = None
     if kind == "matrix" and width == 16 and interp == "LINEAR":
@@ -3558,7 +3585,9 @@ def _bezier_at(*, track: _Track, t: np.ndarray, span: np.ndarray) -> np.ndarray:
     inner control points is clamped to the span, so the curve's time rises
     and bisection finds the parameter where it reaches ``t``.
     """
-    p_in, p_out = track.tangents
+    tangents = track.tangents
+    assert tangents is not None
+    p_in, p_out = tangents
     t0, t3 = track.times[span], track.times[span + 1]
     out = np.empty((len(t), track.values.shape[1]))
     for c in range(track.values.shape[1]):
@@ -3608,7 +3637,7 @@ def _slerp(*, a: np.ndarray, b: np.ndarray, f: np.ndarray) -> np.ndarray:
     wa = np.where(near, 1 - f, np.sin((1 - f) * angle) / safe)
     wb = np.where(near, f, np.sin(f * angle) / safe)
     out = wa[:, None] * a + wb[:, None] * b
-    return out / np.linalg.norm(out, axis=1, keepdims=True)
+    return np.asarray(out / np.linalg.norm(out, axis=1, keepdims=True))
 
 
 def _matrix_track_at(*, track: _Track, t: np.ndarray) -> np.ndarray:
@@ -3623,7 +3652,9 @@ def _matrix_track_at(*, track: _Track, t: np.ndarray) -> np.ndarray:
     span = np.clip(np.searchsorted(track.times, t, side="right") - 1, 0, n - 2)
     t0, t1 = track.times[span], track.times[span + 1]
     f = np.clip((t - t0) / (t1 - t0), 0.0, 1.0)
-    tr, quats, sc = track.trs
+    trs = track.trs
+    assert trs is not None
+    tr, quats, sc = trs
     move = tr[span] + (tr[span + 1] - tr[span]) * f[:, None]
     size = sc[span] + (sc[span + 1] - sc[span]) * f[:, None]
     turn = _slerp(a=quats[span], b=quats[span + 1], f=f)
@@ -3688,7 +3719,7 @@ def _quat_angles(*, a: np.ndarray, b: np.ndarray) -> np.ndarray:
         from each rotation of ``a`` to the one of ``b``.
     """
     dots = np.abs(np.sum(a * b, axis=1))
-    return np.degrees(2 * np.arccos(np.clip(dots, 0.0, 1.0)))
+    return np.asarray(np.degrees(2 * np.arccos(np.clip(dots, 0.0, 1.0))))
 
 
 def _angle_turns(
@@ -3762,7 +3793,7 @@ def _curve_tolerance(*, lo: np.ndarray, hi: np.ndarray) -> float:
         about 1e-16.
     """
     size = max(np.abs(lo).max(), np.abs(hi).max(), 1.0)
-    return _REBUILD_CURVE_TOLERANCE * max((hi - lo).max(), 1e-6 * size)
+    return float(_REBUILD_CURVE_TOLERANCE * max((hi - lo).max(), 1e-6 * size))
 
 
 def _rebuild_times(
@@ -3849,7 +3880,7 @@ def _rebuild_times(
     move, quats, size, _ = trs_of_matrices(matrices=matrices)
     bounds = [(v.min(axis=0), v.max(axis=0)) for v in (move, size)]
     check = ~np.isin(times[:-1], holds)
-    seed = np.ceil(
+    seed: np.ndarray | None = np.ceil(
         _angle_turns(elements=elements, tracks=tracks, times=times)
         / _REBUILD_MAX_DEGREES
     )
@@ -3937,10 +3968,10 @@ def _rebuild_times(
 
 def _bind_transform_channels(
     *,
-    animations: list | tuple,
+    animations: list[Any] | tuple[Any, ...],
     nodes: tuple[SceneNode, ...],
-    elements_of: dict[int, list | None | str],
-) -> list[tuple[list, dict[int, list[_Track]], set] | None]:
+    elements_of: dict[int, list[Any] | str | None],
+) -> list[tuple[list[Any], dict[int, list[_Track]], set[Any]] | None]:
     """Return each animation's channels bound to the elements they animate.
 
     Parameters
@@ -3961,7 +3992,7 @@ def _bind_transform_channels(
         A channel that cannot be bound, or that animates values an earlier
         channel of its animation does, is dropped with a warning.
     """
-    out: list = []
+    out: list[Any] = []
     for anim in animations:
         channels = anim.get("channels", []) if isinstance(anim, dict) else None
         samplers = anim.get("samplers", []) if isinstance(anim, dict) else None
@@ -4007,7 +4038,7 @@ def _bind_transform_channels(
     return out
 
 
-def _place_transform_tracks(*, bound: list) -> dict[tuple[int, int], list[_Track]]:
+def _place_transform_tracks(*, bound: list[Any]) -> dict[tuple[int, int], list[_Track]]:
     """Return which animation rebuilds which node, from which tracks.
 
     COLLADA plays every animation at once, and some exporters write one
@@ -4053,7 +4084,7 @@ def _place_transform_tracks(*, bound: list) -> dict[tuple[int, int], list[_Track
             {(tr.element, c) for tr in bound[a][1][node] for c in tr.columns}
             for a in anims
         ]
-        groups: list[tuple[list[int], set]] = []
+        groups: list[tuple[list[int], set[Any]]] = []
         for a, own in zip(anims, cells, strict=True):
             for sources, held in groups:
                 if not held & own:
@@ -4119,7 +4150,7 @@ def _rebuild_transform_channels(
     """
     if not isinstance(animations, (list, tuple)):
         return animations
-    elements_of: dict[int, list | None | str] = {}
+    elements_of: dict[int, list[Any] | str | None] = {}
     bound = _bind_transform_channels(
         animations=animations, nodes=nodes, elements_of=elements_of
     )
@@ -4127,18 +4158,20 @@ def _rebuild_transform_channels(
     budget = _REBUILD_MAX_KEYS
     pending = len(placed)
     capped = unsettled = False
-    out: list = []
+    out: list[Any] = []
     for a, (anim, plan) in enumerate(zip(animations, bound, strict=True)):
         if plan is None:
             out.append(anim)
             continue
-        new_channels: list = []
+        new_channels: list[Any] = []
         new_samplers = list(anim.get("samplers", []))
         for ch, b in zip(anim["channels"], plan[0], strict=True):
             if b is None:
                 new_channels.append(ch)
                 continue
-            if isinstance(b, str) or plan[1].get(b.node, [None])[0] is not b:
+            if not isinstance(b, _Track):
+                continue
+            if plan[1].get(b.node, [None])[0] is not b:
                 continue
             node = b.node
             if (a, node) not in placed:
@@ -4151,7 +4184,9 @@ def _rebuild_transform_channels(
             # Elements may compose past float64 before the keys are checked.
             with np.errstate(over="ignore", invalid="ignore"):
                 rebuilt = _rebuild_times(
-                    elements=elements, tracks=placed[a, node], budget=share
+                    elements=cast("list[tuple[str, Any, np.ndarray]]", elements),
+                    tracks=placed[a, node],
+                    budget=share,
                 )
             if isinstance(rebuilt, str):
                 _warn_caller(
@@ -4258,8 +4293,8 @@ def _increasing_float32(times: np.ndarray) -> np.ndarray:
 
 
 def _encode_animations(
-    animations: list[dict], bb: _BinBuilder, *, n_nodes: int
-) -> list[dict]:
+    animations: list[dict[str, Any]], bb: _BinBuilder, *, n_nodes: int
+) -> list[dict[str, Any]]:
     """Encode decoded animation data back into glTF animation dicts.
 
     Appends accessor and bufferView entries to *bb* for each sampler's
@@ -4292,7 +4327,7 @@ def _encode_animations(
     list[dict]
         glTF animation dicts ready for ``gltf["animations"]``.
     """
-    result: list[dict] = []
+    result: list[dict[str, Any]] = []
     time_accessors: dict[int, int] = {}
     for anim in animations:
         channels = anim.get("channels", [])
@@ -4300,8 +4335,8 @@ def _encode_animations(
         if not channels or not samplers:
             continue
 
-        gltf_samplers: list[dict] = []
-        gltf_channels: list[dict] = []
+        gltf_samplers: list[dict[str, Any]] = []
+        gltf_channels: list[dict[str, Any]] = []
         written: dict[tuple[int, str], int] = {}
         animated: set[tuple[int, str]] = set()
         for ch in channels:
@@ -4373,7 +4408,7 @@ def _encode_animations(
 
         if not gltf_channels:
             continue
-        entry: dict = {"channels": gltf_channels, "samplers": gltf_samplers}
+        entry: dict[str, Any] = {"channels": gltf_channels, "samplers": gltf_samplers}
         if anim.get("name") and isinstance(anim["name"], str):
             entry["name"] = anim["name"]
         result.append(entry)
@@ -4381,10 +4416,10 @@ def _encode_animations(
     return result
 
 
-def _scene_material_to_gltf(mat: SceneMaterial) -> dict:
+def _scene_material_to_gltf(mat: SceneMaterial) -> dict[str, Any]:
     """Convert a SceneMaterial to a glTF material dict."""
-    pbr: dict = {
-        "baseColorFactor": list(mat.base_color),
+    pbr: dict[str, Any] = {
+        "baseColorFactor": list[Any](mat.base_color),
         "metallicFactor": mat.metallic,
         "roughnessFactor": mat.roughness,
     }
@@ -4393,7 +4428,7 @@ def _scene_material_to_gltf(mat: SceneMaterial) -> dict:
     if mat.metallic_roughness_texture is not None:
         pbr["metallicRoughnessTexture"] = {"index": mat.metallic_roughness_texture}
 
-    entry: dict = {"pbrMetallicRoughness": pbr}
+    entry: dict[str, Any] = {"pbrMetallicRoughness": pbr}
     if mat.name:
         entry["name"] = mat.name
     if mat.emissive != (0.0, 0.0, 0.0):
@@ -4431,7 +4466,7 @@ def buffer_path(*, path: str) -> Path:
 
 
 def _write_output(
-    gltf_dict: dict,
+    gltf_dict: dict[str, Any],
     bin_data: bytes,
     path: Source,
     *,

@@ -58,7 +58,10 @@ def ragged_arange(counts: np.ndarray) -> np.ndarray:
         ``counts``, concatenated, ``[2, 0, 3]`` giving ``[0, 1, 0, 1, 2]``.
     """
     counts = np.asarray(counts, dtype=np.int64)
-    return np.arange(int(counts.sum())) - np.repeat(np.cumsum(counts) - counts, counts)
+    result = np.arange(int(counts.sum())) - np.repeat(
+        np.cumsum(counts) - counts, counts
+    )
+    return np.asarray(result, dtype=np.int64)
 
 
 def surface_triangles(

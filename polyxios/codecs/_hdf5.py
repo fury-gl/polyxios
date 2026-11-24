@@ -77,7 +77,7 @@ def require_h5py(*, fmt: str, name: str, verb: str) -> ModuleType:
         is refused the way any other unsupported format is.
     """
     h5py, have_h5py = _h5py()
-    if not have_h5py:
+    if not have_h5py or not isinstance(h5py, ModuleType):
         raise UnsupportedFormatError(
             f"'{name}': {fmt} is an HDF5 file, and {verb} it needs h5py:"
             ' pip install "polyxios[hdf5]".'

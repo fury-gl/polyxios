@@ -7,6 +7,7 @@ from os.path import expanduser, join as pjoin
 from pathlib import Path
 import sys
 import time
+from typing import Any
 import urllib.error
 import urllib.request
 import zipfile
@@ -93,7 +94,7 @@ def _load_ext_to_package() -> dict[str, str]:
     global _ext_map_cache
 
     if _catalog_cache is not None:
-        return _catalog_cache.get("ext_to_package", {})
+        return dict(_catalog_cache.get("ext_to_package") or {})
 
     local_path = pjoin(POLYXIOS_HOME, "models.json")
     try:
@@ -106,7 +107,7 @@ def _load_ext_to_package() -> dict[str, str]:
 
     try:
         with open(local_path, encoding="utf-8") as f:
-            mapping = json.load(f).get("ext_to_package", {})
+            mapping: dict[str, str] = dict(json.load(f).get("ext_to_package") or {})
     except (OSError, ValueError) as e:
         logger.debug(f"Failed to read ext_to_package from cache: {e}", exc_info=True)
         return {}
@@ -146,7 +147,7 @@ def _verify_sha256(filepath: str, expected_sha: str) -> bool:
 _verified_cache = None
 
 
-def _get_verified_cache() -> dict:
+def _get_verified_cache() -> dict[str, Any]:
     global _verified_cache
     if _verified_cache is not None:
         return _verified_cache
@@ -164,7 +165,7 @@ def _get_verified_cache() -> dict:
     return _verified_cache
 
 
-def _save_verified_cache(cache: dict) -> None:
+def _save_verified_cache(cache: dict[str, Any]) -> None:
     cache_path = pjoin(POLYXIOS_HOME, ".models_cache")
     try:
         os.makedirs(POLYXIOS_HOME, exist_ok=True)
@@ -235,7 +236,7 @@ def _safe_extract_zip(zip_path: str, target_dir: str) -> None:
         zip_ref.extractall(target_dir)
 
 
-def _match_catalog_key(formats_dict: dict, filename: str) -> str | None:
+def _match_catalog_key(formats_dict: dict[str, str], filename: str) -> str | None:
     """Return the catalog key matching `filename`, compared case-insensitively.
 
     Parameters
@@ -257,7 +258,7 @@ def _match_catalog_key(formats_dict: dict, filename: str) -> str | None:
     return None
 
 
-def _zip_companion(formats_dict: dict, match_filename: str) -> str | None:
+def _zip_companion(formats_dict: dict[str, str], match_filename: str) -> str | None:
     """Return the catalog key of the archive holding `match_filename`'s pieces.
 
     Parameters

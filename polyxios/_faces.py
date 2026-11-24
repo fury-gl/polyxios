@@ -331,7 +331,9 @@ def face_keys(type_codes: np.ndarray, locals_: np.ndarray) -> np.ndarray:
     them in one pass, the way :func:`~polyxios._tags.group_by_value` groups a
     label column.
     """
-    return type_codes.astype(np.int64) * FACE_KEY_STRIDE + locals_
+    return np.asarray(
+        type_codes.astype(np.int64) * FACE_KEY_STRIDE + locals_, dtype=np.int64
+    )
 
 
 def parent_face_mask(
@@ -476,5 +478,7 @@ def is_parent_face(poly: "PolyData", element: int, parent: int, local: int) -> b
     comparison would be two chances to disagree about what a face is.
     """
     return bool(
-        parent_face_mask(poly, np.array([element]), np.array([parent]), [local])[0]
+        parent_face_mask(
+            poly, np.array([element]), np.array([parent]), np.array([local])
+        )[0]
     )

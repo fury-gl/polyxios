@@ -842,8 +842,8 @@ def layer_data(
     info: dict[str, Any] = {
         "axis_order": axis_order,
         "n_vertices": n_verts,
-        "global_attrs": dict(poly.global_attrs),
-        "vertex_tags": dict(poly.vertex_tags),
+        "global_attrs": dict[str, Any](poly.global_attrs),
+        "vertex_tags": dict[str, Any](poly.vertex_tags),
     }
     shown: set[str] = set()
     colors = _colors(poly, n=n_verts)
@@ -903,8 +903,8 @@ def layer_data(
                 "connectivity": poly.connectivity,
                 "offsets": poly.offsets,
                 "element_types": poly.element_types,
-                "element_attrs": dict(poly.element_attrs),
-                "element_tags": dict(poly.element_tags),
+                "element_attrs": dict[str, Any](poly.element_attrs),
+                "element_tags": dict[str, Any](poly.element_tags),
             }
         layer = (vertices, kwargs, "points")
     info["vertex_attrs"] = {
@@ -1218,8 +1218,8 @@ def _kept(info: dict[str, Any], *, coords: Any) -> dict[str, Any]:
     """
     global_attrs = dict(info.get("global_attrs") or {})
     kept = {
-        "vertex_attrs": dict(info.get("vertex_attrs") or {}),
-        "vertex_tags": dict(info.get("vertex_tags") or {}),
+        "vertex_attrs": dict[str, Any](info.get("vertex_attrs") or {}),
+        "vertex_tags": dict[str, Any](info.get("vertex_tags") or {}),
         "cells": info.get("cells"),
         "colors": info.get("colors"),
         "global_attrs": global_attrs,

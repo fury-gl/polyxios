@@ -836,7 +836,7 @@ def _tuples_agree(elem: ET.Element, arr: np.ndarray) -> bool:
     if declared is None:
         return True
     try:
-        return int(declared) == arr.shape[0]
+        return bool(int(declared) == arr.shape[0])
     except ValueError:
         return True
 
@@ -2192,13 +2192,14 @@ def decode_da(
         )
         return np.array([], dtype=np.float64)
     endian = ">" if big_endian else "<"
-    h_dt = np.dtype(_HEADER_DTYPES[header_type]).newbyteorder(endian)
+    h_dt = np.dtype(_HEADER_DTYPES[header_type]).newbyteorder(endian)  # type: ignore[arg-type]
 
     if fmt == "appended":
         if appended is None:
             return np.array([], dtype=dtype_str)
         offset = _da_offset(elem, name=name)
         if is_base64:
+            assert isinstance(appended, bytes)
             return _read_b64_block(
                 appended,
                 offset,

@@ -322,7 +322,7 @@ def _differs(before: Any, after: Any) -> bool:
     try:
         return not np.array_equal(np.asarray(before), np.asarray(after))
     except (TypeError, ValueError):
-        return before != after
+        return bool(before != after)
 
 
 def _read_dataset(entry: _Entry, *, lazy: bool) -> PolyData:

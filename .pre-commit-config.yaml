@@ -35,3 +35,12 @@ repos:
         entry: python tools/commit-msg.py
         language: python
         stages: [commit-msg]
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        types: [python]
+        files: ^polyxios/
+        pass_filenames: false
+        args: ["polyxios"]
+        additional_dependencies: [mypy]

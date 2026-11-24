@@ -144,8 +144,8 @@ def _read_grid(
 
     # Decoding happens one frame below here, and read_field_data adds another
     # for the field data: the warnings are blamed on the caller of the reader.
-    def _decoder(extra: int):
-        def _decode(elem):
+    def _decoder(extra: int) -> Any:
+        def _decode(elem: Any) -> Any:
             return decode_da(
                 elem,
                 big_endian=big_endian,
@@ -274,9 +274,9 @@ def _read_grid(
     point_lead = (nz + 1, ny + 1, nx + 1)
     cell_lead = (max(nz, 1), max(ny, 1), max(nx, 1))
     parts: dict[str, Any] = {
-        "extent": tuple(pe),
-        "origin": tuple(origin),
-        "spacing": tuple(spacing),
+        "extent": tuple[Any, ...](pe),
+        "origin": tuple[Any, ...](origin),
+        "spacing": tuple[Any, ...](spacing),
         "direction": direction,
         "point_attrs": {
             k: v.reshape(point_lead + v.shape[1:]) for k, v in vertex_attrs.items()

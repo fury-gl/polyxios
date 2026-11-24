@@ -1,5 +1,6 @@
+import mmap
 import struct
-from typing import Any
+from typing import IO, Any
 import warnings
 
 import numpy as np
@@ -591,7 +592,9 @@ def _check_edge_widths(offsets: np.ndarray, edge_indices: list[int]) -> None:
         )
 
 
-def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
+def _read_ascii(
+    path: Source, header: dict[str, Any], header_end_offset: int
+) -> PolyData:
     """Parse an ASCII PLY body, one element block at a time.
 
     Parameters
@@ -634,15 +637,15 @@ def _read_ascii(path: Source, header: dict, header_end_offset: int) -> PolyData:
             fh.seek(start)
 
     vertices = np.zeros((n_verts, 3), dtype=np.float64)
-    extra_vert_props: dict[str, list] = {}
+    extra_vert_props: dict[str, list[Any]] = {}
     conn_list: list[int] = []
     offsets_list: list[int] = [0]
-    extra_face_props: dict[str, list] = {}
+    extra_face_props: dict[str, list[Any]] = {}
     # Edges are held back and appended after the faces, whatever order the
     # header declares the two in, so a per-face attribute keeps lining up
     # with the faces it describes.
     edge_conn: list[int] = []
-    extra_edge_props: dict[str, list] = {}
+    extra_edge_props: dict[str, list[Any]] = {}
 
     idx = 0
     for elem in elements:
@@ -703,7 +706,7 @@ def _read_ascii_vertices(
     block: list[str],
     props: list[tuple[str, Any]],
     vertices: np.ndarray,
-    extra: dict[str, list],
+    extra: dict[str, list[Any]],
 ) -> None:
     """Fill the vertex table and its extra columns from one block of lines.
 
@@ -755,7 +758,7 @@ def _read_ascii_faces(
     props: list[tuple[str, Any]],
     conn_list: list[int],
     offsets_list: list[int],
-    extra: dict[str, list],
+    extra: dict[str, list[Any]],
 ) -> None:
     """Read one block of face records, the vertex list and its scalars alike.
 
@@ -789,7 +792,7 @@ def _read_ascii_faces(
     # A property only this block declares starts where this block does, so
     # the faces an earlier one read carry no value for it.
     base = len(offsets_list) - 1
-    columns: dict[str, list] = {}
+    columns: dict[str, list[Any]] = {}
     for name, is_list in layout:
         if is_list:
             continue
@@ -823,7 +826,7 @@ def _read_ascii_edges(
     block: list[str],
     props: list[tuple[str, Any]],
     edge_conn: list[int],
-    extra: dict[str, list],
+    extra: dict[str, list[Any]],
 ) -> None:
     """Read one block of edge records into vertex pairs and scalar columns.
 
@@ -862,7 +865,7 @@ def _read_ascii_edges(
     # As with the faces, a property only a later block declares carries no
     # value for the edges an earlier one read.
     base = len(edge_conn) // 2
-    columns: dict[str, list] = {}
+    columns: dict[str, list[Any]] = {}
     for i, name, is_list in layout:
         if is_list or i in (first, second):
             continue
@@ -1083,8 +1086,8 @@ def _decode_binary_faces(
     # (column or None, format, field size, index character, index size) per
     # property; the list property has no column and spends its index size on
     # whatever count it declares.
-    layout: list[tuple[list | None, str, int, str, int]] = []
-    columns: dict[str, list] = {}
+    layout: list[tuple[list[Any] | None, str, int, str, int]] = []
+    columns: dict[str, list[Any]] = {}
     for pname, ptype in props:
         if isinstance(ptype, tuple) and ptype[0] == "list":
             count_fmt = endian + _PLY_STRUCT[_scalar_code(ptype[1], "face")]
@@ -1100,7 +1103,7 @@ def _decode_binary_faces(
             )
         else:
             fmt = endian + _PLY_STRUCT[_scalar_code(ptype, "face")]
-            column: list = []
+            column: list[Any] = []
             columns[pname] = column
             layout.append((column, fmt, struct.calcsize(fmt), "", 0))
 
@@ -1117,11 +1120,11 @@ def _decode_binary_faces(
     unpack_from = struct.unpack_from
     try:
         for _ in range(count):
-            for column, fmt, size, idx_char, idx_size in layout:
+            for prop_col, fmt, size, idx_char, idx_size in layout:
                 value = unpack_from(fmt, mv, pos)[0]
                 pos += size
-                if column is not None:
-                    column.append(float(value))
+                if prop_col is not None:
+                    prop_col.append(float(value))
                     continue
                 n_nodes = int(value)
                 if n_nodes < 0 or pos + n_nodes * idx_size > limit:
@@ -1303,7 +1306,7 @@ def _fixed_face_records(
     if pos + record_size > len(mv):
         return None
 
-    fields: list[tuple] = []
+    fields: list[tuple[Any, ...]] = []
     for i, (_, ptype) in enumerate(props):
         if i == list_at:
             fields.append((f"c{i}", endian + count_code))
@@ -1341,7 +1344,7 @@ def _checked_connectivity(conn_list: list[int], n_verts: int) -> np.ndarray:
 
 
 def _read_binary(
-    path: Source, header: dict, header_end_offset: int, little_endian: bool
+    path: Source, header: dict[str, Any], header_end_offset: int, little_endian: bool
 ) -> PolyData:
     with open_block(path, fmt=".ply") as block:
         mv = memoryview(block)
@@ -1376,7 +1379,7 @@ def _coordinate_view(rec: np.ndarray, dt: np.dtype) -> np.ndarray | None:
         rather than viewed, the way an eager read converts them.
     """
     fields = dt.fields
-    if any(name not in fields for name in ("x", "y", "z")):
+    if fields is None or any(name not in fields for name in ("x", "y", "z")):
         return None
     (x_dt, x_off), (y_dt, y_off), (z_dt, z_off) = (
         fields["x"][:2],
@@ -1402,7 +1405,7 @@ def _coordinate_view(rec: np.ndarray, dt: np.dtype) -> np.ndarray | None:
 
 
 def _read_binary_lazy(
-    path: Source, header: dict, header_end_offset: int, little_endian: bool
+    path: Source, header: dict[str, Any], header_end_offset: int, little_endian: bool
 ) -> PolyData:
     # The mapping outlives the descriptor: mmap keeps the file alive on its own,
     # so closing fh here leaks nothing while the arrays still reference the
@@ -1416,7 +1419,7 @@ def _read_binary_lazy(
 
 def _decode_binary(
     mv: memoryview,
-    header: dict,
+    header: dict[str, Any],
     header_end_offset: int,
     little_endian: bool,
     *,
@@ -1759,7 +1762,7 @@ def _skip_binary_element(
 
 
 def _read_compressed_3dgs(
-    path: Source, header: dict, header_end_offset: int
+    path: Source, header: dict[str, Any], header_end_offset: int
 ) -> PolyData:
     """Decode a compressed 3D Gaussian Splat PLY file.
 
@@ -1828,6 +1831,7 @@ def _read_compressed_3dgs(
                     bytes(mm[pos : pos + sh_bytes]), dtype="u1"
                 ).reshape(n_verts, n_sh_props)
         finally:
+            assert isinstance(mm, mmap.mmap)
             mm.close()
 
     # Each chunk covers exactly CHUNK_SIZE consecutive vertices.
@@ -1841,12 +1845,14 @@ def _read_compressed_3dgs(
         """Extract one 8-bit component and normalise to [0, 1]."""
         return ((packed >> shift) & 0xFF).astype(np.float32) / 255.0
 
-    def _dequantise(packed, shift, lo, hi):
+    def _dequantise(
+        packed: np.ndarray, shift: int, lo: np.ndarray, hi: np.ndarray
+    ) -> np.ndarray:
         norm = _unpack8(packed, shift)
         return lo + norm * (hi - lo)
 
     # Dequantise positions using per-chunk bounding boxes
-    has_min_max = all(
+    has_min_max = chunk_dt.names is not None and all(
         k in chunk_dt.names
         for k in ("min_x", "max_x", "min_y", "max_y", "min_z", "max_z")
     )
@@ -1867,7 +1873,7 @@ def _read_compressed_3dgs(
 
     # Dequantise scales using per-chunk scale bounds (stored as log-scale)
     vertex_attrs: dict[str, np.ndarray] = {}
-    has_scale = all(
+    has_scale = chunk_dt.names is not None and all(
         k in chunk_dt.names
         for k in (
             "min_scale_x",
@@ -1906,7 +1912,7 @@ def _read_compressed_3dgs(
         ) / 127.5 - 1.0
 
     # Color (SH DC) and opacity from packed_color
-    has_rgb = all(
+    has_rgb = chunk_dt.names is not None and all(
         k in chunk_dt.names
         for k in ("min_r", "max_r", "min_g", "max_g", "min_b", "max_b")
     )
@@ -1946,7 +1952,7 @@ def _read_compressed_3dgs(
     )
 
 
-def _parse_header(fh: object) -> tuple[dict, int]:
+def _parse_header(fh: IO[bytes]) -> tuple[dict[str, Any], int]:
     """Parse PLY header from open binary file handle.
 
     Parameters
@@ -1956,13 +1962,13 @@ def _parse_header(fh: object) -> tuple[dict, int]:
 
     Returns
     -------
-    tuple[dict, int]
+    tuple[dict[str, Any], int]
         (header_dict, byte_offset_after_header)
     """
     lines: list[str] = []
     offset = 0
 
-    first = fh.readline()  # type: ignore[union-attr]
+    first = fh.readline()
     offset += len(first)
     if first.strip() != b"ply":
         raise CodecError("Not a PLY file (missing 'ply' header)")
@@ -1971,7 +1977,7 @@ def _parse_header(fh: object) -> tuple[dict, int]:
     current_elem: dict[str, Any] | None = None
 
     while True:
-        raw = fh.readline()  # type: ignore[union-attr]
+        raw = fh.readline()
         if not raw:
             # readline() hands back nothing at the end of the file and goes on
             # doing so, so a header with no 'end_header' - which is every

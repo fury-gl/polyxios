@@ -243,7 +243,7 @@ def _quats_of_rotations(*, r: np.ndarray) -> np.ndarray:
     z = ~(w | x | y)
     for mask, value in ((w, by_w), (x, by_x), (y, by_y), (z, by_z)):
         q[mask] = value[mask]
-    return q / np.linalg.norm(q, axis=1, keepdims=True)
+    return np.asarray(q / np.linalg.norm(q, axis=1, keepdims=True))
 
 
 def trs_of_matrices(
@@ -413,4 +413,4 @@ def matrix_of_element(*, kind: str, values: np.ndarray) -> np.ndarray:
         The 4x4 row-major float64 transform.
     """
     flat = np.asarray(values, dtype=np.float64).reshape(1, -1)
-    return matrices_of_element(kind=kind, values=flat)[0]
+    return np.asarray(matrices_of_element(kind=kind, values=flat)[0])

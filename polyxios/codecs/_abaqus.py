@@ -1362,7 +1362,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
         )
     if unknown_instances:
         warnings.warn(
-            f".inp: set(s) name the instance(s) {sorted(unknown_instances)},"
+            f".inp: set[Any](s) name the instance(s) {sorted(unknown_instances)},"
             " which the deck never defines; they were resolved against the"
             " numbering in force instead.",
             stacklevel=2,

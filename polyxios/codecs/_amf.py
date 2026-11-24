@@ -464,7 +464,9 @@ class _AmfTarget:
             self.skipped.add(local)
             self._skip_depth = 1
 
-    def _id(self, attrs: dict[str, str], what: str, taken: dict, kind: str) -> str:
+    def _id(
+        self, attrs: dict[str, str], what: str, taken: dict[str, Any], kind: str
+    ) -> str:
         """Return an element's id, refused when missing or already given its kind.
 
         Objects and constellations are numbered apart: files in the wild give

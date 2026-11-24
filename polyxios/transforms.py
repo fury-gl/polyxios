@@ -255,7 +255,7 @@ def _merged_attr(
         whole, alpha included, whichever input comes first.
     """
     held = [i for i, b in enumerate(blocks) if b is not None]
-    present = [blocks[i] for i in held]
+    present = [b for b in blocks if b is not None]
     if key == _COLOR_ATTR_NAME:
         present = _promoted_to_rgba(present)
     parts: list[np.ndarray | None] = [None] * len(blocks)

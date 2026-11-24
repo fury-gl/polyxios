@@ -22,7 +22,7 @@ logger = logging.getLogger("polyxios")
 class _Formatter(logging.Formatter):
     """Custom log formatter to print raw messages for INFO level, and prefixed levels for warning/error."""
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         if record.levelno == logging.INFO:
             message = record.getMessage()
         else:
@@ -35,7 +35,14 @@ class _Formatter(logging.Formatter):
         return message
 
 
-def _log_warning(message, category, filename, lineno, file=None, line=None):
+def _log_warning(
+    message: Any,
+    category: type[Warning],
+    filename: str,
+    lineno: int,
+    file: Any = None,
+    line: str | None = None,
+) -> None:
     """Report a Python warning as a CLI log record.
 
     Installed as ``warnings.showwarning`` by :func:`main` for the duration
@@ -74,7 +81,7 @@ def _log_warning(message, category, filename, lineno, file=None, line=None):
     logger.warning(text)
 
 
-def _setup_logging(*, verbose: bool = False):
+def _setup_logging(*, verbose: bool = False) -> None:
     """Configure stream handlers for CLI logging: stdout for INFO, stderr for WARNING+.
 
     Parameters
@@ -85,7 +92,7 @@ def _setup_logging(*, verbose: bool = False):
     logger.handlers.clear()
 
     class InfoFilter(logging.Filter):
-        def filter(self, record):
+        def filter(self, record: logging.LogRecord) -> bool:
             return record.levelno <= logging.INFO
 
     stdout_handler = logging.StreamHandler(sys.stdout)
@@ -102,7 +109,7 @@ def _setup_logging(*, verbose: bool = False):
     logger.propagate = False
 
 
-def cmd_fetch(args) -> int:
+def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch and cache a model file from the remote data repository.
 
     Parameters
@@ -185,7 +192,7 @@ def _replay_warnings(recorded: list[warnings.WarningMessage]) -> None:
     One registry is shared by the whole replay, so a warning the filters show once
     per location is shown once, as it would be had it not been recorded.
     """
-    registry: dict = {}
+    registry: dict[str, Any] = {}
     for caught in recorded:
         warnings.warn_explicit(
             caught.message,
@@ -196,7 +203,7 @@ def _replay_warnings(recorded: list[warnings.WarningMessage]) -> None:
         )
 
 
-def cmd_convert(args) -> int:
+def cmd_convert(args: argparse.Namespace) -> int:
     """Convert a model file from one format to another and log performance.
 
     Parameters
@@ -220,7 +227,7 @@ def cmd_convert(args) -> int:
         as_image = _both_images(args.input_file, args.output_file)
         logger.info(f"Reading '{args.input_file}'...")
         start_read_time = time.perf_counter()
-        data = None
+        data: Any = None
         if as_image:
             image, recorded = _read_image_for_convert(args.input_file)
             # A grid the image reader refuses - a codec that reads images may hold a
@@ -255,7 +262,7 @@ def cmd_convert(args) -> int:
         return 1
 
 
-def cmd_viz(args) -> int:
+def cmd_viz(args: argparse.Namespace) -> int:
     """Visualize a 3D model using the FURY renderer library.
 
     Parses and renders the geometry using suitable actors (surface, line,
@@ -300,7 +307,7 @@ def cmd_viz(args) -> int:
         return 1
 
 
-def cmd_list(args) -> int:
+def cmd_list(args: argparse.Namespace) -> int:
     """List all available remote or cached files grouped by package.
 
     Parameters
@@ -316,7 +323,7 @@ def cmd_list(args) -> int:
     if args.codecs:
         logger.info("File formats supported by polyxios codecs:")
 
-        pkg_to_exts = {}
+        pkg_to_exts: dict[str, list[str]] = {}
         for ext in polyxios.supported_extensions():
             ext_name = ext.lstrip(".")
             # An extension several formats share resolves to a dispatcher that
@@ -337,7 +344,7 @@ def cmd_list(args) -> int:
     if args.extensions:
         logger.info("File formats available in remote catalog:")
 
-        package_to_exts = {}
+        package_to_exts: dict[str, list[str]] = {}
         catalog_failed = False
         try:
             catalog = fetcher._load_models_catalog()
@@ -422,7 +429,7 @@ def cmd_list(args) -> int:
         logger.error(f"Failed to retrieve catalog: {e}", exc_info=args.verbose)
         return 1
 
-    def _top_level(files):
+    def _top_level(files: list[str]) -> list[str]:
         """Keep the entries that name a file directly in the package folder."""
         return sorted(f for f in files if "/" not in f and "\\" not in f)
 
@@ -449,7 +456,7 @@ def cmd_list(args) -> int:
     return 0
 
 
-def main():
+def main() -> None:
     """Main CLI entry point for pxios. Parses arguments and routes commands."""
     # Shared so that --verbose is accepted on either side of the subcommand.
     # SUPPRESS keeps an omitted flag out of the sub-namespace, which would

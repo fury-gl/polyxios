@@ -3,7 +3,7 @@ from collections.abc import Callable, Iterable, Sequence
 from itertools import accumulate, islice
 import mmap
 import re
-from typing import Any, Final
+from typing import IO, Any, Final
 import warnings
 
 import numpy as np
@@ -45,7 +45,7 @@ from polyxios.exceptions import (
 from polyxios.validate import validate_header
 
 try:
-    from polyxios.codecs._vtk_parse import (  # type: ignore[import]
+    from polyxios.codecs._vtk_parse import (
         parse_ascii_cells_v42,
         parse_ascii_coords,
     )
@@ -549,14 +549,14 @@ def _vtk_cell_codes(type_codes: np.ndarray) -> np.ndarray:
     if flat.dtype == np.uint8:
         # What a mesh built here carries. Every value the dtype can hold is
         # a row of the table, so the gather needs no bounds check at all.
-        return _VTK_CODE_TABLE[flat]
+        return np.asarray(_VTK_CODE_TABLE[flat])
     within = np.clip(flat, 0, _VTK_CODE_TABLE.size - 1)
-    codes = _VTK_CODE_TABLE[within]
+    codes = np.asarray(_VTK_CODE_TABLE[within])
     codes[within != flat] = _VTK_POLYGON
-    return codes
+    return np.asarray(codes)
 
 
-def _write_cells_v42(poly: PolyData, fh: object, binary: bool) -> None:
+def _write_cells_v42(poly: PolyData, fh: IO[bytes], binary: bool) -> None:
     """Write the v4.2 ``CELLS`` section, each cell prefixed by its count.
 
     Parameters
@@ -587,7 +587,7 @@ def _write_cells_v42(poly: PolyData, fh: object, binary: bool) -> None:
     # Each cell is its own count and then its nodes, so the stream is longer
     # than the connectivity it names by one value per cell.
     total_size = last - first + n_elems
-    fh.write(f"CELLS {n_elems} {total_size}\n".encode())  # type: ignore[union-attr]
+    fh.write(f"CELLS {n_elems} {total_size}\n".encode())
     if not total_size:
         return
 
@@ -623,7 +623,7 @@ def _write_cells_v42(poly: PolyData, fh: object, binary: bool) -> None:
         rows = (offsets[start + 1 : stop + 1] - offsets[start:stop] + 1).tolist()
         spelled = map(str, run.tolist())
         body = "\n".join([" ".join(islice(spelled, row)) for row in rows])
-        fh.write((body + "\n").encode())  # type: ignore[union-attr]
+        fh.write((body + "\n").encode())
 
 
 def _uniform_cell_width(offsets: np.ndarray, n_elems: int) -> int:
@@ -706,7 +706,7 @@ def _v42_cell_run(
     return run
 
 
-def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
+def _write_cells_v51(poly: PolyData, fh: IO[bytes], binary: bool) -> None:
     """Write the v5.1 ``CELLS`` section as an OFFSETS and CONNECTIVITY pair.
 
     Parameters
@@ -747,7 +747,7 @@ def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
         offsets64 = offsets64 - first
     conn64 = np.asarray(poly.connectivity[first:last], dtype=np.int64)
 
-    fh.write(f"CELLS {offsets64.size} {conn64.size}\n".encode())  # type: ignore[union-attr]
+    fh.write(f"CELLS {offsets64.size} {conn64.size}\n".encode())
     fh.write(b"OFFSETS vtktypeint64\n")
     _write_int64_block(offsets64, fh, binary=binary)
 
@@ -755,7 +755,7 @@ def _write_cells_v51(poly: PolyData, fh: object, binary: bool) -> None:
     _write_int64_block(conn64, fh, binary=binary)
 
 
-def _write_int64_block(values: np.ndarray, fh: object, *, binary: bool) -> None:
+def _write_int64_block(values: np.ndarray, fh: IO[bytes], *, binary: bool) -> None:
     """Write a v5.1 ``vtktypeint64`` block and the newline that closes it.
 
     Parameters
@@ -884,7 +884,7 @@ def _spellable_arrays(
     return {name: arr for name, arr in arrays.items() if name not in dropped}
 
 
-def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
+def _write_field_block(poly: PolyData, fh: IO[bytes], *, binary: bool) -> None:
     """Write the mesh's metadata as a ``FIELD FieldData`` block.
 
     Parameters
@@ -923,15 +923,13 @@ def _write_field_block(poly: PolyData, fh: object, *, binary: bool) -> None:
     # The count is written from what survived the name check, not from what
     # the mesh held: a header promising an array the block does not carry
     # sends the next reader into the geometry looking for it.
-    fh.write(f"FIELD FieldData {len(spelled)}\n".encode())  # type: ignore[union-attr]
+    fh.write(f"FIELD FieldData {len(spelled)}\n".encode())
     for name, arr in spelled.items():
         vtk_name = _NP_TO_VTK_DTYPE.get(arr.dtype.str.lstrip("<>|="), _FIELD_FALLBACK)
         np_str = _VTK_DTYPE_MAP[vtk_name]
         n_comp = _components(arr)
         values = np.ascontiguousarray(arr, dtype=np_str)
-        fh.write(  # type: ignore[union-attr]
-            f"{name} {n_comp} {values.size // n_comp} {vtk_name}\n".encode()
-        )
+        fh.write(f"{name} {n_comp} {values.size // n_comp} {vtk_name}\n".encode())
         if binary:
             _write_bin_block((values,), fh, ">" + np_str)
         elif np_str[0] == "f":
@@ -1252,7 +1250,9 @@ def _read_structured_field_block(
     return i, found
 
 
-def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) -> None:
+def _write_vtk_array(
+    name: str, arr: np.ndarray, fh: IO[bytes], *, binary: bool
+) -> None:
     """Write one attribute array as SCALARS, VECTORS, TENSORS or FIELD.
 
     An array's header says nothing about whether it belongs to the points or
@@ -1317,7 +1317,7 @@ def _write_vtk_array(name: str, arr: np.ndarray, fh: object, *, binary: bool) ->
         else:
             header = f"SCALARS {name} double {n_comp}\nLOOKUP_TABLE default\n"
 
-    fh.write(header.encode())  # type: ignore[union-attr]
+    fh.write(header.encode())
     if binary:
         # Every branch writes its payload the same way. The two TENSORS ones
         # used to spell their numbers whatever was asked for, which put a run
@@ -1400,7 +1400,7 @@ def _components(arr: ArrayLike) -> int:
 
 
 def _write_ascii_block(
-    flat: np.ndarray, fh: object, *, per_line: int, spell: Callable[[Any], str]
+    flat: np.ndarray, fh: IO[bytes], *, per_line: int, spell: Callable[[Any], str]
 ) -> None:
     """Spell a flat run of numbers into a legacy VTK file.
 
@@ -1432,7 +1432,7 @@ def _write_ascii_block(
     """
     n_values = flat.size
     if not n_values:
-        fh.write(b"\n")  # type: ignore[union-attr]
+        fh.write(b"\n")
         return
     per_line = max(per_line, 1)
 
@@ -1441,18 +1441,18 @@ def _write_ascii_block(
         # the one that would have stood between the values they join.
         for start in range(0, n_values, _ASCII_RUN):
             run = " ".join(map(spell, flat[start : start + _ASCII_RUN].tolist()))
-            fh.write((" " + run if start else run).encode())  # type: ignore[union-attr]
-        fh.write(b"\n")  # type: ignore[union-attr]
+            fh.write((" " + run if start else run).encode())
+        fh.write(b"\n")
         return
 
     step = max(_ASCII_RUN // per_line, 1) * per_line
     for start in range(0, n_values, step):
         spelled = map(spell, flat[start : start + step].tolist())
         body = "\n".join(map(" ".join, zip(*[spelled] * per_line)))
-        fh.write((body + "\n").encode())  # type: ignore[union-attr]
+        fh.write((body + "\n").encode())
 
 
-def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
+def _write_ascii_f64(flat: np.ndarray, fh: IO[bytes], *, per_line: int) -> None:
     """Spell a run of doubles into a legacy VTK file.
 
     ``repr`` of a Python float is the shortest decimal that reads back as
@@ -1473,7 +1473,7 @@ def _write_ascii_f64(flat: np.ndarray, fh: object, *, per_line: int) -> None:
     _write_ascii_block(flat, fh, per_line=per_line, spell=repr)
 
 
-def _write_ascii_ints(flat: np.ndarray, fh: object, *, per_line: int) -> None:
+def _write_ascii_ints(flat: np.ndarray, fh: IO[bytes], *, per_line: int) -> None:
     """Spell a run of whole numbers into a legacy VTK file.
 
     The twin of :func:`_write_ascii_f64` for an array that keeps the integer
@@ -1494,7 +1494,7 @@ def _write_ascii_ints(flat: np.ndarray, fh: object, *, per_line: int) -> None:
 
 
 def _write_bin_block(
-    runs: Iterable[np.ndarray], fh: object, dtype: str | np.dtype
+    runs: Iterable[np.ndarray], fh: IO[bytes], dtype: str | np.dtype
 ) -> None:
     """Write one binary block from the runs it is held in, and close it.
 
@@ -1520,11 +1520,11 @@ def _write_bin_block(
     """
     big_endian = np.dtype(dtype)
     for run in runs:
-        fh.write(np.asarray(run).astype(big_endian).tobytes())  # type: ignore[union-attr]
-    fh.write(b"\n")  # type: ignore[union-attr]
+        fh.write(np.asarray(run).astype(big_endian).tobytes())
+    fh.write(b"\n")
 
 
-def _write_bin_f64(arr: np.ndarray, fh: object) -> None:
+def _write_bin_f64(arr: np.ndarray, fh: IO[bytes]) -> None:
     """Write a block of big-endian doubles; see :func:`_write_bin_block`.
 
     Parameters
@@ -1537,7 +1537,7 @@ def _write_bin_f64(arr: np.ndarray, fh: object) -> None:
     _write_bin_block((arr,), fh, ">f8")
 
 
-def _write_bin_i32(arr: np.ndarray, fh: object) -> None:
+def _write_bin_i32(arr: np.ndarray, fh: IO[bytes]) -> None:
     """Write a block of big-endian 32-bit ints; see :func:`_write_bin_block`.
 
     Parameters
@@ -3816,7 +3816,7 @@ def _parse_binary_attrs(
             n_comp = _width(parts, 2, where, default=1)
             n_bytes = n_items * n_comp
             _check_block(pos, n_bytes, file_size, name=name)
-            raw = _block(mm, pos, np.uint8, n_bytes, copy=True) / _COLOR_SCALE
+            raw = _block(mm, pos, np.dtype(np.uint8), n_bytes, copy=True) / _COLOR_SCALE
             pos += n_bytes
             pos = _skip_newline(mv, pos, file_size)
             attrs[name] = raw.reshape(n_items, n_comp) if n_comp > 1 else raw

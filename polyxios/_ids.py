@@ -56,7 +56,7 @@ column is read as the numbering it is - see :func:`_as_ids` for the bound
 that makes it safe.
 """
 
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 import warnings
 
 import numpy as np
@@ -212,7 +212,7 @@ def _judge(
     return None, whole
 
 
-def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
+def record_ids(ids: Any, *, count: int) -> dict[str, np.ndarray]:
     """Return the ``*_attrs`` entry a reader that saw file ids should carry.
 
     Parameters
@@ -250,7 +250,9 @@ def record_ids(ids, *, count: int) -> dict[str, np.ndarray]:
     ['original_ids']
     """
     why, whole = _judge(np.asarray(ids), count, "entity")
-    if why is not None or _dense_from_one(whole):
+    if why is not None:
+        return {}
+    if whole is None or _dense_from_one(whole):
         return {}
     return {IDS_KEY: whole}
 
@@ -367,7 +369,7 @@ def ids_for_write(
         # Asked before the fallback is built: a mesh that remembers a usable
         # numbering never pays for an arange the length of itself.
         why, whole = _judge(found, count, kind, limit=limit)
-        if why is None:
+        if why is None and whole is not None:
             return whole
         warnings.warn(
             f"{fmt}: the mesh carries {kind} ids from the file it was read"

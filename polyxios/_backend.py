@@ -6,7 +6,7 @@ All other modules import from here, never from _core or _core_fallback directly.
 """
 
 try:
-    from polyxios._core import (  # type: ignore[import]
+    from polyxios._core import (
         build_csr,
         compact_vertex_indices,
         has_orphan_vertices,
@@ -14,7 +14,7 @@ try:
 
     HAS_CYTHON = True
 except ImportError:
-    from polyxios._core_fallback import (  # type: ignore[assignment]
+    from polyxios._core_fallback import (
         build_csr,
         compact_vertex_indices,
         has_orphan_vertices,

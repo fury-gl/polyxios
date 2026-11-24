@@ -24,7 +24,7 @@ from polyxios.exceptions import CodecError, LazyReadError
 from polyxios.validate import validate_header
 
 try:
-    from polyxios.codecs import _lzf as lzf
+    from polyxios.codecs import _lzf as lzf  # type: ignore[attr-defined]
 except ImportError:  # pragma: no cover - the compiled module is optional
     from polyxios.codecs import _lzf_fallback as lzf
 
@@ -348,6 +348,7 @@ def _read_binary(
 ) -> PolyData:
     dtype = header.record_dtype(with_padding=True)
     n = header.points
+    assert n is not None
     validate_header(n, 0, 0, len(block) - body)
     if body + n * dtype.itemsize > len(block):
         raise CodecError(
@@ -369,6 +370,7 @@ def _read_compressed(raw: Any, body: int, header: _Header, *, name: str) -> Poly
     comp_len, full_len = struct.unpack_from("<II", raw, body)
     dtype = header.record_dtype(with_padding=False)
     n = header.points
+    assert n is not None
     validate_header(n, 0, 0, full_len, compressed=True)
     if n * dtype.itemsize != full_len:
         raise CodecError(
@@ -403,6 +405,7 @@ def _read_compressed(raw: Any, body: int, header: _Header, *, name: str) -> Poly
 def _read_ascii(raw: Any, body: int, header: _Header, *, name: str) -> PolyData:
     dtype = header.record_dtype(with_padding=False)
     n = header.points
+    assert n is not None
     validate_header(n, 0, 0, len(raw) - body)
     with memoryview(raw) as view:
         text = str(view[body:], "ascii", "replace")
@@ -662,7 +665,7 @@ def _assemble(
         col = raw[f]
         attrs[f] = col if lazy else np.array(col)
     globals_: dict[str, Any] = {}
-    if header.height > 1:
+    if header.height is not None and header.height > 1:
         globals_[_WIDTH_KEY] = header.width
         globals_[_HEIGHT_KEY] = header.height
     if header.viewpoint != _VIEWPOINT_DEFAULT:
@@ -705,7 +708,7 @@ def _pack_colors(colors: np.ndarray) -> np.ndarray:
     bits = (scaled[:, 0] << 16) | (scaled[:, 1] << 8) | scaled[:, 2]
     if scaled.shape[1] == 4:
         bits |= scaled[:, 3] << 24
-    return bits
+    return np.asarray(bits)
 
 
 def _field_type(arr: np.ndarray) -> tuple[str, int, np.dtype] | None:

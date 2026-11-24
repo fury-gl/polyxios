@@ -134,7 +134,7 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
                 f"'{name}': 'Geometry' is not an (n, dim) coordinate block."
             )
         n_verts = len(coords)
-        validate_header(n_verts, 0, 0, ctx["file_size"], compressed=True)
+        validate_header(n_verts, 0, 0, int(ctx["file_size"]), compressed=True)
         dim = coords.shape[1]
         vertices = (
             pad_to_3d(coords, dim)

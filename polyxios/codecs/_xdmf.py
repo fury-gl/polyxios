@@ -435,7 +435,7 @@ def _open_document(path: Source, *, lazy: bool = False) -> dict[str, Any]:
         "h5_files": {},
         "maps": {},
         "holders": None,
-        "shared_items": set(),
+        "shared_items": set[Any](),
         "item_cache": None,
         "pointer_cache": {},
         "temporal": None,
@@ -1429,7 +1429,7 @@ def _read_set(
         return
     if set_type not in ("node", "cell"):
         warnings.warn(
-            f"{where}: set '{name}' is a {set_elem.get('SetType')} set, which"
+            f"{where}: set[Any] '{name}' is a {set_elem.get('SetType')} set, which"
             " names neither points nor cells; skipped.",
             UserWarning,
             stacklevel=5,

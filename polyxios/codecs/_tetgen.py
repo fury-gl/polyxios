@@ -598,7 +598,7 @@ def _tetra_refs(poly: PolyData, keep: np.ndarray) -> np.ndarray:
     if keep.size == 0:
         return np.zeros((0, 4), dtype=np.int64)
     starts = np.asarray(poly.offsets)[keep].astype(np.int64)
-    return np.asarray(poly.connectivity)[starts[:, None] + np.arange(4)]
+    return np.asarray(poly.connectivity[starts[:, None] + np.arange(4)])
 
 
 def _boundary_markers(poly: PolyData) -> np.ndarray:
@@ -745,7 +745,7 @@ def _region_column(poly: PolyData, keep: np.ndarray) -> np.ndarray | None:
             stacklevel=3,
         )
         return None
-    return arr.astype(np.float64, copy=False)[keep]
+    return np.asarray(arr.astype(np.float64, copy=False)[keep])
 
 
 def _write_node(

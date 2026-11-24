@@ -185,7 +185,7 @@ _READ_ORDER: dict[str, tuple[int, ...]] = {
     ),
 }
 _WRITE_ORDER: dict[str, tuple[int, ...]] = {
-    name: tuple(order.index(i) for i in range(len(order)))
+    name: tuple[Any, ...](order.index(i) for i in range(len(order)))
     for name, order in _READ_ORDER.items()
 }
 _WRITE_ORDER["pixel"] = (0, 1, 3, 2)

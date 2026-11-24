@@ -736,7 +736,7 @@ def _element_coords(poly: PolyData, index: int) -> np.ndarray:
     """Return the vertex coordinates of one element."""
     start = int(poly.offsets[index])
     end = int(poly.offsets[index + 1])
-    return poly.vertices[poly.connectivity[start:end]]
+    return np.asarray(poly.vertices[poly.connectivity[start:end]])
 
 
 def _mesh_has_z(poly: PolyData) -> bool:

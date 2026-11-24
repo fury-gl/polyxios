@@ -694,8 +694,9 @@ def _read_polydata(root: Any, index: int | None, *, name: str, size: int) -> Pol
     for k, g in enumerate(parts):
         sections: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
         for s, section in enumerate(_SECTIONS):
-            conn, ends = by_section[s][0][k], by_section[s][1][k]
-            sections.append((conn, ends, _section_types(section, ends)))
+            conn = by_section[s][0][k]
+            part_ends = by_section[s][1][k]
+            sections.append((conn, part_ends, _section_types(section, part_ends)))
         assembled.append((int(n_points_all[g]), sections))
     connectivity, offsets, element_types, tags = _assemble(
         vertices, assembled, name=name
@@ -746,7 +747,7 @@ def _read_image_grid(
     spacing = _attr_numbers(root, "Spacing", 3, name=name) or [1.0, 1.0, 1.0]
     direction = _attr_numbers(root, "Direction", 9, name=name) or list(_IDENTITY)
     i0, i1, j0, j1, k0, k1 = extent
-    spans = (i1 - i0, j1 - j0, k1 - k0)
+    spans = (int(i1 - i0), int(j1 - j0), int(k1 - k0))
     if min(spans) < 0:
         raise CodecError(f"'{name}': WholeExtent {extent} runs backwards.")
     nx, ny, nz = spans
@@ -876,7 +877,7 @@ def _image_arrays(
             _warn_no_rows(key, node.shape, group_name)
             continue
         if stepped:
-            start = _offset_of(offsets, key, index, name=name)
+            start = 0 if index is None else _offset_of(offsets, key, index, name=name)
             values = _rows(node, start, 1, name=name, where=where, what="steps")[0]
         else:
             values = np.asarray(node[()])
@@ -898,8 +899,8 @@ def _spells_lattice(held: tuple[int, ...], forms: tuple[tuple[int, ...], ...]) -
 
 def _warn_shape(
     key: str,
-    held: tuple,
-    wanted: tuple,
+    held: tuple[Any, ...],
+    wanted: tuple[Any, ...],
     group_name: str,
     *,
     stepped: bool,
@@ -911,7 +912,7 @@ def _warn_shape(
     )
 
 
-def _warn_no_rows(key: str, held: tuple, group_name: str) -> None:
+def _warn_no_rows(key: str, held: tuple[Any, ...], group_name: str) -> None:
     warn_caller(
         f"{EXTENSION}: {group_name} array '{key}' is shaped {tuple(held)} and the"
         " extent spans no entity to hold it; dropped."
@@ -1016,6 +1017,7 @@ def _read_field_data(root: Any, index: int | None, *, name: str) -> dict[str, An
         if steps is None or node.ndim == 0:
             values = np.asarray(node[()])
         else:
+            assert index is not None
             start = _offset_of(
                 steps["FieldDataOffsets"] if "FieldDataOffsets" in steps else None,
                 key,
@@ -1794,7 +1796,7 @@ def _write_polydata_cells(
             f"{section}/NumberOfConnectivityIds",
             np.array([section_conn.size], dtype=np.int64),
         )
-    kept = np.concatenate(order)
+    kept: np.ndarray | None = np.concatenate(order)
     if np.array_equal(kept, np.arange(len(codes))):
         kept = None
     return (

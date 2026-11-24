@@ -1,3 +1,5 @@
+from typing import Any
+
 from polyxios import transforms
 from polyxios._image import ImageData
 from polyxios._io import Source, open_target
@@ -19,7 +21,7 @@ from polyxios.version import version as __version__
 _REGISTRY: dict[str, Codec] = build_default_registry()
 
 
-def supported_extensions(*, registry: dict | None = None) -> list[str]:
+def supported_extensions(*, registry: dict[str, Any] | None = None) -> list[str]:
     """List the file extensions the registry resolves.
 
     Almost every one of them both reads and writes. Three kinds do not, and
@@ -49,7 +51,7 @@ def read(
     *,
     fmt: str | None = None,
     lazy: bool = False,
-    registry: dict | None = None,
+    registry: dict[str, Any] | None = None,
     **opts: object,
 ) -> PolyData:
     """Read a mesh file and return a PolyData.
@@ -105,7 +107,7 @@ def write(
     path: Source,
     *,
     fmt: str | None = None,
-    registry: dict | None = None,
+    registry: dict[str, Any] | None = None,
     **opts: object,
 ) -> None:
     """Write a PolyData to a mesh file.
@@ -148,7 +150,7 @@ def read_scene(
     path: Source,
     *,
     fmt: str | None = None,
-    registry: dict | None = None,
+    registry: dict[str, Any] | None = None,
     **opts: object,
 ) -> SceneData:
     """Read a scene-graph file and return a SceneData.
@@ -189,7 +191,7 @@ def write_scene(
     path: Source,
     *,
     fmt: str | None = None,
-    registry: dict | None = None,
+    registry: dict[str, Any] | None = None,
     **opts: object,
 ) -> None:
     """Write a SceneData to a scene-graph file.
@@ -228,7 +230,7 @@ def read_image(
     path: Source,
     *,
     fmt: str | None = None,
-    registry: dict | None = None,
+    registry: dict[str, Any] | None = None,
     **opts: object,
 ) -> ImageData:
     """Read an image file and return an ImageData.
@@ -274,7 +276,7 @@ def write_image(
     path: Source,
     *,
     fmt: str | None = None,
-    registry: dict | None = None,
+    registry: dict[str, Any] | None = None,
     **opts: object,
 ) -> None:
     """Write an ImageData to an image file.

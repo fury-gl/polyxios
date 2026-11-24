@@ -580,7 +580,7 @@ def _surface_ids(poly: PolyData, surface: np.ndarray) -> np.ndarray:
 
 def _float_fmt(opts: dict[str, Any]) -> str:
     """Return the coordinate format specifier, refusing an unusable one."""
-    fmt = opts.pop("float_fmt", _DEFAULT_FLOAT_FMT)
+    fmt: str = opts.pop("float_fmt", _DEFAULT_FLOAT_FMT)
     if opts:
         warnings.warn(
             f".ugrid write: unrecognized options {set(opts)}; ignored.", stacklevel=3

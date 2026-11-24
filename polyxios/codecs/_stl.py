@@ -346,7 +346,7 @@ def _encode_colors(colors: np.ndarray | None, n_facets: int) -> np.ndarray:
     if not valid.any():
         return words
     scaled = np.clip(np.rint(values[valid] * _COLOR_MAX), 0, 31).astype(np.uint16)
-    packed = np.uint16(_COLOR_VALID_BIT)
+    packed: np.ndarray = np.uint16(_COLOR_VALID_BIT)
     for channel, shift in enumerate(_VISCAM_SHIFTS):
         packed = packed | (scaled[:, channel] << shift)
     words[valid] = packed
@@ -535,7 +535,7 @@ def _facet_colors(poly: PolyData, tri_indices: np.ndarray) -> np.ndarray | None:
     # channel and writes a white mesh.
     if values.dtype.kind in "iu":
         picked = picked / _INT_COLOR_MAX
-    return picked
+    return np.asarray(picked)
 
 
 def _write_binary(

@@ -35,7 +35,7 @@ import codecs
 import dataclasses
 from datetime import datetime
 import re
-from typing import Any
+from typing import Any, cast
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -433,7 +433,8 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
         *st.variants,
     )
 
-    bad = infinite_node(nodes=st.nodes)
+    scene_nodes = [n for n in st.nodes if n is not None]
+    bad = infinite_node(nodes=scene_nodes)
     if bad is not None:
         raise CodecError(f"{name!r}: node {bad} has a transform that is not finite.")
 
@@ -446,7 +447,7 @@ def read_scene(path: Source, **opts: Any) -> SceneData:
 
     return SceneData(
         meshes=polys,
-        nodes=tuple(st.nodes),
+        nodes=tuple(scene_nodes),
         materials=materials,
         textures=tuple(tex.textures),
         images=images[0],
@@ -583,6 +584,7 @@ def _as_utf8(raw: bytes, name: str) -> bytes:
     try:
         if encoding is None:
             raise LookupError("no encoding declared")
+        assert match is not None
         # Encoded back inside the guard: a codec such as UTF-7 decodes a lone
         # surrogate that UTF-8 refuses to spell.
         body = raw[match.end(0) :].decode(encoding).encode("utf-8")
@@ -591,6 +593,7 @@ def _as_utf8(raw: bytes, name: str) -> bytes:
             f"{name!r} is not well-formed XML: encoding {encoding!r} cannot "
             f"be read ({exc})."
         ) from exc
+    assert match is not None
     head = match.group(1) + b"UTF-8" + match.group(3)
     return head.removeprefix(b"\xef\xbb\xbf") + body
 
@@ -789,7 +792,9 @@ def _source(doc: _Doc, src: ET.Element, what: str) -> np.ndarray | list[str]:
         return [values[offset + i * stride] for i in range(count)]
     if cols is None:
         return values[offset:need].reshape(count, stride)
-    return values[offset + np.arange(count)[:, None] * stride + np.array(cols)]
+    return np.asarray(
+        values[offset + np.arange(count)[:, None] * stride + np.array(cols)]
+    )
 
 
 def _float_source(doc: _Doc, src: ET.Element, what: str) -> np.ndarray:
@@ -1125,7 +1130,7 @@ def _read_effect(
         base_color=(base[0], base[1], base[2], alpha),
         metallic=0.0,
         roughness=1.0,
-        emissive=tuple(emissive),
+        emissive=cast(tuple[float, float, float], tuple(emissive)),
         alpha_mode="BLEND" if alpha < 1.0 else "OPAQUE",
         double_sided=double_sided,
         base_color_texture=base_tex,
@@ -1576,14 +1581,14 @@ def _read_geometry(doc: _Doc, geo: ET.Element, slot: int) -> _Mesh:
         where = f"<{tag}> of geometry '{gid}'"
         what = f"{doc.name!r}: {where}"
         inputs = _children(prim, "input")
-        offsets = [
+        input_offsets = [
             _int(i.get("offset"), f"{what} input offset", default=0) for i in inputs
         ]
-        stride = max(offsets, default=-1) + 1
+        stride = max(input_offsets, default=-1) + 1
         vertex_input = None
         mapping: list[tuple[int, int, int]] = []  # (p column, mesh column, count)
         in_block: set[str] = set()
-        for inp, offset in zip(inputs, offsets, strict=True):
+        for inp, offset in zip(inputs, input_offsets, strict=True):
             semantic = inp.get("semantic", "")
             if not semantic:
                 _warn_unnamed_input(doc, what.removeprefix(f"{doc.name!r}: "))
@@ -1718,7 +1723,7 @@ def _read_geometry(doc: _Doc, geo: ET.Element, slot: int) -> _Mesh:
             positions_of = np.concatenate([positions_of, unused])
             verts = positions[positions_of]
             for name, values in attrs.items():
-                table = by_position.get(name)
+                table: np.ndarray | None = by_position.get(name)
                 tail = (
                     table[unused]
                     if table is not None and table.shape[1] == values.shape[1]
@@ -1902,14 +1907,14 @@ def _resolve_deferred(st: _State, slot: int) -> None:
 def _resolve_symbols(st: _State, mesh: _Mesh, bound: dict[str, int]) -> np.ndarray:
     """Return the material index of every element, one lookup per distinct symbol."""
     index_of: dict[str | None, int] = {None: -1}
-    missing: list[str] = []
-    guessed: list[str] = []
+    missing: list[str | None] = []
+    guessed: list[str | None] = []
     for sym, _ in mesh.symbols:
         if sym in index_of:
             continue
-        idx = bound.get(sym)
+        idx = bound.get(sym) if sym is not None else None
         if idx is None:
-            idx = st.material_index.get(sym)
+            idx = st.material_index.get(sym) if sym is not None else None
             if idx is not None and bound:
                 guessed.append(sym)
         if idx is None:
@@ -2191,6 +2196,7 @@ def _read_scenes(st: _State) -> tuple[tuple[tuple[int, ...], ...], int, str]:
                 active = i
                 break
         else:
+            assert inst is not None
             raise CodecError(
                 f"{doc.name!r}: <scene> instances {inst.get('url')!r}, which is not "
                 "a visual_scene."
@@ -2537,16 +2543,18 @@ def _resolve_skins(
         return []
     index = _index_of(st)
     scene_span: dict[int, tuple[int, int]] = {}
-    for roots in scenes:
-        if roots:
+    for scene_roots in scenes:
+        if scene_roots:
             span = (
-                min(index.first[r] for r in roots),
-                max(index.end[r] for r in roots),
+                min(index.first[r] for r in scene_roots),
+                max(index.end[r] for r in scene_roots),
             )
-            scene_span.update(dict.fromkeys(roots, span))
+            scene_span.update(dict.fromkeys(scene_roots, span))
     skins: list[dict[str, Any]] = []
     entry_of: dict[tuple[int, tuple[int, ...], tuple[int, ...]], int] = {}
-    bound: dict[tuple[int, tuple[int, ...], int], tuple[list[int], list, list]] = {}
+    bound: dict[
+        tuple[int, tuple[int, ...], int], tuple[list[int], list[Any], list[Any]]
+    ] = {}
     named: dict[int, set[str]] = {}
     cap = 16 * st.max_nodes
     n_bound = 0
@@ -2563,11 +2571,13 @@ def _resolve_skins(
         names = named.get(id(data))
         if names is None:
             names = named[id(data)] = {n.split("/", 1)[0] for n in data.names}
-        extras = st.nodes[anchor].extras
+        anchor_node = st.nodes[anchor]
+        assert anchor_node is not None
+        extras = anchor_node.extras
         context = anchor
         if (
             index.parent[anchor] >= 0
-            and not st.nodes[anchor].children
+            and not anchor_node.children
             and not (extras.get("id") in names or extras.get("sid") in names)
         ):
             context = index.parent[anchor]
@@ -2606,7 +2616,7 @@ def _resolve_skins(
                 _spend(st, data.ibm.nbytes, f"instances of skin {data.name!r}")
             entry: dict[str, Any] = {
                 "name": data.name,
-                "joints": list(joints),
+                "joints": list[Any](joints),
                 "inverse_bind_matrices": data.ibm.copy() if data.handed else data.ibm,
             }
             data.handed = True
@@ -2649,9 +2659,9 @@ def _sampler(
     st: _State, elem: ET.Element, cache: dict[int, dict[str, Any]]
 ) -> dict[str, Any]:
     doc = st.doc
-    known = cache.get(id(elem))
-    if known is not None:
-        return known
+    cached = cache.get(id(elem))
+    if cached is not None:
+        return cached
     what = f"sampler '{elem.get('id', '?')}'"
     out: dict[str, Any] = {"interpolation": "LINEAR"}
     times = values = None
@@ -2740,7 +2750,7 @@ def _index_of(st: _State) -> _SidIndex:
 
 
 def _sid_index(st: _State) -> _SidIndex:
-    nodes = st.nodes
+    nodes = [n for n in st.nodes if n is not None]
     n = len(nodes)
     parent = [-1] * n
     for idx, node in enumerate(nodes):
@@ -2887,7 +2897,7 @@ def _targets(
 
     Returns
     -------
-    targets : list of dict
+    targets : list[Any] of dict
         One target per node reached.
     missed : int
         The number of ``<node>`` elements holding the id on which the
@@ -2906,13 +2916,14 @@ def _targets(
             break
     out: list[dict[str, Any]] = []
     seen: set[int] = set()
-    missed_from: set[int] = set()
+    missed_from: set[int | None] = set()
     for head in st.nodes_by_id.get(parts[0], []):
         source = st.element_of.get(head)
         if source in missed_from:
             continue
         node_idx: int | None = head
         for part in parts[1:-1]:
+            assert node_idx is not None
             node_idx = _descendant_by_sid(index, node_idx, part)
             if node_idx is None:
                 break
@@ -4079,21 +4090,21 @@ def _texture_frame(
 
     Returns
     -------
-    attrs : dict
+    attrs : dict[str, Any]
         The attributes in their order, ``tangents`` replaced by its frame.
         ``tangents`` that are not a row of 3 or 4 numbers per vertex are
         left for the caller to drop; without ``normals`` of 3 columns the
         handedness is dropped with a warning, and a handedness other than
         -1 or 1 (0 or NaN among them) is taken as -1 when negative, else 1,
         with a warning.
-    displaced : list of str
+    displaced : list[Any] of str
         The keys of the frame's set that the frame replaces and no COLLADA
         input holds, left for the caller to report. A set-0 ``texbinormal``
         of 3 numbers per vertex with no ``textangent`` of 3 beside it does
         not hold set 0 against a frame with a bitangent: it gives way, with
         a warning of its own, so the frame keeps the one set a glTF write
         reads.
-    frame : tuple of str
+    frame : tuple[Any, ...] of str
         The keys written from ``tangents``, empty when it is left as is.
     """
     arr = np.asarray(attrs.get("tangents"))
@@ -4198,7 +4209,7 @@ def _geometry_xml(
     for base in _ATTR_PARAMS:
         suffixes = [_set_of(k, base) for k in attrs]
         used_sets[base] = {int(s) for s in suffixes if s}
-    given_sets = {base: set(taken) for base, taken in used_sets.items()}
+    given_sets = {base: set[Any](taken) for base, taken in used_sets.items()}
     for key, table in attrs.items():
         if key in ("joints", "weights"):
             if not skinned:
@@ -4525,7 +4536,7 @@ def _gather(starts: np.ndarray, sizes: np.ndarray) -> np.ndarray:
     total = int(sizes.sum())
     run = np.repeat(np.arange(len(sizes)), sizes)
     heads = np.cumsum(sizes) - sizes
-    return starts[run] + np.arange(total) - heads[run]
+    return np.asarray(starts[run] + np.arange(total) - heads[run])
 
 
 def _emission_order(
@@ -4554,9 +4565,9 @@ def _emission_order(
 
     Returns
     -------
-    order : dict
+    order : dict[str, Any]
         ``node -> rank`` for every node a scene reaches, copies included.
-    alias : dict
+    alias : dict[str, Any]
         ``copy -> node`` for every node of a copied subtree.
     """
     order: dict[int, int] = {}
@@ -4686,11 +4697,17 @@ def _moved_skin(scene: SceneData, a: Any, b: Any, moved: dict[int, int]) -> bool
         vb = sb[key]
         if key == "joints":
             try:
-                same = list(va) == [copy_of.get(_index(j), j) for j in vb]
+                same = list(va) == [
+                    copy_of[nxt]
+                    if (nxt := _index(j)) is not None and nxt in copy_of
+                    else j
+                    for j in vb
+                ]
             except TypeError:
                 return False
         elif key == "skeleton":
-            same = va == copy_of.get(_index(vb), vb)
+            nxt = _index(vb)
+            same = va == (copy_of[nxt] if nxt is not None and nxt in copy_of else vb)
         elif isinstance(va, np.ndarray) or isinstance(vb, np.ndarray):
             same = np.shape(va) == np.shape(vb) and bool(np.array_equal(va, vb))
         else:
@@ -4761,13 +4778,13 @@ def _spelled(node: SceneNode) -> tuple[list[dict[str, Any]], bool]:
         ):
             out: list[dict[str, Any]] = []
             seen: set[str] = set()
-            for t, values in zip(spelled, numbers, strict=True):
+            for t, nums in zip(spelled, numbers, strict=True):
                 sid = _transform_sid(t.get("sid"))
                 if sid in seen:
                     sid = None
                 elif sid is not None:
                     seen.add(sid)
-                out.append({**t, "sid": sid, "values": values})
+                out.append({**t, "sid": sid, "values": nums})
             return out, True
     return [
         {
@@ -5084,6 +5101,7 @@ def _plan_skins(
         skeleton = "".join(f"<skeleton>#{ids.node(r)}</skeleton>" for r in entry.roots)
         for n in users[k]:
             m = scene.nodes[n].mesh
+            assert m is not None
             if (m, k) not in controllers:
                 cid = ids.controller(len(controllers))
                 xml = _controller_xml(
@@ -5093,9 +5111,9 @@ def _plan_skins(
                 if xml is not None:
                     parts.append(xml)
                     plan.meshes.add(m)
-            cid = controllers[m, k]
-            if cid is not None:
-                plan.instance[n] = (cid, skeleton)
+            hit = controllers[m, k]
+            if hit is not None:
+                plan.instance[n] = (hit, skeleton)
     plan.xml = "".join(parts)
     return plan
 
@@ -5135,7 +5153,7 @@ def _skin_entry(
             "written."
         )
         return None
-    joints = [alias.get(j, j) for j in joints]
+    joints = [alias.get(j, j) for j in joints if j is not None]
     ibm = skin.get("inverse_bind_matrices")
     if ibm is None:
         if skin.get("inverseBindMatrices") is not None:
@@ -5237,7 +5255,7 @@ def _joint_names(
                 stack.extend(ids.alias.get(c, c) for c in scene.nodes[idx].children)
         sids = [ids.given_sids[j] for j in joints]
         if all(s is not None and count.get(s) == 1 for s in sids):
-            return "Name_array", sids
+            return "Name_array", [s for s in sids if s is not None]
     return "IDREF_array", [ids.node(j) for j in joints]
 
 
@@ -5452,7 +5470,9 @@ def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -
             hit = None
             for t in spelled:
                 if (sid is not None and t.get("sid") == sid) or (
-                    sid is None and t["kind"] == _KIND_OF_PATH.get(path)
+                    sid is None
+                    and t["kind"]
+                    == (_KIND_OF_PATH.get(path) if path is not None else None)
                 ):
                     hit = t
                     break
@@ -5538,9 +5558,9 @@ def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -
                     "channel is dropped."
                 )
                 if node_idx in waiting:
-                    _, s, address, key, copy_idx = waiting[node_idx]
-                    if key is not None:
-                        lone[key] = copy_idx
+                    _, s, address, wait_key, copy_idx = waiting[node_idx]
+                    if wait_key is not None:
+                        lone[wait_key] = copy_idx
                     channels[channels.index(node_idx)] = _channel_xml(
                         samplers=samplers,
                         s=s,
@@ -5595,7 +5615,7 @@ def _animations_xml(scene: SceneData, ids: _Ids, written: set[int], name: str) -
 
 def _channel_xml(
     *,
-    samplers: list[Any],
+    samplers: list[Any] | tuple[Any, ...],
     s: int,
     aid: str,
     a: int,

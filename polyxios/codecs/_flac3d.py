@@ -146,7 +146,7 @@ def _extent_cubed(
             elif v > hi:
                 hi = v
         total += (hi - lo) ** 2
-    return total**1.5
+    return float(total**1.5)
 
 
 def _strip_comment(line: str) -> str:
@@ -429,7 +429,7 @@ def read(path: Source, *, lazy: bool = False) -> PolyData:
     n_dup: dict[str, int] = {"ZONE": 0, "FACE": 0}
     n_bad: dict[str, int] = {"ZONE": 0, "FACE": 0}
     first_bad: dict[str, str] = {"ZONE": "", "FACE": ""}
-    unknown_types: dict[str, set[str]] = {"ZONE": set(), "FACE": set()}
+    unknown_types: dict[str, set[str]] = {"ZONE": set[Any](), "FACE": set[Any]()}
     inline_groups: dict[str, list[int]] = {}
     current_group: str | None = None
     current_kind = "ZONE"

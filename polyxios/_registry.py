@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import NamedTuple
+from typing import Any, NamedTuple, NoReturn
 import warnings
 
 from polyxios._io import (
@@ -61,16 +61,16 @@ class Codec(NamedTuple):
         that cannot write an ``ImageData`` directly.
     """
 
-    read: Callable
-    write: Callable
-    sniff: Callable | None = None
+    read: Callable[..., Any]
+    write: Callable[..., None]
+    sniff: Callable[..., Any] | None = None
     candidates: tuple[str, ...] = ()
-    read_scene: Callable | None = None
-    write_scene: Callable | None = None
+    read_scene: Callable[..., Any] | None = None
+    write_scene: Callable[..., Any] | None = None
     entries: tuple[tuple[str, "Codec"], ...] = ()
     owner: "Codec | None" = None
-    read_image: Callable | None = None
-    write_image: Callable | None = None
+    read_image: Callable[..., Any] | None = None
+    write_image: Callable[..., Any] | None = None
 
 
 # How much of a file's opening the sniffers see. Large enough that a Nastran
@@ -145,6 +145,7 @@ def _run_sniffers(
     broken: list[str] = []
     for label, codec in entries:
         try:
+            assert codec.sniff is not None
             matched = bool(codec.sniff(head))
         except Exception as exc:  # a broken sniffer must not mask the rest
             broken.append(f"{label} ({exc})")
@@ -164,7 +165,7 @@ def _sniff_no_match_error(
     entries: list[tuple[str, "Codec"]],
     shared: str,
     no_match: str,
-) -> None:
+) -> NoReturn:
     """Raise :exc:`~polyxios.exceptions.UnsupportedFormatError` after a failed sniff.
 
     Call only when every sniffer was tried and no default fallback applies.
@@ -278,7 +279,7 @@ def _make_dispatcher(
         )
 
     dispatcher_read_scene = _dispatcher_read_scene if scene_entries else None
-    dispatcher_write_scene: Callable | None = None
+    dispatcher_write_scene: Callable[..., Any] | None = None
     if default_writer is not None and default_writer[1].write_scene is not None:
         dispatcher_write_scene = _dispatcher_write_scene
 
@@ -305,10 +306,11 @@ def _make_dispatcher(
 
         Only installed when that codec writes images, so it is always there.
         """
+        assert default_writer is not None
         default_writer[1].write_image(image=image, path=path, **opts)
 
     dispatcher_read_image = _dispatcher_read_image if image_entries else None
-    dispatcher_write_image: Callable | None = None
+    dispatcher_write_image: Callable[..., Any] | None = None
     if default_writer is not None and default_writer[1].write_image is not None:
         dispatcher_write_image = _dispatcher_write_image
 

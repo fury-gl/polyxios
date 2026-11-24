@@ -1,0 +1,12 @@
+import subprocess
+
+out = subprocess.run(
+    ["python", "-m", "mypy", "polyxios"],
+    capture_output=True,
+    text=True,
+)
+lines = [l for l in (out.stdout + out.stderr).splitlines() if "error:" in l]
+for line in lines:
+    if "\\codecs\\_gltf.py" in line or "_gltf.py:" in line:
+        print(line)
+print("TOTAL", len([l for l in lines if "_gltf.py" in l]))

@@ -388,7 +388,7 @@ def _uniform_colors(color: tuple[float, float, float], n_verts: int) -> np.ndarr
 
     Parameters
     ----------
-    color : tuple of float
+    color : tuple[Any, ...] of float
         RGB components in [0, 1].
     n_verts : int
         Number of vertices to color.
@@ -820,7 +820,7 @@ def array_to_image(
     pixels: np.ndarray,
     *,
     origin: str = "upper",
-    global_attrs: dict | None = None,
+    global_attrs: dict[str, Any] | None = None,
 ) -> ImageData:
     """Wrap a pixel array as a flat :class:`~polyxios.ImageData`.
 

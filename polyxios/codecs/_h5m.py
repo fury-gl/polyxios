@@ -117,7 +117,7 @@ _READ_ORDER: dict[str, tuple[int, ...]] = {
     "triquadratic_hexahedron": (*_HEX_ORDER, 23, 21, 20, 22, 24, 25, 26),
 }
 _WRITE_ORDER: dict[str, tuple[int, ...]] = {
-    name: tuple(order.index(i) for i in range(len(order)))
+    name: tuple[Any, ...](order.index(i) for i in range(len(order)))
     for name, order in _READ_ORDER.items()
 }
 
@@ -209,7 +209,7 @@ def read(path: Source, *, lazy: bool = False, **opts: Any) -> PolyData:
                 f"'{name}': 'tstt/nodes/coordinates' is not an (n, dim) block."
             )
         n_verts = len(coords)
-        validate_header(n_verts, 0, 0, ctx["file_size"], compressed=True)
+        validate_header(n_verts, 0, 0, int(ctx["file_size"]), compressed=True)
         node_start = _start_id(nodes["coordinates"])
         vertices = np.zeros((n_verts, 3), dtype=np.float64)
         vertices[:, : min(3, coords.shape[1])] = coords[:, :3]

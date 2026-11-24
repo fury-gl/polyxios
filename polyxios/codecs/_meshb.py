@@ -2,6 +2,7 @@
 
 import mmap
 import struct
+from typing import Any
 import warnings
 
 import numpy as np
@@ -384,7 +385,7 @@ def _element_refs(poly: PolyData, n_elems: int) -> np.ndarray | None:
     return held.values if held.named else None
 
 
-def _write_i32(fh, v: int) -> None:
+def _write_i32(fh: Any, v: int) -> None:
     fh.write(struct.pack("<i", v))
 
 

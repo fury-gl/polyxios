@@ -849,7 +849,9 @@ def raster_pixels(
     return np.ascontiguousarray(plane), mode
 
 
-def warn_left_out(global_attrs: dict, *, fmt: str, written: frozenset[str]) -> None:
+def warn_left_out(
+    global_attrs: dict[str, Any], *, fmt: str, written: frozenset[str]
+) -> None:
     """Warn about the ``global_attrs`` keys a file has no place for.
 
     Parameters

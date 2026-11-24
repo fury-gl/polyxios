@@ -337,7 +337,7 @@ def _inline_build(
     sx: float,
     sy: float,
     sz: float,
-    params: dict,
+    params: dict[str, Any],
 ) -> PolyData:
     """Materialise an INLINE mesh for any supported MFEM element type."""
     x = np.linspace(0.0, sx, nx + 1)
@@ -1093,9 +1093,9 @@ def _elements(
     -------
     connectivity : numpy.ndarray
         int32 vertex indices.
-    offsets : list of int
+    offsets : list[Any] of int
         CSR offsets, starting at 0.
-    types : list of int
+    types : list[Any] of int
         polyxios type codes.
 
     Raises

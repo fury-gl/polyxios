@@ -322,7 +322,7 @@ def write(
         attrs: dict[str, str] = {"index": str(out_idx)}
         for j, attr in enumerate(node_attrs):
             attrs[attr] = str(int(poly.connectivity[s + j]))
-        ET.SubElement(cells_el, celltype_name, **attrs)
+        ET.SubElement(cells_el, celltype_name, attrs)
 
     ET.indent(root)
     tree = ET.ElementTree(root)
