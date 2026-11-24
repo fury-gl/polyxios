@@ -1,7 +1,0 @@
-polyxios\codecs\_vtk_xml.py: error: Duplicate module named "polyxios.codecs._vtk_xml" (also at "polyxios\codecs\_vtk_xml.py")
-polyxios\codecs\_vtk_xml.py: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#mapping-file-paths-to-modules for more info
-polyxios\codecs\_vtk_xml.py: note: Common resolutions include:
-polyxios\codecs\_vtk_xml.py: note:     a) using `--exclude` to avoid checking one of them,
-polyxios\codecs\_vtk_xml.py: note:     b) adding `__init__.py` somewhere,
-polyxios\codecs\_vtk_xml.py: note:     c) using `--explicit-package-bases` or adjusting `MYPYPATH`
-Found 1 error in 1 file (errors prevented further checking)

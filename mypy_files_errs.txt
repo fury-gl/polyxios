@@ -1,1 +1,0 @@
-polyxios\codecs\_vtk_xml.py: error: Duplicate module named "polyxios.codecs._vtk_xml" (also at "polyxios\codecs\_vtk_xml.py")
